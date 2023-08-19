@@ -1494,6 +1494,11 @@ export class Assets extends CborData {
      */
     constructor(props?: AssetsProps);
     /**
+     * @private
+     * @type {[MintingPolicyHash, [ByteArray, HInt][]][]}
+     */
+    private assets;
+    /**
      * Returns a list of all the minting policies.
      * @type {MintingPolicyHash[]}
      */
@@ -1608,7 +1613,6 @@ export class Assets extends CborData {
      */
     sort(): void;
     assertSorted(): void;
-    #private;
 }
 /**
  * @typedef {HInt | HIntProps | [
@@ -3964,12 +3968,13 @@ export class BlockfrostV0 implements Network {
      */
     getLatestEpoch(): Promise<any>;
     /**
+     * If the UTxO isn't found an error is throw with the following message format: "UTxO <txId.utxoId> not found".
      * @param {TxOutputId} id
      * @returns {Promise<TxInput>}
      */
     getUtxo(id: TxOutputId): Promise<TxInput>;
     /**
-     * Used by BlockfrostV0.resolve()
+     * Used by `BlockfrostV0.resolve()`.
      * @param {TxInput} utxo
      * @returns {Promise<boolean>}
      */

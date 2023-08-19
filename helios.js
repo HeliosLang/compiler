@@ -251,7 +251,7 @@
 //                                           IRNameExpr, IRLiteralExpr, IRConstExpr, IRFuncExpr, 
 //                                           IRCallExpr, IRCoreCallExpr, IRUserCallExpr, 
 //                                           IRAnonCallExpr, IRNestedAnonCallExpr, IRFuncDefExpr, 
-//                                           IRErrorCallExpr
+//                                           IRErrorCallExpr, IRSimplifyAsExpr
 //
 //     Section 29: IR AST build functions    buildIRExpr, buildIRFuncExpr
 //
@@ -8946,9 +8946,10 @@ export class AssetClass extends HeliosData {
  */
 export class Assets extends CborData {
 	/** 
+	 * @private
 	 * @type {[MintingPolicyHash, [ByteArray, HInt][]][]} 
 	 */
-	#assets;
+	assets;
 
 	/**
 	 * **Note**: the assets are normalized by removing entries with 0 tokens, and merging all entries with the same MintingPolicyHash and token name.
@@ -8957,7 +8958,7 @@ export class Assets extends CborData {
 	constructor(props = []) {
 		super();
 
-		this.#assets = props.map((outerPair) => {
+		this.assets = props.map((outerPair) => {
 			if (Array.isArray(outerPair[1])) {
 				const mph = MintingPolicyHash.fromProps(outerPair[0]);
 
@@ -9002,7 +9003,7 @@ export class Assets extends CborData {
 	 * @type {MintingPolicyHash[]}
 	 */
 	get mintingPolicies() {
-		return this.#assets.map(([mph, _]) => mph);
+		return this.assets.map(([mph, _]) => mph);
 	}
 
 	/**
@@ -9011,7 +9012,7 @@ export class Assets extends CborData {
 	get nTokenTypes() {
 		let count = 0;
 
-		this.#assets.forEach(([mph, tokens]) => {
+		this.assets.forEach(([mph, tokens]) => {
 			tokens.forEach(([tokenName, _]) => {
 				count += 1
 			})
@@ -9026,10 +9027,10 @@ export class Assets extends CborData {
 	 * @returns {[ByteArray, HInt][]}
 	 */
 	getTokens(mph) {
-		const i = this.#assets.findIndex(entry => entry[0].eq(mph));
+		const i = this.assets.findIndex(entry => entry[0].eq(mph));
 
 		if (i != -1) {
-			return this.#assets[i][1];
+			return this.assets[i][1];
 		} else {
 			return [];
 		}
@@ -9039,7 +9040,7 @@ export class Assets extends CborData {
 	 * @returns {boolean}
 	 */
 	isZero() {
-		return this.#assets.length == 0;
+		return this.assets.length == 0;
 	}
 
 	/**
@@ -9051,7 +9052,7 @@ export class Assets extends CborData {
 		const mph_ = MintingPolicyHash.fromProps(mph);
 		const tokenName_ = ByteArray.fromProps(tokenName);
 
-		const inner = this.#assets.find(asset => mph_.eq(asset[0]));
+		const inner = this.assets.find(asset => mph_.eq(asset[0]));
 
 		if (inner !== undefined) {
 			return inner[1].findIndex(pair => pair[0].eq(tokenName_)) != -1;
@@ -9069,7 +9070,7 @@ export class Assets extends CborData {
 		const mph_ = MintingPolicyHash.fromProps(mph);
 		const tokenName_ = ByteArray.fromProps(tokenName);
 
-		const inner = this.#assets.find(asset => mph_.eq(asset[0]));
+		const inner = this.assets.find(asset => mph_.eq(asset[0]));
 
 		if (inner !== undefined) {
 			const token = inner[1].find(pair => pair[0].eq(tokenName_));
@@ -9088,11 +9089,11 @@ export class Assets extends CborData {
 	 * Mutates 'this'
 	 */
 	removeZeroes() {
-		for (let asset of this.#assets) {
+		for (let asset of this.assets) {
 			asset[1] = asset[1].filter(token => !token[1].eq(0n));
 		}
 
-		this.#assets = this.#assets.filter(asset => asset[1].length != 0);
+		this.assets = this.assets.filter(asset => asset[1].length != 0);
 	}
 
 	/**
@@ -9106,7 +9107,7 @@ export class Assets extends CborData {
 		 */
 		const assets = new Map();
 
-		for (let [mph, tokens] of this.#assets) {
+		for (let [mph, tokens] of this.assets) {
 			let outerPrev = assets.get(mph.hex);
 
 			if (!outerPrev) {
@@ -9130,7 +9131,7 @@ export class Assets extends CborData {
 
 		const entries = Array.from(assets.entries());
 
-		this.#assets = entries.map(([rawMph, rawTokens]) => {
+		this.assets = entries.map(([rawMph, rawTokens]) => {
 			const tokens = Array.from(rawTokens.entries());
 
 			return [MintingPolicyHash.fromProps(rawMph), tokens.map(([rawTokenName, rawQty]) => {
@@ -9154,10 +9155,10 @@ export class Assets extends CborData {
 			return;
 		}
 
-		const inner = this.#assets.find(asset => mph_.eq(asset[0]));
+		const inner = this.assets.find(asset => mph_.eq(asset[0]));
 
 		if (inner === undefined) {
-			this.#assets.push([mph_, [[tokenName_, qty_]]]);
+			this.assets.push([mph_, [[tokenName_, qty_]]]);
 		} else {
 			const token = inner[1].find(pair => pair[0].eq(tokenName_));
 
@@ -9180,13 +9181,13 @@ export class Assets extends CborData {
 	applyBinOp(other, op) {
 		let res = new Assets();
 
-		for (let [mph, tokens] of this.#assets) {
+		for (let [mph, tokens] of this.assets) {
 			for (let [tokenName, quantity] of tokens) {
 				res.addComponent(mph, tokenName, new HInt(op(quantity.value, 0n)));
 			}
 		}
 
-		for (let [mph, tokens] of other.#assets) {
+		for (let [mph, tokens] of other.assets) {
 			for (let [tokenName, quantity] of tokens) {
 				res.addComponent(mph, tokenName, new HInt(op(0n, quantity.value)));
 			}
@@ -9218,7 +9219,7 @@ export class Assets extends CborData {
 	mul(scalar) {
 		const s = HInt.fromProps(scalar);
 
-		return new Assets(this.#assets.map(([mph, tokens]) => {
+		return new Assets(this.assets.map(([mph, tokens]) => {
 			/**
 			 * @type {[MintingPolicyHash, [ByteArray, HInt][]]}
 			 */
@@ -9237,7 +9238,7 @@ export class Assets extends CborData {
 	addTokens(mph, tokens) {
 		const mph_ = MintingPolicyHash.fromProps(mph);
 
-		for (let asset of this.#assets) {
+		for (let asset of this.assets) {
 			if (asset[0].eq(mph_)) {
 				throw new Error(`MultiAsset already contains ${mph_.hex}`);
 			}
@@ -9251,7 +9252,7 @@ export class Assets extends CborData {
 			return ByteArrayData.comp(a[0].bytes, b[0].bytes)
 		});
 
-		this.#assets.push([mph_, tokens_]);
+		this.assets.push([mph_, tokens_]);
 
 		// sort immediately
 		this.sort();
@@ -9264,7 +9265,7 @@ export class Assets extends CborData {
 	getTokenNames(mph) {
 		const mph_ = MintingPolicyHash.fromProps(mph);
 
-		for (let [otherMph, tokens] of this.#assets) {
+		for (let [otherMph, tokens] of this.assets) {
 			if (otherMph.eq(mph_)) {
 				return tokens.map(([tokenName, _]) => tokenName);
 			}
@@ -9278,7 +9279,7 @@ export class Assets extends CborData {
 	 * @returns {boolean}
 	 */
 	eq(other) {
-		for (let asset of this.#assets) {
+		for (let asset of this.assets) {
 			for (let token of asset[1]) {
 				if (token[1].neq(other.get(asset[0], token[0]))) {
 					return false;
@@ -9286,7 +9287,7 @@ export class Assets extends CborData {
 			}
 		}
 
-		for (let asset of other.#assets) {
+		for (let asset of other.assets) {
 			for (let token of asset[1]) {
 				if (token[1].neq(this.get(asset[0], token[0]))) {
 					return false;
@@ -9307,7 +9308,7 @@ export class Assets extends CborData {
 			return false;
 		}
 
-		for (let asset of this.#assets) {
+		for (let asset of this.assets) {
 			for (let token of asset[1]) {
 				if (token[1].le(other.get(asset[0], token[0]))) {
 					return false;
@@ -9315,7 +9316,7 @@ export class Assets extends CborData {
 			}
 		}
 
-		for (let asset of other.#assets) {
+		for (let asset of other.assets) {
 			for (let token of asset[1]) {
 				if (!this.has(asset[0], token[0])) {
 					return false;
@@ -9335,7 +9336,7 @@ export class Assets extends CborData {
 			return other.isZero();
 		}
 
-		for (let asset of this.#assets) {
+		for (let asset of this.assets) {
 			for (let token of asset[1]) {
 				if (token[1].lt(other.get(asset[0], token[0]))) {
 					return false;
@@ -9343,7 +9344,7 @@ export class Assets extends CborData {
 			}
 		}
 
-		for (let asset of other.#assets) {
+		for (let asset of other.assets) {
 			for (let token of asset[1]) {
 				if (!this.has(asset[0], token[0])) {
 					return false;
@@ -9358,7 +9359,7 @@ export class Assets extends CborData {
 	 * @returns {boolean}
 	 */
 	allPositive() {
-		for (let asset of this.#assets) {
+		for (let asset of this.assets) {
 			for (let pair of asset[1]) {
 				if (pair[1].lt(0n)) {
 					return false;
@@ -9383,7 +9384,7 @@ export class Assets extends CborData {
 	 */
 	toCbor() {
 		return Cbor.encodeMap(
-			this.#assets.map(
+			this.assets.map(
 				outerPair => {
 					return [outerPair[0].toCbor(), Cbor.encodeMap(outerPair[1].map(
 						innerPair => [innerPair[0].toCbor(), innerPair[1].toCbor()]
@@ -9415,7 +9416,7 @@ export class Assets extends CborData {
 				]);
 			});
 
-			ms.#assets.push([mph, innerMap]);
+			ms.assets.push([mph, innerMap]);
 		});
 
 		return ms;
@@ -9427,7 +9428,7 @@ export class Assets extends CborData {
 	dump() {
 		let obj = {};
 
-		for (let [mph, tokens] of this.#assets) {
+		for (let [mph, tokens] of this.assets) {
 			let innerObj = {};
 
 			for (let [tokenName, quantity] of tokens) {
@@ -9448,7 +9449,7 @@ export class Assets extends CborData {
 		/** @type {[UplcData, UplcData][]} */
 		const pairs = [];
 
-		for (let asset of this.#assets) {
+		for (let asset of this.assets) {
 			/** @type {[UplcData, UplcData][]} */
 			const innerPairs = [];
 
@@ -9474,15 +9475,15 @@ export class Assets extends CborData {
 	 * Order of tokens per mintingPolicyHash isn't changed
 	 */
 	sort() {
-		this.#assets.sort((a, b) => {
+		this.assets.sort((a, b) => {
 			return Hash.compare(a[0], b[0]);
 		});
 	}
 
 	assertSorted() {
-		this.#assets.forEach((b, i) => {
+		this.assets.forEach((b, i) => {
 			if (i > 0) {
-				const a = this.#assets[i-1];
+				const a = this.assets[i-1];
 
 				assert(Hash.compare(a[0], b[0]) == -1, "assets not sorted")
 			}
@@ -9669,8 +9670,8 @@ export class Value extends HeliosData {
 	 */
 	add(other) {
 		return new Value({
-			lovelace: this.#lovelace.add(other.#lovelace), 
-			assets: this.#assets.add(other.#assets)
+			lovelace: this.#lovelace.add(other.lovelace), 
+			assets: this.#assets.add(other.assets)
 		});
 	}
 
@@ -9681,8 +9682,8 @@ export class Value extends HeliosData {
 	 */
 	sub(other) {
 		return new Value({
-			lovelace: this.#lovelace.sub(other.#lovelace), 
-			assets: this.#assets.sub(other.#assets)
+			lovelace: this.#lovelace.sub(other.lovelace), 
+			assets: this.#assets.sub(other.assets)
 		});
 	}
 
@@ -9704,7 +9705,7 @@ export class Value extends HeliosData {
 	 * @returns {boolean}
 	 */
 	eq(other) {
-		return this.#lovelace.eq(other.#lovelace) && (this.#assets.eq(other.#assets));
+		return this.#lovelace.eq(other.lovelace) && (this.#assets.eq(other.assets));
 	}
 
 	/**
@@ -9713,7 +9714,7 @@ export class Value extends HeliosData {
 	 * @returns {boolean}
 	 */
 	gt(other) {
-		return this.#lovelace.gt(other.#lovelace) && (this.#assets.gt(other.#assets));
+		return this.#lovelace.gt(other.lovelace) && (this.#assets.gt(other.assets));
 	}
 
 	/**
@@ -9722,7 +9723,7 @@ export class Value extends HeliosData {
 	 * @returns {boolean}
 	 */
 	ge(other) {
-		return this.#lovelace.ge(other.#lovelace) && (this.#assets.ge(other.#assets));
+		return this.#lovelace.ge(other.lovelace) && (this.#assets.ge(other.assets));
 	}
 
 	/**
@@ -42050,6 +42051,123 @@ export class IRErrorCallExpr extends IRExpr {
 	}
 }
 
+/**
+ * @internal
+ */
+export class IRSimplifyAsExpr extends IRExpr {
+	#orig;
+	#simplified;
+
+	/**
+	 * @param {Site} site
+	 * @param {IRExpr} orig 
+	 * @param {IRExpr} simplified 
+	 */
+	constructor(site, orig, simplified) {
+		super(site);
+
+		this.#orig = orig;
+		this.#simplified = simplified;
+	}
+
+	/**
+	 * @param {string} indent
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		return `__sas(${this.#orig.toString(indent)}, ${this.#simplified.toString(indent)})`;
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	resolveNames(scope) {
+		this.#orig.resolveNames(scope);
+		this.#simplified.resolveNames(scope);
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	evalConstants(stack) {
+		return new IRSimplifyAsExpr(
+			this.site,
+			this.#orig.evalConstants(stack),
+			this.#simplified.evalConstants(stack)
+		);
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {null | IRValue}
+	 */
+	eval(stack) {
+		return this.#simplified.eval(stack);
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals 
+	 * @returns {IRExpr}
+	 */
+	simplifyLiterals(literals) {
+		return this.#simplified.simplifyLiterals(literals);
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		this.#orig.registerNameExprs(nameExprs);
+		this.#simplified.registerNameExprs(nameExprs);
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars 
+	 * @returns {IRExpr}
+	 */
+	copy(newVars) {
+		return new IRSimplifyAsExpr(
+			this.site,
+			this.#orig.copy(newVars),
+			this.#simplified.copy(newVars)
+		);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		return this.#simplified.simplifyTopology(registry);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		return this.#simplified.simplifyUnused(registry);
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		return this.#simplified.simplifyUnusedRecursionArgs(fnVar, remaining);
+	}
+
+	/**
+	 * If the IRSimplifyAsExpr instance still exists in the Ast, then return the Uplc of the original expression
+	 * @returns {UplcTerm}
+	 */
+	toUplc() {
+		return this.#orig.toUplc()
+	}
+}
+
 
 /////////////////////////////////////
 // Section 29: IR AST build functions
@@ -42158,6 +42276,26 @@ export function buildIRExpr(ts) {
 					
 					expr = new IRErrorCallExpr(t.site, "");
 				}
+			} else if (t.isWord("__sas")) {
+				assert(expr === null, "unexpected expr before '__sas'");
+
+				let maybeGroup = ts.shift();
+				if (!maybeGroup) {
+					throw t.site.syntaxError("expected parens after __sas");
+				}
+
+				const group = maybeGroup.assertGroup("(", );
+
+				if (!group) {
+					throw t.site.syntaxError("expected parens with two entries after '__sas'");
+				}
+				
+				expr = new IRSimplifyAsExpr(
+					t.site,
+					buildIRExpr(group.fields[0]),
+					buildIRExpr(group.fields[1])
+				);
+
 			} else if (t.isWord()) {
 				const w = assertDefined(t.assertWord(), "expected word");
 
@@ -50820,6 +50958,7 @@ export class BlockfrostV0 {
     }
 
     /**
+     * If the UTxO isn't found an error is throw with the following message format: "UTxO <txId.utxoId> not found".
      * @param {TxOutputId} id
      * @returns {Promise<TxInput>}
      */
@@ -50835,7 +50974,19 @@ export class BlockfrostV0 {
             }
         });
 
-        const obj = (await response.json()).outputs[id.utxoIdx];
+        if (!response.ok) {
+            throw new Error(`UTxO ${id.toString()} not found`);
+        } else if (response.status != 200) {
+            throw new Error(`Blockfrost error: ${await response.text()}`);
+        }
+        
+        const outputs = (await response.json()).outputs;
+
+        const obj = outputs[id.utxoIdx];
+
+        if (!obj) {
+            throw new Error(`UTxO ${id.toString()} not found`);
+        }
 
         obj["tx_hash"] = txId.hex;
         obj["output_index"] = Number(id.utxoIdx);
@@ -50844,7 +50995,7 @@ export class BlockfrostV0 {
     }
 
     /**
-     * Used by BlockfrostV0.resolve()
+     * Used by `BlockfrostV0.resolve()`.
      * @param {TxInput} utxo
      * @returns {Promise<boolean>}
      */
@@ -50981,6 +51132,7 @@ export class BlockfrostV0 {
         const responseText = await response.text();
 
         if (response.status != 200) {
+            // analyze error and throw a different error if it was detected that an input UTxO might not exist
             throw new Error(responseText);
         } else {
             return new TxId(JSON.parse(responseText));

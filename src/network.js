@@ -179,6 +179,7 @@ export class BlockfrostV0 {
     }
 
     /**
+     * If the UTxO isn't found an error is throw with the following message format: "UTxO <txId.utxoId> not found".
      * @param {TxOutputId} id
      * @returns {Promise<TxInput>}
      */
@@ -194,7 +195,19 @@ export class BlockfrostV0 {
             }
         });
 
-        const obj = (await response.json()).outputs[id.utxoIdx];
+        if (!response.ok) {
+            throw new Error(`UTxO ${id.toString()} not found`);
+        } else if (response.status != 200) {
+            throw new Error(`Blockfrost error: ${await response.text()}`);
+        }
+        
+        const outputs = (await response.json()).outputs;
+
+        const obj = outputs[id.utxoIdx];
+
+        if (!obj) {
+            throw new Error(`UTxO ${id.toString()} not found`);
+        }
 
         obj["tx_hash"] = txId.hex;
         obj["output_index"] = Number(id.utxoIdx);
@@ -203,7 +216,7 @@ export class BlockfrostV0 {
     }
 
     /**
-     * Used by BlockfrostV0.resolve()
+     * Used by `BlockfrostV0.resolve()`.
      * @param {TxInput} utxo
      * @returns {Promise<boolean>}
      */
@@ -340,6 +353,7 @@ export class BlockfrostV0 {
         const responseText = await response.text();
 
         if (response.status != 200) {
+            // analyze error and throw a different error if it was detected that an input UTxO might not exist
             throw new Error(responseText);
         } else {
             return new TxId(JSON.parse(responseText));

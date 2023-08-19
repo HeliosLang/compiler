@@ -2862,6 +2862,11 @@ declare module "helios" {
          */
         constructor(props?: AssetsProps);
         /**
+         * @private
+         * @type {[MintingPolicyHash, [ByteArray, HInt][]][]}
+         */
+        private assets;
+        /**
          * Returns a list of all the minting policies.
          * @type {MintingPolicyHash[]}
          */
@@ -2983,7 +2988,6 @@ declare module "helios" {
          */
         sort(): void;
         assertSorted(): void;
-        #private;
     }
     /**
      * @typedef {HInt | HIntProps | [
@@ -8682,6 +8686,18 @@ declare module "helios" {
         #private;
     }
     /**
+     * @internal
+     */
+    export class IRSimplifyAsExpr extends IRExpr {
+        /**
+         * @param {Site} site
+         * @param {IRExpr} orig
+         * @param {IRExpr} simplified
+         */
+        constructor(site: Site, orig: IRExpr, simplified: IRExpr);
+        #private;
+    }
+    /**
      * Wrapper for IRFuncExpr, IRCallExpr or IRLiteralExpr
      * @internal
      */
@@ -10950,12 +10966,13 @@ declare module "helios" {
          */
         getLatestEpoch(): Promise<any>;
         /**
+         * If the UTxO isn't found an error is throw with the following message format: "UTxO <txId.utxoId> not found".
          * @param {TxOutputId} id
          * @returns {Promise<TxInput>}
          */
         getUtxo(id: TxOutputId): Promise<TxInput>;
         /**
-         * Used by BlockfrostV0.resolve()
+         * Used by `BlockfrostV0.resolve()`.
          * @param {TxInput} utxo
          * @returns {Promise<boolean>}
          */

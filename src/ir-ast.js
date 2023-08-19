@@ -2362,3 +2362,120 @@ export class IRErrorCallExpr extends IRExpr {
 		return new UplcError(this.site, this.#msg);
 	}
 }
+
+/**
+ * @internal
+ */
+export class IRSimplifyAsExpr extends IRExpr {
+	#orig;
+	#simplified;
+
+	/**
+	 * @param {Site} site
+	 * @param {IRExpr} orig 
+	 * @param {IRExpr} simplified 
+	 */
+	constructor(site, orig, simplified) {
+		super(site);
+
+		this.#orig = orig;
+		this.#simplified = simplified;
+	}
+
+	/**
+	 * @param {string} indent
+	 * @returns {string}
+	 */
+	toString(indent = "") {
+		return `__sas(${this.#orig.toString(indent)}, ${this.#simplified.toString(indent)})`;
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	resolveNames(scope) {
+		this.#orig.resolveNames(scope);
+		this.#simplified.resolveNames(scope);
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {IRExpr}
+	 */
+	evalConstants(stack) {
+		return new IRSimplifyAsExpr(
+			this.site,
+			this.#orig.evalConstants(stack),
+			this.#simplified.evalConstants(stack)
+		);
+	}
+
+	/**
+	 * @param {IRCallStack} stack
+	 * @returns {null | IRValue}
+	 */
+	eval(stack) {
+		return this.#simplified.eval(stack);
+	}
+
+	/**
+	 * @param {IRLiteralRegistry} literals 
+	 * @returns {IRExpr}
+	 */
+	simplifyLiterals(literals) {
+		return this.#simplified.simplifyLiterals(literals);
+	}
+
+	/**
+	 * @param {IRNameExprRegistry} nameExprs
+	 */
+	registerNameExprs(nameExprs) {
+		this.#orig.registerNameExprs(nameExprs);
+		this.#simplified.registerNameExprs(nameExprs);
+	}
+
+	/**
+	 * @param {Map<IRVariable, IRVariable>} newVars 
+	 * @returns {IRExpr}
+	 */
+	copy(newVars) {
+		return new IRSimplifyAsExpr(
+			this.site,
+			this.#orig.copy(newVars),
+			this.#simplified.copy(newVars)
+		);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyTopology(registry) {
+		return this.#simplified.simplifyTopology(registry);
+	}
+
+	/**
+	 * @param {IRExprRegistry} registry
+	 * @returns {IRExpr}
+	 */
+	simplifyUnused(registry) {
+		return this.#simplified.simplifyUnused(registry);
+	}
+
+	/**
+	 * @param {IRVariable} fnVar 
+	 * @param {number[]} remaining 
+	 * @returns {IRExpr}
+	 */
+	simplifyUnusedRecursionArgs(fnVar, remaining) {
+		return this.#simplified.simplifyUnusedRecursionArgs(fnVar, remaining);
+	}
+
+	/**
+	 * If the IRSimplifyAsExpr instance still exists in the Ast, then return the Uplc of the original expression
+	 * @returns {UplcTerm}
+	 */
+	toUplc() {
+		return this.#orig.toUplc()
+	}
+}
