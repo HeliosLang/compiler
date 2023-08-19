@@ -9553,6 +9553,10 @@ declare module "helios" {
          */
         get inputs(): TxInput[];
         /**
+         * @type {TxInput[]}
+         */
+        get refInputs(): TxInput[];
+        /**
          * @type {TxOutput[]}
          */
         get outputs(): TxOutput[];
