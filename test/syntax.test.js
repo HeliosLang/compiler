@@ -15,9 +15,12 @@ import {
   assert,
   assertClass,
   assertDefined,
+	config,
   bytesToText,
   extractScriptPurposeAndName,
 } from "helios"
+
+config.set({CHECK_CASTS: true});
 
 function asBool(value) {
   if (value instanceof UplcBool) {
@@ -49,13 +52,13 @@ function asBool(value) {
  */
 function isError(err, info, simplified = false) {
   if (err instanceof RuntimeError || err instanceof UserError) {
-    if (simplified) {
+    if (simplified || err.message == "") {
       return true;
     } else {
       return err.message.includes(info);
     }
   } else {
-      throw new Error(`expected UserError, got ${err.toString()}`);
+      throw new Error(`expected UserError with "${info}", got ${err.toString()}`);
   }
 }
 
@@ -79,16 +82,20 @@ async function testTrue(src, simplify = false) {
 async function testError(src, expectedError, simplify = false) {
   const [_, name] = extractScriptPurposeAndName(src) ?? ["", ""];
 
-  try {
-      // also test the transfer() function
-      let program = Program.new(src).compile(simplify).transfer(UplcProgram);
+  // also test the transfer() function
+	try {
+        let program = Program.new(src).compile(simplify).transfer(UplcProgram);
 
-      let result = await program.run([]);
+        let result = await program.run([]);
 
-      assert(isError(result, expectedError, simplify), `test ${name} failed (${result.toString()})`);
-  } catch (e) {
-      assert(isError(e,  expectedError, simplify), `test ${name} failed (${e.message})`);
-  }
+		if (result instanceof Error) {
+			throw result;
+		} else {
+			throw new Error(`test ${name} failed (${result.toString()})`);
+		}
+	} catch (e) {
+        assert(isError(e, expectedError, simplify), `test ${name} failed (${e.toString()})`);
+	}
 
   console.log(`test ${name} succeeded${simplify ? " (simplified)" : ""}`);
 
@@ -618,9 +625,11 @@ async function test19() {
   `
 
   for (const simplify of [true, false]) {
-    const program = Program.new(src).compile(simplify);
+    const program = Program.new(src);
 
-    const result = await program.run([]);
+	const uplcProgram = program.compile(simplify);
+
+    const result = await uplcProgram.run([]);
 
     console.log(result.toString());
   }

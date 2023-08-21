@@ -2,7 +2,8 @@
 // Helios program
 
 import {
-    TAB
+    TAB,
+	config
 } from "./config.js";
 
 import {
@@ -90,6 +91,12 @@ import {
 } from "./helios-scopes.js";
 
 import {
+	ToIRContext,
+	fetchRawFunctions,
+    fetchRawGenerics
+} from "./ir-defs.js";
+
+import {
     ConstStatement,
     FuncStatement,
     ImportFromStatement,
@@ -101,10 +108,6 @@ import {
 	buildScript, extractScriptPurposeAndName
 } from "./helios-ast-build.js";
 
-import {
-	fetchRawFunctions,
-    fetchRawGenerics
-} from "./ir-defs.js";
 
 import {
     IRProgram,
@@ -842,7 +845,9 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * @returns {UplcValue}
 	 */
 	evalConst(constStatement) {
-		const map = this.fetchDefinitions(new IR(""), (s, isImport) => {
+		const ctx = new ToIRContext(false)
+
+		const map = this.fetchDefinitions(ctx, new IR(""), (s, isImport) => {
 			let found = false;
 			s.loopConstStatements("", (_, cs) => {
 				if (!found) {
@@ -864,7 +869,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 			new IR(")")
 		]);
 
-		const ir = this.wrapInner(inner, map);
+		const ir = this.wrapInner(ctx, inner, map);
 
 		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
 
@@ -970,17 +975,18 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @param {(s: Statement, isImport: boolean) => boolean} endCond
 	 * @returns {IRDefinitions} 
 	 */
-	statementsToIR(endCond) {		
+	statementsToIR(ctx, endCond) {		
 		/**
 		 * @type {IRDefinitions}
 		 */
 		const map = new Map();
 
 		for (let [statement, isImport] of this.allStatements) {
-			statement.toIR(map);
+			statement.toIR(ctx, map);
 
 			if (endCond(statement, isImport)) {
 				break;
@@ -998,6 +1004,8 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * @returns {IR}
 	 */
 	static injectMutualRecursions(mainIR, map) {
+		const keys = Array.from(map.keys());
+
 		/**
 		 * @param {string} name
 		 * @param {string[]} potentialDependencies 
@@ -1017,7 +1025,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 				const ir = assertDefined(map.get(name));
 
-				const localDependencies = potentialDependencies.slice(potentialDependencies.findIndex(n => n == name));
+				const localDependencies = keys.slice(keys.findIndex(name.includes("[") ? ((prefix) => {return (n => n.startsWith(prefix))})(name.split("[")[0]): (n => n == name))).filter(dep => !set.has(dep));
 
 				for (let i = 0; i < localDependencies.length; i++) {
 					const dep = localDependencies[i];
@@ -1034,15 +1042,13 @@ const DEFAULT_PROGRAM_CONFIG = {
 			return potentialDependencies.filter(d => set.has(d));
 		}
 
-		const keys = Array.from(map.keys());
-
 		for (let i = keys.length - 1; i >= 0; i--) {
 			const k = keys[i];
 
 			// don't make a final const statement self-recursive (makes evalParam easier)
 			// don't make __helios builtins mutually recursive
 			// don't make __from_data and ____<op> methods mutually recursive (used frequently inside the entrypoint)
-			if ((k.startsWith("__const") && i == keys.length - 1) || k.startsWith("__helios") || k.endsWith("__from_data") || k.includes("____")) {
+			if ((k.startsWith("__const") && i == keys.length - 1) || k.startsWith("__helios") || (k.endsWith("__from_data") && !config.CHECK_CASTS) || k.includes("____")) {
 				continue;
 			}
 
@@ -1050,7 +1056,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 			// get all following definitions including self, excluding constants
 			// also don't mutual recurse helios functions
-			const potentialDependencies = keys.slice(i).filter(k => (k.startsWith(prefix) || k.startsWith(`__const${prefix}`)) && !k.endsWith("__from_data") && !k.includes("____"));
+			const potentialDependencies = keys.slice(i).filter(k => (k.startsWith(prefix) || k.startsWith(`__const${prefix}`)) && !(k.endsWith("__from_data") && !config.CHECK_CASTS) && !k.includes("____"));
 
 			const dependencies = filterMutualDependencies(k, potentialDependencies);
 
@@ -1083,12 +1089,13 @@ const DEFAULT_PROGRAM_CONFIG = {
 	/**
 	 * Also merges builtins and map
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @param {IR} mainIR
 	 * @param {IRDefinitions} map 
 	 * @returns {IRDefinitions}
 	 */
-	static applyTypeParameters(mainIR, map) {
-		const builtinGenerics = fetchRawGenerics();
+	static applyTypeParameters(ctx, mainIR, map) {
+		const builtinGenerics = fetchRawGenerics(ctx);
 
 		/**
 		 * @type {Map<string, [string, IR]>}
@@ -1245,23 +1252,25 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * Loops over all statements, until endCond == true (includes the matches statement)
 	 * Then applies type parameters
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @param {IR} ir
 	 * @param {(s: Statement) => boolean} endCond
 	 * @returns {IRDefinitions}
 	 */
-	fetchDefinitions(ir, endCond) {
-		let map = this.statementsToIR(endCond);
+	fetchDefinitions(ctx, ir, endCond) {
+		let map = this.statementsToIR(ctx, endCond);
 
-		return Program.applyTypeParameters(ir, map);
+		return Program.applyTypeParameters(ctx, ir, map);
 	}
 
 	/**
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @param {IR} ir
 	 * @param {IRDefinitions} definitions
 	 * @returns {IR}
 	 */
-	wrapInner(ir, definitions) {
+	wrapInner(ctx, ir, definitions) {
 		ir = Program.injectMutualRecursions(ir, definitions);
 
 		definitions = this.eliminateUnused(ir, definitions);
@@ -1269,7 +1278,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 		ir = IR.wrapWithDefinitions(ir, definitions);
 
 		// add builtins as late as possible, to make sure we catch as many dependencies as possible
-		const builtins = fetchRawFunctions(assertClass(ir, IR), definitions);
+		const builtins = fetchRawFunctions(ctx, assertClass(ir, IR), definitions);
 
 		ir = IR.wrapWithDefinitions(ir, builtins);
 
@@ -1278,37 +1287,40 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 	/**
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @param {IR} ir
 	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	wrapEntryPoint(ir, extra = null) {
-		let map = this.fetchDefinitions(ir, (s) => s.name.value == "main");
+	wrapEntryPoint(ctx, ir, extra = null) {
+		let map = this.fetchDefinitions(ctx, ir, (s) => s.name.value == "main");
 
 		if (extra) {
 			map = new Map(Array.from(extra.entries()).concat(Array.from(map.entries())));
 		}
 
-		return this.wrapInner(ir, map);
+		return this.wrapInner(ctx, ir, map);
 	}
 
 	/**
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIRInternal() {
+	toIRInternal(ctx) {
 		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @param {null | IRDefinitions} extra
 	 * @returns {IR}
 	 */
-	toIR(extra = null) {
-		const ir = this.toIRInternal()
+	toIR(ctx, extra = null) {
+		const ir = this.toIRInternal(ctx)
 
-		return this.wrapEntryPoint(ir, extra);
+		return this.wrapEntryPoint(ctx, ir, extra);
 	}
 
 	/**
@@ -1317,8 +1329,8 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * @type {[string, Type][]}
 	 */
 	get requiredParameters() {
-		const ir = this.toIRInternal();
-		const definitions = this.fetchDefinitions(ir, (s) => s.name.value == "main");
+		const ir = this.toIRInternal(new ToIRContext(false));
+		const definitions = this.fetchDefinitions(new ToIRContext(false), ir, (s) => s.name.value == "main");
 		const used = this.collectAllUsed(ir, definitions);
 		
 		/**
@@ -1339,7 +1351,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * @returns {string}
 	 */
 	prettyIR(simplify = false) {
-		const ir = this.toIR();
+		const ir = this.toIR(new ToIRContext(simplify));
 
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
@@ -1351,7 +1363,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 	 * @returns {UplcProgram}
 	 */
 	compile(simplify = false) {
-		const ir = this.toIR();
+		const ir = this.toIR(new ToIRContext(simplify));
 
 		if (this.nPosParams > 0) {
 			const irProgram = IRParametricProgram.new(ir, this.#purpose, this.nPosParams, simplify);
@@ -1447,9 +1459,10 @@ class RedeemerProgram extends Program {
 
 	/**
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @returns {IR} 
 	 */
-	toIRInternal() {
+	toIRInternal(ctx) {
 		const outerArgNames = this.config.invertEntryPoint ? [] : ["redeemer", "ctx"];
 		const nOuterArgs = outerArgNames.length;
 
@@ -1507,7 +1520,11 @@ class RedeemerProgram extends Program {
 	}
 }
 
-class DatumRedeemerProgram extends Program {
+/**
+ * Used by CLI
+ * @internal
+ */
+export class DatumRedeemerProgram extends Program {
 	/**
 	 * @param {ScriptPurpose} purpose
 	 * @param {Module[]} modules
@@ -1522,6 +1539,20 @@ class DatumRedeemerProgram extends Program {
 	 */
 	get nPosParams() {
 		return this.mainFunc.nArgs - (this.config.invertEntryPoint ? 0 : 3);
+	}
+
+	/**
+	 * @type {DataType}
+	 */
+	get datumType() {
+		return this.mainArgTypes[0]
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get datumTypeName() {
+		return this.mainFunc.argTypeNames[0];
 	}
 
 	/**
@@ -1586,9 +1617,10 @@ class DatumRedeemerProgram extends Program {
 
 	/**
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIRInternal() {
+	toIRInternal(ctx) {
 		const outerArgNames = this.config.invertEntryPoint ? [] : ["datum", "redeemer", "ctx"];
 		const nOuterArgs = outerArgNames.length;
 
@@ -1635,6 +1667,36 @@ class DatumRedeemerProgram extends Program {
 		}
 
 		return ir;
+	}
+
+	/**
+	 * @internal
+	 * @param {ToIRContext} ctx
+	 * @returns {IR}
+	 */
+	datumCheckToIR(ctx) {
+		if (this.datumTypeName == "") {
+			return new IR(`(data) -> {data}`);
+		} else {
+			const datumPath = this.datumType.path;
+
+			const ir = new IR(`(data) -> {${datumPath}____to_data(${datumPath}__from_data(data))}`);
+
+			return this.wrapEntryPoint(ctx, ir);
+		}
+	}
+
+	/**
+	 * Used by cli
+	 * @internal
+	 * @returns {UplcProgram}
+	 */
+	compileDatumCheck() {
+		const ir = this.datumCheckToIR(new ToIRContext(false));
+
+		const irProgram = IRProgram.new(ir, null, false);
+			
+		return irProgram.toUplc();
 	}
 
 	/**
@@ -1698,9 +1760,10 @@ class GenericProgram extends Program {
 
 	/**
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIRInternal() {
+	toIRInternal(ctx) {
 		const argTypeNames = this.mainFunc.argTypeNames;
 
 		const innerArgs = this.mainArgTypes.map((t, i) => {

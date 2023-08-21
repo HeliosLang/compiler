@@ -200,12 +200,22 @@ export class BlockfrostV0 {
         } else if (response.status != 200) {
             throw new Error(`Blockfrost error: ${await response.text()}`);
         }
+
+        const responseObj = await response.json();
+
         
-        const outputs = (await response.json()).outputs;
+        
+        const outputs = responseObj.outputs;
+
+        if (!outputs) {
+            console.log(responseObj);
+            throw new Error(`unexpected response from Blockfrost`);
+        }
 
         const obj = outputs[id.utxoIdx];
 
         if (!obj) {
+            console.log(responseObj);
             throw new Error(`UTxO ${id.toString()} not found`);
         }
 

@@ -2,6 +2,7 @@
 // Helios AST statements
 
 import {
+	config,
     TAB
 } from "./config.js";
 
@@ -134,6 +135,10 @@ import {
 } from "./helios-scopes.js";
 
 import {
+	ToIRContext
+} from "./ir-defs.js";
+
+import {
 	Expr,
 	FuncArg,
     FuncLiteralExpr,
@@ -201,9 +206,10 @@ export class Statement extends Token {
 	/**
 	 * Returns IR of statement.
 	 * No need to specify indent here, because all statements are top-level
+	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
-	toIR(map) {
+	toIR(ctx, map) {
 		throw new Error("not yet implemented");
 	}
 
@@ -283,9 +289,10 @@ export class ImportFromStatement extends Statement {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
-	toIR(map) {
+	toIR(ctx, map) {
 		// import statements only have a scoping function and don't do anything to the IR
 	}
 }
@@ -361,9 +368,10 @@ export class ImportModuleStatement extends Statement {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
-	toIR(map) {
+	toIR(ctx, map) {
 		// import statements only have a scoping function and don't do anything to the IR
 	}
 }
@@ -493,10 +501,11 @@ export class ConstStatement extends Statement {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIRInternal() {
-		let ir = assertDefined(this.#valueExpr).toIR();
+	toIRInternal(ctx) {
+		let ir = assertDefined(this.#valueExpr).toIR(ctx);
 
 		if (this.#valueExpr instanceof LiteralDataExpr) {
 			ir = new IR([
@@ -515,11 +524,12 @@ export class ConstStatement extends Statement {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
-	toIR(map) {
+	toIR(ctx, map) {
 		if (this.#valueExpr) {
-			map.set(this.path, this.toIRInternal());
+			map.set(this.path, this.toIRInternal(ctx));
 		}
 	}
 }
@@ -1099,11 +1109,12 @@ export class DataDefinition {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @param {string} path
 	 * @param {IRDefinitions} map 
 	 * @param {number} constrIndex
 	 */
-	newToIR(path, map, constrIndex) {
+	newToIR(ctx, path, map, constrIndex) {
 		const isConstr = constrIndex != -1;
 
 		/**
@@ -1164,15 +1175,16 @@ export class DataDefinition {
 
 	/**
 	 * @internal
+	 * @param {ToIRContext} ctx
 	 * @param {string} path
 	 * @param {IRDefinitions} map 
 	 * @param {string[]} getterNames
 	 * @param {number} constrIndex
 	 */
-	copyToIR(path, map, getterNames, constrIndex = -1) {
+	copyToIR(ctx, path, map, getterNames, constrIndex = -1) {
 		const key = `${path}__copy`;
 
-		let ir = StructLiteralExpr.toIRInternal(this.site, path, this.#fields.map(df => new IR(df.name.value)));
+		let ir = StructLiteralExpr.toIRInternal(ctx, this.site, path, this.#fields.map(df => new IR(df.name.value)));
 
 		// wrap with defaults
 
@@ -1203,12 +1215,33 @@ export class DataDefinition {
 	}
 
 	/**
+	 * @internal
+	 * @returns {IR}
+	 */
+	fromDataFieldsCheckToIR() {
+		let ir = new IR(`(fields) -> {__core__mkNilData(())}`)
+
+		for (let i = this.nFields - 1; i >= 0; i--) {
+			const ftPath = this.getFieldType(i).path;
+
+			ir = new IR([
+				new IR(`(fields) -> {__core__mkCons(${ftPath}____to_data(${ftPath}__from_data(__core__headList(fields))), `),
+				ir,
+				new IR(`(__core__tailList(fields)))}`)
+			]);
+		}
+
+		return ir
+	}
+
+	/**
 	 * Doesn't return anything, but sets its IRdef in the map
+	 * @param {ToIRContext} ctx
 	 * @param {string} path
 	 * @param {IRDefinitions} map
 	 * @param {number} constrIndex
 	 */
-	toIR(path, map, constrIndex) {
+	toIR(ctx, path, map, constrIndex) {
 		const isConstr = constrIndex != -1;
 
 		const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
@@ -1290,8 +1323,8 @@ export class DataDefinition {
 			}
 		}
 
-		this.newToIR(path, map, constrIndex);
-		this.copyToIR(path, map, getterNames);
+		this.newToIR(ctx, path, map, constrIndex);
+		this.copyToIR(ctx, path, map, getterNames);
 	}
 }
 
@@ -1552,21 +1585,34 @@ export class StructStatement extends Statement {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map
 	 */
-	toIR(map) {
-		const implPath = this.#dataDef.fieldNames.length == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
+	toIR(ctx, map) {
+		const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
 
 		map.set(`${this.path}____eq`, new IR(`${implPath}____eq`, this.site));
 		map.set(`${this.path}____neq`, new IR(`${implPath}____neq`, this.site));
 		map.set(`${this.path}__serialize`, new IR(`${implPath}__serialize`, this.site));
-		map.set(`${this.path}__from_data`, new IR(`${implPath}__from_data`, this.site));
+
+		// the from_data method can include field checks
+		if (this.#dataDef.fieldNames.length == 1 || (!(config.CHECK_CASTS && !ctx.simplify))) {
+			map.set(`${this.path}__from_data`, new IR(`${implPath}__from_data`, this.site));
+		} else {
+			map.set(`${this.path}__from_data`, new IR([
+				new IR(`(data) -> {`),
+				this.#dataDef.fromDataFieldsCheckToIR(),
+				new IR(`(__core__unListData(data))`),
+				new IR(`}`)
+			], this.site));
+		}
+
 		map.set(`${this.path}____to_data`, new IR(`${implPath}____to_data`, this.site));
 
 		// super.toIR adds __new and copy, which might depend on __to_data, so must come after
-		this.#dataDef.toIR(this.path, map, -1);
+		this.#dataDef.toIR(ctx, this.path, map, -1);
 
-		this.#impl.toIR(map);
+		this.#impl.toIR(ctx, map);
 	}
 }
 
@@ -1709,17 +1755,19 @@ export class FuncStatement extends Statement {
 
 	/**
 	 * Returns IR of function
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIRInternal() {
-		return this.#funcExpr.toIR(TAB);
+	toIRInternal(ctx) {
+		return this.#funcExpr.toIR(ctx);
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
-	toIR(map) {
-		map.set(this.path, this.toIRInternal());
+	toIR(ctx, map) {
+		map.set(this.path, this.toIRInternal(ctx));
 	}
 
 	/**
@@ -1980,19 +2028,36 @@ export class EnumMember {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
-	toIR(map) {
+	toIR(ctx, map) {
 		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.#dataDef.site));
 		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.#dataDef.site));
 		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.#dataDef.site));
-		map.set(`${this.path}__from_data`, new IR(`(data) -> {
-			__helios__common__assert_constr_index(data, ${this.constrIndex})
-		}`, this.#dataDef.site));
+
+		if (config.CHECK_CASTS && !ctx.simplify) {
+			map.set(`${this.path}__from_data`, new IR([
+				new IR(`(data) -> {`),
+				new IR(`(pair) -> {`),
+				new IR(`__core__chooseUnit(`),
+				new IR(`__helios__assert(__core__equalsInteger(__core__fstPair(pair), ${this.constrIndex}), "unexpected constructor index"), `),
+				new IR(`__core__constrData(${this.constrIndex}, `),
+				this.#dataDef.fromDataFieldsCheckToIR(),
+				new IR(`(__core__sndPair(pair))))`),
+				new IR(`}(__core__unConstrData(data))`),
+				new IR(`}`)
+			]));
+		} else {
+			map.set(`${this.path}__from_data`, new IR(`(data) -> {
+				__helios__common__assert_constr_index(data, ${this.constrIndex})
+			}`, this.#dataDef.site));
+		}
+
 		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.#dataDef.site));
 
 		// super.toIR adds __new and copy, which might depend on __to_data, so must come after
-		this.#dataDef.toIR(this.path, map, this.constrIndex);
+		this.#dataDef.toIR(ctx, this.path, map, this.constrIndex);
 	}
 }
 
@@ -2282,21 +2347,51 @@ export class EnumStatement extends Statement {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
-	toIR(map) {
+	toIR(ctx, map) {
 		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
 		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
 		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
-		map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
 		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
 
-		// member __new and copy methods might depend on __to_data, so must be generated after
-		for (let member of this.#members) {
-			member.toIR(map);
+		// there could be circular dependencies here, which is ok
+		if (config.CHECK_CASTS && !ctx.simplify) {
+			let ir = new IR(`__helios__error("invalid enum index for ${this.name}")`);
+
+			for (let i = this.nEnumMembers - 1; i >= 0; i--) {
+				const emPath = this.#members[i].path;
+				ir = new IR([
+					new IR(`__core__ifThenElse(`),
+					new IR(`__core__equalsInteger(index, ${i}), `),
+					new IR(`() -> {`),
+					new IR(`${emPath}__from_data(data)`),
+					new IR(`}, `),
+					new IR(`() -> {`),
+					ir,
+					new IR(`}`),
+					new IR(`)()`)
+				]);
+			}
+
+			map.set(`${this.path}__from_data`, new IR([
+				new IR(`(data) -> {`),
+				new IR(`(index) -> {`),
+				ir,
+				new IR(`}(__core__fstPair(__core__unConstrData(data)))`),
+				new IR(`}`, this.site)
+			]));
+		} else {
+			map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
 		}
 
-		this.#impl.toIR(map);
+		// member __new and copy methods might depend on __to_data, so must be added after
+		for (let member of this.#members) {
+			member.toIR(ctx, map);
+		}
+
+		this.#impl.toIR(ctx, map);
 	}
 
 	/**
@@ -2422,11 +2517,12 @@ export class ImplDefinition {
 	
 	/**
 	 * Returns IR of all impl members
+	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
-	toIR(map) {
+	toIR(ctx, map) {
 		for (let s of this.#statements) {
-			s.toIR(map);
+			s.toIR(ctx, map);
 		}
 	}
 }

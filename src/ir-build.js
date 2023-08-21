@@ -148,26 +148,6 @@ export function buildIRExpr(ts) {
 					
 					expr = new IRErrorCallExpr(t.site, "");
 				}
-			} else if (t.isWord("__sas")) {
-				assert(expr === null, "unexpected expr before '__sas'");
-
-				let maybeGroup = ts.shift();
-				if (!maybeGroup) {
-					throw t.site.syntaxError("expected parens after __sas");
-				}
-
-				const group = maybeGroup.assertGroup("(", );
-
-				if (!group) {
-					throw t.site.syntaxError("expected parens with two entries after '__sas'");
-				}
-				
-				expr = new IRSimplifyAsExpr(
-					t.site,
-					buildIRExpr(group.fields[0]),
-					buildIRExpr(group.fields[1])
-				);
-
 			} else if (t.isWord()) {
 				const w = assertDefined(t.assertWord(), "expected word");
 

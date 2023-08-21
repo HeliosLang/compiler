@@ -32,7 +32,7 @@ async function main2() {
 	console.log("Running all tests for Helios...");
 
 	await runTests([
-		"./builtins.js",
+		//"./builtins.js",
 		"./deserialize-uplc.js",
 		"./ed25519.js",
 		"./example-scripts.js",

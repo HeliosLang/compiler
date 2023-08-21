@@ -3,6 +3,7 @@
 import fs from "fs"
 
 import {
+	config,
 	NetworkParams,
 	Program,
 	UplcProgram,
@@ -11,6 +12,8 @@ import {
 } from "helios"
 
 const networkParams = new NetworkParams(JSON.parse(fs.readFileSync("./network-parameters-preview.json").toString()));
+
+config.set({CHECK_CASTS: true});
 
 /**
  * 

@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.15.3";
+export const VERSION: "0.15.4";
 /**
  * Mutable global config properties.
  * @namespace
@@ -123,18 +123,20 @@ export namespace config {
      *   VALIDITY_RANGE_END_OFFSET?: number
      *   EXPERIMENTAL_CEK?: boolean
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
+     *   CHECK_CASTS?: boolean
      * }} props 
      */
     function set(props: {
-        DEBUG?: boolean;
-        STRICT_BABBAGE?: boolean;
-        IS_TESTNET?: boolean;
-        N_DUMMY_INPUTS?: number;
-        AUTO_SET_VALIDITY_RANGE?: boolean;
-        VALIDITY_RANGE_START_OFFSET?: number;
-        VALIDITY_RANGE_END_OFFSET?: number;
-        EXPERIMENTAL_CEK?: boolean;
-        IGNORE_UNEVALUATED_CONSTANTS?: boolean;
+        DEBUG?: boolean | undefined;
+        STRICT_BABBAGE?: boolean | undefined;
+        IS_TESTNET?: boolean | undefined;
+        N_DUMMY_INPUTS?: number | undefined;
+        AUTO_SET_VALIDITY_RANGE?: boolean | undefined;
+        VALIDITY_RANGE_START_OFFSET?: number | undefined;
+        VALIDITY_RANGE_END_OFFSET?: number | undefined;
+        EXPERIMENTAL_CEK?: boolean | undefined;
+        IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
+        CHECK_CASTS?: boolean | undefined;
     }): void;
     /**
      * Global debug flag. Currently unused.
@@ -208,6 +210,13 @@ export namespace config {
      * @type {boolean}
      */
     const IGNORE_UNEVALUATED_CONSTANTS: boolean;
+    /**
+     * Check that `from_data` casts make sense during runtime. This ony impacts unsimplified UplcPrograms.
+     * 
+     * Default: `false`.
+     * @type {boolean}
+     */
+    const CHECK_CASTS: boolean;
 }
 /**
  * Function that generates a random number between 0 and 1
@@ -255,7 +264,7 @@ export class Site {
     get src(): Source;
     get startPos(): number;
     get endPos(): number;
-    get endSite(): Site;
+    get endSite(): Site | null;
     /**
      * @param {Site} other
      * @returns {Site}
@@ -268,7 +277,7 @@ export class Site {
     /**
      * @type {?Site}
      */
-    get codeMapSite(): Site;
+    get codeMapSite(): Site | null;
     /**
      * @param {Site} site
      */
@@ -324,7 +333,7 @@ export class UserError extends Error {
      * @param {boolean} verbose
      * @returns {T | undefined}
      */
-    static catch<T>(fn: () => T, verbose?: boolean): T;
+    static catch<T>(fn: () => T, verbose?: boolean): T | undefined;
     /**
      * Filled with CBOR hex representations of Datum, Redeemer and ScriptContext by validation scripts throwing errors during `tx.finalize()`; and Redeemer and ScriptContext by minting scripts throwing errors.
      * @type {Object}
@@ -1382,17 +1391,17 @@ export class Address extends HeliosData {
      * Returns the underlying `PubKeyHash` of a simple payment address, or `null` for a script address.
      * @type {null | PubKeyHash}
      */
-    get pubKeyHash(): PubKeyHash;
+    get pubKeyHash(): PubKeyHash | null;
     /**
      * Returns the underlying `ValidatorHash` of a script address, or `null` for a regular payment address.
      * @type {null | ValidatorHash}
      */
-    get validatorHash(): ValidatorHash;
+    get validatorHash(): ValidatorHash | null;
     /**
      * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
      * @type {null | StakeKeyHash | StakingValidatorHash}
      */
-    get stakingHash(): StakeKeyHash | StakingValidatorHash;
+    get stakingHash(): StakeKeyHash | StakingValidatorHash | null;
     #private;
 }
 /**
@@ -1607,7 +1616,7 @@ export class Assets extends CborData {
      */
     _toUplcData(): MapData;
     /**
-     * Makes sure minting policies are in correct order
+     * Makes sure minting policies are in correct order, and for each minting policy make sure the tokens are in the correct order
      * Mutates 'this'
      * Order of tokens per mintingPolicyHash isn't changed
      */
@@ -1775,7 +1784,7 @@ export class NetworkParams {
     /**
      * @type {null | bigint}
      */
-    get liveSlot(): bigint;
+    get liveSlot(): bigint | null;
     /**
      * Calculates the time (in milliseconds in 01/01/1970) associated with a given slot number.
      * @param {bigint} slot
@@ -2925,11 +2934,11 @@ export class TxBody extends CborData {
     /**
      * @type {bigint | null}
      */
-    get firstValidSlot(): bigint;
+    get firstValidSlot(): bigint | null;
     /**
      * @type {bigint | null}
      */
-    get lastValidSlot(): bigint;
+    get lastValidSlot(): bigint | null;
     /**
      * @type {PubKeyHash[]}
      */
@@ -3139,7 +3148,7 @@ export class TxOutput extends CborData {
      * Get the optional `Datum` associated with the `TxOutput`.
      * @type {null | Datum}
      */
-    get datum(): Datum;
+    get datum(): Datum | null;
     /**
      * Mutation is handy when correctin the quantity of lovelace in a utxo
      * @param {Datum} datum
@@ -3152,7 +3161,7 @@ export class TxOutput extends CborData {
     /**
      * @type {null | UplcProgram}
      */
-    get refScript(): UplcProgram;
+    get refScript(): UplcProgram | null;
     /**
      * @returns {Object}
      */
@@ -3175,7 +3184,7 @@ export class TxOutput extends CborData {
      * @param {NetworkParams} networkParams
      * @param {null | ((output: TxOutput) => void)} updater
      */
-    correctLovelace(networkParams: NetworkParams, updater?: (output: TxOutput) => void): void;
+    correctLovelace(networkParams: NetworkParams, updater?: ((output: TxOutput) => void) | null): void;
     #private;
 }
 /**
@@ -3540,7 +3549,7 @@ export class Redeemer extends CborData {
     /**
      * @type {null | string}
      */
-    get programName(): string;
+    get programName(): string | null;
     /**
      * type:
      *   0 -> spending
@@ -3655,7 +3664,7 @@ export class Datum extends CborData {
     /**
      * @type {?UplcData}
      */
-    get data(): UplcData;
+    get data(): UplcData | null;
     /**
      * @returns {Object}
      */
@@ -3818,7 +3827,7 @@ export class WalletHelper {
      * @param {Wallet} wallet
      * @param {undefined | ((addr: Address[]) => Promise<TxInput[]>)} getUtxosFallback
      */
-    constructor(wallet: Wallet, getUtxosFallback?: (addr: Address[]) => Promise<TxInput[]>);
+    constructor(wallet: Wallet, getUtxosFallback?: ((addr: Address[]) => Promise<TxInput[]>) | undefined);
     /**
      * Concatenation of `usedAddresses` and `unusedAddresses`.
      * @type {Promise<Address[]>}
@@ -3842,7 +3851,7 @@ export class WalletHelper {
      * First UTxO in `utxos`. Can be used to distinguish between preview and preprod networks.
      * @type {Promise<null | TxInput>}
      */
-    get refUtxo(): Promise<TxInput>;
+    get refUtxo(): Promise<TxInput | null>;
     /**
      * @returns {Promise<TxInput[]>}
      */
@@ -4533,15 +4542,15 @@ export type TransferableUplcProgram<TInstance> = {
 export type Profile = {
     mem: bigint;
     cpu: bigint;
-    size?: number;
+    size?: number | undefined;
     builtins?: {
         [name: string]: Cost;
-    };
+    } | undefined;
     terms?: {
         [name: string]: Cost;
-    };
-    result?: RuntimeError | UplcValue;
-    messages?: string[];
+    } | undefined;
+    result?: RuntimeError | UplcValue | undefined;
+    messages?: string[] | undefined;
 };
 export type UserTypes = {
     [name: string]: any;
@@ -4663,6 +4672,9 @@ export type PropertyTest = (args: UplcValue[], res: (UplcValue | RuntimeError), 
 });
 /**
  * UplcStack contains a value that can be retrieved using a Debruijn index.
+ */
+/**
+ * Wrapper for a builtin function (written in IR)
  */
 /**
  * Parent class of EnumSwitchExpr and DataSwitchExpr

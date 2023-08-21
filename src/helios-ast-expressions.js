@@ -109,6 +109,10 @@ import {
 	Scope
 } from "./helios-scopes.js";
 
+import {
+    ToIRContext
+} from "./ir-defs.js";
+
 /**
  * Base class of every Type and Instance expression.
  * @internal
@@ -253,10 +257,10 @@ export class Expr extends Token {
 	}
 
 	/**
-	 * @param {string} indent
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		throw new Error("not yet implemented");
 	}
 
@@ -292,10 +296,10 @@ export class RefExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		const path = this.cache?.asNamed ? this.cache.asNamed.path : this.#name.value;
 
 		let ir = new IR(path, this.site);
@@ -374,10 +378,10 @@ export class PathExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		const v = this.cache;
 
 		if (v?.asNamed) {
@@ -438,10 +442,10 @@ export class ValuePathExpr extends PathExpr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		const v = this.cache;
 
 		if (v?.asTyped?.type?.asEnumMemberType && v.asTyped.type.asEnumMemberType.fieldNames.length == 0) {
@@ -450,7 +454,7 @@ export class ValuePathExpr extends PathExpr {
 				new IR("()")
 			]);
 		} else {
-			return super.toIR(indent);
+			return super.toIR(ctx);
 		}
 	}
 }
@@ -876,15 +880,15 @@ export class ChainExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		return new IR([
 			new IR("__core__chooseUnit(", this.site),
-			this.upstreamExpr.toIR(indent),
+			this.upstreamExpr.toIR(ctx),
 			new IR(", "),
-			this.downstreamExpr.toIR(indent),
+			this.downstreamExpr.toIR(ctx),
 			new IR(")")
 		]);
 	}
@@ -973,16 +977,16 @@ export class AssignExpr extends ChainExpr {
 
 	/**
 	 * 
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		if (this.#nameTypes.length === 1) {
-			let inner = this.downstreamExpr.toIR(indent + TAB);
+			let inner = this.downstreamExpr.toIR(ctx.tab());
 
-			inner = this.#nameTypes[0].wrapDestructIR(indent, inner, 0);
+			inner = this.#nameTypes[0].wrapDestructIR(ctx, inner, 0);
 
-			let upstream = this.upstreamExpr.toIR(indent);
+			let upstream = this.upstreamExpr.toIR(ctx);
 
 			// enum member run-time error IR
 			if (this.#nameTypes[0].hasType()) {
@@ -1001,25 +1005,25 @@ export class AssignExpr extends ChainExpr {
 				new IR("("),
 				this.#nameTypes[0].toNameIR(0),
 				new IR(") "),
-				new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
+				new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}`),
 				inner,
-				new IR(`\n${indent}}(`),
+				new IR(`\n${ctx.indent}}(`),
 				upstream,
 				new IR(")")
 			]);
 		} else {
-			let inner = this.downstreamExpr.toIR(indent + TAB + TAB);
+			let inner = this.downstreamExpr.toIR(ctx.tab().tab());
 
 			for (let i = this.#nameTypes.length - 1; i >= 0; i--) {
 				// internally generates enum-member error IR
-				inner = this.#nameTypes[i].wrapDestructIR(indent, inner, i);
+				inner = this.#nameTypes[i].wrapDestructIR(ctx, inner, i);
 			}
 
 			const ir = new IR([
-				this.upstreamExpr.toIR(indent),
-				new IR(`(\n${indent + TAB}(`), new IR(this.#nameTypes.map((nt, i) => nt.toNameIR(i))).join(", "), new IR(") ->", this.site), new IR(` {\n${indent}${TAB}${TAB}`),
+				this.upstreamExpr.toIR(ctx),
+				new IR(`(\n${ctx.indent + TAB}(`), new IR(this.#nameTypes.map((nt, i) => nt.toNameIR(i))).join(", "), new IR(") ->", this.site), new IR(` {\n${ctx.indent}${TAB}${TAB}`),
 				inner,
-				new IR(`\n${indent + TAB}}\n${indent})`)
+				new IR(`\n${ctx.indent + TAB}}\n${ctx.indent})`)
 			]);
 
 			return ir;
@@ -1062,10 +1066,10 @@ export class VoidExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		return new IR("()", this.site);
 	}
 
@@ -1127,10 +1131,10 @@ export class PrimitiveLiteralExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		// all literals can be reused in their string-form in the IR
 		return new IR(this.#primitive.toString(), this.#primitive.site);
 	}
@@ -1193,10 +1197,10 @@ export class LiteralDataExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		return new IR(this.toString(), this.site);
 	}
 
@@ -1260,11 +1264,11 @@ export class StructLiteralField {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
-		return this.#value.toIR(indent);
+	toIR(ctx) {
+		return this.#value.toIR(ctx);
 	}
 
 	/**
@@ -1406,11 +1410,12 @@ export class StructLiteralExpr extends Expr {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @param {Site} site
 	 * @param {string} path
 	 * @param {IR[]} fields
 	 */
-	static toIRInternal(site, path, fields) {
+	static toIRInternal(ctx, site, path, fields) {
 		return new IR([
 			new IR(`${path}____new`),
 			new IR("("),
@@ -1420,10 +1425,10 @@ export class StructLiteralExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		const type = assertDefined(this.#typeExpr.cache?.asDataType);
 
 		const fields = this.#fields.slice();
@@ -1433,9 +1438,9 @@ export class StructLiteralExpr extends Expr {
 			fields.sort((a, b) => type.fieldNames.findIndex(n => n == a.name.value) - type.fieldNames.findIndex(n => n == b.name.value));
 		}
 
-		const irFields = fields.map(f => f.toIR(indent));
+		const irFields = fields.map(f => f.toIR(ctx));
 
-		return StructLiteralExpr.toIRInternal(this.site, type.path, irFields);
+		return StructLiteralExpr.toIRInternal(ctx, this.site, type.path, irFields);
 	}
 
 	/**
@@ -1519,10 +1524,10 @@ export class ListLiteralExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		let ir = new IR("__core__mkNilData(())");
 
 		// starting from last element, keeping prepending a data version of that item
@@ -1532,7 +1537,7 @@ export class ListLiteralExpr extends Expr {
 			let itemIR = new IR([
 				new IR(`${this.itemType.path}____to_data`),
 				new IR("("),
-				this.#itemExprs[i].toIR(indent),
+				this.#itemExprs[i].toIR(ctx),
 				new IR(")"),
 			]);
 
@@ -1665,10 +1670,10 @@ export class MapLiteralExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		let ir = new IR("__core__mkNilPairData(())");
 
 		// starting from last element, keeping prepending a data version of that item
@@ -1679,14 +1684,14 @@ export class MapLiteralExpr extends Expr {
 			let keyIR = new IR([
 				new IR(`${this.keyType.path}____to_data`),
 				new IR("("),
-				keyExpr.toIR(indent),
+				keyExpr.toIR(ctx),
 				new IR(")"),
 			]);
 
 			let valueIR = new IR([
 				new IR(`${this.valueType.path}____to_data`),
 				new IR("("),
-				valueExpr.toIR(indent),
+				valueExpr.toIR(ctx),
 				new IR(")"),
 			]);
 
@@ -1947,16 +1952,17 @@ export class FuncArg extends NameTypePair {
 	 *   )()
 	 * )
 	 * TODO: indentation
+	 * @param {ToIRContext} ctx
 	 * @param {IR} bodyIR 
 	 * @returns {IR}
 	 */
-	wrapWithDefault(bodyIR) {
+	wrapWithDefault(ctx, bodyIR) {
 		if (this.#defaultValueExpr == null) {
 			return bodyIR;
 		} else {
 			const name = this.name.toString();
 
-			return FuncArg.wrapWithDefaultInternal(bodyIR, name, this.#defaultValueExpr.toIR(""));
+			return FuncArg.wrapWithDefaultInternal(bodyIR, name, this.#defaultValueExpr.toIR(ctx));
 		}
 	}
 }
@@ -2173,35 +2179,36 @@ export class FuncLiteralExpr extends Expr {
 
 	/**
 	 * In reverse order, because later opt args might depend on earlier args
+	 * @param {ToIRContext} ctx
 	 * @param {IR} innerIR 
 	 * @returns {IR}
 	 */
-	wrapWithDefaultArgs(innerIR) {
+	wrapWithDefaultArgs(ctx, innerIR) {
 		const args = this.#args.slice().reverse();
 
 		for (let arg of args) {
-			innerIR = arg.wrapWithDefault(innerIR);
+			innerIR = arg.wrapWithDefault(ctx, innerIR);
 		}
 
 		return innerIR;
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIRInternal(indent = "") {
+	toIRInternal(ctx) {
 		let argsWithCommas = this.argsToIR();
 
-		let innerIndent = indent;
-		let methodIndent = indent;
+		let innerIndent = ctx.indent;
+		let methodIndent = ctx.indent;
 		if (this.isMethod()) {
 			innerIndent += TAB;
 		}
 
-		let innerIR = this.#bodyExpr.toIR(innerIndent + TAB);
+		let innerIR = this.#bodyExpr.toIR(ctx.tab());
 
-		innerIR = this.wrapWithDefaultArgs(innerIR);
+		innerIR = this.wrapWithDefaultArgs(ctx, innerIR);
 
 		let ir = new IR([
 			new IR("("),
@@ -2224,11 +2231,11 @@ export class FuncLiteralExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
-		return this.toIRInternal(indent);
+	toIR(ctx) {
+		return this.toIRInternal(ctx);
 	}
 
 	/**
@@ -2319,16 +2326,16 @@ export class ParametricExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		const params = ParametricExpr.toApplicationIR(this.paramTypes);
 		
 		if (this.#baseExpr instanceof MemberExpr) {
-			return this.#baseExpr.toIR(indent, params);
+			return this.#baseExpr.toIR(ctx, params);
 		} else {
-			return new IR(`${this.#baseExpr.toIR().toString()}${params}`, this.site);
+			return new IR(`${this.#baseExpr.toIR(ctx).toString()}${params}`, this.site);
 		}
 	}
 
@@ -2408,15 +2415,15 @@ export class UnaryExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		const path = assertDefined(this.cache?.asTyped?.type?.asNamed).path;
 
 		return new IR([
 			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
-			this.#a.toIR(indent),
+			this.#a.toIR(ctx),
 			new IR(")")
 		]);
 	}
@@ -2581,28 +2588,28 @@ export class BinaryExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		let path = assertDefined(this.first.cache?.asTyped?.type.asNamed).path;
 
 		let op = this.translateOp(this.#alt).value;
 
 		if (op == "__and" || op == "__or") {
 			return new IR([
-				new IR(`${path}${op}`, this.site), new IR(`(\n${indent}${TAB}() -> {`),
-				this.first.toIR(indent + TAB),
-				new IR(`},\n${indent}${TAB}() -> {`),
-				this.second.toIR(indent + TAB),
-				new IR(`}\n${indent})`)
+				new IR(`${path}${op}`, this.site), new IR(`(\n${ctx.indent}${TAB}() -> {`),
+				this.first.toIR(ctx.tab()),
+				new IR(`},\n${ctx.indent}${TAB}() -> {`),
+				this.second.toIR(ctx.tab()),
+				new IR(`}\n${ctx.indent})`)
 			]);
 		} else {
 			return new IR([
 				new IR(`${path}__${op}`, this.site), new IR("(", this.site),
-				this.first.toIR(indent),
+				this.first.toIR(ctx),
 				new IR(", "),
-				this.second.toIR(indent),
+				this.second.toIR(ctx),
 				new IR(")")
 			]);
 		}
@@ -2662,17 +2669,17 @@ export class ParensExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		if (this.#exprs.length === 1) {
-			return this.#exprs[0].toIR(indent);
+			return this.#exprs[0].toIR(ctx);
 		} else {
 			return new IR(
-				[new IR(`(callback) -> {\n${indent + TAB}callback(\n${indent + TAB + TAB}`, this.site)]
-				.concat(new IR(this.#exprs.map(e => e.toIR(indent + TAB + TAB))).join(`,\n${indent + TAB + TAB}`))
-				.concat([new IR(`\n${indent + TAB})\n${indent}}`)])
+				[new IR(`(callback) -> {\n${ctx.indent + TAB}callback(\n${ctx.indent + TAB + TAB}`, this.site)]
+				.concat(new IR(this.#exprs.map(e => e.toIR(ctx.tab().tab()))).join(`,\n${ctx.indent + TAB + TAB}`))
+				.concat([new IR(`\n${ctx.indent + TAB})\n${ctx.indent}}`)])
 			);
 		}
 	}
@@ -2902,9 +2909,10 @@ export class CallExpr extends Expr {
 	}
 
 	/**
+	 * @param {ToIRContext} ctx
 	 * @returns {[Expr[], IR[]]} - first list are positional args, second list named args and remaining opt args
 	 */
-	expandArgs() {
+	expandArgs(ctx) {
 		const fn = this.fn;
 		const nNonOptArgs = fn.nNonOptArgs;
 
@@ -2934,7 +2942,7 @@ export class CallExpr extends Expr {
 					namedOptional[i - nNonOptArgs] = new IR([
 						new IR("true"),
 						new IR(", "),
-						ae.valueExpr.toIR()
+						ae.valueExpr.toIR(ctx)
 					]);
 				}
 			}
@@ -2954,31 +2962,31 @@ export class CallExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toFnExprIR(indent = "") {
+	toFnExprIR(ctx) {
 		if (this.#fnExpr.cache?.asParametric instanceof ParametricFunc) {
 			assert(this.#paramTypes.length > 0);
 
 			const params = ParametricExpr.toApplicationIR(this.#paramTypes);
 
 			if (this.#fnExpr instanceof MemberExpr) {
-				return this.#fnExpr.toIR(indent, params);
+				return this.#fnExpr.toIR(ctx, params);
 			} else {
-				return new IR(`${this.#fnExpr.toIR(indent).toString()}${params}`, this.#fnExpr.site);
+				return new IR(`${this.#fnExpr.toIR(ctx).toString()}${params}`, this.#fnExpr.site);
 			}
 		} else {
-			return this.#fnExpr.toIR(indent);
+			return this.#fnExpr.toIR(ctx);
 		}
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
-		let fnIR = this.toFnExprIR(indent);
+	toIR(ctx) {
+		let fnIR = this.toFnExprIR(ctx);
 
 		/**
 		 * We need the func type for things like multivalued args and optional args 
@@ -2990,7 +2998,7 @@ export class CallExpr extends Expr {
 		 * First step is to eliminate the named args
 		 * @type {[Expr[], IR[]]}
 		 */
-		const [positional, namedOptional] = this.expandArgs();
+		const [positional, namedOptional] = this.expandArgs(ctx);
 
 		// some multiValued args (always positional)
 		if (positional.some(e => (!e.isLiteral()) && (e.cache?.asMulti))) {
@@ -3075,7 +3083,7 @@ export class CallExpr extends Expr {
 					}
 
 					ir = new IR([
-						e.toIR(),
+						e.toIR(ctx),
 						new IR("(("),
 						new IR(multiNames.map(n => new IR(n))).join(", "),
 						new IR(") -> {"),
@@ -3100,7 +3108,7 @@ export class CallExpr extends Expr {
 						new IR(") -> {"),
 						ir,
 						new IR("}("),
-						e.toIR(),
+						e.toIR(ctx),
 						new IR(")")
 					]);
 				}
@@ -3113,7 +3121,7 @@ export class CallExpr extends Expr {
 			}
 
 			let args = positional.map((a, i) => {
-				let ir = a.toIR(indent);
+				let ir = a.toIR(ctx);
 
 				if (i >= fn.nNonOptArgs) {
 					ir = new IR([
@@ -3195,11 +3203,11 @@ export class MemberExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @param {string} params - applied type parameters must be inserted Before the call to self
 	 * @returns {IR}
 	 */
-	toIR(indent = "", params = "") {
+	toIR(ctx, params = "") {
 		// members can be functions so, field getters are also encoded as functions for consistency
 
 		const objType = assertDefined(this.#objExpr.cache?.asTyped?.type?.asNamed); 
@@ -3215,7 +3223,7 @@ export class MemberExpr extends Expr {
 
 		return new IR([
 			ir, new IR("("),
-			this.#objExpr.toIR(indent),
+			this.#objExpr.toIR(ctx),
 			new IR(")"),
 		]);
 	}
@@ -3369,16 +3377,16 @@ export class IfElseExpr extends Expr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		let n = this.#conditions.length;
 
 		// each branch actually returns a function to allow deferred evaluation
 		let res = new IR([
 			new IR("() -> {"),
-			this.#branches[n].toIR(indent),
+			this.#branches[n].toIR(ctx),
 			new IR("}")
 		]);
 
@@ -3386,9 +3394,9 @@ export class IfElseExpr extends Expr {
 		for (let i = n - 1; i >= 0; i--) {
 			res = new IR([
 				new IR("__core__ifThenElse("),
-				this.#conditions[i].toIR(indent),
+				this.#conditions[i].toIR(ctx),
 				new IR(", () -> {"),
-				this.#branches[i].toIR(indent),
+				this.#branches[i].toIR(ctx),
 				new IR("}, () -> {"),
 				res,
 				new IR("()})"),
@@ -3711,21 +3719,21 @@ export class DestructExpr {
 	}
 
 	/**
-	 * @param {string} indent
+	 * @param {ToIRContext} ctx
 	 * @param {IR} inner 
 	 * @param {string} objName 
 	 * @param {number} fieldIndex 
 	 * @param {string} fieldFn
 	 * @returns {IR}
 	 */
-	wrapDestructIRInternal(indent, inner, objName, fieldIndex, fieldFn) {
+	wrapDestructIRInternal(ctx, inner, objName, fieldIndex, fieldFn) {
 		if (this.isIgnored() && this.#destructExprs.length == 0) {
 			return inner;
 		} else {
 			const baseName = this.isIgnored() ? `${objName}_${fieldIndex}` : this.#name.toString();
 
 			for (let i = this.#destructExprs.length - 1; i >= 0; i--) {
-				inner = this.#destructExprs[i].wrapDestructIRInternal(indent + TAB, inner, baseName, i, this.getFieldFn(i));
+				inner = this.#destructExprs[i].wrapDestructIRInternal(ctx.tab(), inner, baseName, i, this.getFieldFn(i));
 			}
 
 			let getter = `${fieldFn}(${objName})`;
@@ -3743,20 +3751,20 @@ export class DestructExpr {
 				new IR("("),
 				new IR(baseName, this.#name.site),
 				new IR(") "),
-				new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
+				new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}`),
 				inner,
-				new IR(`\n${indent}}(${getter})`),
+				new IR(`\n${ctx.indent}}(${getter})`),
 			]);
 		}
 	}
 
 	/**
-	 * @param {string} indent
+	 * @param {ToIRContext} ctx
 	 * @param {IR} inner 
 	 * @param {number} argIndex 
 	 * @returns {IR}
 	 */
-	wrapDestructIR(indent, inner, argIndex) {
+	wrapDestructIR(ctx, inner, argIndex) {
 		if (this.#destructExprs.length == 0) {
 			return inner;
 		} else {
@@ -3765,7 +3773,7 @@ export class DestructExpr {
 			for (let i = this.#destructExprs.length - 1; i >= 0; i--) {
 				const de = this.#destructExprs[i];
 
-				inner = de.wrapDestructIRInternal(indent + TAB, inner, baseName, i, this.getFieldFn(i));
+				inner = de.wrapDestructIRInternal(ctx.tab(), inner, baseName, i, this.getFieldFn(i));
 			}
 
 			return inner;
@@ -3952,21 +3960,21 @@ export class SwitchCase extends Token {
 
 	/**
 	 * Accept an arg because will be called with the result of the controlexpr
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
-		let inner = this.#bodyExpr.toIR(indent + TAB);
+	toIR(ctx) {
+		let inner = this.#bodyExpr.toIR(ctx.tab());
 
-		inner = this.#lhs.wrapDestructIR(indent, inner, 0);
+		inner = this.#lhs.wrapDestructIR(ctx, inner, 0);
 
 		return new IR([
 			new IR("("),
 			this.#lhs.toNameIR(0), 
 			new IR(") "),
-			new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
+			new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}`),
 			inner,
-			new IR(`\n${indent}}`),
+			new IR(`\n${ctx.indent}}`),
 		]);
 	}
 }
@@ -4059,18 +4067,18 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 
 	/**
 	 * Accepts two args
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		return new IR([
-			new IR(`(data) -> {\n${indent}${TAB}`),
-			new IR(`(pair) -> {\n${indent}${TAB}${TAB}`),
-			new IR(`(${this.#intVarName !== null ? this.#intVarName.toString() : "_"}, ${this.#lstVarName !== null ? this.#lstVarName.toString() : "_"}) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}${TAB}${TAB}`),
-			this.body.toIR(indent + TAB + TAB + TAB),
-			new IR(`\n${indent}${TAB}${TAB}}(__core__fstPair(pair), __core__sndPair(pair))`),
-			new IR(`\n${indent}${TAB}}(__core__unConstrData(data))`),
-			new IR(`\n${indent}}`)
+			new IR(`(data) -> {\n${ctx.indent}${TAB}`),
+			new IR(`(pair) -> {\n${ctx.indent}${TAB}${TAB}`),
+			new IR(`(${this.#intVarName !== null ? this.#intVarName.toString() : "_"}, ${this.#lstVarName !== null ? this.#lstVarName.toString() : "_"}) `), new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}${TAB}${TAB}`),
+			this.body.toIR(ctx.tab().tab().tab()),
+			new IR(`\n${ctx.indent}${TAB}${TAB}}(__core__fstPair(pair), __core__sndPair(pair))`),
+			new IR(`\n${ctx.indent}${TAB}}(__core__unConstrData(data))`),
+			new IR(`\n${ctx.indent}}`)
 		]);
 	}
 }
@@ -4117,14 +4125,14 @@ export class SwitchDefault extends Token {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		return new IR([
-			new IR(`(_) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}`),
-			this.#bodyExpr.toIR(indent + TAB),
-			new IR(`\n${indent}}`)
+			new IR(`(_) `), new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}`),
+			this.#bodyExpr.toIR(ctx.tab()),
+			new IR(`\n${ctx.indent}}`)
 		]);
 	}
 }
@@ -4248,10 +4256,10 @@ export class EnumSwitchExpr extends SwitchExpr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		let cases = this.cases.slice();
 
 		/** @type {SwitchCase | SwitchDefault} */
@@ -4264,12 +4272,12 @@ export class EnumSwitchExpr extends SwitchExpr {
 
 		let n = cases.length;
 
-		let res = last.toIR(indent + TAB + TAB + TAB);
+		let res = last.toIR(ctx.tab().tab().tab());
 
 		for (let i = n - 1; i >= 0; i--) {
 			res = new IR([
 				new IR(`__core__ifThenElse(__core__equalsInteger(i, ${cases[i].constrIndex.toString()}), () -> {`),
-				cases[i].toIR(indent + TAB + TAB + TAB),
+				cases[i].toIR(ctx.tab().tab().tab()),
 				new IR(`}, () -> {`),
 				res,
 				new IR(`})()`)
@@ -4277,10 +4285,10 @@ export class EnumSwitchExpr extends SwitchExpr {
 		}
 
 		return new IR([
-			new IR(`(e) `), new IR("->", this.site), new IR(` {\n${indent}${TAB}(\n${indent}${TAB}${TAB}(i) -> {\n${indent}${TAB}${TAB}${TAB}`),
+			new IR(`(e) `), new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}(\n${ctx.indent}${TAB}${TAB}(i) -> {\n${ctx.indent}${TAB}${TAB}${TAB}`),
 			res,
-			new IR(`\n${indent}${TAB}${TAB}}(__core__fstPair(__core__unConstrData(e)))\n${indent}${TAB})(e)\n${indent}}(`),
-			this.controlExpr.toIR(indent),
+			new IR(`\n${ctx.indent}${TAB}${TAB}}(__core__fstPair(__core__unConstrData(e)))\n${ctx.indent}${TAB})(e)\n${ctx.indent}}(`),
+			this.controlExpr.toIR(ctx),
 			new IR(")"),
 		]);
 	}
@@ -4362,15 +4370,15 @@ export class DataSwitchExpr extends SwitchExpr {
 	}
 
 	/**
-	 * @param {string} indent 
+	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
-	toIR(indent = "") {
+	toIR(ctx) {
 		/** @type {[?IR, ?IR, ?IR, ?IR, ?IR]} */
 		let cases = [null, null, null, null, null]; // constr, map, list, int, byteArray
 
 		for (let c of this.cases) {
-			let ir = c.toIR(indent + TAB + TAB);
+			let ir = c.toIR(ctx.tab().tab());
 
 			switch (c.memberName.value) {
 				case "ByteArray":
@@ -4433,33 +4441,33 @@ export class DataSwitchExpr extends SwitchExpr {
 		if (this.defaultCase !== null) {
 			for (let i = 0; i < 5; i++) {
 				if (cases[i] === null) {
-					cases[i] = new IR(`${indent}${TAB}def`);
+					cases[i] = new IR(`${ctx.indent}${TAB}def`);
 				}
 			}
 		}
 
 		let res = new IR([
-			new IR(`${indent}__core__chooseData(e, `, this.site),
+			new IR(`${ctx.indent}__core__chooseData(e, `, this.site),
 			new IR(cases.map(c => assertDefined(c))).join(", "),
-			new IR(`${indent})`)
+			new IR(`${ctx.indent})`)
 		]);
 
 		if (this.defaultCase !== null) {
 			res = new IR([
-				new IR(`${indent}(def) -> {\n`),
+				new IR(`${ctx.indent}(def) -> {\n`),
 				res,
-				new IR(`\n${indent}}(`),
-				this.defaultCase.toIR(indent),
+				new IR(`\n${ctx.indent}}(`),
+				this.defaultCase.toIR(ctx),
 				new IR(`)`)
 			]);
 		}
 
 		res = new IR([
-			new IR(`${indent}(e) -> {\n`),
+			new IR(`${ctx.indent}(e) -> {\n`),
 			res,
 			new IR("(e)"),
-			new IR(`${indent}}(`),
-			this.controlExpr.toIR(indent),
+			new IR(`${ctx.indent}}(`),
+			this.controlExpr.toIR(ctx),
 			new IR(")")
 		]);
 

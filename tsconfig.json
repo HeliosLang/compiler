@@ -1,6 +1,7 @@
 {
     "include": ["helios.js"],
     "compilerOptions": {
+        "strictNullChecks": true,
 		"target": "es2020",
         "allowJs": true,
         "declaration": true,

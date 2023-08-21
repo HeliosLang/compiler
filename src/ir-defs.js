@@ -3,6 +3,7 @@
 
 import {
 	REAL_PRECISION,
+	TAB,
 	config
 } from "./config.js";
 
@@ -110,10 +111,11 @@ class RawFunc {
 
 /**
  * Initializes the db containing all the builtin functions
+ * @param {boolean} simplify
  * @returns {Map<string, RawFunc>}
  */
 // only need to wrap these source in IR right at the very end
-function makeRawFunctions() {
+function makeRawFunctions(simplify) {
 	/** @type {Map<string, RawFunc>} */
 	let db = new Map();
 
@@ -2214,7 +2216,29 @@ function makeRawFunctions() {
 	addSerializeFunc(`__helios__list[${TTPP}0]`);
 	addNeqFunc(`__helios__list[${TTPP}0]`);
 	addDataLikeEqFunc(`__helios__list[${TTPP}0]`);
-	add(new RawFunc(`__helios__list[${TTPP}0]__from_data`, "__core__unListData"));
+	add(new RawFunc(`__helios__list[${TTPP}0]__from_data`, (config.CHECK_CASTS && !simplify) ? `(data) -> {
+			(lst) -> {
+				(recurse) -> {
+					recurse(recurse, lst)
+				}(
+					(recurse, lst) -> {
+						__core__chooseList(
+							lst,
+							() -> {
+								__core__mkNilData(())
+							},
+							() -> {
+								__core__mkCons(
+									${TTPP}0____to_data(${TTPP}0__from_data(__core__headList(lst))),
+									recurse(recurse, __core__tailList(lst))
+								)
+							}
+						)()
+						
+					}
+				)
+			}(__core__unListData(data))
+		}` : "__core__unListData"));
 	add(new RawFunc(`__helios__list[${TTPP}0]____to_data`, "__core__listData"));
 	add(new RawFunc(`__helios__list[${TTPP}0]__new`,
 	`(n, fn) -> {
@@ -3068,7 +3092,35 @@ function makeRawFunctions() {
 	addSerializeFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addNeqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addDataLikeEqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
-	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data`, "__core__unMapData"));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data`, (config.CHECK_CASTS && !simplify) ? `(data) -> {
+			(map) -> {
+				(recurse) -> {
+					recurse(recurse, map)
+				}(
+					(recurse, map) -> {
+						__core__chooseList(
+							map,
+							() -> {
+								__core__mkNilPairData(())
+							},
+							() -> {
+								__core__mkCons(
+									(head) -> {
+										__core__mkPairData(
+											${TTPP}0____to_data(${TTPP}0__from_data(__core__fstPair(head))),
+											${TTPP}1____to_data(${TTPP}1__from_data(__core__sndPair(head)))
+										)
+									}(__core__headList(map)),
+									recurse(recurse, __core__tailList(map))
+								)
+							}
+						)()
+					}
+				)
+			}(__core__unMapData(data))
+		}` :
+		"__core__unMapData"
+	));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____to_data`, "__core__mapData"));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____add`, "__helios__common__concat"));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__prepend`,
@@ -6042,20 +6094,72 @@ function makeRawFunctions() {
 	return db;
 }
 
-const db = makeRawFunctions();
+/**
+ * @internal
+ */
+export class ToIRContext {
+	/**
+	 * @readonly
+	 * @type {boolean}
+	 */
+	simplify;
+
+	/**
+	 * @readonly
+	 * @type {string}
+	 */
+	indent; 
+
+	/**
+	 * @type {Map<string, RawFunc>}
+	 */
+	#db;
+	
+	/**
+	 * @param {boolean} simplify 
+	 * @param {string} indent
+	 * @param {Map<string, RawFunc>} db
+	 */
+	constructor(simplify, indent = "", db = new Map()) {
+		this.simplify = simplify;
+		this.indent = indent;
+
+		this.#db = db;
+	}
+
+	/**
+	 * @returns {ToIRContext}
+	 */
+	tab() {
+		return new ToIRContext(this.simplify, this.indent + TAB, this.#db);
+	}
+
+	/**
+	 * @type {Map<string, RawFunc>}
+	 */
+	get db() {
+		if (this.#db.size == 0) {
+			this.#db = makeRawFunctions(this.simplify);
+		}
+
+		return this.#db;
+	}
+}
+
 
 /**
  * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
  * @internal
+ * @param {ToIRContext} ctx
  * @returns {IRDefinitions}
  */
-export function fetchRawGenerics() {
+export function fetchRawGenerics(ctx) {
 	/**
 	 * @type {IRDefinitions}
 	 */
 	const map = new Map();
 
-	for (let [k, v] of db) {
+	for (let [k, v] of ctx.db) {
 		if (IRParametricName.matches(k)) {
 			// load without dependencies
 			map.set(k, v.toIR())
@@ -6068,14 +6172,15 @@ export function fetchRawGenerics() {
 /**
  * Doesn't add templates
  * @internal
+ * @param {ToIRContext} ctx
  * @param {IR} ir 
  * @param {null | IRDefinitions} userDefs - some userDefs might have the __helios prefix
  * @returns {IRDefinitions}
  */
-export function fetchRawFunctions(ir, userDefs = null) {
+export function fetchRawFunctions(ctx, ir, userDefs = null) {
 	// notify statistics of existence of builtin in correct order
 	if (onNotifyRawUsage !== null) {
-		for (let [name, _] of db) {
+		for (let [name, _] of ctx.db) {
 			// don't add templates, as they will never actually be used (type parameters are substituted)
 			if (!IRParametricName.isTemplate(name)) {
 				onNotifyRawUsage(name, 0);
@@ -6095,13 +6200,13 @@ export function fetchRawFunctions(ir, userDefs = null) {
 	if (matches !== null) {
 		for (let m of matches) {
 			if (!IRParametricName.matches(m) && !map.has(m) && (!userDefs || !userDefs.has(m))) {
-				const builtin = db.get(m);
+				const builtin = ctx.db.get(m);
 
 				if (!builtin) {
 					throw new Error(`builtin ${m} not found`);
 				}
 
-				builtin.load(db, map);
+				builtin.load(ctx.db, map);
 			}
 		}
 	}
@@ -6111,11 +6216,12 @@ export function fetchRawFunctions(ir, userDefs = null) {
 
 /**
  * @internal
+ * @param {ToIRContext} ctx
  * @param {IR} ir 
  * @returns {IR}
  */
-export function wrapWithRawFunctions(ir) {
-	const map = fetchRawFunctions(ir);
+export function wrapWithRawFunctions(ctx, ir) {
+	const map = fetchRawFunctions(ctx, ir);
 	
 	return IR.wrapWithDefinitions(ir, map);
 }

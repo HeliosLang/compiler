@@ -2842,9 +2842,6 @@ export class Assets extends CborData {
 		 * @type {[ByteArray, HInt][]}
 		 */
 		const tokens_ = tokens.map(([tokenName, qty]) => [ByteArray.fromProps(tokenName), HInt.fromProps(qty)]);
-		tokens_.sort((a, b) => {
-			return ByteArrayData.comp(a[0].bytes, b[0].bytes)
-		});
 
 		this.assets.push([mph_, tokens_]);
 
@@ -3064,13 +3061,19 @@ export class Assets extends CborData {
 	}
 
 	/**
-	 * Makes sure minting policies are in correct order
+	 * Makes sure minting policies are in correct order, and for each minting policy make sure the tokens are in the correct order
 	 * Mutates 'this'
 	 * Order of tokens per mintingPolicyHash isn't changed
 	 */
 	sort() {
 		this.assets.sort((a, b) => {
 			return Hash.compare(a[0], b[0]);
+		});
+
+		this.assets.forEach(([_, tokens]) => {
+			tokens.sort((a, b) => {
+				return ByteArrayData.comp(a[0].bytes, b[0].bytes);
+			});
 		});
 	}
 
@@ -3080,6 +3083,14 @@ export class Assets extends CborData {
 				const a = this.assets[i-1];
 
 				assert(Hash.compare(a[0], b[0]) == -1, "assets not sorted")
+
+				b[1].forEach((bb, j) => {
+					if (j > 0) {
+						const aa = b[1][j-1];
+
+						assert(ByteArrayData.comp(aa[0].bytes, bb[0].bytes) < 0, "tokens not sorted");
+					}
+				})
 			}
 		})
 	}

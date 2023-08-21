@@ -43,7 +43,7 @@ declare module "helios" {
      * @param {string} msg
      * @returns {T}
      */
-    export function assertDefined<T>(obj: T, msg?: string): T;
+    export function assertDefined<T>(obj: T | null | undefined, msg?: string): T;
     /**
      * @internal
      * @template Tin, Tout
@@ -72,7 +72,7 @@ declare module "helios" {
      * @param {(T | null)[]} lst
      * @returns {null | (T[])}
      */
-    export function reduceNull<T>(lst: T[]): T[];
+    export function reduceNull<T>(lst: (T | null)[]): T[] | null;
     /**
      * @internal
      * @template Ta
@@ -80,7 +80,7 @@ declare module "helios" {
      * @param {[Ta | null, Tb | null][]} pairs
      * @returns {null | [Ta, Tb][]}
      */
-    export function reduceNullPairs<Ta, Tb>(pairs: [Ta, Tb][]): [Ta, Tb][];
+    export function reduceNullPairs<Ta, Tb>(pairs: [Ta | null, Tb | null][]): [Ta, Tb][] | null;
     /**
      * Compares two objects (deep recursive comparison)
      * @internal
@@ -364,7 +364,7 @@ declare module "helios" {
         /**
          * @type {?T}
          */
-        "__#3@#value": T;
+        "__#3@#value": T | null;
         /**
          * @internal
          * @type {string}
@@ -373,7 +373,7 @@ declare module "helios" {
         /**
          * @type {?T}
          */
-        readonly some: T;
+        readonly some: T | null;
         /**
          * @internal
          * @returns {UplcData}
@@ -733,6 +733,35 @@ declare module "helios" {
      */
     export function OptionType$(someType: Type): DataType;
     /**
+     * Set the statistics collector (used by the test-suite)
+     * @internal
+     * @param {(name: string, count: number) => void} callback
+     */
+    export function setRawUsageNotifier(callback: (name: string, count: number) => void): void;
+    /**
+     * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
+     * @internal
+     * @param {ToIRContext} ctx
+     * @returns {IRDefinitions}
+     */
+    export function fetchRawGenerics(ctx: ToIRContext): IRDefinitions;
+    /**
+     * Doesn't add templates
+     * @internal
+     * @param {ToIRContext} ctx
+     * @param {IR} ir
+     * @param {null | IRDefinitions} userDefs - some userDefs might have the __helios prefix
+     * @returns {IRDefinitions}
+     */
+    export function fetchRawFunctions(ctx: ToIRContext, ir: IR, userDefs?: null | IRDefinitions): IRDefinitions;
+    /**
+     * @internal
+     * @param {ToIRContext} ctx
+     * @param {IR} ir
+     * @returns {IR}
+     */
+    export function wrapWithRawFunctions(ctx: ToIRContext, ir: IR): IR;
+    /**
      * Used by VSCode plugin and CLI
      * The sources can't be modified directly because that messes up the codemapping
      * @internal
@@ -767,32 +796,6 @@ declare module "helios" {
      * @returns {null | [ScriptPurpose, string]} Returns `null` if the script header is missing or syntactically incorrect. The first string returned is the script purpose, the second value returned is the script name.
      */
     export function extractScriptPurposeAndName(rawSrc: string): null | [ScriptPurpose, string];
-    /**
-     * Set the statistics collector (used by the test-suite)
-     * @internal
-     * @param {(name: string, count: number) => void} callback
-     */
-    export function setRawUsageNotifier(callback: (name: string, count: number) => void): void;
-    /**
-     * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
-     * @internal
-     * @returns {IRDefinitions}
-     */
-    export function fetchRawGenerics(): IRDefinitions;
-    /**
-     * Doesn't add templates
-     * @internal
-     * @param {IR} ir
-     * @param {null | IRDefinitions} userDefs - some userDefs might have the __helios prefix
-     * @returns {IRDefinitions}
-     */
-    export function fetchRawFunctions(ir: IR, userDefs?: null | IRDefinitions): IRDefinitions;
-    /**
-     * @internal
-     * @param {IR} ir
-     * @returns {IR}
-     */
-    export function wrapWithRawFunctions(ir: IR): IR;
     /**
      * Build an Intermediate Representation expression
      * @param {Token[]} ts
@@ -835,7 +838,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.15.3";
+    export const VERSION: "0.15.4";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
@@ -851,15 +854,16 @@ declare module "helios" {
     export const REAL_PRECISION: number;
     export namespace config {
         function set(props: {
-            DEBUG?: boolean;
-            STRICT_BABBAGE?: boolean;
-            IS_TESTNET?: boolean;
-            N_DUMMY_INPUTS?: number;
-            AUTO_SET_VALIDITY_RANGE?: boolean;
-            VALIDITY_RANGE_START_OFFSET?: number;
-            VALIDITY_RANGE_END_OFFSET?: number;
-            EXPERIMENTAL_CEK?: boolean;
-            IGNORE_UNEVALUATED_CONSTANTS?: boolean;
+            DEBUG?: boolean | undefined;
+            STRICT_BABBAGE?: boolean | undefined;
+            IS_TESTNET?: boolean | undefined;
+            N_DUMMY_INPUTS?: number | undefined;
+            AUTO_SET_VALIDITY_RANGE?: boolean | undefined;
+            VALIDITY_RANGE_START_OFFSET?: number | undefined;
+            VALIDITY_RANGE_END_OFFSET?: number | undefined;
+            EXPERIMENTAL_CEK?: boolean | undefined;
+            IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
+            CHECK_CASTS?: boolean | undefined;
         }): void;
         const DEBUG: boolean;
         const STRICT_BABBAGE: boolean;
@@ -870,6 +874,7 @@ declare module "helios" {
         const VALIDITY_RANGE_END_OFFSET: number;
         const EXPERIMENTAL_CEK: boolean;
         const IGNORE_UNEVALUATED_CONSTANTS: boolean;
+        const CHECK_CASTS: boolean;
     }
     /**
      * Read non-byte aligned numbers
@@ -1056,7 +1061,7 @@ declare module "helios" {
         get src(): Source;
         get startPos(): number;
         get endPos(): number;
-        get endSite(): Site;
+        get endSite(): Site | null;
         /**
          * @param {Site} other
          * @returns {Site}
@@ -1069,7 +1074,7 @@ declare module "helios" {
         /**
          * @type {?Site}
          */
-        get codeMapSite(): Site;
+        get codeMapSite(): Site | null;
         /**
          * @param {Site} site
          */
@@ -1164,7 +1169,7 @@ declare module "helios" {
          * @param {boolean} verbose
          * @returns {T | undefined}
          */
-        static catch<T>(fn: () => T, verbose?: boolean): T;
+        static catch<T>(fn: () => T, verbose?: boolean): T | undefined;
         /**
          * @internal
          * @param {string} msg
@@ -1324,6 +1329,11 @@ declare module "helios" {
          */
         constructor(site: Site, value: string);
         get value(): string;
+        /**
+         * @param {?(string | string[])} value
+         * @returns {Word}
+         */
+        assertWord(value?: (string | string[]) | null): Word;
         /**
          * @returns {Word}
          */
@@ -1523,7 +1533,7 @@ declare module "helios" {
          * @internal
          * @type {?Site}
          */
-        get site(): Site;
+        get site(): Site | null;
         /**
          * @returns {any}
          */
@@ -2744,17 +2754,17 @@ declare module "helios" {
          * Returns the underlying `PubKeyHash` of a simple payment address, or `null` for a script address.
          * @type {null | PubKeyHash}
          */
-        get pubKeyHash(): PubKeyHash;
+        get pubKeyHash(): PubKeyHash | null;
         /**
          * Returns the underlying `ValidatorHash` of a script address, or `null` for a regular payment address.
          * @type {null | ValidatorHash}
          */
-        get validatorHash(): ValidatorHash;
+        get validatorHash(): ValidatorHash | null;
         /**
          * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
          * @type {null | StakeKeyHash | StakingValidatorHash}
          */
-        get stakingHash(): StakeKeyHash | StakingValidatorHash;
+        get stakingHash(): StakeKeyHash | StakingValidatorHash | null;
         #private;
     }
     /**
@@ -2982,7 +2992,7 @@ declare module "helios" {
          */
         _toUplcData(): MapData;
         /**
-         * Makes sure minting policies are in correct order
+         * Makes sure minting policies are in correct order, and for each minting policy make sure the tokens are in the correct order
          * Mutates 'this'
          * Order of tokens per mintingPolicyHash isn't changed
          */
@@ -3150,7 +3160,7 @@ declare module "helios" {
         /**
          * @type {null | bigint}
          */
-        get liveSlot(): bigint;
+        get liveSlot(): bigint | null;
         /**
          * @internal
          * @type {Object}
@@ -5030,47 +5040,47 @@ declare module "helios" {
         /**
          * @type {null | DataType}
          */
-        get asDataType(): DataType;
+        get asDataType(): DataType | null;
         /**
          * @type {null | EnumMemberType}
          */
-        get asEnumMemberType(): EnumMemberType;
+        get asEnumMemberType(): EnumMemberType | null;
         /**
          * @type {null | Func}
          */
-        get asFunc(): Func;
+        get asFunc(): Func | null;
         /**
          * @type {null | Instance}
          */
-        get asInstance(): Instance;
+        get asInstance(): Instance | null;
         /**
          * @type {null | Multi}
          */
-        get asMulti(): Multi;
+        get asMulti(): Multi | null;
         /**
          * @type {null | Named}
          */
-        get asNamed(): Named;
+        get asNamed(): Named | null;
         /**
          * @type {null | Namespace}
          */
-        get asNamespace(): Namespace;
+        get asNamespace(): Namespace | null;
         /**
          * @type {null | Parametric}
          */
-        get asParametric(): Parametric;
+        get asParametric(): Parametric | null;
         /**
          * @type {null | Type}
          */
-        get asType(): Type;
+        get asType(): Type | null;
         /**
          * @type {null | Typed}
          */
-        get asTyped(): Typed;
+        get asTyped(): Typed | null;
         /**
          * @type {null | TypeClass}
          */
-        get asTypeClass(): TypeClass;
+        get asTypeClass(): TypeClass | null;
         /**
          * @type {boolean}
          */
@@ -5098,9 +5108,21 @@ declare module "helios" {
      */
     export class AllType extends Common implements DataType {
         /**
+         * @type {DataType}
+         */
+        get asDataType(): DataType;
+        /**
+         * @type {Named}
+         */
+        get asNamed(): Named;
+        /**
+         * @type {Type}
+         */
+        get asType(): Type;
+        /**
          * @type {HeliosDataClass<HeliosData> | null}
          */
-        get offChainType(): HeliosDataClass<HeliosData>;
+        get offChainType(): HeliosDataClass<HeliosData> | null;
         /**
          * @type {string[]}
          */
@@ -5143,8 +5165,8 @@ declare module "helios" {
      * @implements {DataType}
      */
     export class AnyType extends Common implements DataType {
-        get fieldNames(): any[];
-        get offChainType(): any;
+        get fieldNames(): never[];
+        get offChainType(): null;
         /**
          * @type {string}
          */
@@ -5153,6 +5175,18 @@ declare module "helios" {
          * @type {string}
          */
         get path(): string;
+        /**
+         * @type {Type}
+         */
+        get asType(): Type;
+        /**
+         * @type {Named}
+         */
+        get asNamed(): Named;
+        /**
+         * @type {DataType}
+         */
+        get asDataType(): DataType;
         /**
          * @type {InstanceMembers}
          */
@@ -5192,6 +5226,10 @@ declare module "helios" {
          * @type {TypeMembers}
          */
         get typeMembers(): TypeMembers;
+        /**
+         * @type {Type}
+         */
+        get asType(): Type;
         /**
          * @param {Site} site
          * @param {InferenceMap} map
@@ -5295,6 +5333,10 @@ declare module "helios" {
          */
         get typeMembers(): TypeMembers;
         /**
+         * @type {Type}
+         */
+        get asType(): Type;
+        /**
          * Checks if arg types are valid.
          * Throws errors if not valid. Returns the return type if valid.
          * @param {Site} site
@@ -5388,6 +5430,18 @@ declare module "helios" {
          */
         constructor({ name, path, offChainType, genOffChainType, fieldNames, genInstanceMembers, genTypeMembers, genTypeDetails, jsToUplc, uplcToJs }: GenericTypeProps<T>);
         /**
+         * @type {DataType}
+         */
+        get asDataType(): DataType;
+        /**
+         * @type {Named}
+         */
+        get asNamed(): Named;
+        /**
+         * @type {Type}
+         */
+        get asType(): Type;
+        /**
          * @type {string[]}
          */
         get fieldNames(): string[];
@@ -5402,7 +5456,7 @@ declare module "helios" {
         /**
          * @type {null | HeliosDataClass<T>}
          */
-        get offChainType(): HeliosDataClass<T>;
+        get offChainType(): HeliosDataClass<T> | null;
         /**
          * @type {TypeDetails}
          */
@@ -5488,6 +5542,10 @@ declare module "helios" {
          * @type {DataType}
          */
         get parentType(): DataType;
+        /**
+         * @type {EnumMemberType}
+         */
+        get asEnumMemberType(): EnumMemberType;
         #private;
     }
     /**
@@ -5504,6 +5562,10 @@ declare module "helios" {
          * @type {TypeMembers}
          */
         get typeMembers(): TypeMembers;
+        /**
+         * @type {Type}
+         */
+        get asType(): Type;
         /**
          *
          * @param {Site} site
@@ -5544,6 +5606,14 @@ declare module "helios" {
          * @type {Type}
          */
         get type(): Type;
+        /**
+         * @type {Instance}
+         */
+        get asInstance(): Instance;
+        /**
+         * @type {Typed}
+         */
+        get asTyped(): Typed;
         #private;
     }
     /**
@@ -5564,6 +5634,14 @@ declare module "helios" {
          * @type {Type}
          */
         get type(): Type;
+        /**
+         * @type {Instance}
+         */
+        get asInstance(): Instance;
+        /**
+         * @type {Typed}
+         */
+        get asTyped(): Typed;
     }
     /**
      * @internal
@@ -5579,23 +5657,23 @@ declare module "helios" {
         /**
          * @type {null | DataType}
          */
-        get asDataType(): DataType;
+        get asDataType(): DataType | null;
         /**
          * @type {null | EnumMemberType}
          */
-        get asEnumMemberType(): EnumMemberType;
+        get asEnumMemberType(): EnumMemberType | null;
         /**
          * @type {null | Func}
          */
-        get asFunc(): Func;
+        get asFunc(): Func | null;
         /**
          * @type {null | Instance}
          */
-        get asInstance(): Instance;
+        get asInstance(): Instance | null;
         /**
          * @type {null | Multi}
          */
-        get asMulti(): Multi;
+        get asMulti(): Multi | null;
         /**
          * @type {Named}
          */
@@ -5603,23 +5681,23 @@ declare module "helios" {
         /**
          * @type {null | Namespace}
          */
-        get asNamespace(): Namespace;
+        get asNamespace(): Namespace | null;
         /**
          * @type {null | Parametric}
          */
-        get asParametric(): Parametric;
+        get asParametric(): Parametric | null;
         /**
          * @type {null | Type}
          */
-        get asType(): Type;
+        get asType(): Type | null;
         /**
          * @type {null | Typed}
          */
-        get asTyped(): Typed;
+        get asTyped(): Typed | null;
         /**
          * @type {null | TypeClass}
          */
-        get asTypeClass(): TypeClass;
+        get asTypeClass(): TypeClass | null;
         /**
          * @type {string}
          */
@@ -5654,6 +5732,14 @@ declare module "helios" {
          */
         get funcType(): FuncType;
         /**
+         * @type {Func}
+         */
+        get asFunc(): Func;
+        /**
+         * @type {Typed}
+         */
+        get asTyped(): Typed;
+        /**
          * @param {Site} site
          * @param {Typed[]} args
          * @param {{[name: string]: Typed}} namedArgs
@@ -5683,6 +5769,10 @@ declare module "helios" {
          * @type {Typed[]}
          */
         get values(): Typed[];
+        /**
+         * @type {Multi}
+         */
+        get asMulti(): Multi;
         #private;
     }
     /**
@@ -5694,6 +5784,10 @@ declare module "helios" {
          * @param {Type} type
          */
         constructor(type: Type);
+        /**
+         * @returns {Typed}
+         */
+        get asTyped(): Typed;
         /**
          * @type {Type}
          */
@@ -5718,6 +5812,14 @@ declare module "helios" {
          * @type {Type}
          */
         get type(): Type;
+        /**
+         * @type {Instance}
+         */
+        get asInstance(): Instance;
+        /**
+         * @type {Typed}
+         */
+        get asTyped(): Typed;
     }
     /**
      * @internal
@@ -5732,6 +5834,10 @@ declare module "helios" {
          * @type {NamespaceMembers}
          */
         get namespaceMembers(): NamespaceMembers;
+        /**
+         * @type {Namespace}
+         */
+        get asNamespace(): Namespace;
         #private;
     }
     /**
@@ -5811,6 +5917,10 @@ declare module "helios" {
          */
         get typeMembers(): TypeMembers;
         /**
+         * @type {Type}
+         */
+        get asType(): Type;
+        /**
          * @internal
          * @param {Site} site
          * @param {InferenceMap} map
@@ -5843,13 +5953,21 @@ declare module "helios" {
          */
         constructor(typeClass: TypeClass, name: string, path: string, parameter: null | ParameterI);
         /**
+         * @type {DataType}
+         */
+        get asDataType(): DataType;
+        /**
+         * @type {Named}
+         */
+        get asNamed(): Named;
+        /**
          * @type {string[]}
          */
         get fieldNames(): string[];
         /**
          * @type {null | HeliosDataClass<HeliosData>}
          */
-        get offChainType(): HeliosDataClass<HeliosData>;
+        get offChainType(): HeliosDataClass<HeliosData> | null;
         /**
          * @type {string}
          */
@@ -5861,6 +5979,10 @@ declare module "helios" {
      * @implements {TypeClass}
      */
     export class AnyTypeClass extends Common implements TypeClass {
+        /**
+         * @type {TypeClass}
+         */
+        get asTypeClass(): TypeClass;
         /**
          * @param {Type} impl
          * @returns {TypeClassMembers}
@@ -5890,6 +6012,10 @@ declare module "helios" {
      */
     export class DefaultTypeClass extends Common implements TypeClass {
         /**
+         * @type {TypeClass}
+         */
+        get asTypeClass(): TypeClass;
+        /**
          * @param {Type} impl
          * @returns {TypeClassMembers}
          */
@@ -5917,6 +6043,10 @@ declare module "helios" {
      * @implements {TypeClass}
      */
     export class SummableTypeClass extends Common implements TypeClass {
+        /**
+         * @type {TypeClass}
+         */
+        get asTypeClass(): TypeClass;
         /**
          * @param {Type} impl
          * @returns {TypeClassMembers}
@@ -5985,7 +6115,7 @@ declare module "helios" {
         /**
          * @type {null | ((...any) => HeliosDataClass<HeliosData>)}
          */
-        get offChainType(): (...any: any[]) => HeliosDataClass<HeliosData>;
+        get offChainType(): ((...any: any[]) => HeliosDataClass<HeliosData>) | null;
         get params(): Parameter[];
         get fnType(): FuncType;
         /**
@@ -5999,6 +6129,10 @@ declare module "helios" {
          * @returns {EvalEntity}
          */
         apply(types: Type[], site?: Site): EvalEntity;
+        /**
+         * @type {Parametric}
+         */
+        get asParametric(): Parametric;
         /**
          * Must infer before calling
          * @param {Site} site
@@ -6033,14 +6167,18 @@ declare module "helios" {
          */
         constructor({ name, offChainType, parameters, apply }: {
             name: string;
-            offChainType?: (...any: any[]) => HeliosDataClass<HeliosData>;
+            offChainType?: ((...any: any[]) => HeliosDataClass<HeliosData>) | undefined;
             parameters: Parameter[];
             apply: (types: Type[]) => DataType;
         });
         /**
+         * @type {Parametric}
+         */
+        get asParametric(): Parametric;
+        /**
          * @type {null | ((...any) => HeliosDataClass<HeliosData>)}
          */
-        get offChainType(): (...any: any[]) => HeliosDataClass<HeliosData>;
+        get offChainType(): ((...any: any[]) => HeliosDataClass<HeliosData>) | null;
         /**
          * @type {TypeClass[]}
          */
@@ -6104,6 +6242,18 @@ declare module "helios" {
          * @type {FuncType}
          */
         get funcType(): FuncType;
+        /**
+         * @type {Func}
+         */
+        get asFunc(): Func;
+        /**
+         * @type {Named}
+         */
+        get asNamed(): Named;
+        /**
+         * @type {Typed}
+         */
+        get asTyped(): Typed;
         /**
          * @param {Site} site
          * @param {Typed[]} args
@@ -6296,7 +6446,7 @@ declare module "helios" {
         /**
          * @type {null | HeliosDataClass<HeliosData>}
          */
-        get offChainType(): HeliosDataClass<HeliosData>;
+        get offChainType(): HeliosDataClass<HeliosData> | null;
         /**
          * @type {string}
          */
@@ -6305,6 +6455,18 @@ declare module "helios" {
          * @type {TypeMembers}
          */
         get typeMembers(): TypeMembers;
+        /**
+         * @type {DataType}
+         */
+        get asDataType(): DataType;
+        /**
+         * @type {Named}
+         */
+        get asNamed(): Named;
+        /**
+         * @type {Type}
+         */
+        get asType(): Type;
         /**
          * @param {Site} site
          * @param {InferenceMap} map
@@ -6573,6 +6735,36 @@ declare module "helios" {
     export class ModuleScope extends Scope {
     }
     /**
+     * @internal
+     */
+    export class ToIRContext {
+        /**
+         * @param {boolean} simplify
+         * @param {string} indent
+         * @param {Map<string, RawFunc>} db
+         */
+        constructor(simplify: boolean, indent?: string, db?: Map<string, RawFunc>);
+        /**
+         * @readonly
+         * @type {boolean}
+         */
+        readonly simplify: boolean;
+        /**
+         * @readonly
+         * @type {string}
+         */
+        readonly indent: string;
+        /**
+         * @returns {ToIRContext}
+         */
+        tab(): ToIRContext;
+        /**
+         * @type {Map<string, RawFunc>}
+         */
+        get db(): Map<string, RawFunc>;
+        #private;
+    }
+    /**
      * Base class of every Type and Instance expression.
      * @internal
      */
@@ -6581,11 +6773,11 @@ declare module "helios" {
          * Used in switch cases where initial typeExpr is used as memberName instead
          * @param {null | EvalEntity} c
          */
-        set cache(arg: EvalEntity);
+        set cache(arg: EvalEntity | null);
         /**
          * @type {null | EvalEntity}
          */
-        get cache(): EvalEntity;
+        get cache(): EvalEntity | null;
         /**
          * @param {Scope} scope
          * @returns {null | EvalEntity}
@@ -6617,10 +6809,10 @@ declare module "helios" {
          */
         evalAsTypedOrMulti(scope: Scope): null | Typed | Multi;
         /**
-         * @param {string} indent
+         * @param {ToIRContext} ctx
          * @returns {IR}
          */
-        toIR(indent?: string): IR;
+        toIR(ctx: ToIRContext): IR;
         #private;
     }
     /**
@@ -6721,6 +6913,11 @@ declare module "helios" {
      * @internal
      */
     export class VoidTypeExpr extends Expr {
+        /**
+         * @param {Scope} scope
+         * @returns {EvalEntity}
+         */
+        evalInternal(scope: Scope): EvalEntity;
     }
     /**
      * @internal
@@ -6827,6 +7024,11 @@ declare module "helios" {
          * @type {DataType}
          */
         get type(): DataType;
+        /**
+         * @param {Scope} scope
+         * @returns {EvalEntity}
+         */
+        evalInternal(scope: Scope): EvalEntity;
         #private;
     }
     /**
@@ -6845,6 +7047,11 @@ declare module "helios" {
          * @type {DataType}
          */
         get type(): DataType;
+        /**
+         * @param {Scope} scope
+         * @returns {EvalEntity}
+         */
+        evalInternal(scope: Scope): EvalEntity;
         /**
          * @type {EvalEntity}
          */
@@ -6876,10 +7083,10 @@ declare module "helios" {
          */
         isNamed(): boolean;
         /**
-         * @param {string} indent
+         * @param {ToIRContext} ctx
          * @returns {IR}
          */
-        toIR(indent?: string): IR;
+        toIR(ctx: ToIRContext): IR;
         /**
          * @returns {string}
          */
@@ -6892,11 +7099,12 @@ declare module "helios" {
      */
     export class StructLiteralExpr extends Expr {
         /**
+         * @param {ToIRContext} ctx
          * @param {Site} site
          * @param {string} path
          * @param {IR[]} fields
          */
-        static toIRInternal(site: Site, path: string, fields: IR[]): IR;
+        static toIRInternal(ctx: ToIRContext, site: Site, path: string, fields: IR[]): IR;
         /**
          * @param {Expr} typeExpr
          * @param {StructLiteralField[]} fields
@@ -6973,7 +7181,7 @@ declare module "helios" {
         /**
          * @type {null | Expr}
          */
-        get typeExpr(): Expr;
+        get typeExpr(): Expr | null;
         /**
          * @type {string}
          */
@@ -7045,10 +7253,11 @@ declare module "helios" {
          *   )()
          * )
          * TODO: indentation
+         * @param {ToIRContext} ctx
          * @param {IR} bodyIR
          * @returns {IR}
          */
-        wrapWithDefault(bodyIR: IR): IR;
+        wrapWithDefault(ctx: ToIRContext, bodyIR: IR): IR;
         #private;
     }
     /**
@@ -7099,15 +7308,16 @@ declare module "helios" {
         argsToIR(): IR;
         /**
          * In reverse order, because later opt args might depend on earlier args
+         * @param {ToIRContext} ctx
          * @param {IR} innerIR
          * @returns {IR}
          */
-        wrapWithDefaultArgs(innerIR: IR): IR;
+        wrapWithDefaultArgs(ctx: ToIRContext, innerIR: IR): IR;
         /**
-         * @param {string} indent
+         * @param {ToIRContext} ctx
          * @returns {IR}
          */
-        toIRInternal(indent?: string): IR;
+        toIRInternal(ctx: ToIRContext): IR;
         #private;
     }
     /**
@@ -7252,14 +7462,15 @@ declare module "helios" {
          */
         get fn(): FuncType;
         /**
+         * @param {ToIRContext} ctx
          * @returns {[Expr[], IR[]]} - first list are positional args, second list named args and remaining opt args
          */
-        expandArgs(): [Expr[], IR[]];
+        expandArgs(ctx: ToIRContext): [Expr[], IR[]];
         /**
-         * @param {string} indent
+         * @param {ToIRContext} ctx
          * @returns {IR}
          */
-        toFnExprIR(indent?: string): IR;
+        toFnExprIR(ctx: ToIRContext): IR;
         #private;
     }
     /**
@@ -7274,11 +7485,11 @@ declare module "helios" {
          */
         constructor(site: Site, objExpr: Expr, memberName: Word);
         /**
-         * @param {string} indent
+         * @param {ToIRContext} ctx
          * @param {string} params - applied type parameters must be inserted Before the call to self
          * @returns {IR}
          */
-        toIR(indent?: string, params?: string): IR;
+        toIR(ctx: ToIRContext, params?: string): IR;
         #private;
     }
     /**
@@ -7340,7 +7551,7 @@ declare module "helios" {
          * Throws an error if called before evalType()
          * @type {null | Type}
          */
-        get type(): Type;
+        get type(): Type | null;
         /**
          * @type {Word}
          */
@@ -7365,7 +7576,7 @@ declare module "helios" {
          * @param {Type} upstreamType
          * @param {number} i
          */
-        evalInternal(scope: Scope, upstreamType: Type, i: number): any;
+        evalInternal(scope: Scope, upstreamType: Type, i: number): null | undefined;
         /**
          * @param {Scope} scope
          * @param {DataType} caseType
@@ -7376,7 +7587,7 @@ declare module "helios" {
          * @param {null | Type} upstreamType
          * @param {number} i
          */
-        evalInAssignExpr(scope: Scope, upstreamType: null | Type, i: number): any;
+        evalInAssignExpr(scope: Scope, upstreamType: null | Type, i: number): null | undefined;
         /**
          * @param {number} argIndex
          * @returns {IR}
@@ -7388,21 +7599,21 @@ declare module "helios" {
          */
         getFieldFn(fieldIndex: number): string;
         /**
-         * @param {string} indent
+         * @param {ToIRContext} ctx
          * @param {IR} inner
          * @param {string} objName
          * @param {number} fieldIndex
          * @param {string} fieldFn
          * @returns {IR}
          */
-        wrapDestructIRInternal(indent: string, inner: IR, objName: string, fieldIndex: number, fieldFn: string): IR;
+        wrapDestructIRInternal(ctx: ToIRContext, inner: IR, objName: string, fieldIndex: number, fieldFn: string): IR;
         /**
-         * @param {string} indent
+         * @param {ToIRContext} ctx
          * @param {IR} inner
          * @param {number} argIndex
          * @returns {IR}
          */
-        wrapDestructIR(indent: string, inner: IR, argIndex: number): IR;
+        wrapDestructIR(ctx: ToIRContext, inner: IR, argIndex: number): IR;
         /**
          * @returns {IR}
          */
@@ -7449,10 +7660,10 @@ declare module "helios" {
         evalDataMember(scope: Scope): null | Typed | Multi;
         /**
          * Accept an arg because will be called with the result of the controlexpr
-         * @param {string} indent
+         * @param {ToIRContext} ctx
          * @returns {IR}
          */
-        toIR(indent?: string): IR;
+        toIR(ctx: ToIRContext): IR;
         #private;
     }
     /**
@@ -7490,10 +7701,10 @@ declare module "helios" {
          */
         eval(scope: Scope): null | Typed | Multi;
         /**
-         * @param {string} indent
+         * @param {ToIRContext} ctx
          * @returns {IR}
          */
-        toIR(indent?: string): IR;
+        toIR(ctx: ToIRContext): IR;
         #private;
     }
     /**
@@ -7543,9 +7754,10 @@ declare module "helios" {
         /**
          * Returns IR of statement.
          * No need to specify indent here, because all statements are top-level
+         * @param {ToIRContext} ctx
          * @param {IRDefinitions} map
          */
-        toIR(map: IRDefinitions): void;
+        toIR(ctx: ToIRContext, map: IRDefinitions): void;
         #private;
     }
     /**
@@ -7628,9 +7840,10 @@ declare module "helios" {
          */
         eval(scope: TopScope): void;
         /**
+         * @param {ToIRContext} ctx
          * @returns {IR}
          */
-        toIRInternal(): IR;
+        toIRInternal(ctx: ToIRContext): IR;
         #private;
     }
     /**
@@ -7709,7 +7922,7 @@ declare module "helios" {
          * @param {(scope: Scope) => (null | FuncType)} evalConcrete
          * @returns {null | ParametricFunc | FuncType}
          */
-        evalParametricFuncType(scope: Scope, evalConcrete: (scope: Scope) => (null | FuncType), impl?: any): null | ParametricFunc | FuncType;
+        evalParametricFuncType(scope: Scope, evalConcrete: (scope: Scope) => (null | FuncType), impl?: null): null | ParametricFunc | FuncType;
         /**
          * @param {Scope} scope
          * @param {(scope: Scope) => (null | FuncType)} evalConcrete
@@ -7730,6 +7943,11 @@ declare module "helios" {
      * @internal
      */
     export class DataField extends NameTypePair {
+        /**
+         * @param {Word} name
+         * @param {Expr} typeExpr
+         */
+        constructor(name: Word, typeExpr: Expr);
         /**
          * Throws an error if called before evalType()
          * @type {DataType}
@@ -7851,26 +8069,34 @@ declare module "helios" {
          */
         uplcFieldsToJs(fields: UplcData[], helpers: UplcToJsHelpers): Promise<any>;
         /**
+         * @param {ToIRContext} ctx
          * @param {string} path
          * @param {IRDefinitions} map
          * @param {number} constrIndex
          */
-        newToIR(path: string, map: IRDefinitions, constrIndex: number): void;
+        newToIR(ctx: ToIRContext, path: string, map: IRDefinitions, constrIndex: number): void;
         /**
          * @internal
+         * @param {ToIRContext} ctx
          * @param {string} path
          * @param {IRDefinitions} map
          * @param {string[]} getterNames
          * @param {number} constrIndex
          */
-        copyToIR(path: string, map: IRDefinitions, getterNames: string[], constrIndex?: number): void;
+        copyToIR(ctx: ToIRContext, path: string, map: IRDefinitions, getterNames: string[], constrIndex?: number): void;
+        /**
+         * @internal
+         * @returns {IR}
+         */
+        fromDataFieldsCheckToIR(): IR;
         /**
          * Doesn't return anything, but sets its IRdef in the map
+         * @param {ToIRContext} ctx
          * @param {string} path
          * @param {IRDefinitions} map
          * @param {number} constrIndex
          */
-        toIR(path: string, map: IRDefinitions, constrIndex: number): void;
+        toIR(ctx: ToIRContext, path: string, map: IRDefinitions, constrIndex: number): void;
         #private;
     }
     /**
@@ -7954,9 +8180,10 @@ declare module "helios" {
         evalType(scope: Scope): null | ParametricFunc | FuncType;
         /**
          * Returns IR of function
+         * @param {ToIRContext} ctx
          * @returns {IR}
          */
-        toIRInternal(): IR;
+        toIRInternal(ctx: ToIRContext): IR;
         #private;
     }
     /**
@@ -8005,9 +8232,10 @@ declare module "helios" {
         evalType(scope: Scope): (parent: DataType) => EnumMemberType;
         get path(): string;
         /**
+         * @param {ToIRContext} ctx
          * @param {IRDefinitions} map
          */
-        toIR(map: IRDefinitions): void;
+        toIR(ctx: ToIRContext, map: IRDefinitions): void;
         #private;
     }
     /**
@@ -8099,9 +8327,10 @@ declare module "helios" {
         loopConstStatements(namespace: string, callback: (name: string, cs: ConstStatement) => void): void;
         /**
          * Returns IR of all impl members
+         * @param {ToIRContext} ctx
          * @param {IRDefinitions} map
          */
-        toIR(map: IRDefinitions): void;
+        toIR(ctx: ToIRContext, map: IRDefinitions): void;
         #private;
     }
     /**
@@ -8180,7 +8409,7 @@ declare module "helios" {
         /**
          * @type {null | UplcValue}
          */
-        get value(): UplcValue;
+        get value(): UplcValue | null;
     }
     /**
      * @internal
@@ -8200,6 +8429,10 @@ declare module "helios" {
          * @param {UplcValue} value
          */
         constructor(value: UplcValue);
+        /**
+         * @type {UplcValue}
+         */
+        get value(): UplcValue;
         #private;
     }
     /**
@@ -8686,18 +8919,6 @@ declare module "helios" {
         #private;
     }
     /**
-     * @internal
-     */
-    export class IRSimplifyAsExpr extends IRExpr {
-        /**
-         * @param {Site} site
-         * @param {IRExpr} orig
-         * @param {IRExpr} simplified
-         */
-        constructor(site: Site, orig: IRExpr, simplified: IRExpr);
-        #private;
-    }
-    /**
      * Wrapper for IRFuncExpr, IRCallExpr or IRLiteralExpr
      * @internal
      */
@@ -8812,7 +9033,7 @@ declare module "helios" {
          * @param {string} rawSrc
          * @returns {[purpose, Module[]]}
          */
-        static parseMainInternal(rawSrc: string): [ScriptPurpose, Module[]];
+        static parseMainInternal(rawSrc: string): [ScriptPurpose | null, Module[]];
         /**
          * @internal
          * @param {string} mainName
@@ -8858,11 +9079,12 @@ declare module "helios" {
         /**
          * Also merges builtins and map
          * @internal
+         * @param {ToIRContext} ctx
          * @param {IR} mainIR
          * @param {IRDefinitions} map
          * @returns {IRDefinitions}
          */
-        static applyTypeParameters(mainIR: IR, map: IRDefinitions): IRDefinitions;
+        static applyTypeParameters(ctx: ToIRContext, mainIR: IR, map: IRDefinitions): IRDefinitions;
         /**
          * @internal
          * @param {ScriptPurpose} purpose
@@ -8902,7 +9124,7 @@ declare module "helios" {
          * @internal
          * @type {null | Module}
          */
-        get postModule(): Module;
+        get postModule(): Module | null;
         /**
          * @type {ScriptPurpose}
          */
@@ -9033,10 +9255,11 @@ declare module "helios" {
         };
         /**
          * @internal
+         * @param {ToIRContext} ctx
          * @param {(s: Statement, isImport: boolean) => boolean} endCond
          * @returns {IRDefinitions}
          */
-        statementsToIR(endCond: (s: Statement, isImport: boolean) => boolean): IRDefinitions;
+        statementsToIR(ctx: ToIRContext, endCond: (s: Statement, isImport: boolean) => boolean): IRDefinitions;
         /**
          * @internal
          * @param {IR} ir
@@ -9055,36 +9278,41 @@ declare module "helios" {
          * Loops over all statements, until endCond == true (includes the matches statement)
          * Then applies type parameters
          * @internal
+         * @param {ToIRContext} ctx
          * @param {IR} ir
          * @param {(s: Statement) => boolean} endCond
          * @returns {IRDefinitions}
          */
-        fetchDefinitions(ir: IR, endCond: (s: Statement) => boolean): IRDefinitions;
+        fetchDefinitions(ctx: ToIRContext, ir: IR, endCond: (s: Statement) => boolean): IRDefinitions;
         /**
          * @internal
+         * @param {ToIRContext} ctx
          * @param {IR} ir
          * @param {IRDefinitions} definitions
          * @returns {IR}
          */
-        wrapInner(ir: IR, definitions: IRDefinitions): IR;
+        wrapInner(ctx: ToIRContext, ir: IR, definitions: IRDefinitions): IR;
         /**
          * @internal
+         * @param {ToIRContext} ctx
          * @param {IR} ir
          * @param {null | IRDefinitions} extra
          * @returns {IR}
          */
-        wrapEntryPoint(ir: IR, extra?: null | IRDefinitions): IR;
+        wrapEntryPoint(ctx: ToIRContext, ir: IR, extra?: null | IRDefinitions): IR;
         /**
          * @internal
+         * @param {ToIRContext} ctx
          * @returns {IR}
          */
-        toIRInternal(): IR;
+        toIRInternal(ctx: ToIRContext): IR;
         /**
          * @internal
+         * @param {ToIRContext} ctx
          * @param {null | IRDefinitions} extra
          * @returns {IR}
          */
-        toIR(extra?: null | IRDefinitions): IR;
+        toIR(ctx: ToIRContext, extra?: null | IRDefinitions): IR;
         /**
          * Non-positional named parameters
          * @internal
@@ -9101,6 +9329,38 @@ declare module "helios" {
          */
         compile(simplify?: boolean): UplcProgram;
         #private;
+    }
+    /**
+     * Used by CLI
+     * @internal
+     */
+    export class DatumRedeemerProgram extends Program {
+        /**
+         * @type {DataType}
+         */
+        get datumType(): DataType;
+        /**
+         * @type {string}
+         */
+        get datumTypeName(): string;
+        /**
+         * @internal
+         * @param {ScriptTypes} scriptTypes
+         * @returns {TopScope}
+         */
+        evalTypes(scriptTypes: ScriptTypes): TopScope;
+        /**
+         * @internal
+         * @param {ToIRContext} ctx
+         * @returns {IR}
+         */
+        datumCheckToIR(ctx: ToIRContext): IR;
+        /**
+         * Used by cli
+         * @internal
+         * @returns {UplcProgram}
+         */
+        compileDatumCheck(): UplcProgram;
     }
     /**
      * @internal
@@ -9596,11 +9856,11 @@ declare module "helios" {
         /**
          * @type {bigint | null}
          */
-        get firstValidSlot(): bigint;
+        get firstValidSlot(): bigint | null;
         /**
          * @type {bigint | null}
          */
-        get lastValidSlot(): bigint;
+        get lastValidSlot(): bigint | null;
         /**
          * @type {PubKeyHash[]}
          */
@@ -10132,7 +10392,7 @@ declare module "helios" {
          * Get the optional `Datum` associated with the `TxOutput`.
          * @type {null | Datum}
          */
-        get datum(): Datum;
+        get datum(): Datum | null;
         /**
          * Mutation is handy when correctin the quantity of lovelace in a utxo
          * @param {Datum} datum
@@ -10145,7 +10405,7 @@ declare module "helios" {
         /**
          * @type {null | UplcProgram}
          */
-        get refScript(): UplcProgram;
+        get refScript(): UplcProgram | null;
         /**
          * @returns {Object}
          */
@@ -10168,7 +10428,7 @@ declare module "helios" {
          * @param {NetworkParams} networkParams
          * @param {null | ((output: TxOutput) => void)} updater
          */
-        correctLovelace(networkParams: NetworkParams, updater?: (output: TxOutput) => void): void;
+        correctLovelace(networkParams: NetworkParams, updater?: ((output: TxOutput) => void) | null): void;
         #private;
     }
     /**
@@ -10549,7 +10809,7 @@ declare module "helios" {
         /**
          * @type {null | string}
          */
-        get programName(): string;
+        get programName(): string | null;
         /**
          * type:
          *   0 -> spending
@@ -10664,7 +10924,7 @@ declare module "helios" {
         /**
          * @type {?UplcData}
          */
-        get data(): UplcData;
+        get data(): UplcData | null;
         /**
          * @returns {Object}
          */
@@ -10807,7 +11067,7 @@ declare module "helios" {
          * @param {Wallet} wallet
          * @param {undefined | ((addr: Address[]) => Promise<TxInput[]>)} getUtxosFallback
          */
-        constructor(wallet: Wallet, getUtxosFallback?: (addr: Address[]) => Promise<TxInput[]>);
+        constructor(wallet: Wallet, getUtxosFallback?: ((addr: Address[]) => Promise<TxInput[]>) | undefined);
         /**
          * Concatenation of `usedAddresses` and `unusedAddresses`.
          * @type {Promise<Address[]>}
@@ -10831,7 +11091,7 @@ declare module "helios" {
          * First UTxO in `utxos`. Can be used to distinguish between preview and preprod networks.
          * @type {Promise<null | TxInput>}
          */
-        get refUtxo(): Promise<TxInput>;
+        get refUtxo(): Promise<TxInput | null>;
         /**
          * @returns {Promise<TxInput[]>}
          */
@@ -12216,7 +12476,7 @@ declare module "helios" {
         funcType: FuncType;
         call(site: Site, args: Typed[], namedArgs?: {
             [name: string]: Typed;
-        }): (null | Typed | Multi);
+        } | undefined): (null | Typed | Multi);
     };
     export type Instance = Typed & {
         asInstance: Instance;
@@ -12238,12 +12498,12 @@ declare module "helios" {
     };
     export type Parametric = EvalEntity & {
         asParametric: Parametric;
-        offChainType: (...any: any[]) => HeliosDataClass<HeliosData>;
+        offChainType: ((...any: any[]) => HeliosDataClass<HeliosData>) | null;
         typeClasses: TypeClass[];
         apply(types: Type[], site?: Site): EvalEntity;
         inferCall(site: Site, args: Typed[], namedArgs?: {
             [name: string]: Typed;
-        }, paramTypes?: Type[]): Func;
+        } | undefined, paramTypes?: Type[]): Func;
         infer(site: Site, map: InferenceMap): Parametric;
     };
     export type Type = EvalEntity & {
@@ -12380,7 +12640,7 @@ declare module "helios" {
     export type UplcRTECallbacksInternal = UplcRTECallbacks & {
         macros?: {
             [name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>;
-        };
+        } | undefined;
     };
     export type UplcAnonCallback = (callSite: Site, subStack: UplcStack, ...args: UplcValue[]) => (UplcValue | Promise<UplcValue>);
     export type UplcAnonProps = {
@@ -12419,41 +12679,41 @@ declare module "helios" {
     export type Profile = {
         mem: bigint;
         cpu: bigint;
-        size?: number;
+        size?: number | undefined;
         builtins?: {
             [name: string]: Cost;
-        };
+        } | undefined;
         terms?: {
             [name: string]: Cost;
-        };
-        result?: RuntimeError | UplcValue;
-        messages?: string[];
+        } | undefined;
+        result?: RuntimeError | UplcValue | undefined;
+        messages?: string[] | undefined;
     };
     export type GenericTypeProps<T extends HeliosData> = {
         name: string;
-        path?: string;
-        offChainType?: HeliosDataClass<T> | null;
-        genOffChainType?: (() => HeliosDataClass<T>) | null;
-        fieldNames?: string[];
+        path?: string | undefined;
+        offChainType?: HeliosDataClass<T> | null | undefined;
+        genOffChainType?: (() => HeliosDataClass<T>) | null | undefined;
+        fieldNames?: string[] | undefined;
         genInstanceMembers: (self: Type) => InstanceMembers;
         genTypeMembers: (self: Type) => TypeMembers;
-        genTypeDetails?: (self: Type) => TypeDetails;
-        jsToUplc?: JsToUplcConverter;
-        uplcToJs?: UplcToJsConverter;
+        genTypeDetails?: ((self: Type) => TypeDetails) | undefined;
+        jsToUplc?: JsToUplcConverter | undefined;
+        uplcToJs?: UplcToJsConverter | undefined;
     };
     export type GenericEnumMemberTypeProps<T extends HeliosData> = {
         name: string;
-        path?: string;
+        path?: string | undefined;
         constrIndex: number;
         parentType: DataType;
-        offChainType?: HeliosDataClass<T>;
-        genOffChainType?: () => HeliosDataClass<T>;
-        fieldNames?: string[];
+        offChainType?: HeliosDataClass<T> | undefined;
+        genOffChainType?: (() => HeliosDataClass<T>) | undefined;
+        fieldNames?: string[] | undefined;
         genInstanceMembers: (self: Type) => InstanceMembers;
-        genTypeMembers?: (self: Type) => TypeMembers;
-        genTypeDetails?: (self: Type) => TypeDetails;
-        jsToUplc?: JsToUplcConverter;
-        uplcToJs?: UplcToJsConverter;
+        genTypeMembers?: ((self: Type) => TypeMembers) | undefined;
+        genTypeDetails?: ((self: Type) => TypeDetails) | undefined;
+        jsToUplc?: JsToUplcConverter | undefined;
+        uplcToJs?: UplcToJsConverter | undefined;
     };
     export type ScriptTypes = {
         [name: string]: ScriptHashType;
@@ -12770,6 +13030,30 @@ declare module "helios" {
         reduceCallFrame(rte: UplcRte, stack: UplcFrame[], state: ReducingState, frame: CallFrame): Promise<CekState>;
     }
     /**
+     * Wrapper for a builtin function (written in IR)
+     */
+    class RawFunc {
+        /**
+         * Construct a RawFunc, and immediately scan the definition for dependencies
+         * @param {string} name
+         * @param {string} definition
+         */
+        constructor(name: string, definition: string);
+        get name(): string;
+        /**
+         * @returns {IR}
+         */
+        toIR(): IR;
+        /**
+         * Loads 'this.#dependecies' (if not already loaded), then load 'this'
+         * @param {Map<string, RawFunc>} db
+         * @param {IRDefinitions} dst
+         * @returns {void}
+         */
+        load(db: Map<string, RawFunc>, dst: IRDefinitions): void;
+        #private;
+    }
+    /**
      * Parent class of EnumSwitchExpr and DataSwitchExpr
      */
     class SwitchExpr extends Expr {
@@ -12782,7 +13066,7 @@ declare module "helios" {
         constructor(site: Site, controlExpr: Expr, cases: SwitchCase[], defaultCase?: null | SwitchDefault);
         get controlExpr(): Expr;
         get cases(): SwitchCase[];
-        get defaultCase(): SwitchDefault;
+        get defaultCase(): SwitchDefault | null;
         /**
          * If there isn't enough coverage then we can simply set the default case to void, so the other branches can be error, print or assert
          */

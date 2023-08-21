@@ -7,6 +7,7 @@ import {
 	NetworkParams,
 	Program,
 	Source,
+	ToIRContext,
 	UplcProgram,
 	assert
 } from "helios"
@@ -16,7 +17,7 @@ const networkParams = new NetworkParams(JSON.parse(fs.readFileSync("./network-pa
 function simplify(src, expectedSize = null) {
     let program = Program.new(src);
 
-    let ir = program.toIR();
+    let ir = program.toIR(new ToIRContext(false));
 
     let irProgram0 = IRProgram.new(ir, "testing", false);
     let irProgram1 = IRProgram.new(ir, "testing", true);
@@ -43,7 +44,7 @@ async function profile(src, argNames, expected = null) {
 
     let args = argNames.map(name => program.evalParam(name));
 
-    let irProgram1 = IRProgram.new(program.toIR(), "testing", true);
+    let irProgram1 = IRProgram.new(program.toIR(new ToIRContext(false)), "testing", true);
 	let size = irProgram1.calcSize();
     console.log(`\nSIMPLIFIED (${size} bytes):`);
 	console.log(new Source(irProgram1.toString(), "").pretty(), "\n\n");

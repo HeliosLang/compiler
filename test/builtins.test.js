@@ -16,6 +16,7 @@ import {
     UplcDataValue,
     UserError,
     UplcValue,
+    config,
     assertClass,
     bytesToBigInt,
     bytesToHex,
@@ -29,6 +30,8 @@ import {
  */
 
 const REAL_ONE = BigInt(Math.pow(10, REAL_PRECISION));
+
+config.set({CHECK_CASTS: true});
 
 // helper functions for script property tests
 function asBool(value) {
@@ -1725,6 +1728,18 @@ async function testBuiltins() {
         func main(a: []Int) -> Bool {
             a == a
         }`, ([_], res) => asBool(res));
+
+        await ft.test([ft.list(ft.int(), 0, 20)], `
+        testing list_wrong_data
+        func main(a: []Bool) -> Bool {
+            a.any((item: Bool) -> {item})
+        }`, ([a], res) => {
+            if (asIntList(a).length == 0) {
+                return !asBool(res);
+            } else {
+                return isError(res, "")
+            }
+        });
 
         await ft.test([ft.list(ft.int()), ft.list(ft.int())], `
         testing list_eq_2

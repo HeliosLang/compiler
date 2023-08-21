@@ -33,6 +33,7 @@ export const config = {
      *   VALIDITY_RANGE_END_OFFSET?: number
      *   EXPERIMENTAL_CEK?: boolean
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
+     *   CHECK_CASTS?: boolean
      * }} props 
      */
     set: (props) => {
@@ -124,4 +125,12 @@ export const config = {
      * @type {boolean}
      */
     IGNORE_UNEVALUATED_CONSTANTS: false,
+
+    /**
+     * Check that `from_data` casts make sense during runtime. This ony impacts unsimplified UplcPrograms.
+     * 
+     * Default: `false`.
+     * @type {boolean}
+     */
+    CHECK_CASTS: false,
 }

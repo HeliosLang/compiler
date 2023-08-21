@@ -2111,6 +2111,11 @@ export class TxBody extends CborData {
 			}
 		});
 
+		// sort the tokens in the outputs, needed by the flint wallet
+		this.#outputs.forEach(output => {
+			output.value.assets.sort();
+		});
+
 		// TODO: also add withdrawals in sorted manner
 		this.#withdrawals = new Map(Array.from(this.#withdrawals.entries()).sort((a, b) => {
 			return Address.compStakingHashes(a[0], b[0]);
