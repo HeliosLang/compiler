@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.15.6";
+export const VERSION: "0.15.7";
 /**
  * Mutable global config properties.
  * @namespace

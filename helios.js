@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.15.6
+// Version:       0.15.7
 // Last update:   August 2023
 // License type:  BSD-3-Clause
 //
@@ -300,7 +300,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.15.6";
+export const VERSION = "0.15.7";
 
 /**
  * A tab used for indenting of the IR.
@@ -37132,6 +37132,11 @@ function buildDataFields(ts, allowTags = false) {
 		}
 	}
 
+	/**
+	 * @type {Map<string, StringLiteral>}
+	 */
+	const tags = new Map()
+
 	while (ts.length > 0) {
 		const colonPos = SymbolToken.find(ts, ":");
 
@@ -37183,6 +37188,20 @@ function buildDataFields(ts, allowTags = false) {
 
 			if (allowTags && tsAft.length > 0 && tsAft[tsAft.length - 1] instanceof StringLiteral) {
 				tag = assertClass(tsAft.pop(), StringLiteral);
+
+				if (tags.has(tag.value)) {
+					tag.syntaxError(`duplicate field tag "${tag.value}"`);
+					return fields;
+				}
+
+				tags.set(tag.value, tag)
+			} else {
+				if (tags.has(fieldName.value)) {
+					fieldName.syntaxError(`duplicate field tag "${fieldName.value}" (default taken from field name)`);
+					return fields;
+				}
+				tags.set(fieldName.value, new StringLiteral(fieldName.site, fieldName.value));
+
 			}
 
 			const typeExpr = buildTypeExpr(colon.site, tsAft);
