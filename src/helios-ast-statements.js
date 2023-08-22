@@ -8,7 +8,9 @@ import {
 
 import {
 	assert,
-	assertDefined
+	assertDefined,
+	bytesToHex,
+	textToBytes
 } from "./utils.js";
 
 import {
@@ -18,7 +20,8 @@ import {
     Word,
 	FTPP,
 	TTPP,
-	IRParametricName
+	IRParametricName,
+	StringLiteral
 } from "./tokens.js";
 
 /**
@@ -801,12 +804,16 @@ export class TypeParameters {
  * @internal
  */
 export class DataField extends NameTypePair {
+	#tag;
+
 	/**
 	 * @param {Word} name 
 	 * @param {Expr} typeExpr 
+	 * @param {null | StringLiteral} tag
 	 */
-	constructor(name, typeExpr) {
+	constructor(name, typeExpr, tag = null) {
 		super(name, typeExpr);
+		this.#tag = tag;
 	}
 
 	/**
@@ -815,6 +822,20 @@ export class DataField extends NameTypePair {
 	 */
 	get type() {
 		return assertDefined(super.type.asDataType);
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
+	hasTag() {
+		return this.#tag !== null;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get tag() {
+		return this.#tag ? this.#tag.value : this.name.value;
 	}
 
 	/**
@@ -881,6 +902,10 @@ export class DataDefinition {
 	 */
 	get fields() {
 		return this.#fields.slice();
+	}
+
+	hasTags() {
+		return this.#fields.some(f => f.hasTag());
 	}
 
 	/**
@@ -1122,7 +1147,50 @@ export class DataDefinition {
 		 */
 		let ir;
 
-		if (this.nFields == 1) {
+		if (this.hasTags()) {
+			ir = new IR([
+				new IR("__core__mkNilPairData"),
+				new IR("(())")
+			])
+
+			for (let i = this.nFields - 1; i >= 0; i--) {
+				const f = this.#fields[i];
+
+				ir = new IR([
+					new IR("__core__mkCons"), new IR("("),
+					new IR("__core__mkPairData"), new IR("("), 
+					new IR(`__core__bData`), new IR("("), new IR(`#${bytesToHex(textToBytes(f.tag))}`), new IR(")"), new IR(", "),
+					new IR(`${f.type.path}____to_data`), new IR("("), new IR(f.name.value), new IR(")"), 
+					new IR("), "),
+					ir,
+					new IR(")")
+				]);
+			}
+
+			ir = new IR([
+				new IR("__core__constrData"),
+				new IR("("),
+				new IR("0"),
+				new IR(", "),
+				new IR("__core__mkCons"), new IR("("),
+				new IR("__core__mapData"), new IR("("), ir, new IR(")"), new IR(", "),
+				new IR("__core__mkCons"), new IR("("),
+				new IR("__core__iData"), new IR("("), new IR("1"), new IR(")"), new IR(", "), // version
+				new IR("__core__mkNilData(())"), // TODO: according to https://cips.cardano.org/cips/cip68/#metadata an additional 'extra' (which can be unit)  should be added. Is that really necessary?
+				new IR(")"),
+				new IR(")"),
+				new IR(")")
+			])
+
+			// wrap as function
+			ir = new IR([
+				new IR("("),
+				new IR(this.#fields.map(f => new IR(f.name.value))).join(", "),
+				new IR(") -> {"),
+				ir,
+				new IR("}")
+			]);
+		} else if (this.nFields == 1) {
 			if (isConstr) {
 				ir = new IR(`(self) -> {
 					__core__constrData(${constrIndex}, __helios__common__list_1(${this.getFieldType(0).path}____to_data(self)))
@@ -1219,19 +1287,51 @@ export class DataDefinition {
 	 * @returns {IR}
 	 */
 	fromDataFieldsCheckToIR() {
-		let ir = new IR(`(fields) -> {__core__mkNilData(())}`)
+		if (this.hasTags()) {
+			let ir = new IR(`(data) -> {__core__mkNilPairData(())}`)
 
-		for (let i = this.nFields - 1; i >= 0; i--) {
-			const ftPath = this.getFieldType(i).path;
+			for (let i = this.nFields - 1; i >= 0; i--) {
+				const f = this.#fields[i]
+				const ftPath = f.type.path;
+
+				ir = new IR([
+					new IR(`(data) -> {__core__mkCons(
+						__core__mkPairData(
+							__core__bData(#${bytesToHex(textToBytes(f.tag))}),
+							${ftPath}____to_data(${ftPath}__from_data(__helios__common__cip68_field(data, __core__bData(#${bytesToHex(textToBytes(f.tag))}))))
+						), `),
+					ir,
+					new IR(`(data)`),
+					new IR(`)}`)
+				]);
+			}
 
 			ir = new IR([
-				new IR(`(fields) -> {__core__mkCons(${ftPath}____to_data(${ftPath}__from_data(__core__headList(fields))), `),
-				ir,
-				new IR(`(__core__tailList(fields)))}`)
+				new IR(`(data) -> {__core__constrData(`), 
+				new IR(`0, `),
+				new IR(`__core__mkCons(`), 
+				new IR(`__core__mapData(`), ir, new IR(`(data)), `), 
+				new IR(`__core__mkCons(__core__iData(1), __core__mkNilData(()))`), 
+				new IR(`)`),
+				new IR(`)}`)
 			]);
-		}
 
-		return ir
+			return ir;
+		} else {
+			let ir = new IR(`(fields) -> {__core__mkNilData(())}`)
+
+			for (let i = this.nFields - 1; i >= 0; i--) {
+				const ftPath = this.getFieldType(i).path;
+
+				ir = new IR([
+					new IR(`(fields) -> {__core__mkCons(${ftPath}____to_data(${ftPath}__from_data(__core__headList(fields))), `),
+					ir,
+					new IR(`(__core__tailList(fields)))}`)
+				]);
+			}
+
+			return ir;
+		}
 	}
 
 	/**
@@ -1242,84 +1342,97 @@ export class DataDefinition {
 	 * @param {number} constrIndex
 	 */
 	toIR(ctx, path, map, constrIndex) {
-		const isConstr = constrIndex != -1;
-
-		const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
-
 		/**
 		 * @type {string[]}
 		 */
 		const getterNames = [];
 
-		if (this.fields.length == 1 && !isConstr) {
-			const f = this.fields[0];
-			const key = `${path}__${f.name.value}`;
-
-			const getter =  new IR("__helios__common__identity", f.site);
-			
-			map.set(key, getter);
-
-			getterNames.push(key);
-		} else {
-			// add a getter for each field
+		if (this.hasTags()) {
 			for (let i = 0; i < this.#fields.length; i++) {
-				let f = this.#fields[i];
-				let key = `${path}__${f.name.value}`;
+				const f = this.#fields[i];
+				const key = `${path}__${f.name.value}`;
+
+				// equalsData is much more efficient than first converting to byteArray
+				const getter = new IR(`(self) -> {${f.type.path}__from_data(__helios__common__cip68_field(self, __core__bData(#${bytesToHex(textToBytes(f.tag))})))}`);
+
+				map.set(key, getter);
 				getterNames.push(key);
+			}
+		} else {
+			const isConstr = constrIndex != -1;
 
-				/**
-				 * @type {IR}
-				 */
-				let getter;
+			const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
 
-				if (i < 20) {
-					getter = new IR(`${getterBaseName}_${i}`, f.site);
+			if (this.fields.length == 1 && !isConstr) {
+				const f = this.fields[0];
+				const key = `${path}__${f.name.value}`;
 
-					getter = new IR([
-						new IR("("), new IR("self"), new IR(") "), 
-						new IR("->", f.site), 
-						new IR(" {"), 
-						new IR(`${f.type.path}__from_data`), new IR("("),
-						new IR(`${getterBaseName}_${i}`), new IR("("), new IR("self"), new IR(")"),
-						new IR(")"),
-						new IR("}"),
-					]);
-				} else {
-					let inner = new IR("self");
+				const getter =  new IR("__helios__common__identity", f.site);
+				
+				map.set(key, getter);
 
-					if (isConstr) {
+				getterNames.push(key);
+			} else {
+				// add a getter for each field
+				for (let i = 0; i < this.#fields.length; i++) {
+					let f = this.#fields[i];
+					let key = `${path}__${f.name.value}`;
+					getterNames.push(key);
+
+					/**
+					 * @type {IR}
+					 */
+					let getter;
+
+					if (i < 20) {
+						getter = new IR(`${getterBaseName}_${i}`, f.site);
+
+						getter = new IR([
+							new IR("("), new IR("self"), new IR(") "), 
+							new IR("->", f.site), 
+							new IR(" {"), 
+							new IR(`${f.type.path}__from_data`), new IR("("),
+							new IR(`${getterBaseName}_${i}`), new IR("("), new IR("self"), new IR(")"),
+							new IR(")"),
+							new IR("}"),
+						]);
+					} else {
+						let inner = new IR("self");
+
+						if (isConstr) {
+							inner = new IR([
+								new IR("__core__sndPair"),
+								new IR("("),
+								new IR("__core__unConstrData"), new IR("("), inner, new IR(")"),
+								new IR(")")
+							]);
+						}
+
+						for (let j = 0; j < i; j++) {
+							inner = new IR([
+								new IR("__core__tailList"), new IR("("), inner, new IR(")")
+							]);
+						}
+
 						inner = new IR([
-							new IR("__core__sndPair"),
-							new IR("("),
-							new IR("__core__unConstrData"), new IR("("), inner, new IR(")"),
-							new IR(")")
+							new IR("__core__headList"), new IR("("), inner, new IR(")")
+						]);
+
+						inner = new IR([
+							new IR(`${f.type.path}__from_data`), new IR("("), inner, new IR(")")
+						]);
+
+						getter = new IR([
+							new IR("("), new IR("self"), new IR(") "), 
+							new IR("->", f.site), 
+							new IR(" {"),
+							inner,
+							new IR("}"),
 						]);
 					}
 
-					for (let j = 0; j < i; j++) {
-						inner = new IR([
-							new IR("__core__tailList"), new IR("("), inner, new IR(")")
-						]);
-					}
-
-					inner = new IR([
-						new IR("__core__headList"), new IR("("), inner, new IR(")")
-					]);
-
-					inner = new IR([
-						new IR(`${f.type.path}__from_data`), new IR("("), inner, new IR(")")
-					]);
-
-					getter = new IR([
-						new IR("("), new IR("self"), new IR(") "), 
-						new IR("->", f.site), 
-						new IR(" {"),
-						inner,
-						new IR("}"),
-					]);
+					map.set(key, getter)
 				}
-
-				map.set(key, getter)
 			}
 		}
 
@@ -1589,25 +1702,43 @@ export class StructStatement extends Statement {
 	 * @param {IRDefinitions} map
 	 */
 	toIR(ctx, map) {
-		const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
+		if (this.#dataDef.hasTags()) {
+			map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
+			map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
+			map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
+			map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
 
-		map.set(`${this.path}____eq`, new IR(`${implPath}____eq`, this.site));
-		map.set(`${this.path}____neq`, new IR(`${implPath}____neq`, this.site));
-		map.set(`${this.path}__serialize`, new IR(`${implPath}__serialize`, this.site));
-
-		// the from_data method can include field checks
-		if (this.#dataDef.fieldNames.length == 1 || (!(config.CHECK_CASTS && !ctx.simplify))) {
-			map.set(`${this.path}__from_data`, new IR(`${implPath}__from_data`, this.site));
+			if (config.CHECK_CASTS && !ctx.simplify) {
+				map.set(`${this.path}__from_data`, new IR([
+					new IR(`(data) -> {`),
+					this.#dataDef.fromDataFieldsCheckToIR(),
+					new IR(`(data)`),
+					new IR(`}`)
+				], this.site));
+			} else {
+				map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
+			}
 		} else {
-			map.set(`${this.path}__from_data`, new IR([
-				new IR(`(data) -> {`),
-				this.#dataDef.fromDataFieldsCheckToIR(),
-				new IR(`(__core__unListData(data))`),
-				new IR(`}`)
-			], this.site));
-		}
+			const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
 
-		map.set(`${this.path}____to_data`, new IR(`${implPath}____to_data`, this.site));
+			map.set(`${this.path}____eq`, new IR(`${implPath}____eq`, this.site));
+			map.set(`${this.path}____neq`, new IR(`${implPath}____neq`, this.site));
+			map.set(`${this.path}__serialize`, new IR(`${implPath}__serialize`, this.site));
+
+			// the from_data method can include field checks
+			if (this.#dataDef.fieldNames.length == 1 || (!(config.CHECK_CASTS && !ctx.simplify))) {
+				map.set(`${this.path}__from_data`, new IR(`${implPath}__from_data`, this.site));
+			} else {
+				map.set(`${this.path}__from_data`, new IR([
+					new IR(`(data) -> {`),
+					this.#dataDef.fromDataFieldsCheckToIR(),
+					new IR(`(__core__unListData(data))`),
+					new IR(`}`)
+				], this.site));
+			}
+
+			map.set(`${this.path}____to_data`, new IR(`${implPath}____to_data`, this.site));
+		}
 
 		// super.toIR adds __new and copy, which might depend on __to_data, so must come after
 		this.#dataDef.toIR(ctx, this.path, map, -1);

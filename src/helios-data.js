@@ -2120,6 +2120,14 @@ export class Address extends HeliosData {
 	}
 
 	/**
+	 * @param {Address} other 
+	 * @returns {boolean}
+	 */
+	eq(other) {
+		return ByteArrayData.comp(this.#bytes, other.bytes) == 0;
+	}
+
+	/**
 	 * @returns {Object}
 	 */
 	dump() {

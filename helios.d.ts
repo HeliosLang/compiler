@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.15.5";
+export const VERSION: "0.15.6";
 /**
  * Mutable global config properties.
  * @namespace
@@ -1383,6 +1383,11 @@ export class Address extends HeliosData {
      * @returns {string}
      */
     toBech32(): string;
+    /**
+     * @param {Address} other
+     * @returns {boolean}
+     */
+    eq(other: Address): boolean;
     /**
      * @returns {Object}
      */

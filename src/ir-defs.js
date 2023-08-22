@@ -606,6 +606,46 @@ function makeRawFunctions(simplify) {
 			}(selfLengthFn(self), __core__lengthOfByteString(suffix))
 		}
 	}`));
+	add(new RawFunc("__helios__common__cip68_field",
+	`(self, name) -> {
+		(map) -> {
+			(recurse) -> {
+				recurse(recurse, map)
+			}(
+				(recurse, map) -> {
+					__core__chooseList(
+						map,
+						() -> {
+							__helios__error(
+								__core__appendString(
+									"field ",
+									__core__appendString(
+										__helios__bytearray__show(__core__unBData(name))(),
+										" not found in struct"
+									)
+								)
+							)
+						},
+						() -> {
+							(head) -> {
+								(key, value) -> {
+									__core__ifThenElse(
+										__core__equalsData(key, name),
+										() -> {
+											value
+										},
+										() -> {
+											recurse(recurse, __core__tailList(map))
+										}
+									)()
+								}(__core__fstPair(head), __core__sndPair(head))
+							}(__core__headList(map))
+						}
+					)()
+				}
+			)
+		}(__core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(self)))))
+	}`));
 	add(new RawFunc("__helios__common__fields", 
 	`(self) -> {
 		__core__sndPair(__core__unConstrData(self))

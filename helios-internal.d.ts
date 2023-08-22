@@ -838,7 +838,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.15.5";
+    export const VERSION: "0.15.6";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
@@ -2736,6 +2736,11 @@ declare module "helios" {
          * @returns {string}
          */
         toBech32(): string;
+        /**
+         * @param {Address} other
+         * @returns {boolean}
+         */
+        eq(other: Address): boolean;
         /**
          * @returns {Object}
          */
@@ -7946,19 +7951,29 @@ declare module "helios" {
         /**
          * @param {Word} name
          * @param {Expr} typeExpr
+         * @param {null | StringLiteral} tag
          */
-        constructor(name: Word, typeExpr: Expr);
+        constructor(name: Word, typeExpr: Expr, tag?: null | StringLiteral);
         /**
          * Throws an error if called before evalType()
          * @type {DataType}
          */
         get type(): DataType;
         /**
+         * @returns {boolean}
+         */
+        hasTag(): boolean;
+        /**
+         * @type {string}
+         */
+        get tag(): string;
+        /**
          * Evaluates the type, used by FuncLiteralExpr and DataDefinition
          * @param {Scope} scope
          * @returns {null | DataType}
          */
         eval(scope: Scope): null | DataType;
+        #private;
     }
     /**
      * Base class for struct and enum member
@@ -7983,6 +7998,7 @@ declare module "helios" {
          * @type {DataField[]}
          */
         get fields(): DataField[];
+        hasTags(): boolean;
         /**
          * Returns index of a field.
          * Returns -1 if not found.

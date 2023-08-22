@@ -4,6 +4,7 @@
 import {
     Source,
     assert,
+	assertClass,
     assertDefined,
 	reduceNull,
 	reduceNullPairs
@@ -530,7 +531,7 @@ function buildStructStatement(site, ts) {
 
 	const [tsFields, tsImpl] = splitDataImpl(braces.fields[0]);
 
-	const fields = buildDataFields(tsFields);
+	const fields = buildDataFields(tsFields, true);
 
 	/**
 	 * @type {Expr}
@@ -557,9 +558,10 @@ function buildStructStatement(site, ts) {
 /**
  * @internal
  * @param {Token[]} ts 
+ * @param {boolean} allowTags
  * @returns {DataField[]}
  */
-function buildDataFields(ts) {
+function buildDataFields(ts, allowTags = false) {
 	/** @type {DataField[]} */
 	const fields = []
 
@@ -616,13 +618,22 @@ function buildDataFields(ts) {
 				ts = [];
 			}
 
+			/**
+			 * @type {null | StringLiteral}
+			 */
+			let tag = null;
+
+			if (allowTags && tsAft.length > 0 && tsAft[tsAft.length - 1] instanceof StringLiteral) {
+				tag = assertClass(tsAft.pop(), StringLiteral);
+			}
+
 			const typeExpr = buildTypeExpr(colon.site, tsAft);
 
 			if (!typeExpr) {
 				return fields;
 			}
 
-			fields.push(new DataField(fieldName, typeExpr));
+			fields.push(new DataField(fieldName, typeExpr, tag));
 		}
 	}
 
