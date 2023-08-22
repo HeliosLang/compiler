@@ -146,16 +146,37 @@ export class Tx extends CborData {
 	#validFrom;
 
 	/**
-	 * Init a new transaction builder.
+	 * Use `Tx.new()` instead of this constructor for creating a new Tx builder.
+	 * @param {TxBody} body
+	 * @param {TxWitnesses} witnesses
+	 * @param {boolean} valid
+	 * @param {null | TxMetadata} metadata
+	 * @param {null | bigint | Date} validTo
+	 * @param {null | bigint | Date} validFrom
 	 */
-	constructor() {
+	constructor(
+		body = new TxBody(), 
+		witnesses = new TxWitnesses(), 
+		valid = false, 
+		metadata = null, 
+		validTo = null,
+		validFrom = null
+	) {
 		super();
-		this.#body = new TxBody();
-		this.#witnesses = new TxWitnesses();
-		this.#valid = false; // building is only possible if valid==false
-		this.#metadata = null;
-		this.#validTo = null;
-		this.#validFrom = null;
+		this.#body = body;
+		this.#witnesses = witnesses;
+		this.#valid = valid; // building is only possible if valid==false
+		this.#metadata = metadata;
+		this.#validTo = validTo;
+		this.#validFrom = validFrom;
+	}
+
+	/**
+	 * Create a new Tx builder.
+	 * @returns {Tx}
+	 */
+	static new() {
+		return new Tx();
 	}
 
 	/**
@@ -203,6 +224,21 @@ export class Tx extends CborData {
 			Cbor.encodeBool(this.#valid),
 			this.#metadata === null ? Cbor.encodeNull() : this.#metadata.toCbor(),
 		]);
+	}
+
+	/**
+	 * Creates a new Tx without the metadata for client-side signing where the client can't know the metadata before tx-submission.
+	 * @returns {Tx}
+	 */
+	withoutMetadata() {
+		return new Tx(
+			this.#body,
+			this.#witnesses,
+			this.#valid,
+			null, // TODO: try null first, other wise try an empty TxMetadata instance
+			this.#validTo,
+			this.#validFrom
+		)
 	}
 
 	/**
@@ -591,6 +627,7 @@ export class Tx extends CborData {
 		// min lovelace is checked during build, because 
 		this.#body.addOutput(output);
 
+		// a refScript can potentially be used for evaluation alsready
 		if (output.refScript) {
 			this.#witnesses.attachRefScript(output.refScript);
 		}
@@ -750,7 +787,7 @@ export class Tx extends CborData {
 
 		scripts.forEach(script => {
 			currentScripts.add(bytesToHex(script.hash()))
-		})
+		});
 
 		/** 
 		 * @type {Map<string, number>} 
@@ -758,6 +795,18 @@ export class Tx extends CborData {
 		let wantedScripts = new Map();
 
 		this.#body.collectScriptHashes(wantedScripts);
+
+		// remove ref scripts that are only being registered in the current transaction, and not actually being used for validation
+		this.#body.outputs.forEach(output => {
+			if (output.refScript) {
+				const h = bytesToHex(output.refScript.hash());
+
+				if (!wantedScripts.has(h)) {
+					scripts = scripts.filter(s => bytesToHex(s.hash()) != h);
+					currentScripts.delete(h);
+				}
+			}
+		});
 
 		if (wantedScripts.size < scripts.length) {
 			throw new Error("too many scripts included, not all are needed");
@@ -4981,7 +5030,7 @@ function decodeMetadata(bytes) {
 	}
 }
 
-class TxMetadata {
+export class TxMetadata {
 	/**
 	 * @type {Object.<number, Metadata>} 
 	 */

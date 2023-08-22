@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.15.4";
+export const VERSION: "0.15.5";
 /**
  * Mutable global config properties.
  * @namespace
@@ -2652,6 +2652,11 @@ export class NativeScript extends CborData {
  */
 export class Tx extends CborData {
     /**
+     * Create a new Tx builder.
+     * @returns {Tx}
+     */
+    static new(): Tx;
+    /**
      * Deserialize a CBOR encoded Cardano transaction (input is either an array of bytes, or a hex string).
      * @param {number[] | string} raw
      * @returns {Tx}
@@ -2670,6 +2675,16 @@ export class Tx extends CborData {
         [name: string]: UplcProgram | (() => UplcProgram);
     }): Promise<Tx>;
     /**
+     * Use `Tx.new()` instead of this constructor for creating a new Tx builder.
+     * @param {TxBody} body
+     * @param {TxWitnesses} witnesses
+     * @param {boolean} valid
+     * @param {null | TxMetadata} metadata
+     * @param {null | bigint | Date} validTo
+     * @param {null | bigint | Date} validFrom
+     */
+    constructor(body?: TxBody, witnesses?: TxWitnesses, valid?: boolean, metadata?: null | TxMetadata, validTo?: null | bigint | Date, validFrom?: null | bigint | Date);
+    /**
      * @type {TxBody}
      */
     get body(): TxBody;
@@ -2687,6 +2702,11 @@ export class Tx extends CborData {
      * @returns {boolean}
      */
     isValid(slot: bigint): boolean;
+    /**
+     * Creates a new Tx without the metadata for client-side signing where the client can't know the metadata before tx-submission.
+     * @returns {Tx}
+     */
+    withoutMetadata(): Tx;
     /**
      * @param {NetworkParams} networkParams
      * @returns {UplcData}
@@ -3690,6 +3710,33 @@ export class HashedDatum extends Datum {
      * @param {null | UplcData} origData
      */
     constructor(hash: DatumHash, origData?: null | UplcData);
+    #private;
+}
+export class TxMetadata {
+    /**
+    * Decodes a TxMetadata instance from Cbor
+    * @param {number[]} data
+    * @returns {TxMetadata}
+    */
+    static fromCbor(data: number[]): TxMetadata;
+    /**
+     *
+     * @param {number} tag
+     * @param {Metadata} data
+     */
+    add(tag: number, data: Metadata): void;
+    /**
+     * @type {number[]}
+     */
+    get keys(): number[];
+    /**
+     * @returns {Object}
+     */
+    dump(): any;
+    /**
+     * @returns {number[]}
+     */
+    toCbor(): number[];
     #private;
 }
 /**
