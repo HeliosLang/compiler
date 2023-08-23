@@ -249,15 +249,23 @@ export class WalletHelper {
      */
     async getUtxos() {
         try {
-            return await this.#wallet.utxos;
+            const utxos = await this.#wallet.utxos;
+
+            if (utxos.length > 0) {
+                return utxos;
+            }
         } catch (e) {
-            if (this.#getUtxosFallback) {
-                console.error(e, "falling back to regular network");
-                return this.#getUtxosFallback(await this.#wallet.usedAddresses);
-            } else {
+            if (!this.#getUtxosFallback) {
                 console.error("fallback not set");
                 throw e;
             }
+        }
+
+        if (this.#getUtxosFallback) {
+            console.error("falling back to retrieving UTxOs through query layer");
+            return this.#getUtxosFallback(await this.#wallet.usedAddresses);
+        } else {
+            throw new Error("wallet returned 0 utxos, set the helper getUtxosFallback callback to use an Api query layer instead");
         }
     }
     /**

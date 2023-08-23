@@ -838,7 +838,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.15.8";
+    export const VERSION: "0.15.9";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
