@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.15.7
+// Version:       0.15.8
 // Last update:   August 2023
 // License type:  BSD-3-Clause
 //
@@ -300,7 +300,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.15.7";
+export const VERSION = "0.15.8";
 
 /**
  * A tab used for indenting of the IR.
@@ -7468,6 +7468,14 @@ export class Hash extends HeliosData {
 	 */
 	get hex() {
 		return bytesToHex(this.bytes);
+	}
+
+	/**
+	 * Hexadecimal representation.
+	 * @returns {string}
+	 */
+	toString() {
+		return this.hex;
 	}
 
 	/**
@@ -16304,13 +16312,14 @@ const UPLC_TAG_WIDTHS = {
 
 		const versionKey = version.map(v => v.toString()).join(".");
 
-		if (versionKey != UPLC_VERSION) {
-			console.error(`Warning: Plutus-core script doesn't match version of Helios (expected ${UPLC_VERSION}, got ${versionKey})`);
-		}
-
 		const expr = reader.readTerm();
 
 		reader.finalize();
+
+		// check version here, so any other errors in the deserialization are thrown first (which means the input is garbage)
+		if (versionKey != UPLC_VERSION) {
+			console.error(`Warning: Plutus-core script doesn't match version of Helios (expected ${UPLC_VERSION}, got ${versionKey})`);
+		}
 
 		return new UplcProgram(expr, properties, version);
 	}
@@ -16749,6 +16758,8 @@ const UPLC_TAG_WIDTHS = {
 	 */
 	finalize() {
 		this.moveToByteBoundary(true);
+
+		assert(this.eof(), "not at end");
 	}
 }
 
@@ -35093,6 +35104,42 @@ export class DataDefinition {
 	}
 
 	/**
+	 * Uses field names as keys, not tags
+	 * @param {any} obj
+	 * @param {JsToUplcHelpers} helpers
+	 * @return {Promise<[UplcData, UplcData][]>}
+	 */
+	async jsMapToUplc(obj, helpers) {
+		/**
+		 * @type {[UplcData, UplcData][]}
+		 */
+		const fields = [];
+
+		if (Object.keys(obj).length == this.nFields && Object.keys(obj).every(k => this.hasField(new Word(Site.dummy(), k)))) {
+			for (let i = 0; i < this.nFields; i++) {
+				const fieldName = this.fieldNames[i];
+
+				const arg = assertDefined(obj[fieldName]);
+
+				const fieldType = this.getFieldType(i);
+
+				if (!fieldType.typeDetails) {
+					throw new Error(`typeDetails for ${fieldType.name} not yet implemented`);
+				}
+
+				fields.push([
+					new ByteArrayData(textToBytes(this.#fields[i].tag)),
+					await fieldType.jsToUplc(arg, helpers)
+				]);
+			};
+		} else {
+			throw new Error(`expected ${this.nFields} args, got ${Object.keys(obj).length}`);
+		}
+
+		return fields;
+	}
+
+	/**
 	 * @param {UplcData[]} fields 
 	 * @param {UplcToJsHelpers} helpers
 	 * @returns {Promise<any>}
@@ -35106,6 +35153,34 @@ export class DataDefinition {
 			const fn = this.getFieldName(i);
 
 			obj[fn] = await this.getFieldType(i).uplcToJs(f, helpers);
+		};
+
+		return obj;
+	}
+
+	/**
+	 * For Cip68-tagged structs
+	 * @param {[UplcData, UplcData][]} fields 
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {Promise<any>}
+	 */
+	async uplcMapToJs(fields, helpers) {
+		const obj = {};
+
+		for (let i = 0; i < this.#fields.length; i++) {
+			const f = this.#fields[i];
+
+			const fn = this.getFieldName(i);
+
+			const j = fields.findIndex(([key, value]) => {
+				return ByteArrayData.comp(key.bytes, textToBytes(f.tag))
+			})
+
+			if (j == -1) {
+				throw new Error(`couldn't find field ${f.tag}`)
+			}
+
+			obj[fn] = await this.getFieldType(i).uplcToJs(fields[j][1], helpers);
 		};
 
 		return obj;
@@ -35618,22 +35693,32 @@ export class StructStatement extends Statement {
 					};
 				},
 				jsToUplc: async (obj, helpers) => {
-					/**
-					 * @type {UplcData[]}
-					 */
-					const fields = await this.#dataDef.jsFieldsToUplc(obj, helpers);
+					if (this.#dataDef.hasTags()) {
+						const pairs = await this.#dataDef.jsMapToUplc(obj, helpers);
 
-					if (fields.length == 1) {
-						return fields[0];
+						return new ConstrData(0, [new MapData(pairs), new IntData(1n)]);
 					} else {
-						return new ListData(fields);
+						/**
+						 * @type {UplcData[]}
+						 */
+						const fields = await this.#dataDef.jsFieldsToUplc(obj, helpers);
+
+						if (fields.length == 1) {
+							return fields[0];
+						} else {
+							return new ListData(fields);
+						}
 					}
 				},
 				uplcToJs: async (data, helpers) => {
-					if (this.#dataDef.nFields == 1) {
-						return this.#dataDef.getFieldType(0).uplcToJs(data, helpers);
+					if (this.#dataDef.hasTags()) {
+						return this.#dataDef.uplcMapToJs(data.fields[0].map, helpers);
 					} else {
-						return this.#dataDef.uplcFieldsToJs(data.list, helpers);
+						if (this.#dataDef.nFields == 1) {
+							return this.#dataDef.getFieldType(0).uplcToJs(data, helpers);
+						} else {
+							return this.#dataDef.uplcFieldsToJs(data.list, helpers);
+						}
 					}
 				},
 				genOffChainType: () => this.genOffChainType(),
@@ -45660,14 +45745,16 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @param {null | NetworkParams} params If specified: dump all the runtime details of each redeemer (datum, redeemer, scriptContext)
 	 * @returns {Object}
 	 */
-	dump() {
+	dump(params = null) {
 		return {
 			body: this.#body.dump(),
-			witnesses: this.#witnesses.dump(),
+			witnesses: this.#witnesses.dump(params, this.#body),
+			metadata: this.#metadata !== null ? this.#metadata.dump() : null,
 			valid: this.#valid,
-			metadata: this.#metadata !== null ? this.#metadata.dump() : null
+			id: this.#valid ? this.id().toString() : "invalid"
 		};
 	}
 
@@ -47637,13 +47724,38 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @param {null | NetworkParams} params 
+	 * @param {null | TxBody} body
 	 * @returns {Object}
 	 */
-	dump() {
+	dump(params = null, body = null) {
 		return {
 			signatures: this.#signatures.map(pkw => pkw.dump()),
 			datums: this.#datums.list.map(datum => datum.toString()),
-			redeemers: this.#redeemers.map(redeemer => redeemer.dump()),
+			redeemers: this.#redeemers.map((redeemer, i) => {
+				const obj = redeemer.dump()
+				if (params && body) {
+					const scriptContext = body.toScriptContextData(params, this.#redeemers, this.#datums, i);
+					
+					obj["ctx"] = scriptContext.toCborHex();
+
+					if (redeemer instanceof SpendingRedeemer) {
+						const idx = redeemer.inputIndex;
+			
+						const origOutput = body.inputs[idx].origOutput;
+			
+						if (origOutput === null) {
+							throw new Error("expected origOutput to be non-null");
+						} else {
+							const datumData = origOutput.getDatumData();
+
+							obj["datum"] = datumData.toCborHex();
+						}
+					}
+				}
+
+				return obj;
+			}),
 			nativeScripts: this.#nativeScripts.map(script => script.toJson()),
 			scripts: this.#scripts.map(script => bytesToHex(script.toCbor())),
 			refScripts: this.#refScripts.map(script => bytesToHex(script.toCbor())),
@@ -49690,11 +49802,12 @@ export class Redeemer extends CborData {
 	 */
 	dumpInternal() {
 		return {
-			data: this.#data.toString(),
+			json: this.#data.toSchemaJson(),
+			cbor: this.#data.toCborHex(),
 			exUnits: {
 				mem: this.#profile.mem.toString(),
 				cpu: this.#profile.cpu.toString(),
-			},
+			}
 		}
 	}
 
@@ -51263,6 +51376,55 @@ export class BlockfrostV0 {
     }
 
     /**
+     * @type {string}
+     */
+    get networkName() {
+        return this.#networkName;
+    }
+
+    /**
+     * Throws an error if a Blockfrost project_id is missing for that specific network.
+     * @param {TxInput} refUtxo
+     * @param {{
+     *     preview?: string,
+     *     preprod?: string,
+     *     mainnet?: string
+     * }} projectIds
+     * @returns {Promise<BlockfrostV0>}
+     */
+    static async resolveUsingUtxo(refUtxo, projectIds) {
+        const mainnetProjectId = projectIds["mainnet"];
+        const preprodProjectId = projectIds["preprod"];
+        const previewProjectId = projectIds["preview"];
+
+        if (preprodProjectId !== undefined) {
+            const preprodNetwork = new BlockfrostV0("preprod", preprodProjectId);
+
+            if (await preprodNetwork.hasUtxo(refUtxo)) {
+                return preprodNetwork;
+            }
+        }
+
+        if (previewProjectId !== undefined) {
+            const previewNetwork = new BlockfrostV0("preview", previewProjectId);
+
+            if (await previewNetwork.hasUtxo(refUtxo)) {
+                return previewNetwork;
+            }
+        }
+
+        if (mainnetProjectId !== undefined) {
+            const mainnetNetwork = new BlockfrostV0("mainnet", mainnetProjectId);
+
+            if (await mainnetNetwork.hasUtxo(refUtxo)) {
+                return mainnetNetwork;
+            }
+        }
+
+        throw new Error("refUtxo not found on a network for which you have a project id");
+    }
+
+    /**
      * Connects to the same network a given `Wallet` is connected to (preview, preprod or mainnet).
      * 
      * Throws an error if a Blockfrost project_id is missing for that specific network.
@@ -51274,7 +51436,7 @@ export class BlockfrostV0 {
      * }} projectIds
      * @returns {Promise<BlockfrostV0>}
      */
-    static async resolve(wallet, projectIds) {
+    static async resolveUsingWallet(wallet, projectIds) {
         if (await wallet.isMainnet()) {
             return new BlockfrostV0("mainnet", assertDefined(projectIds["mainnet"]));
         } else {
@@ -51285,33 +51447,28 @@ export class BlockfrostV0 {
             if (refUtxo === null) {
                 throw new Error("empty wallet, can't determine which testnet you are connecting to");
             } else {
-                const preprodProjectId = projectIds["preprod"];
-                const previewProjectId = projectIds["preview"];
-
-                if (preprodProjectId !== undefined) {
-                    const preprodNetwork = new BlockfrostV0("preprod", preprodProjectId);
-
-                    if (await preprodNetwork.hasUtxo(refUtxo)) {
-                        return preprodNetwork;
-                    }
-                }
-
-                if (previewProjectId !== undefined) {
-                    const previewNetwork = new BlockfrostV0("preview", previewProjectId);
-
-                    if (!(await previewNetwork.hasUtxo(refUtxo))) {
-                        throw new Error("not preview network (hint: provide project id for preprod");
-                    } else {
-                        return previewNetwork;
-                    }
-                } else {
-                    if (preprodProjectId === undefined) {
-                        throw new Error("no project ids for testnets");
-                    } else {
-                        throw new Error("no project id for preview testnet");
-                    }
-                }
+                return BlockfrostV0.resolveUsingUtxo(refUtxo, projectIds);
             }
+        }
+    }
+
+     /**
+     * Connects to the same network a given `Wallet` or the given `TxInput` (preview, preprod or mainnet).
+     * 
+     * Throws an error if a Blockfrost project_id is missing for that specific network.
+     * @param {TxInput | Wallet} utxoOrWallet
+     * @param {{
+     *     preview?: string,
+     *     preprod?: string,
+     *     mainnet?: string
+     * }} projectIds
+     * @returns {Promise<BlockfrostV0>}
+     */
+    static async resolve(utxoOrWallet, projectIds) {
+        if (utxoOrWallet instanceof TxInput) {
+            return BlockfrostV0.resolveUsingUtxo(utxoOrWallet, projectIds);
+        } else {
+            return BlockfrostV0.resolveUsingWallet(utxoOrWallet, projectIds);
         }
     }
 

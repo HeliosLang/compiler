@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.15.7";
+export const VERSION: "0.15.8";
 /**
  * Mutable global config properties.
  * @namespace
@@ -2724,9 +2724,10 @@ export class Tx extends CborData {
      */
     completeInputData(fn: (id: TxOutputId) => Promise<TxOutput>): Promise<void>;
     /**
+     * @param {null | NetworkParams} params If specified: dump all the runtime details of each redeemer (datum, redeemer, scriptContext)
      * @returns {Object}
      */
-    dump(): any;
+    dump(params?: null | NetworkParams): any;
     /**
      * Set the start of the valid time range by specifying either a Date or a slot.
      *
@@ -3028,9 +3029,11 @@ export class TxWitnesses extends CborData {
      */
     isNativeScript(h: ValidatorHash | MintingPolicyHash): boolean;
     /**
+     * @param {null | NetworkParams} params
+     * @param {null | TxBody} body
      * @returns {Object}
      */
-    dump(): any;
+    dump(params?: null | NetworkParams, body?: null | TxBody): any;
     /**
      * Compiles a report of each redeemer execution.
      * Only works after the tx has been finalized.
@@ -4002,6 +4005,21 @@ export class RemoteWallet implements Wallet {
  */
 export class BlockfrostV0 implements Network {
     /**
+     * Throws an error if a Blockfrost project_id is missing for that specific network.
+     * @param {TxInput} refUtxo
+     * @param {{
+     *     preview?: string,
+     *     preprod?: string,
+     *     mainnet?: string
+     * }} projectIds
+     * @returns {Promise<BlockfrostV0>}
+     */
+    static resolveUsingUtxo(refUtxo: TxInput, projectIds: {
+        preview?: string;
+        preprod?: string;
+        mainnet?: string;
+    }): Promise<BlockfrostV0>;
+    /**
      * Connects to the same network a given `Wallet` is connected to (preview, preprod or mainnet).
      *
      * Throws an error if a Blockfrost project_id is missing for that specific network.
@@ -4013,7 +4031,24 @@ export class BlockfrostV0 implements Network {
      * }} projectIds
      * @returns {Promise<BlockfrostV0>}
      */
-    static resolve(wallet: Wallet, projectIds: {
+    static resolveUsingWallet(wallet: Wallet, projectIds: {
+        preview?: string;
+        preprod?: string;
+        mainnet?: string;
+    }): Promise<BlockfrostV0>;
+    /**
+    * Connects to the same network a given `Wallet` or the given `TxInput` (preview, preprod or mainnet).
+    *
+    * Throws an error if a Blockfrost project_id is missing for that specific network.
+    * @param {TxInput | Wallet} utxoOrWallet
+    * @param {{
+    *     preview?: string,
+    *     preprod?: string,
+    *     mainnet?: string
+    * }} projectIds
+    * @returns {Promise<BlockfrostV0>}
+    */
+    static resolve(utxoOrWallet: TxInput | Wallet, projectIds: {
         preview?: string;
         preprod?: string;
         mainnet?: string;
@@ -4024,6 +4059,10 @@ export class BlockfrostV0 implements Network {
      * @param {string} projectId
      */
     constructor(networkName: "preview" | "preprod" | "mainnet", projectId: string);
+    /**
+     * @type {string}
+     */
+    get networkName(): string;
     /**
      * @returns {Promise<NetworkParams>}
      */

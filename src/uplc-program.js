@@ -658,13 +658,14 @@ const UPLC_TAG_WIDTHS = {
 
 		const versionKey = version.map(v => v.toString()).join(".");
 
-		if (versionKey != UPLC_VERSION) {
-			console.error(`Warning: Plutus-core script doesn't match version of Helios (expected ${UPLC_VERSION}, got ${versionKey})`);
-		}
-
 		const expr = reader.readTerm();
 
 		reader.finalize();
+
+		// check version here, so any other errors in the deserialization are thrown first (which means the input is garbage)
+		if (versionKey != UPLC_VERSION) {
+			console.error(`Warning: Plutus-core script doesn't match version of Helios (expected ${UPLC_VERSION}, got ${versionKey})`);
+		}
 
 		return new UplcProgram(expr, properties, version);
 	}
@@ -1103,6 +1104,8 @@ const UPLC_TAG_WIDTHS = {
 	 */
 	finalize() {
 		this.moveToByteBoundary(true);
+
+		assert(this.eof(), "not at end");
 	}
 }
 

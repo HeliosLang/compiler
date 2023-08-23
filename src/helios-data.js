@@ -1055,6 +1055,14 @@ export class Hash extends HeliosData {
 	}
 
 	/**
+	 * Hexadecimal representation.
+	 * @returns {string}
+	 */
+	toString() {
+		return this.hex;
+	}
+
+	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {

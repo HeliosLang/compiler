@@ -31,7 +31,10 @@ import {
 import {
 	ConstrData,
 	ListData,
-	UplcData
+	IntData,
+	MapData,
+	UplcData,
+	ByteArrayData
 } from "./uplc-data.js";
 
 import {
@@ -1115,6 +1118,42 @@ export class DataDefinition {
 	}
 
 	/**
+	 * Uses field names as keys, not tags
+	 * @param {any} obj
+	 * @param {JsToUplcHelpers} helpers
+	 * @return {Promise<[UplcData, UplcData][]>}
+	 */
+	async jsMapToUplc(obj, helpers) {
+		/**
+		 * @type {[UplcData, UplcData][]}
+		 */
+		const fields = [];
+
+		if (Object.keys(obj).length == this.nFields && Object.keys(obj).every(k => this.hasField(new Word(Site.dummy(), k)))) {
+			for (let i = 0; i < this.nFields; i++) {
+				const fieldName = this.fieldNames[i];
+
+				const arg = assertDefined(obj[fieldName]);
+
+				const fieldType = this.getFieldType(i);
+
+				if (!fieldType.typeDetails) {
+					throw new Error(`typeDetails for ${fieldType.name} not yet implemented`);
+				}
+
+				fields.push([
+					new ByteArrayData(textToBytes(this.#fields[i].tag)),
+					await fieldType.jsToUplc(arg, helpers)
+				]);
+			};
+		} else {
+			throw new Error(`expected ${this.nFields} args, got ${Object.keys(obj).length}`);
+		}
+
+		return fields;
+	}
+
+	/**
 	 * @param {UplcData[]} fields 
 	 * @param {UplcToJsHelpers} helpers
 	 * @returns {Promise<any>}
@@ -1128,6 +1167,34 @@ export class DataDefinition {
 			const fn = this.getFieldName(i);
 
 			obj[fn] = await this.getFieldType(i).uplcToJs(f, helpers);
+		};
+
+		return obj;
+	}
+
+	/**
+	 * For Cip68-tagged structs
+	 * @param {[UplcData, UplcData][]} fields 
+	 * @param {UplcToJsHelpers} helpers
+	 * @returns {Promise<any>}
+	 */
+	async uplcMapToJs(fields, helpers) {
+		const obj = {};
+
+		for (let i = 0; i < this.#fields.length; i++) {
+			const f = this.#fields[i];
+
+			const fn = this.getFieldName(i);
+
+			const j = fields.findIndex(([key, value]) => {
+				return ByteArrayData.comp(key.bytes, textToBytes(f.tag))
+			})
+
+			if (j == -1) {
+				throw new Error(`couldn't find field ${f.tag}`)
+			}
+
+			obj[fn] = await this.getFieldType(i).uplcToJs(fields[j][1], helpers);
 		};
 
 		return obj;
@@ -1640,22 +1707,32 @@ export class StructStatement extends Statement {
 					};
 				},
 				jsToUplc: async (obj, helpers) => {
-					/**
-					 * @type {UplcData[]}
-					 */
-					const fields = await this.#dataDef.jsFieldsToUplc(obj, helpers);
+					if (this.#dataDef.hasTags()) {
+						const pairs = await this.#dataDef.jsMapToUplc(obj, helpers);
 
-					if (fields.length == 1) {
-						return fields[0];
+						return new ConstrData(0, [new MapData(pairs), new IntData(1n)]);
 					} else {
-						return new ListData(fields);
+						/**
+						 * @type {UplcData[]}
+						 */
+						const fields = await this.#dataDef.jsFieldsToUplc(obj, helpers);
+
+						if (fields.length == 1) {
+							return fields[0];
+						} else {
+							return new ListData(fields);
+						}
 					}
 				},
 				uplcToJs: async (data, helpers) => {
-					if (this.#dataDef.nFields == 1) {
-						return this.#dataDef.getFieldType(0).uplcToJs(data, helpers);
+					if (this.#dataDef.hasTags()) {
+						return this.#dataDef.uplcMapToJs(data.fields[0].map, helpers);
 					} else {
-						return this.#dataDef.uplcFieldsToJs(data.list, helpers);
+						if (this.#dataDef.nFields == 1) {
+							return this.#dataDef.getFieldType(0).uplcToJs(data, helpers);
+						} else {
+							return this.#dataDef.uplcFieldsToJs(data.list, helpers);
+						}
 					}
 				},
 				genOffChainType: () => this.genOffChainType(),

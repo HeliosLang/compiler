@@ -72,6 +72,55 @@ export class BlockfrostV0 {
     }
 
     /**
+     * @type {string}
+     */
+    get networkName() {
+        return this.#networkName;
+    }
+
+    /**
+     * Throws an error if a Blockfrost project_id is missing for that specific network.
+     * @param {TxInput} refUtxo
+     * @param {{
+     *     preview?: string,
+     *     preprod?: string,
+     *     mainnet?: string
+     * }} projectIds
+     * @returns {Promise<BlockfrostV0>}
+     */
+    static async resolveUsingUtxo(refUtxo, projectIds) {
+        const mainnetProjectId = projectIds["mainnet"];
+        const preprodProjectId = projectIds["preprod"];
+        const previewProjectId = projectIds["preview"];
+
+        if (preprodProjectId !== undefined) {
+            const preprodNetwork = new BlockfrostV0("preprod", preprodProjectId);
+
+            if (await preprodNetwork.hasUtxo(refUtxo)) {
+                return preprodNetwork;
+            }
+        }
+
+        if (previewProjectId !== undefined) {
+            const previewNetwork = new BlockfrostV0("preview", previewProjectId);
+
+            if (await previewNetwork.hasUtxo(refUtxo)) {
+                return previewNetwork;
+            }
+        }
+
+        if (mainnetProjectId !== undefined) {
+            const mainnetNetwork = new BlockfrostV0("mainnet", mainnetProjectId);
+
+            if (await mainnetNetwork.hasUtxo(refUtxo)) {
+                return mainnetNetwork;
+            }
+        }
+
+        throw new Error("refUtxo not found on a network for which you have a project id");
+    }
+
+    /**
      * Connects to the same network a given `Wallet` is connected to (preview, preprod or mainnet).
      * 
      * Throws an error if a Blockfrost project_id is missing for that specific network.
@@ -83,7 +132,7 @@ export class BlockfrostV0 {
      * }} projectIds
      * @returns {Promise<BlockfrostV0>}
      */
-    static async resolve(wallet, projectIds) {
+    static async resolveUsingWallet(wallet, projectIds) {
         if (await wallet.isMainnet()) {
             return new BlockfrostV0("mainnet", assertDefined(projectIds["mainnet"]));
         } else {
@@ -94,33 +143,28 @@ export class BlockfrostV0 {
             if (refUtxo === null) {
                 throw new Error("empty wallet, can't determine which testnet you are connecting to");
             } else {
-                const preprodProjectId = projectIds["preprod"];
-                const previewProjectId = projectIds["preview"];
-
-                if (preprodProjectId !== undefined) {
-                    const preprodNetwork = new BlockfrostV0("preprod", preprodProjectId);
-
-                    if (await preprodNetwork.hasUtxo(refUtxo)) {
-                        return preprodNetwork;
-                    }
-                }
-
-                if (previewProjectId !== undefined) {
-                    const previewNetwork = new BlockfrostV0("preview", previewProjectId);
-
-                    if (!(await previewNetwork.hasUtxo(refUtxo))) {
-                        throw new Error("not preview network (hint: provide project id for preprod");
-                    } else {
-                        return previewNetwork;
-                    }
-                } else {
-                    if (preprodProjectId === undefined) {
-                        throw new Error("no project ids for testnets");
-                    } else {
-                        throw new Error("no project id for preview testnet");
-                    }
-                }
+                return BlockfrostV0.resolveUsingUtxo(refUtxo, projectIds);
             }
+        }
+    }
+
+     /**
+     * Connects to the same network a given `Wallet` or the given `TxInput` (preview, preprod or mainnet).
+     * 
+     * Throws an error if a Blockfrost project_id is missing for that specific network.
+     * @param {TxInput | Wallet} utxoOrWallet
+     * @param {{
+     *     preview?: string,
+     *     preprod?: string,
+     *     mainnet?: string
+     * }} projectIds
+     * @returns {Promise<BlockfrostV0>}
+     */
+    static async resolve(utxoOrWallet, projectIds) {
+        if (utxoOrWallet instanceof TxInput) {
+            return BlockfrostV0.resolveUsingUtxo(utxoOrWallet, projectIds);
+        } else {
+            return BlockfrostV0.resolveUsingWallet(utxoOrWallet, projectIds);
         }
     }
 

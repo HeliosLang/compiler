@@ -419,14 +419,16 @@ export class Tx extends CborData {
 	}
 
 	/**
+	 * @param {null | NetworkParams} params If specified: dump all the runtime details of each redeemer (datum, redeemer, scriptContext)
 	 * @returns {Object}
 	 */
-	dump() {
+	dump(params = null) {
 		return {
 			body: this.#body.dump(),
-			witnesses: this.#witnesses.dump(),
+			witnesses: this.#witnesses.dump(params, this.#body),
+			metadata: this.#metadata !== null ? this.#metadata.dump() : null,
 			valid: this.#valid,
-			metadata: this.#metadata !== null ? this.#metadata.dump() : null
+			id: this.#valid ? this.id().toString() : "invalid"
 		};
 	}
 
@@ -2396,13 +2398,38 @@ export class TxWitnesses extends CborData {
 	}
 
 	/**
+	 * @param {null | NetworkParams} params 
+	 * @param {null | TxBody} body
 	 * @returns {Object}
 	 */
-	dump() {
+	dump(params = null, body = null) {
 		return {
 			signatures: this.#signatures.map(pkw => pkw.dump()),
 			datums: this.#datums.list.map(datum => datum.toString()),
-			redeemers: this.#redeemers.map(redeemer => redeemer.dump()),
+			redeemers: this.#redeemers.map((redeemer, i) => {
+				const obj = redeemer.dump()
+				if (params && body) {
+					const scriptContext = body.toScriptContextData(params, this.#redeemers, this.#datums, i);
+					
+					obj["ctx"] = scriptContext.toCborHex();
+
+					if (redeemer instanceof SpendingRedeemer) {
+						const idx = redeemer.inputIndex;
+			
+						const origOutput = body.inputs[idx].origOutput;
+			
+						if (origOutput === null) {
+							throw new Error("expected origOutput to be non-null");
+						} else {
+							const datumData = origOutput.getDatumData();
+
+							obj["datum"] = datumData.toCborHex();
+						}
+					}
+				}
+
+				return obj;
+			}),
 			nativeScripts: this.#nativeScripts.map(script => script.toJson()),
 			scripts: this.#scripts.map(script => bytesToHex(script.toCbor())),
 			refScripts: this.#refScripts.map(script => bytesToHex(script.toCbor())),
@@ -4449,11 +4476,12 @@ export class Redeemer extends CborData {
 	 */
 	dumpInternal() {
 		return {
-			data: this.#data.toString(),
+			json: this.#data.toSchemaJson(),
+			cbor: this.#data.toCborHex(),
 			exUnits: {
 				mem: this.#profile.mem.toString(),
 				cpu: this.#profile.cpu.toString(),
-			},
+			}
 		}
 	}
 
