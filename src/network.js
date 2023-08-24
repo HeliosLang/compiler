@@ -323,7 +323,7 @@ export class BlockfrostV0 {
         }
 
         return new TxInput(
-            new TxOutputId({txId: TxId.fromHex(obj.tx_hash), utxoId: BigInt(obj.output_index)}),
+            new TxOutputId(TxId.fromHex(obj.tx_hash), obj.output_index),
             new TxOutput(
                 Address.fromBech32(obj.address),
                 BlockfrostV0.parseValue(obj.amount),

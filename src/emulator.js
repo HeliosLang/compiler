@@ -899,7 +899,7 @@ class GenesisTx {
             utxos = utxos.slice();
 
             utxos.push(new TxInput(
-                new TxOutputId({txId: this.id(), utxoId: 0}),
+                new TxOutputId(this.id(), 0),
                 new TxOutput(
                     this.#address,
                     new Value(this.#lovelace, this.#assets)
@@ -922,7 +922,7 @@ class GenesisTx {
         }
 
         return new TxInput(
-            new TxOutputId({txId: this.id(), utxoId: 0}),
+            new TxOutputId(this.id(), 0),
             new TxOutput(
                 this.#address,
                 new Value(this.#lovelace, this.#assets)
@@ -979,7 +979,7 @@ class RegularTx {
         txOutputs.forEach((txOutput, utxoId) => {
             if (eq(txOutput.address.bytes, address.bytes)) {
                 utxos.push(new TxInput(
-                    new TxOutputId({txId: this.id(), utxoId: utxoId}),
+                    new TxOutputId(this.id(), utxoId),
                     txOutput
                 ));
             }

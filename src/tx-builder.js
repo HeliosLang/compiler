@@ -626,13 +626,8 @@ export class Tx extends CborData {
 	addOutput(output) {
 		assert(!this.#valid);
 		
-		// min lovelace is checked during build, because 
+		// min lovelace isn't checked here but during finalize()
 		this.#body.addOutput(output);
-
-		// a refScript can potentially be used for evaluation alsready
-		if (output.refScript) {
-			this.#witnesses.attachRefScript(output.refScript);
-		}
 
 		return this;
 	}
@@ -797,18 +792,6 @@ export class Tx extends CborData {
 		let wantedScripts = new Map();
 
 		this.#body.collectScriptHashes(wantedScripts);
-
-		// remove ref scripts that are only being registered in the current transaction, and not actually being used for validation
-		this.#body.outputs.forEach(output => {
-			if (output.refScript) {
-				const h = bytesToHex(output.refScript.hash());
-
-				if (!wantedScripts.has(h)) {
-					scripts = scripts.filter(s => bytesToHex(s.hash()) != h);
-					currentScripts.delete(h);
-				}
-			}
-		});
 
 		if (wantedScripts.size < scripts.length) {
 			throw new Error("too many scripts included, not all are needed");
@@ -1699,7 +1682,7 @@ export class TxBody extends CborData {
 
 			if (!input.hasOrigOutput()) {
 				indices.push(i);
-				ids.push(new TxOutputId({txId: input.txId, utxoId: input.utxoIdx}));
+				ids.push(input.outputId);
 			}
 		}
 
@@ -1710,7 +1693,7 @@ export class TxBody extends CborData {
 
 			if (!refInput.hasOrigOutput()) {
 				indices.push(offset + i);
-				ids.push(new TxOutputId({txId: refInput.txId, utxoId: refInput.utxoIdx}));
+				ids.push(refInput.outputId);
 			}
 		}
 
@@ -2758,7 +2741,7 @@ export class TxWitnesses extends CborData {
 
 		// 1000 ADA should be enough as a dummy input/output
 		const dummyInput1 = new TxInput(
-			new TxOutputId({txId: TxId.dummy(0), utxoId: 0}),
+			new TxOutputId(TxId.dummy(0), 0),
 			new TxOutput(
 				changeAddress,
 				new Value(fee + 1000_000_000n)
@@ -2766,7 +2749,7 @@ export class TxWitnesses extends CborData {
 		);
 		
 		const dummyInput2 = new TxInput(
-			new TxOutputId({txId: TxId.dummy(255), utxoId: 999}),
+			new TxOutputId(TxId.dummy(255), 999),
 			new TxOutput(
 				changeAddress,
 				new Value(1000_000_000n)

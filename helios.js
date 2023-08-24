@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.15.9
+// Version:       0.15.10
 // Last update:   August 2023
 // License type:  BSD-3-Clause
 //
@@ -300,7 +300,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.15.9";
+export const VERSION = "0.15.10";
 
 /**
  * A tab used for indenting of the IR.
@@ -8178,11 +8178,23 @@ export class TxOutputId extends HeliosData {
         }
     }
 
+
+	/**
+	 * @overload
+	 * @param {TxId} txId
+	 * @param {bigint | number} utxoId
+	 */
+
     /**
+	 * @overload
      * @param {TxOutputIdProps} props
      */
-    constructor(props) {
-        const [rawTxId, rawUtxoIdx] = TxOutputId.cleanConstructorArgs(props);
+
+	/**
+	 * @param {([TxOutputIdProps] | [TxId, bigint | number])} args
+	 */
+    constructor(...args) {
+        const [rawTxId, rawUtxoIdx] = args.length == 1 ? TxOutputId.cleanConstructorArgs(args[0]) : [args[0], args[1]];
 
         super();
 
@@ -8194,10 +8206,7 @@ export class TxOutputId extends HeliosData {
 	 * @returns {TxOutputId}
 	 */
 	static dummy() {
-		return new TxOutputId({
-			txId: TxId.dummy(),
-			utxoId: 0
-		});
+		return new TxOutputId(TxId.dummy(), 0);
 	}
 
 	/**
@@ -8245,7 +8254,7 @@ export class TxOutputId extends HeliosData {
         assert(data.index == 0, `TxOutputId.fromUplcData: expected constructor index 0, got ${data.index}`);
         assert(data.fields.length == 2, "TxOutputId.fromUplcData: expected 2 fields");
 
-        return new TxOutputId([TxId.fromUplcData(data.fields[0]), HInt.fromUplcData(data.fields[1])]);
+        return new TxOutputId(TxId.fromUplcData(data.fields[0]), HInt.fromUplcData(data.fields[1]).value);
     }
 
     /**
@@ -8285,7 +8294,7 @@ export class TxOutputId extends HeliosData {
 		if (txId === null || utxoIdx === null) {
 			throw new Error("unexpected");
 		} else {
-			return new TxOutputId({txId: txId, utxoId: utxoIdx});
+			return new TxOutputId(txId, utxoIdx);
 		}
 	}
 
@@ -45952,13 +45961,8 @@ export class Tx extends CborData {
 	addOutput(output) {
 		assert(!this.#valid);
 		
-		// min lovelace is checked during build, because 
+		// min lovelace isn't checked here but during finalize()
 		this.#body.addOutput(output);
-
-		// a refScript can potentially be used for evaluation alsready
-		if (output.refScript) {
-			this.#witnesses.attachRefScript(output.refScript);
-		}
 
 		return this;
 	}
@@ -46123,18 +46127,6 @@ export class Tx extends CborData {
 		let wantedScripts = new Map();
 
 		this.#body.collectScriptHashes(wantedScripts);
-
-		// remove ref scripts that are only being registered in the current transaction, and not actually being used for validation
-		this.#body.outputs.forEach(output => {
-			if (output.refScript) {
-				const h = bytesToHex(output.refScript.hash());
-
-				if (!wantedScripts.has(h)) {
-					scripts = scripts.filter(s => bytesToHex(s.hash()) != h);
-					currentScripts.delete(h);
-				}
-			}
-		});
 
 		if (wantedScripts.size < scripts.length) {
 			throw new Error("too many scripts included, not all are needed");
@@ -47025,7 +47017,7 @@ export class TxBody extends CborData {
 
 			if (!input.hasOrigOutput()) {
 				indices.push(i);
-				ids.push(new TxOutputId({txId: input.txId, utxoId: input.utxoIdx}));
+				ids.push(input.outputId);
 			}
 		}
 
@@ -47036,7 +47028,7 @@ export class TxBody extends CborData {
 
 			if (!refInput.hasOrigOutput()) {
 				indices.push(offset + i);
-				ids.push(new TxOutputId({txId: refInput.txId, utxoId: refInput.utxoIdx}));
+				ids.push(refInput.outputId);
 			}
 		}
 
@@ -48084,7 +48076,7 @@ export class TxWitnesses extends CborData {
 
 		// 1000 ADA should be enough as a dummy input/output
 		const dummyInput1 = new TxInput(
-			new TxOutputId({txId: TxId.dummy(0), utxoId: 0}),
+			new TxOutputId(TxId.dummy(0), 0),
 			new TxOutput(
 				changeAddress,
 				new Value(fee + 1000_000_000n)
@@ -48092,7 +48084,7 @@ export class TxWitnesses extends CborData {
 		);
 		
 		const dummyInput2 = new TxInput(
-			new TxOutputId({txId: TxId.dummy(255), utxoId: 999}),
+			new TxOutputId(TxId.dummy(255), 999),
 			new TxOutput(
 				changeAddress,
 				new Value(1000_000_000n)
@@ -51167,7 +51159,7 @@ export class WalletHelper {
         }
 
         if (this.#getUtxosFallback) {
-            console.error("falling back to retrieving UTxOs through query layer");
+            console.log("falling back to retrieving UTxOs through query layer");
             return this.#getUtxosFallback(await this.#wallet.usedAddresses);
         } else {
             throw new Error("wallet returned 0 utxos, set the helper getUtxosFallback callback to use an Api query layer instead");
@@ -51635,7 +51627,7 @@ export class BlockfrostV0 {
         }
 
         return new TxInput(
-            new TxOutputId({txId: TxId.fromHex(obj.tx_hash), utxoId: BigInt(obj.output_index)}),
+            new TxOutputId(TxId.fromHex(obj.tx_hash), obj.output_index),
             new TxOutput(
                 Address.fromBech32(obj.address),
                 BlockfrostV0.parseValue(obj.amount),
@@ -52601,7 +52593,7 @@ class GenesisTx {
             utxos = utxos.slice();
 
             utxos.push(new TxInput(
-                new TxOutputId({txId: this.id(), utxoId: 0}),
+                new TxOutputId(this.id(), 0),
                 new TxOutput(
                     this.#address,
                     new Value(this.#lovelace, this.#assets)
@@ -52624,7 +52616,7 @@ class GenesisTx {
         }
 
         return new TxInput(
-            new TxOutputId({txId: this.id(), utxoId: 0}),
+            new TxOutputId(this.id(), 0),
             new TxOutput(
                 this.#address,
                 new Value(this.#lovelace, this.#assets)
@@ -52681,7 +52673,7 @@ class RegularTx {
         txOutputs.forEach((txOutput, utxoId) => {
             if (eq(txOutput.address.bytes, address.bytes)) {
                 utxos.push(new TxInput(
-                    new TxOutputId({txId: this.id(), utxoId: utxoId}),
+                    new TxOutputId(this.id(), utxoId),
                     txOutput
                 ));
             }

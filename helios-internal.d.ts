@@ -838,7 +838,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.15.9";
+    export const VERSION: "0.15.10";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
@@ -2581,9 +2581,18 @@ declare module "helios" {
          */
         static comp(a: TxOutputId, b: TxOutputId): number;
         /**
+         * @overload
+         * @param {TxId} txId
+         * @param {bigint | number} utxoId
+         */
+        /**
+         * @overload
          * @param {TxOutputIdProps} props
          */
-        constructor(props: TxOutputIdProps);
+        /**
+         * @param {([TxOutputIdProps] | [TxId, bigint | number])} args
+         */
+        constructor(...args: ([TxOutputIdProps] | [TxId, bigint | number]));
         /**
          * @type {TxId}
          */

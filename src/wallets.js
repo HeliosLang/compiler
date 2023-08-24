@@ -262,7 +262,7 @@ export class WalletHelper {
         }
 
         if (this.#getUtxosFallback) {
-            console.error("falling back to retrieving UTxOs through query layer");
+            console.log("falling back to retrieving UTxOs through query layer");
             return this.#getUtxosFallback(await this.#wallet.usedAddresses);
         } else {
             throw new Error("wallet returned 0 utxos, set the helper getUtxosFallback callback to use an Api query layer instead");

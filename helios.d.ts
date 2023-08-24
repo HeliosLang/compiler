@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.15.9";
+export const VERSION: "0.15.10";
 /**
  * Mutable global config properties.
  * @namespace
@@ -1267,9 +1267,18 @@ export class TxOutputId extends HeliosData {
      */
     static comp(a: TxOutputId, b: TxOutputId): number;
     /**
+     * @overload
+     * @param {TxId} txId
+     * @param {bigint | number} utxoId
+     */
+    /**
+     * @overload
      * @param {TxOutputIdProps} props
      */
-    constructor(props: TxOutputIdProps);
+    /**
+     * @param {([TxOutputIdProps] | [TxId, bigint | number])} args
+     */
+    constructor(...args: ([TxOutputIdProps] | [TxId, bigint | number]));
     /**
      * @type {TxId}
      */

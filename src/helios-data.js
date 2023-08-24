@@ -1762,11 +1762,23 @@ export class TxOutputId extends HeliosData {
         }
     }
 
+
+	/**
+	 * @overload
+	 * @param {TxId} txId
+	 * @param {bigint | number} utxoId
+	 */
+
     /**
+	 * @overload
      * @param {TxOutputIdProps} props
      */
-    constructor(props) {
-        const [rawTxId, rawUtxoIdx] = TxOutputId.cleanConstructorArgs(props);
+
+	/**
+	 * @param {([TxOutputIdProps] | [TxId, bigint | number])} args
+	 */
+    constructor(...args) {
+        const [rawTxId, rawUtxoIdx] = args.length == 1 ? TxOutputId.cleanConstructorArgs(args[0]) : [args[0], args[1]];
 
         super();
 
@@ -1778,10 +1790,7 @@ export class TxOutputId extends HeliosData {
 	 * @returns {TxOutputId}
 	 */
 	static dummy() {
-		return new TxOutputId({
-			txId: TxId.dummy(),
-			utxoId: 0
-		});
+		return new TxOutputId(TxId.dummy(), 0);
 	}
 
 	/**
@@ -1829,7 +1838,7 @@ export class TxOutputId extends HeliosData {
         assert(data.index == 0, `TxOutputId.fromUplcData: expected constructor index 0, got ${data.index}`);
         assert(data.fields.length == 2, "TxOutputId.fromUplcData: expected 2 fields");
 
-        return new TxOutputId([TxId.fromUplcData(data.fields[0]), HInt.fromUplcData(data.fields[1])]);
+        return new TxOutputId(TxId.fromUplcData(data.fields[0]), HInt.fromUplcData(data.fields[1]).value);
     }
 
     /**
@@ -1869,7 +1878,7 @@ export class TxOutputId extends HeliosData {
 		if (txId === null || utxoIdx === null) {
 			throw new Error("unexpected");
 		} else {
-			return new TxOutputId({txId: txId, utxoId: utxoIdx});
+			return new TxOutputId(txId, utxoIdx);
 		}
 	}
 
