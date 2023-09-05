@@ -102,11 +102,10 @@ export class IRProgram {
 	 * @param {IR} ir 
 	 * @param {null | ScriptPurpose} purpose
 	 * @param {boolean} simplify
-	 * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
 	 * @param {IRScope} scope
 	 * @returns {IRProgram}
 	 */
-	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
+	static new(ir, purpose, simplify = false, scope = new IRScope(null, null)) {
 		let [irSrc, codeMap] = ir.generateSource();
 		
 		const callsTxTimeRange = irSrc.match(/\b__helios__tx__time_range\b/) !== null;
@@ -123,9 +122,7 @@ export class IRProgram {
 			throw e;
 		}
 		
-		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
-
-		// expr = IRProgram.simplifyUnused(expr); // this has been deprecated in favor of Program.eliminateUnused() (TODO: check that performs is the same and then remove this)
+		expr = expr.evalConstants(new IRCallStack(true));
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
@@ -187,34 +184,6 @@ export class IRProgram {
 		expr.registerNameExprs(nameExprs);
 
 		return expr.simplifyTopology(new IRExprRegistry(nameExprs));
-	}
-
-	/**
-	 * @param {IRExpr} expr 
-	 * @returns {IRExpr}
-	 */
-	static simplifyUnused(expr) {
-		let dirty = true;
-		let oldState = expr.toString();
-
-		while (dirty) {
-			dirty = false;
-
-			const nameExprs = new IRNameExprRegistry();
-
-			expr.registerNameExprs(nameExprs);
-	
-			expr = expr.simplifyUnused(new IRExprRegistry(nameExprs));
-
-			const newState = expr.toString();
-
-			if (newState != oldState) {
-				dirty = true;
-				oldState = newState;
-			}
-		}
-		
-		return expr;
 	}
 
 	/**
@@ -336,7 +305,7 @@ export class IRParametricProgram {
 			scope = new IRScope(scope, new IRVariable(new Word(Site.dummy(), internalName)));
 		}
 
-		const irProgram = IRProgram.new(ir, purpose, simplify, false, scope);
+		const irProgram = IRProgram.new(ir, purpose, simplify, scope);
 
 		return new IRParametricProgram(irProgram, nParams);
 	}

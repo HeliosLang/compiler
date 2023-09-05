@@ -9,8 +9,6 @@ import {
     extractScriptPurposeAndName
 } from "helios"
 
-config.set({EXPERIMENTAL_CEK: true});
-
 export default async function main() {
     async function runTestScriptWithArgs(src, argNames, expectedResult, expectedMessages) {
         let purposeName = extractScriptPurposeAndName(src);

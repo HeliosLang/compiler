@@ -10,7 +10,7 @@ import {
     assert,
     assertDefined,
     hexToBytes,
-	reduceNull
+	textToBytes
 } from "./utils.js";
 
 /**
@@ -138,7 +138,9 @@ export class Tokenizer {
 	 * @param {string} c 
 	 */
 	readToken(site, c) {
-		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && (c == '@' || c == '[' || c == ']'))) {
+		if (c == 'b') {
+			this.readMaybeUtf8ByteArray(site);
+		} else if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && (c == '@' || c == '[' || c == ']'))) {
 			this.readWord(site, c);
 		} else if (c == '/') {
 			this.readMaybeComment(site);
@@ -555,11 +557,35 @@ export class Tokenizer {
 	}
 
 	/**
-	 * Reads literal string delimited by double quotes.
-	 * Allows for three escape character: '\\', '\n' and '\t'
+	 * Reads literal Utf8 string and immediately encodes it as a ByteArray
 	 * @param {Site} site 
 	 */
-	readString(site) {
+	readMaybeUtf8ByteArray(site) {
+		let c = this.readChar();
+
+		if (c == '"') {
+			const s = this.readStringInternal(site)
+		
+			this.pushToken(
+				new ByteArrayLiteral(
+					new Site(site.src, site.startPos, this.currentSite.startPos),
+					textToBytes(s)
+				)
+			);
+		} else {
+			this.unreadChar();
+
+			this.readWord(site, 'b');
+		}
+	}
+
+	/**
+	 * Doesn't push a token, instead returning the string itself
+	 * @internal
+	 * @param {Site} site 
+	 * @returns {string}
+	 */
+	readStringInternal(site) {
 		let c = this.readChar();
 
 		let chars = [];
@@ -605,10 +631,21 @@ export class Tokenizer {
 			c = this.readChar();
 		}
 
+		return chars.join('');
+	}
+
+	/**
+	 * Reads literal string delimited by double quotes.
+	 * Allows for three escape character: '\\', '\n' and '\t'
+	 * @param {Site} site 
+	 */
+	readString(site) {
+		const s = this.readStringInternal(site)
+		
 		this.pushToken(
 			new StringLiteral(
 				new Site(site.src, site.startPos, this.currentSite.startPos),
-				chars.join('')
+				s
 			)
 		);
 	}

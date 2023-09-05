@@ -77,7 +77,6 @@ import {
 
 import {
     DEFAULT_UPLC_RTE_CALLBACKS,
-    UplcAnon,
     UplcBool,
     UplcBuiltin,
     UplcByteArray,
@@ -300,16 +299,7 @@ const UPLC_TAG_WIDTHS = {
 
 		this.#expr.toFlat(bitWriter, codeMapFileIndices);
 	}
-
-	/**
-	 * @internal
-	 * @param {UplcRte} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		return this.#expr.eval(rte);
-	}
-
+	
 	/**
 	 * Evaluates the term contained in UplcProgram (assuming it is a lambda term)
 	 * @internal
@@ -323,36 +313,7 @@ const UPLC_TAG_WIDTHS = {
 
 		let rte = new UplcRte(callbacks, networkParams);
 		
-		if (config.EXPERIMENTAL_CEK) {
-			return await evalCek(rte, this.#expr, args);
-		} else {
-			// add the startup costs
-			rte.incrStartupCost();
-
-			let fn = await this.eval(rte);
-
-			// program site is at pos 0, but now the call site is actually at the end 
-			let globalCallSite = new Site(this.site.src, this.site.src.length);
-			
-			/** @type {UplcValue} */
-			let result = fn;
-
-			if (args !== null) {
-				if (args.length === 0 && fn instanceof UplcDelayedValue) {
-					result = await fn.force();
-				} else {
-					for (let arg of args) {
-						// each call also adds to the total cost
-						rte.incrCallCost();
-						rte.incrConstCost();
-
-						result = await result.call(rte, globalCallSite, arg);
-					}
-				}
-			}
-
-			return result;
-		}
+		return await evalCek(rte, this.#expr, args);
 	}
 
 	/**
@@ -369,10 +330,6 @@ const UPLC_TAG_WIDTHS = {
 
 		for (let arg of args) {
 			if (arg instanceof UplcValue) {
-				if (arg instanceof UplcAnon) {
-					throw new Error("UplcAnon cannot be applied to UplcProgram");
-				}
-				
 				expr = new UplcCall(arg.site, expr, new UplcConst(arg));
 			} else if (arg instanceof HeliosData) {
 				expr = new UplcCall(Site.dummy(), expr, new UplcConst(new UplcDataValue(Site.dummy(), arg._toUplcData())));

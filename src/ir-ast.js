@@ -58,6 +58,8 @@ import {
  */
 
 /**
+ * A map from variables to variable references
+ * Scope-based
  * @internal
  */
 export class IRNameExprRegistry {
@@ -93,14 +95,18 @@ export class IRNameExprRegistry {
 		if (!nameExpr.isCore()) {
 			const variable = nameExpr.variable;
 
-			if (!this.#map.has(variable)) {
+			const entry = this.#map.get(variable)
+
+			if (!entry) {
 				this.#map.set(variable, new Set([nameExpr]));
 			} else {
-				assertDefined(this.#map.get(variable)).add(nameExpr);
+				entry.add(nameExpr);
 			}
 
 			// add another reference in case of recursion
 			if (!this.#variables.has(variable)) {
+				// i.e. if the variable wasn't declared in the same non-recursive block, it might be referenced inside a recursive call
+				// variables that are added to the #maybeInsideLoop set can never be inlined 
 				this.#maybeInsideLoop.add(variable);
 			}
 		}
@@ -235,7 +241,7 @@ export class IRExpr extends Token {
 	}
 
 	/**
-	 * Turns all IRConstExpr istances into IRLiteralExpr instances
+	 * Turns all IRConstExpr instances into IRLiteralExpr instances
 	 * @param {IRCallStack} stack 
 	 * @returns {IRExpr}
 	 */
@@ -248,7 +254,7 @@ export class IRExpr extends Token {
 	 * Returns null if it the result would be worse than the current expression
 	 * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
 	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
+	 * @returns {null | IRValue}
 	 */
 	eval(stack) {
 		throw new Error("not yet implemented");
@@ -285,14 +291,6 @@ export class IRExpr extends Token {
 	 * @returns {IRExpr}
 	 */
 	simplifyTopology(registry) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
 		throw new Error("not yet implemented");
 	}
 
@@ -517,14 +515,6 @@ export class IRNameExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		return this;
-	}
-
-	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
@@ -641,14 +631,6 @@ export class IRLiteralExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		return this;
-	}
-
-	/**
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining 
 	 * @returns {IRExpr}
@@ -735,14 +717,6 @@ export class IRConstExpr extends IRExpr {
 	 */
 	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return new IRConstExpr(this.site, this.#expr.simplifyUnusedRecursionArgs(fnVar, remaining));
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		return new IRConstExpr(this.site, this.#expr.simplifyUnused(registry));
 	}
 }
 
@@ -884,14 +858,6 @@ export class IRFuncExpr extends IRExpr {
 		return new IRFuncExpr(this.site, this.args, this.#body.simplifyTopology(registry));
 	}
 
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRFuncExpr}
-	 */
-	simplifyUnused(registry) {
-		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnused(registry));
-	}
-
 	/** 
 	 * @returns {UplcTerm}
 	 */
@@ -1006,14 +972,6 @@ export class IRCallExpr extends IRExpr {
 	 */
 	simplifyTopologyInArgs(registry) {
 		return this.#argExprs.map(a => assertDefined(a.simplifyTopology(registry)));
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr[]}
-	 */
-	simplifyUnusedInArgs(registry) {
-		return this.#argExprs.map(a => a.simplifyUnused(registry));
 	}
 
 	/**
@@ -1165,7 +1123,7 @@ export class IRCoreCallExpr extends IRCallExpr {
 	
 	/**
 	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
+	 * @returns {null | IRValue}
 	 */
 	eval(stack) {
 		let args = this.evalArgs(stack);
@@ -1477,16 +1435,6 @@ export class IRCoreCallExpr extends IRCallExpr {
 	}
 
 	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		const args = this.simplifyUnusedInArgs(registry);
-
-		return new IRCoreCallExpr(this.#name, args, this.parensSite);
-	}
-
-	/**
 	 * @param {Site} site
 	 * @param {string} name - full name of builtin, including prefix
 	 * @returns {UplcTerm}
@@ -1544,24 +1492,17 @@ export class IRUserCallExpr extends IRCallExpr {
 	}
 
 	/**
+	 * Handles upgrade to more complicated IRExpr types
 	 * @param {IRExpr} fnExpr 
 	 * @param {IRExpr[]} argExprs 
 	 * @param {Site} parensSite 
-	 * @returns {IRUserCallExpr}
+	 * @returns {IRNestedAnonCallExpr | IRAnonCallExpr | IRFuncDefExpr | IRUserCallExpr}
 	 */
 	static new(fnExpr, argExprs, parensSite) {
 		if (fnExpr instanceof IRAnonCallExpr) {
 			return new IRNestedAnonCallExpr(fnExpr, argExprs, parensSite);
 		} else if (fnExpr instanceof IRFuncExpr) {
-			if (argExprs.length == 1 && argExprs[0] instanceof IRFuncExpr) {
-				const argExpr = argExprs[0];
-
-				if (argExpr instanceof IRFuncExpr) {
-					return new IRFuncDefExpr(fnExpr, argExpr, parensSite);
-				}
-			}
-
-			return new IRAnonCallExpr(fnExpr, argExprs, parensSite);
+			return IRAnonCallExpr.new(fnExpr, argExprs, parensSite);
 		} else {
 			return new IRUserCallExpr(fnExpr, argExprs, parensSite);
 		}
@@ -1793,20 +1734,6 @@ export class IRUserCallExpr extends IRCallExpr {
 	}
 
 	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		const args = this.simplifyUnusedInArgs(registry);
-
-		return IRUserCallExpr.new(
-			this.fnExpr.simplifyUnused(registry),
-			args,
-			this.parensSite
-		);
-	}
-
-	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
@@ -1829,6 +1756,31 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 		super(fnExpr, argExprs, parensSite)
 
 		this.#anon = fnExpr;
+	}
+
+	/**
+	 * Handles upgrade to IRFuncDefExpr, which is very important to avoid inlining expensive expressions into potentially recursive scopes
+	 * @param {IRFuncExpr} fnExpr
+	 * @param {IRExpr[]} argExprs
+	 * @param {Site} parensSite
+	 * @returns {IRAnonCallExpr | IRFuncDefExpr}
+	 */
+	static new(fnExpr, argExprs, parensSite) {
+		const def = argExprs[0];
+
+		if (argExprs.length == 1 && def && def instanceof IRFuncExpr) {
+			return new IRFuncDefExpr(
+				fnExpr,
+				def,
+				parensSite
+			);
+		} else {
+			return new IRAnonCallExpr(
+				fnExpr,
+				argExprs,
+				parensSite
+			);
+		}
 	}
 
 	/**
@@ -1886,7 +1838,7 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 
 		let anon = assertClass(this.#anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr);
 
-		return new IRAnonCallExpr(anon, argExprs, this.parensSite);
+		return IRAnonCallExpr.new(anon, argExprs, this.parensSite);
 	}
 
 	/**
@@ -1913,7 +1865,7 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 			if (anonBody instanceof IRLiteralExpr) {
 				return anonBody;
 			} else {
-				return new IRAnonCallExpr(
+				return IRAnonCallExpr.new(
 					new IRFuncExpr(
 						this.#anon.site,
 						this.#anon.args,
@@ -1981,45 +1933,7 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 		if (anonBody instanceof IRLiteralExpr || remainingExprs.length == 0) {
 			return anonBody;
 		} else {
-			return new IRAnonCallExpr(
-				new IRFuncExpr(
-					this.#anon.site,
-					remainingVars,
-					anonBody
-				),
-				remainingExprs,
-				this.parensSite
-			);
-		}
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		const args = this.simplifyUnusedInArgs(registry);
-
-		// remove unused args
-		const remainingIds = this.argVariables.map((variable, i) => {
-			const n = registry.countReferences(variable);
-
-			if (n == 0) {
-				return -1;
-			} else {
-				return i;
-			}
-		}).filter(i => i != -1);
-
-		const remainingVars = remainingIds.map(i => this.argVariables[i]);
-		const remainingExprs = remainingIds.map(i => args[i]);
-
-		const anonBody = this.#anon.body.simplifyUnused(registry);
-
-		if (remainingVars.length == 0) {
-			return anonBody;
-		} else {
-			return new IRAnonCallExpr(
+			return IRAnonCallExpr.new(
 				new IRFuncExpr(
 					this.#anon.site,
 					remainingVars,
@@ -2094,31 +2008,6 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 				args,
 				this.parensSite
 			);
-		}
-	}
-
-	/**
-	 * Flattens consecutive nested calls
-	 * @param {IRExprRegistry} registry
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		const anon = this.#anon.simplifyUnused(registry);
-
-		const args = this.simplifyUnusedInArgs(registry);
-
-		if (anon instanceof IRAnonCallExpr) {
-			return new IRNestedAnonCallExpr(
-				anon,
-				args,
-				this.parensSite
-			);
-		} else {
-			return new IRUserCallExpr(
-				anon,
-				args,
-				this.parensSite
-			)
 		}
 	}
 }
@@ -2232,32 +2121,6 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 			this.parensSite
 		);
 	}
-
-	/**
-	 * @param {IRExprRegistry} registry
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		if (registry.countReferences(this.anon.args[0]) == 0) {
-			return this.anon.body.simplifyUnused(registry);
-		} else {
-			const [anon, def] = this.simplifyRecursionArgs(registry);
-
-			if (def instanceof IRFuncExpr) {
-				return new IRFuncDefExpr(
-					anon.simplifyUnused(registry),
-					def.simplifyUnused(registry),
-					this.parensSite
-				);
-			} else {
-				return new IRAnonCallExpr(
-					anon.simplifyUnused(registry),
-					[def],
-					this.site
-				);
-			}
-		}
-	}
 }
 
 /**
@@ -2300,7 +2163,7 @@ export class IRErrorCallExpr extends IRExpr {
 
 	/**
 	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
+	 * @returns {null | IRValue}
 	 */
 	eval(stack) {
 		if (stack.throwRTErrors) {
@@ -2339,15 +2202,6 @@ export class IRErrorCallExpr extends IRExpr {
 	simplifyTopology(registry) {
 		return this;
 	}
-
-	/**
-	 * @param {IRExprRegistry} registry
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		return this;
-	}
-
 	/**
 	 * @param {IRVariable} fnVar 
 	 * @param {number[]} remaining 

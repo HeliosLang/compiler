@@ -8,7 +8,7 @@
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
 // Version:       0.15.10
-// Last update:   August 2023
+// Last update:   September 2023
 // License type:  BSD-3-Clause
 //
 //
@@ -116,15 +116,14 @@
 //                                           dumpCostModels, findUplcBuiltin, isUplcBuiltin
 //
 //     Section 10: Uplc AST                  UplcValue, UplcType, DEFAULT_UPLC_RTE_CALLBACKS, 
-//                                           UplcRte, UplcStack, UplcAny, UplcAnon, 
-//                                           UplcDelayedValue, UplcInt, UplcByteArray, UplcString, 
-//                                           UplcUnit, UplcBool, UplcPair, UplcList, 
-//                                           UplcDataValue, UplcTerm, UplcVariable, UplcDelay, 
-//                                           UplcLambda, UplcCall, UplcConst, UplcForce, 
-//                                           UplcError, UplcBuiltin, UplcFrame, ForceFrame, 
-//                                           PreCallFrame, CallFrame, UplcTermWithEnv, 
-//                                           UplcLambdaWithEnv, UplcDelayWithEnv, UplcAnonValue, 
-//                                           AppliedUplcBuiltin
+//                                           UplcRte, UplcStack, UplcAny, UplcDelayedValue, 
+//                                           UplcInt, UplcByteArray, UplcString, UplcUnit, 
+//                                           UplcBool, UplcPair, UplcList, UplcDataValue, 
+//                                           UplcTerm, UplcVariable, UplcDelay, UplcLambda, 
+//                                           UplcCall, UplcConst, UplcForce, UplcError, 
+//                                           UplcBuiltin, UplcFrame, ForceFrame, PreCallFrame, 
+//                                           CallFrame, UplcTermWithEnv, UplcLambdaWithEnv, 
+//                                           UplcDelayWithEnv, UplcAnonValue, AppliedUplcBuiltin
 //
 //     Section 11: Uplc program              UPLC_VERSION_COMPONENTS, UPLC_VERSION, 
 //                                           PLUTUS_SCRIPT_VERSION, UPLC_TAG_WIDTHS, 
@@ -261,7 +260,7 @@
 //     Section 31: Helios program            Module, MainModule, DEFAULT_PROGRAM_CONFIG, 
 //                                           RedeemerProgram, DatumRedeemerProgram, 
 //                                           GenericProgram, TestingProgram, SpendingProgram, 
-//                                           MintingProgram, StakingProgram, LinkingProgram
+//                                           MintingProgram, StakingProgram, EndpointProgram
 //
 //     Section 32: Native scripts            NativeContext, NativeScript, NativeSig, NativeAll, 
 //                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
@@ -332,7 +331,6 @@ export const config = {
      *   AUTO_SET_VALIDITY_RANGE?: boolean
      *   VALIDITY_RANGE_START_OFFSET?: number
      *   VALIDITY_RANGE_END_OFFSET?: number
-     *   EXPERIMENTAL_CEK?: boolean
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
      * }} props 
@@ -408,16 +406,6 @@ export const config = {
      * @type {number} seconds
      */
     VALIDITY_RANGE_END_OFFSET: 300,
-
-
-    /**
-     * Evaluate UPLC program using the CEK algorithm instead of the recursive algorithm.
-     * The CEK algorithm is more complex but is more efficient and creates a much better stack trace when errors are thrown.
-     * 
-     * Default: `false`.
-     * @type {boolean}
-     */
-    EXPERIMENTAL_CEK: false,
 
     /**
      * Ignore constants that can't be evaluated during compile-time.
@@ -10880,7 +10868,7 @@ export function isUplcBuiltin(name, strict = false) {
 
 /**
  * A Helios/Uplc Program can have different purposes
- * @typedef {"testing" | "minting" | "spending" | "staking" | "linking" | "module" | "unknown"} ScriptPurpose
+ * @typedef {"testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown"} ScriptPurpose
  */
 
 /** 
@@ -10938,27 +10926,6 @@ export class UplcValue {
 	 */
 	get memSize() {
 		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Throws an error because most values can't be called (overridden by UplcAnon)
-     * @internal
-	 * @param {UplcRte | UplcStack} rte 
-	 * @param {Site} site 
-	 * @param {UplcValue} value
-	 * @returns {Promise<UplcValue>}
-	 */
-	async call(rte, site, value) {
-		throw site.typeError(`expected a Plutus-core function, got '${this.toString()}'`);
-	}
-
-	/**
-     * @internal
-	 * @param {UplcRte | UplcStack} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		return this;
 	}
 
 	/**
@@ -11316,6 +11283,14 @@ export class UplcRte {
 		return new UplcAny(Site.dummy());
 	}
 
+	throwError() {
+		if (this.#error instanceof RuntimeError) {
+			throw this.#error;
+		} else if (this.#error != "") {
+			throw new RuntimeError(this.#error);
+		}
+	}
+
 	/**
 	 * @param {string} name - for breakdown
 	 * @param {boolean} isTerm
@@ -11669,7 +11644,7 @@ class UplcStack {
 }
 
 /**
- * Allows doing a dummy eval of a UplcProgram in order to determine some non-changing properties (eg. the address fetched via the network in a LinkingProgram)
+ * Allows doing a dummy eval of a UplcProgram in order to determine some non-changing properties (eg. the address fetched via the network in an EndpointProgram)
  * @internal
  */
 export class UplcAny extends UplcValue {
@@ -11704,16 +11679,6 @@ export class UplcAny extends UplcValue {
 		return new UplcAny(
 			newSite
 		);
-	}
-
-	/**
-	 * @param {UplcRte | UplcStack} rte 
-	 * @param {Site} site 
-	 * @param {UplcValue} value 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async call(rte, site, value) {
-		return new UplcAny(site);
 	}
 
 	/**
@@ -11758,227 +11723,6 @@ export class UplcAny extends UplcValue {
 	 */
 	toString() {
 		return "Any";
-	}
-}
-
-/**
- * @internal
- * @typedef {(callSite: Site, subStack: UplcStack, ...args: UplcValue[]) => (UplcValue | Promise<UplcValue>)} UplcAnonCallback
- */
-
-/**
- * @internal
- * @typedef {{
- *   rte: UplcRte | UplcStack
- *   nArgs?: number
- *   argNames?: string[]
- *   argCount?: number
- *   fn: UplcAnonCallback
- *   callSite?: Site
- *   allowAnyArgs?: boolean
- * }} UplcAnonProps
- */
-
-/**
- * Anonymous Plutus-core function.
- * Returns a new UplcAnon whenever it is called/applied (args are 'accumulated'), except final application, when the function itself is evaluated.
- * @internal
- */
-export class UplcAnon extends UplcValue {
-	/**
-	 * @type {UplcRte | UplcStack}
-	 */
-	#rte;
-
-	/**
-	 * @type {number}
-	 */
-	#nArgs;
-
-	/**
-	 * @type {string[] | null}
-	 */
-	#argNames;
-
-	/**
-	 * Increment every time function a new argument is applied.
-	 * @type {number}
-	 */
-	#argCount;
-
-	/**
-	 * Callback that is called when function is fully applied.
-	 * @type {UplcAnonCallback}
-	 */
-	#fn;
-
-	/**
-	 * @type {Site | null}
-	 */
-	#callSite;
-
-	/**
-	 * @type {boolean}
-	 */
-	#allowAnyArgs;
-
-	/**
-	 * 
-	 * @param {Site} site 
-	 * @param {UplcAnonProps} props
-	 */
-	constructor(site, props) {
-		super(site);
-
-		this.#argCount = props.argCount === undefined ? 0 : props.argCount;
-		assert(typeof this.#argCount == "number");
-
-		if (props.argNames !== undefined) {
-			this.#argNames = props.argNames
-			this.#nArgs = props.argNames.length
-
-			if (props.nArgs !== undefined) {
-				assert(props.nArgs == props.argNames.length);
-			}
-		} else if (props.nArgs !== undefined) {
-			this.#nArgs = props.nArgs;
-			this.#argNames = null;
-		} else {
-			throw new Error("either nArgs or argNames must be set")
-		}
-
-		this.#rte = props.rte;
-		this.#fn = props.fn;
-		this.#callSite = props.callSite ?? null;
-		this.#allowAnyArgs = props.allowAnyArgs !== undefined ? props.allowAnyArgs : false;
-	}
-
-	/**
-	 * Should never be part of the uplc ast
-	 * @param {TransferUplcAst} other 
-	 * @returns {any}
-	 */
-	transfer(other) {
-		throw new Error("not expected to be part of uplc ast");
-	}
-
-	/**
-	 * @type {number}
-	 */
-	get memSize() {
-		return 1;
-	}
-
-	/**
-	 * @param {Site} newSite 
-	 * @returns {UplcAnon}
-	 */
-	copy(newSite) {
-		return new UplcAnon(
-			newSite, {
-				rte: this.#rte,
-				argNames: this.#argNames !== null ? this.#argNames : undefined,
-				fn: this.#fn,
-				nArgs: this.#nArgs,
-				argCount: this.#argCount,
-				callSite: this.#callSite ?? undefined,
-				allowAnyArgs: this.#allowAnyArgs
-			}
-		);
-	}
-
-	/**
-	 * @param {Site} callSite
-	 * @param {UplcStack} subStack
-	 * @param {UplcValue[]} args
-	 * @returns {UplcValue | Promise<UplcValue>}
-	 */
-	callSync(callSite, subStack, args) {
-		if (!this.#allowAnyArgs && args.some(a => a.isAny())) {
-			return new UplcAny(callSite);
-		} else {
-			return assertDefined(this.#fn(callSite, subStack, ...args));
-		}
-	}
-
-	/**
-	 * @param {UplcRte | UplcStack} rte 
-	 * @param {Site} site 
-	 * @param {UplcValue} value 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async call(rte, site, value) {
-		assert(site != undefined && site instanceof Site);
-
-		let subStack = this.#rte.push(value, this.#argNames !== null ? this.#argNames[this.#argCount] : null); // this is the only place where the stack grows
-		let argCount = this.#argCount + 1;
-		let callSite = this.#callSite !== null ? this.#callSite : site;
-
-		// function is fully applied, collect the args and call the callback
-		if (argCount == this.#nArgs || (this.#nArgs == -1 && value instanceof UplcUnit)) { // second condition is used for macros
-			/** @type {UplcValue[]} */
-			let args = [];
-
-			let rawStack = rte.toList(); // use the RTE of the callsite
-
-			for (let i = argCount; i >= 1; i--) {
-				let argValue = subStack.get(i);
-				args.push(argValue);
-				rawStack.push([`__arg${argCount - i}`, argValue]);
-			}
-
-			// notify the RTE of the new live stack (list of pairs instead of UplcStack), and await permission to continue
-			await this.#rte.startCall(callSite, rawStack);
-
-			let result = this.callSync(callSite, subStack, args);
-
-			if (result instanceof Promise) {
-				result = await result;
-			}
-
-			// the same rawStack object can be used as a marker for 'Step-Over' in the debugger
-			await this.#rte.endCall(callSite, rawStack, result);
-
-			return result.copy(callSite);
-		} else {
-			// function isn't yet fully applied, return a new partially applied UplcAnon
-			return new UplcAnon(
-				callSite,
-				{
-					rte: subStack,
-					argNames: this.#argNames !== null ? this.#argNames : undefined,
-					nArgs: this.#nArgs,
-					fn: this.#fn,
-					argCount: argCount,
-					callSite: callSite,
-					allowAnyArgs: this.#allowAnyArgs
-				}
-			);
-		}
-	}
-
-	toString() {
-		if (this.#argNames !== null) {
-			return `fn(${this.#argNames.join(", ")})`;
-		} else {
-			return "fn";
-		}
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	typeBits() {
-		throw new Error("a UplcAnon value doesn't have a literal representation");
-	}
-
-	/**
-	 * Encodes value with plutus flat encoding.
-	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
-	 * @param {BitWriter} bitWriter
-	 */
-	toFlatValue(bitWriter) {
-		throw new Error("a UplcAnon value doesn't have a literal representation");
 	}
 }
 
@@ -13091,16 +12835,6 @@ export class UplcTerm {
 	toString() {
 		return `(Term ${this.#type.toString()})`;
 	}
-
-	/**
-	 * Calculates a value, and also increments the cost
-	 * @internal
-	 * @param {UplcRte | UplcStack} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		throw new Error("not yet implemented");
-	}
 	
 	/**
 	 * Writes bits of flat encoded Plutus-core terms to bitWriter. Doesn't return anything.
@@ -13157,18 +12891,6 @@ export class UplcVariable extends UplcTerm {
 	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0000');
 		this.index.toFlatUnsigned(bitWriter);
-	}
-
-	/**
-	 * @internal
-	 * @param {UplcRte | UplcStack} rte
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		// add costs before get the value
-		rte.incrVariableCost();
-
-		return rte.get(Number(this.index.int));
 	}
 
 	/**
@@ -13237,17 +12959,6 @@ export class UplcDelay extends UplcTerm {
 
 	/**
 	 * @internal
-	 * @param {UplcRte | UplcStack} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		rte.incrDelayCost();
-
-		return new UplcDelayedValue(this.site, () =>  this.expr.eval(rte));
-	}
-
-	/**
-	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack
 	 * @param {ComputingState} state 
@@ -13310,25 +13021,6 @@ export class UplcLambda extends UplcTerm {
 	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0010');
 		this.expr.toFlat(bitWriter, codeMapFileIndices);
-	}
-
-	/**
-	 * @internal
-	 * @param {UplcRte | UplcStack} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		rte.incrLambdaCost();
-
-		return new UplcAnon(this.site, {
-			rte: rte, 
-			argNames: this.#argName !== null ? [this.#argName] : undefined, 
-			nArgs: 1,
-			fn: (callSite, subStack) => {
-				return this.expr.eval(subStack);
-			},
-			allowAnyArgs: true
-		});
 	}
 
 	/**
@@ -13420,20 +13112,6 @@ export class UplcCall extends UplcTerm {
 
 	/**
 	 * @internal
-	 * @param {UplcRte | UplcStack} rte 
-	 * @returns 
-	 */
-	async eval(rte) {
-		rte.incrCallCost();
-
-		let fn = await this.fn.eval(rte);
-		let arg = await this.arg.eval(rte);
-
-		return await fn.call(rte, this.site, arg);
-	}
-
-	/**
-	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ComputingState} state 
@@ -13495,17 +13173,6 @@ export class UplcConst extends UplcTerm {
 	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0100');
 		this.value.toFlatValue(bitWriter);
-	}
-
-	/**
-	 * @internal
-	 * @param {UplcStack | UplcRte} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		rte.incrConstCost();
-
-		return await this.value.eval(rte);
 	}
 
 	/**
@@ -13608,17 +13275,6 @@ export class UplcForce extends UplcTerm {
 
 	/**
 	 * @internal
-	 * @param {UplcRte | UplcStack} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		rte.incrForceCost();
-
-		return await (await this.expr.eval(rte)).force();
-	}
-
-	/**
-	 * @internal
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ComputingState} state 
@@ -13672,16 +13328,6 @@ export class UplcError extends UplcTerm {
 	 */
 	toFlat(bitWriter, codeMapFileIndices = null) {
 		bitWriter.write('0110');
-	}
-
-	/**
-	 * Throws a RuntimeError when evaluated.
-	 * @internal
-	 * @param {UplcRte | UplcStack} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		throw new RuntimeError(this.#msg);
 	}
 
 	/**
@@ -13870,13 +13516,11 @@ export class UplcBuiltin extends UplcTerm {
 	static evalStatic(name, args) {
 		let builtin = new UplcBuiltin(name.site, name.value);
 
-		let dummyRte = new UplcRte();
+		let rte = new UplcRte();
 
-		let anon = builtin.evalInternal(dummyRte);
+		let res = builtin.evalBuiltin(rte, name.site, args);
 
-		let subStack = new UplcStack(dummyRte);
-
-		let res = anon.callSync(name.site, subStack, args);
+		rte.throwError()
 
 		if (res instanceof Promise) {
 			throw new Error("can't call trace through evalStatic");
@@ -13919,9 +13563,13 @@ export class UplcBuiltin extends UplcTerm {
 	 * @param {UplcRte} rte 
 	 * @param {Site} site
 	 * @param {UplcValue[]} args
-	 * @returns {UplcValue | Promise<UplcValue>}
+	 * @returns {UplcValue | Promise<UplcValue>} // trace returns a Promise (async print), all the other builtins return a synchronous value
 	 */
 	evalBuiltin(rte, site, args) {
+		if (!this.allowAny() && args.some(a => a.isAny())) {
+			return new UplcAny(site);
+		} 
+
 		rte.calcAndIncrCost(this, ...args);
 
 		/**
@@ -14301,801 +13949,10 @@ export class UplcBuiltin extends UplcTerm {
 
 	/**
 	 * @internal
-	 * @param {UplcRte | UplcStack} rte
-	 * @returns {UplcAnon}
-	 */
-	evalInternal(rte = new UplcRte()) {
-		if (typeof this.#name == "number") {
-			throw new Error("can't evaluate unknown Plutus-core builtin");
-		}
-
-		switch (this.#name) {
-			case "addInteger":
-				// returning a lambda is assumed to be free
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						// but calling a lambda has a cost associated
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcInt(callSite, a.int + b.int);
-					}
-				});
-			case "subtractInteger":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcInt(callSite, a.int - b.int);
-					}
-				});
-			case "multiplyInteger":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcInt(callSite, a.int * b.int);
-					}
-				});
-			case "divideInteger":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						if (b.int === 0n) {
-							throw new RuntimeError("division by zero");
-						} else {
-							return new UplcInt(callSite, a.int / b.int);
-						}
-					}
-				});
-			case "quotientInteger":
-				return new UplcAnon(this.site, {
-					rte: rte,
-					nArgs: 2,
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-						if (b.int === 0n) {
-							throw new RuntimeError("division by zero");
-						} else {
-							return new UplcInt(callSite, a.int/b.int + (b.int < 0n ? 1n : 0n));
-						}
-					}
-				});
-			case "modInteger":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						if (b.int === 0n) {
-							throw new RuntimeError("division by zero");
-						} else {
-							return new UplcInt(callSite, a.int % b.int);
-						}
-					}
-				});
-			case "remainderInteger":
-				return new UplcAnon(this.site, {
-					rte: rte,
-					nArgs: 2,
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						if (b.int == 0n) {
-							throw new RuntimeError("division by zero");
-						} else {
-							return new UplcInt(callSite, a.int - (a.int/b.int + (b.int < 0n ? 1n : 0n))*b.int);
-						}
-					}
-				});
-			case "equalsInteger":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcBool(callSite, a.int == b.int);
-					}
-				});
-			case "lessThanInteger":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcBool(callSite, a.int < b.int);
-					}
-				});
-			case "lessThanEqualsInteger":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcBool(callSite, a.int <= b.int);
-					}
-				});
-			case "appendByteString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcByteArray(callSite, a.bytes.concat(b.bytes));
-					}
-				});
-			case "consByteString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-						
-						let bytes = b.bytes;
-
-						const byte = Number(a.int)
-
-						if (byte < 0 || byte >= 256) {
-							throw new RuntimeError("byte out of range");
-						}
-
-						bytes.unshift(byte);
-						return new UplcByteArray(callSite, bytes);
-					}
-				});
-			case "sliceByteString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 3, 
-					fn: (callSite, _, a, b, c) => {
-						rte.calcAndIncrCost(this, a, b, c);
-
-						let start = Number(a.int);
-						let n = Number(b.int);
-						let bytes = c.bytes;
-						if (start < 0) {
-							start = 0;
-						}
-
-						if (start + n > bytes.length) {
-							n = bytes.length - start;
-						}
-
-						if (n < 0) {
-							n = 0;
-						}
-
-						let sub = bytes.slice(start, start + n);
-
-						return new UplcByteArray(callSite, sub);		
-					}
-				});
-			case "lengthOfByteString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						return new UplcInt(callSite, BigInt(a.bytes.length));
-					}
-				});
-			case "indexByteString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						let bytes = a.bytes;
-						let i = b.int;
-						if (i < 0 || i >= bytes.length) {
-							throw new Error("index out of range");
-						}
-
-						return new UplcInt(callSite, BigInt(bytes[Number(i)]));
-					}
-				});
-			case "equalsByteString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) == 0);
-					}
-				});
-			case "lessThanByteString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) == -1);
-					}
-				});
-			case "lessThanEqualsByteString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcBool(callSite, ByteArrayData.comp(a.bytes, b.bytes) <= 0);
-					}
-				});
-			case "appendString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcString(callSite, a.string + b.string);
-					}
-				});
-			case "equalsString":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcBool(callSite, a.string == b.string);
-					}
-				});
-			case "encodeUtf8":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						return new UplcByteArray(callSite, textToBytes(a.string));
-					}
-				});
-			case "decodeUtf8":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						try {
-							return new UplcString(callSite, bytesToText(a.bytes));
-						} catch(_) {
-							throw new RuntimeError("invalid utf-8");
-						}
-					}
-				});
-			case "sha2_256":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						return new UplcByteArray(callSite, Crypto.sha2_256(a.bytes))
-					}
-				});
-			case "sha3_256":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						return new UplcByteArray(callSite, Crypto.sha3(a.bytes))
-					}
-				});
-			case "blake2b_256":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						return new UplcByteArray(callSite, Crypto.blake2b(a.bytes)); 
-					}
-				});
-			case "verifyEd25519Signature":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 3, 
-					fn: (callSite, _, key, msg, signature) => {
-						rte.calcAndIncrCost(this, key, msg, signature);
-
-						let keyBytes = key.bytes;
-						if (keyBytes.length != 32) {
-							throw new RuntimeError(`expected key of length 32 for verifyEd25519Signature, got key of length ${keyBytes.length}`);
-						}
-
-						let msgBytes = msg.bytes;
-						
-						let signatureBytes = signature.bytes;
-						if (signatureBytes.length != 64) {
-							throw new RuntimeError(`expected signature of length 64 for verifyEd25519Signature, got signature of length ${signatureBytes.length}`);
-						}
-
-						let ok = Ed25519.verify(signatureBytes, msgBytes, keyBytes);
-
-						return new UplcBool(callSite, ok);
-					}
-				});
-			case "ifThenElse":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 3, 
-					fn: (callSite, _, a, b, c) => {
-						rte.calcAndIncrCost(this, a, b, c);
-
-						return a.bool ? b.copy(callSite) : c.copy(callSite);
-					}
-				});
-			case "chooseUnit":
-				// what is the point of this function?
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2,
-					allowAnyArgs: true,
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						a.assertUnit();
-
-						return b.copy(callSite);
-					}
-				});
-			case "trace":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					allowAnyArgs: true,
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						if (a.isAny()) {
-							return b.copy(callSite);
-						} else {
-							return rte.print(a.string).then(() => {
-								return b.copy(callSite);
-							});
-						}
-					}
-				});
-			case "fstPair":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (a.isPair()) {
-							return a.first.copy(callSite);
-						} else {
-							throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
-						}
-					}
-				});
-			case "sndPair":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (a.isPair()) {
-							return a.second.copy(callSite);
-						} else {
-							throw callSite.typeError(`expected pair or data-pair for first arg, got '${a.toString()}'`);
-						}
-					}
-				});
-			case "chooseList":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 3, 
-					fn: (callSite, _, a, b, c) => {
-						rte.calcAndIncrCost(this, a, b, c);
-
-						if (a.isList()) {
-							if (a.length == 0) {
-								return b.copy(callSite);
-							} else {
-								return c.copy(callSite);
-							}
-						} else {
-							throw callSite.typeError(`expected list or map first arg, got '${a.toString()}'`);
-						}
-					}
-				});
-			case "mkCons":
-				// only allow data items in list
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						if (b.isList()) {
-							if (!b.itemType.isSameType(a)) {
-								throw callSite.typeError(`wrong type for 2nd arg of mkCons, expected ${a.toString()}, got ${b.toString()}`);
-							}
-
-							let lst = b.list;
-							lst.unshift(a);
-
-							return new UplcList(callSite, b.itemType, lst);
-						} else {
-							throw callSite.typeError(`expected list or map for second arg, got '${b.toString()}'`);
-						}
-					}
-				});
-			case "headList":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (a.isList()) {
-							const lst = a.list;
-							if (lst.length == 0) {
-								throw new RuntimeError("empty list");
-							}
-
-							return lst[0].copy(callSite);
-						} else {
-							throw callSite.typeError(`__core__head expects list or map, got '${a.toString()}'`);
-						}
-					}
-				});
-			case "tailList":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (a.isList()) {
-							let lst = a.list;
-							if (lst.length == 0) {
-								throw new RuntimeError("empty list");
-							}
-
-							return new UplcList(callSite, a.itemType, lst.slice(1));
-						} else {
-							throw callSite.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
-						}
-					}
-				});
-			case "nullList":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (a.isList()) {
-							return new UplcBool(callSite, a.list.length == 0);
-						} else {
-							throw callSite.typeError(`__core__nullList expects list or map, got '${a.toString()}'`);
-						}
-					}
-				});
-			case "chooseData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 6,
-					allowAnyArgs: true,
-					fn: (callSite, _, a, b, c, d, e, f) => {
-						rte.calcAndIncrCost(this, a, b, c, d, e, f);
-
-						if (a.isAny()) {
-							return new UplcAny(callSite);
-						} else {
-							const data = a.data;
-
-							if (data instanceof ConstrData) {
-								return b;
-							} else if (data instanceof MapData) {
-								return c;
-							} else if (data instanceof ListData) {
-								return d;
-							} else if (data instanceof IntData) {
-								return e;
-							} else if (data instanceof ByteArrayData) {
-								return f;
-							} else {
-								throw new Error("unexpected");
-							}
-						}
-					}
-				});
-			case "constrData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						const i = a.int;
-						assert(i >= 0);
-
-						const lst = b.list;
-
-						return new UplcDataValue(callSite, new ConstrData(Number(i), lst.map(item => item.data)));
-					}
-				});
-			case "mapData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						return new UplcDataValue(callSite, new MapData(a.list.map(pair => {
-							return [pair.first.data, pair.second.data];
-						})));
-					}	
-				});
-			case "listData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						return new UplcDataValue(callSite, new ListData(a.list.map(item => item.data)));
-					}
-				});
-			case "iData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-						
-						return new UplcDataValue(callSite, new IntData(a.int));
-					}
-				});
-			case "bData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						return new UplcDataValue(callSite, new ByteArrayData(a.bytes));
-					}
-				});
-			case "unConstrData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (!a.isData()) {
-							throw callSite.typeError(`expected data for arg of unConstrData, got ${a.toString()}`);
-						}
-
-						let data = a.data;
-						if (!(data instanceof ConstrData)) {
-							throw new RuntimeError(`unexpected unConstrData argument '${data.toString()}'`);
-						} else {
-							return new UplcPair(callSite, new UplcInt(callSite, BigInt(data.index)), new UplcList(callSite, UplcType.newDataType(), data.fields.map(f => new UplcDataValue(callSite, f))));
-						}
-					}
-				});
-			case "unMapData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (!a.isData()) {
-							throw callSite.typeError(`expected data for arg of unMapData, got ${a.toString()}`);
-						}
-
-						let data = a.data;
-						if (!(data instanceof MapData)) {
-							throw new RuntimeError(`unexpected unMapData argument '${data.toString()}'`);
-						} else {
-							return new UplcList(callSite, UplcType.newDataPairType(), data.map.map(([fst, snd]) => new UplcPair(callSite, new UplcDataValue(callSite, fst), new UplcDataValue(callSite, snd))));
-						}
-					}
-				});
-			case "unListData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (!a.isData()) {
-							throw callSite.typeError(`expected data for arg of unListData, got ${a.toString()}`);
-						}
-
-						let data = a.data;
-						if (!(data instanceof ListData)) {
-							throw new RuntimeError(`unexpected unListData argument '${data.toString()}'`);
-						} else {
-							return new UplcList(callSite, UplcType.newDataType(), data.list.map(item => new UplcDataValue(callSite, item)));
-						}
-					}
-				});
-			case "unIData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (!a.isData()) {
-							throw callSite.typeError(`expected data for arg of unIData, got ${a.toString()}`);
-						}
-
-						let data = a.data;
-						if (!(data instanceof IntData)) {
-							throw new RuntimeError(`unexpected unIData argument '${data.toString()}'`);
-						} else {
-							return new UplcInt(callSite, data.value);
-						}
-					}
-				});
-			case "unBData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						if (!a.isData()) {
-							throw callSite.typeError(`expected data for arg of unBData, got ${a.toString()}`);
-						}
-
-						let data = a.data;
-						if (!(data instanceof ByteArrayData)) {
-							throw new RuntimeError(`unexpected unBData argument '${data.toString()}'`);
-						} else {
-							return new UplcByteArray(callSite, data.bytes);
-						}
-					}
-				});
-			case "equalsData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						if (!a.isData()) {
-							throw callSite.typeError(`expected data for 1st arg of equalsData, got ${a.toString()}`);
-						}
-
-						if (!b.isData()) {
-							throw callSite.typeError(`expected data for 2nd arg of equalsData, got ${b.toString()}`);
-						}
-
-						return new UplcBool(callSite, a.data.isSame(b.data));
-					}
-				});
-			case "mkPairData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 2, 
-					fn: (callSite, _, a, b) => {
-						rte.calcAndIncrCost(this, a, b);
-
-						return new UplcPair(callSite, new UplcDataValue(callSite, a.data), new UplcDataValue(callSite, b.data));
-					}
-				});
-			case "mkNilData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						a.assertUnit();
-
-						return new UplcList(callSite, UplcType.newDataType(), []);
-					}
-				});
-			case "mkNilPairData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						a.assertUnit();
-
-						return new UplcList(callSite, UplcType.newDataPairType(), []);
-					}
-				});
-			case "serialiseData":
-				return new UplcAnon(this.site, {
-					rte: rte, 
-					nArgs: 1, 
-					fn: (callSite, _, a) => {
-						rte.calcAndIncrCost(this, a);
-
-						return new UplcByteArray(callSite, a.data.toCbor());
-					}
-				});
-			case "verifyEcdsaSecp256k1Signature":
-			case "verifySchnorrSecp256k1Signature":
-				throw new Error("no immediate need, so don't bother yet");
-			default: {
-				const name = this.#name;
-				if (typeof name == "string" && name.startsWith("macro__")) {
-					return new UplcAnon(this.site, {
-						rte: rte, 
-						nArgs: -1, 
-						allowAnyArgs: true,
-						fn: (callSite, _, ...args) => {
-							return rte.callMacro(name.slice(("macro__").length), args.slice(0, args.length - 1));
-						}
-					});
-				} else {
-					throw new Error(`builtin ${this.#name} not yet implemented`);
-				}
-			}
-		}
-	}
-
-	/**
-	 * @internal
 	 * @type {number}
 	 */
 	get forceCount() {
 		return this.#forceCount;
-	}
-
-	/**
-	 * Returns appropriate callback wrapped with UplcAnon depending on builtin name.
-	 * Emulates every Plutus-core that Helios exposes to the user.
-	 * @internal
-	 * @param {UplcRte | UplcStack} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		rte.incrBuiltinCost();
-
-		/**
-		 * @type {UplcValue}
-		 */
-		let v = this.evalInternal(rte);
-
-		if  (typeof this.#name === 'string' && !this.#name.startsWith("macro__")) {
-			let nForce = UPLC_BUILTINS[findUplcBuiltin("__core__" + this.#name)].forceCount;
-
-			for  (let i = 0; i < nForce; i++) {
-				const vPrev = v;
-
-				v = new UplcDelayedValue(this.site, () => vPrev);
-			}
-		}
- 
-		return v;
 	}
 }
 
@@ -15963,16 +14820,7 @@ const UPLC_TAG_WIDTHS = {
 
 		this.#expr.toFlat(bitWriter, codeMapFileIndices);
 	}
-
-	/**
-	 * @internal
-	 * @param {UplcRte} rte 
-	 * @returns {Promise<UplcValue>}
-	 */
-	async eval(rte) {
-		return this.#expr.eval(rte);
-	}
-
+	
 	/**
 	 * Evaluates the term contained in UplcProgram (assuming it is a lambda term)
 	 * @internal
@@ -15986,36 +14834,7 @@ const UPLC_TAG_WIDTHS = {
 
 		let rte = new UplcRte(callbacks, networkParams);
 		
-		if (config.EXPERIMENTAL_CEK) {
-			return await evalCek(rte, this.#expr, args);
-		} else {
-			// add the startup costs
-			rte.incrStartupCost();
-
-			let fn = await this.eval(rte);
-
-			// program site is at pos 0, but now the call site is actually at the end 
-			let globalCallSite = new Site(this.site.src, this.site.src.length);
-			
-			/** @type {UplcValue} */
-			let result = fn;
-
-			if (args !== null) {
-				if (args.length === 0 && fn instanceof UplcDelayedValue) {
-					result = await fn.force();
-				} else {
-					for (let arg of args) {
-						// each call also adds to the total cost
-						rte.incrCallCost();
-						rte.incrConstCost();
-
-						result = await result.call(rte, globalCallSite, arg);
-					}
-				}
-			}
-
-			return result;
-		}
+		return await evalCek(rte, this.#expr, args);
 	}
 
 	/**
@@ -16032,10 +14851,6 @@ const UPLC_TAG_WIDTHS = {
 
 		for (let arg of args) {
 			if (arg instanceof UplcValue) {
-				if (arg instanceof UplcAnon) {
-					throw new Error("UplcAnon cannot be applied to UplcProgram");
-				}
-				
 				expr = new UplcCall(arg.site, expr, new UplcConst(arg));
 			} else if (arg instanceof HeliosData) {
 				expr = new UplcCall(Site.dummy(), expr, new UplcConst(new UplcDataValue(Site.dummy(), arg._toUplcData())));
@@ -16924,7 +15739,9 @@ export class Tokenizer {
 	 * @param {string} c 
 	 */
 	readToken(site, c) {
-		if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && (c == '@' || c == '[' || c == ']'))) {
+		if (c == 'b') {
+			this.readMaybeUtf8ByteArray(site);
+		} else if (c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (this.#irMode && (c == '@' || c == '[' || c == ']'))) {
 			this.readWord(site, c);
 		} else if (c == '/') {
 			this.readMaybeComment(site);
@@ -17341,11 +16158,35 @@ export class Tokenizer {
 	}
 
 	/**
-	 * Reads literal string delimited by double quotes.
-	 * Allows for three escape character: '\\', '\n' and '\t'
+	 * Reads literal Utf8 string and immediately encodes it as a ByteArray
 	 * @param {Site} site 
 	 */
-	readString(site) {
+	readMaybeUtf8ByteArray(site) {
+		let c = this.readChar();
+
+		if (c == '"') {
+			const s = this.readStringInternal(site)
+		
+			this.pushToken(
+				new ByteArrayLiteral(
+					new Site(site.src, site.startPos, this.currentSite.startPos),
+					textToBytes(s)
+				)
+			);
+		} else {
+			this.unreadChar();
+
+			this.readWord(site, 'b');
+		}
+	}
+
+	/**
+	 * Doesn't push a token, instead returning the string itself
+	 * @internal
+	 * @param {Site} site 
+	 * @returns {string}
+	 */
+	readStringInternal(site) {
 		let c = this.readChar();
 
 		let chars = [];
@@ -17391,10 +16232,21 @@ export class Tokenizer {
 			c = this.readChar();
 		}
 
+		return chars.join('');
+	}
+
+	/**
+	 * Reads literal string delimited by double quotes.
+	 * Allows for three escape character: '\\', '\n' and '\t'
+	 * @param {Site} site 
+	 */
+	readString(site) {
+		const s = this.readStringInternal(site)
+		
 		this.pushToken(
 			new StringLiteral(
 				new Site(site.src, site.startPos, this.currentSite.startPos),
-				chars.join('')
+				s
 			)
 		);
 	}
@@ -36853,8 +35705,8 @@ export function buildScriptPurpose(ts, expectedPurpose = null) {
 		purpose = "staking";
 	} else if (purposeWord.isWord("testing")) { // 'test' is not reserved as a keyword though
 		purpose = "testing";
-	} else if (purposeWord.isWord("linking")) {
-		purpose = "linking";
+	} else if (purposeWord.isWord("endpoint")) {
+		purpose = "endpoint";
 	} else if (purposeWord.isWord("module")) {
 		purpose = "module";
 	} else if (purposeWord.isKeyword()) {
@@ -36864,7 +35716,7 @@ export function buildScriptPurpose(ts, expectedPurpose = null) {
 
 		return null;
 	} else {
-		purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting', 'linking' or 'module')`);
+		purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting', 'endpoint' or 'module')`);
 		purpose = "unknown";
 	}
 
@@ -40266,6 +39118,8 @@ export class IRCallStack {
  */
 
 /**
+ * A map from variables to variable references
+ * Scope-based
  * @internal
  */
 export class IRNameExprRegistry {
@@ -40301,14 +39155,18 @@ export class IRNameExprRegistry {
 		if (!nameExpr.isCore()) {
 			const variable = nameExpr.variable;
 
-			if (!this.#map.has(variable)) {
+			const entry = this.#map.get(variable)
+
+			if (!entry) {
 				this.#map.set(variable, new Set([nameExpr]));
 			} else {
-				assertDefined(this.#map.get(variable)).add(nameExpr);
+				entry.add(nameExpr);
 			}
 
 			// add another reference in case of recursion
 			if (!this.#variables.has(variable)) {
+				// i.e. if the variable wasn't declared in the same non-recursive block, it might be referenced inside a recursive call
+				// variables that are added to the #maybeInsideLoop set can never be inlined 
 				this.#maybeInsideLoop.add(variable);
 			}
 		}
@@ -40443,7 +39301,7 @@ export class IRExpr extends Token {
 	}
 
 	/**
-	 * Turns all IRConstExpr istances into IRLiteralExpr instances
+	 * Turns all IRConstExpr instances into IRLiteralExpr instances
 	 * @param {IRCallStack} stack 
 	 * @returns {IRExpr}
 	 */
@@ -40456,7 +39314,7 @@ export class IRExpr extends Token {
 	 * Returns null if it the result would be worse than the current expression
 	 * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
 	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
+	 * @returns {null | IRValue}
 	 */
 	eval(stack) {
 		throw new Error("not yet implemented");
@@ -40493,14 +39351,6 @@ export class IRExpr extends Token {
 	 * @returns {IRExpr}
 	 */
 	simplifyTopology(registry) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
 		throw new Error("not yet implemented");
 	}
 
@@ -40944,14 +39794,6 @@ export class IRConstExpr extends IRExpr {
 	simplifyUnusedRecursionArgs(fnVar, remaining) {
 		return new IRConstExpr(this.site, this.#expr.simplifyUnusedRecursionArgs(fnVar, remaining));
 	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		return new IRConstExpr(this.site, this.#expr.simplifyUnused(registry));
-	}
 }
 
 /**
@@ -41092,14 +39934,6 @@ export class IRFuncExpr extends IRExpr {
 		return new IRFuncExpr(this.site, this.args, this.#body.simplifyTopology(registry));
 	}
 
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRFuncExpr}
-	 */
-	simplifyUnused(registry) {
-		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnused(registry));
-	}
-
 	/** 
 	 * @returns {UplcTerm}
 	 */
@@ -41214,14 +40048,6 @@ export class IRCallExpr extends IRExpr {
 	 */
 	simplifyTopologyInArgs(registry) {
 		return this.#argExprs.map(a => assertDefined(a.simplifyTopology(registry)));
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr[]}
-	 */
-	simplifyUnusedInArgs(registry) {
-		return this.#argExprs.map(a => a.simplifyUnused(registry));
 	}
 
 	/**
@@ -41373,7 +40199,7 @@ export class IRCoreCallExpr extends IRCallExpr {
 	
 	/**
 	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
+	 * @returns {null | IRValue}
 	 */
 	eval(stack) {
 		let args = this.evalArgs(stack);
@@ -41685,16 +40511,6 @@ export class IRCoreCallExpr extends IRCallExpr {
 	}
 
 	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		const args = this.simplifyUnusedInArgs(registry);
-
-		return new IRCoreCallExpr(this.#name, args, this.parensSite);
-	}
-
-	/**
 	 * @param {Site} site
 	 * @param {string} name - full name of builtin, including prefix
 	 * @returns {UplcTerm}
@@ -41752,24 +40568,17 @@ export class IRUserCallExpr extends IRCallExpr {
 	}
 
 	/**
+	 * Handles upgrade to more complicated IRExpr types
 	 * @param {IRExpr} fnExpr 
 	 * @param {IRExpr[]} argExprs 
 	 * @param {Site} parensSite 
-	 * @returns {IRUserCallExpr}
+	 * @returns {IRNestedAnonCallExpr | IRAnonCallExpr | IRFuncDefExpr | IRUserCallExpr}
 	 */
 	static new(fnExpr, argExprs, parensSite) {
 		if (fnExpr instanceof IRAnonCallExpr) {
 			return new IRNestedAnonCallExpr(fnExpr, argExprs, parensSite);
 		} else if (fnExpr instanceof IRFuncExpr) {
-			if (argExprs.length == 1 && argExprs[0] instanceof IRFuncExpr) {
-				const argExpr = argExprs[0];
-
-				if (argExpr instanceof IRFuncExpr) {
-					return new IRFuncDefExpr(fnExpr, argExpr, parensSite);
-				}
-			}
-
-			return new IRAnonCallExpr(fnExpr, argExprs, parensSite);
+			return IRAnonCallExpr.new(fnExpr, argExprs, parensSite);
 		} else {
 			return new IRUserCallExpr(fnExpr, argExprs, parensSite);
 		}
@@ -42001,20 +40810,6 @@ export class IRUserCallExpr extends IRCallExpr {
 	}
 
 	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		const args = this.simplifyUnusedInArgs(registry);
-
-		return IRUserCallExpr.new(
-			this.fnExpr.simplifyUnused(registry),
-			args,
-			this.parensSite
-		);
-	}
-
-	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
@@ -42037,6 +40832,31 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 		super(fnExpr, argExprs, parensSite)
 
 		this.#anon = fnExpr;
+	}
+
+	/**
+	 * Handles upgrade to IRFuncDefExpr, which is very important to avoid inlining expensive expressions into potentially recursive scopes
+	 * @param {IRFuncExpr} fnExpr
+	 * @param {IRExpr[]} argExprs
+	 * @param {Site} parensSite
+	 * @returns {IRAnonCallExpr | IRFuncDefExpr}
+	 */
+	static new(fnExpr, argExprs, parensSite) {
+		const def = argExprs[0];
+
+		if (argExprs.length == 1 && def && def instanceof IRFuncExpr) {
+			return new IRFuncDefExpr(
+				fnExpr,
+				def,
+				parensSite
+			);
+		} else {
+			return new IRAnonCallExpr(
+				fnExpr,
+				argExprs,
+				parensSite
+			);
+		}
 	}
 
 	/**
@@ -42094,7 +40914,7 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 
 		let anon = assertClass(this.#anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr);
 
-		return new IRAnonCallExpr(anon, argExprs, this.parensSite);
+		return IRAnonCallExpr.new(anon, argExprs, this.parensSite);
 	}
 
 	/**
@@ -42121,7 +40941,7 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 			if (anonBody instanceof IRLiteralExpr) {
 				return anonBody;
 			} else {
-				return new IRAnonCallExpr(
+				return IRAnonCallExpr.new(
 					new IRFuncExpr(
 						this.#anon.site,
 						this.#anon.args,
@@ -42189,45 +41009,7 @@ export class IRAnonCallExpr extends IRUserCallExpr {
 		if (anonBody instanceof IRLiteralExpr || remainingExprs.length == 0) {
 			return anonBody;
 		} else {
-			return new IRAnonCallExpr(
-				new IRFuncExpr(
-					this.#anon.site,
-					remainingVars,
-					anonBody
-				),
-				remainingExprs,
-				this.parensSite
-			);
-		}
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		const args = this.simplifyUnusedInArgs(registry);
-
-		// remove unused args
-		const remainingIds = this.argVariables.map((variable, i) => {
-			const n = registry.countReferences(variable);
-
-			if (n == 0) {
-				return -1;
-			} else {
-				return i;
-			}
-		}).filter(i => i != -1);
-
-		const remainingVars = remainingIds.map(i => this.argVariables[i]);
-		const remainingExprs = remainingIds.map(i => args[i]);
-
-		const anonBody = this.#anon.body.simplifyUnused(registry);
-
-		if (remainingVars.length == 0) {
-			return anonBody;
-		} else {
-			return new IRAnonCallExpr(
+			return IRAnonCallExpr.new(
 				new IRFuncExpr(
 					this.#anon.site,
 					remainingVars,
@@ -42302,31 +41084,6 @@ export class IRNestedAnonCallExpr extends IRUserCallExpr {
 				args,
 				this.parensSite
 			);
-		}
-	}
-
-	/**
-	 * Flattens consecutive nested calls
-	 * @param {IRExprRegistry} registry
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		const anon = this.#anon.simplifyUnused(registry);
-
-		const args = this.simplifyUnusedInArgs(registry);
-
-		if (anon instanceof IRAnonCallExpr) {
-			return new IRNestedAnonCallExpr(
-				anon,
-				args,
-				this.parensSite
-			);
-		} else {
-			return new IRUserCallExpr(
-				anon,
-				args,
-				this.parensSite
-			)
 		}
 	}
 }
@@ -42440,32 +41197,6 @@ export class IRFuncDefExpr extends IRAnonCallExpr {
 			this.parensSite
 		);
 	}
-
-	/**
-	 * @param {IRExprRegistry} registry
-	 * @returns {IRExpr}
-	 */
-	simplifyUnused(registry) {
-		if (registry.countReferences(this.anon.args[0]) == 0) {
-			return this.anon.body.simplifyUnused(registry);
-		} else {
-			const [anon, def] = this.simplifyRecursionArgs(registry);
-
-			if (def instanceof IRFuncExpr) {
-				return new IRFuncDefExpr(
-					anon.simplifyUnused(registry),
-					def.simplifyUnused(registry),
-					this.parensSite
-				);
-			} else {
-				return new IRAnonCallExpr(
-					anon.simplifyUnused(registry),
-					[def],
-					this.site
-				);
-			}
-		}
-	}
 }
 
 /**
@@ -42508,7 +41239,7 @@ export class IRErrorCallExpr extends IRExpr {
 
 	/**
 	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
+	 * @returns {null | IRValue}
 	 */
 	eval(stack) {
 		if (stack.throwRTErrors) {
@@ -42779,11 +41510,10 @@ export class IRProgram {
 	 * @param {IR} ir 
 	 * @param {null | ScriptPurpose} purpose
 	 * @param {boolean} simplify
-	 * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
 	 * @param {IRScope} scope
 	 * @returns {IRProgram}
 	 */
-	static new(ir, purpose, simplify = false, throwSimplifyRTErrors = false, scope = new IRScope(null, null)) {
+	static new(ir, purpose, simplify = false, scope = new IRScope(null, null)) {
 		let [irSrc, codeMap] = ir.generateSource();
 		
 		const callsTxTimeRange = irSrc.match(/\b__helios__tx__time_range\b/) !== null;
@@ -42800,9 +41530,7 @@ export class IRProgram {
 			throw e;
 		}
 		
-		expr = expr.evalConstants(new IRCallStack(throwSimplifyRTErrors));
-
-		// expr = IRProgram.simplifyUnused(expr); // this has been deprecated in favor of Program.eliminateUnused() (TODO: check that performs is the same and then remove this)
+		expr = expr.evalConstants(new IRCallStack(true));
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
@@ -42864,34 +41592,6 @@ export class IRProgram {
 		expr.registerNameExprs(nameExprs);
 
 		return expr.simplifyTopology(new IRExprRegistry(nameExprs));
-	}
-
-	/**
-	 * @param {IRExpr} expr 
-	 * @returns {IRExpr}
-	 */
-	static simplifyUnused(expr) {
-		let dirty = true;
-		let oldState = expr.toString();
-
-		while (dirty) {
-			dirty = false;
-
-			const nameExprs = new IRNameExprRegistry();
-
-			expr.registerNameExprs(nameExprs);
-	
-			expr = expr.simplifyUnused(new IRExprRegistry(nameExprs));
-
-			const newState = expr.toString();
-
-			if (newState != oldState) {
-				dirty = true;
-				oldState = newState;
-			}
-		}
-		
-		return expr;
 	}
 
 	/**
@@ -43013,7 +41713,7 @@ export class IRParametricProgram {
 			scope = new IRScope(scope, new IRVariable(new Word(Site.dummy(), internalName)));
 		}
 
-		const irProgram = IRProgram.new(ir, purpose, simplify, false, scope);
+		const irProgram = IRProgram.new(ir, purpose, simplify, scope);
 
 		return new IRParametricProgram(irProgram, nParams);
 	}
@@ -43439,8 +42139,8 @@ const DEFAULT_PROGRAM_CONFIG = {
 			case "staking":
 				program = new StakingProgram(modules, config);
 				break;
-			case "linking":
-				program = new LinkingProgram(modules);
+			case "endpoint":
+				program = new EndpointProgram(modules);
 				break;
 			default:
 				throw new Error("unhandled script purpose");
@@ -43450,7 +42150,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		program.throwErrors();
 
-		if (purpose != "linking") {
+		if (purpose != "endpoint") {
 			program.fillTypes(topScope);
 		}
 
@@ -43802,7 +42502,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		const ir = this.wrapInner(ctx, inner, map);
 
-		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
+		const irProgram = IRProgram.new(ir, this.#purpose, true);
 
 		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
@@ -44783,12 +43483,12 @@ class StakingProgram extends RedeemerProgram {
 /**
  * @internal
  */
-class LinkingProgram extends GenericProgram {
+class EndpointProgram extends GenericProgram {
 	/**
 	 * @param {Module[]} modules 
 	 */
 	constructor(modules) {
-		super("linking", modules, DEFAULT_PROGRAM_CONFIG);
+		super("endpoint", modules, DEFAULT_PROGRAM_CONFIG);
 	}
 
 	/**
@@ -50672,7 +49372,7 @@ export function highlight(src) {
 						case "spending":
 						case "staking":
 						case "minting":
-						case "linking":
+						case "endpoint":
 						case "module":
 							if (i0 == 0) {
 								type = SyntaxCategory.Keyword;

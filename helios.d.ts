@@ -121,7 +121,6 @@ export namespace config {
      *   AUTO_SET_VALIDITY_RANGE?: boolean
      *   VALIDITY_RANGE_START_OFFSET?: number
      *   VALIDITY_RANGE_END_OFFSET?: number
-     *   EXPERIMENTAL_CEK?: boolean
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
      * }} props 
@@ -134,7 +133,6 @@ export namespace config {
         AUTO_SET_VALIDITY_RANGE?: boolean | undefined;
         VALIDITY_RANGE_START_OFFSET?: number | undefined;
         VALIDITY_RANGE_END_OFFSET?: number | undefined;
-        EXPERIMENTAL_CEK?: boolean | undefined;
         IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
         CHECK_CASTS?: boolean | undefined;
     }): void;
@@ -195,14 +193,6 @@ export namespace config {
      * @type {number} seconds
      */
     const VALIDITY_RANGE_END_OFFSET: number;
-    /**
-     * Evaluate UPLC program using the CEK algorithm instead of the recursive algorithm.
-     * The CEK algorithm is more complex but is more efficient and creates a much better stack trace when errors are thrown.
-     * 
-     * Default: `false`.
-     * @type {boolean}
-     */
-    const EXPERIMENTAL_CEK: boolean;
     /**
      * Ignore constants that can't be evaluated during compile-time.
      * 
@@ -1815,7 +1805,7 @@ export class NetworkParams {
 }
 /**
  * A Helios/Uplc Program can have different purposes
- * @typedef {"testing" | "minting" | "spending" | "staking" | "linking" | "module" | "unknown"} ScriptPurpose
+ * @typedef {"testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown"} ScriptPurpose
  */
 /**
  * a UplcValue is passed around by Plutus-core expressions.
@@ -4607,7 +4597,7 @@ export type LiveSlotGetter = () => bigint;
 /**
  * A Helios/Uplc Program can have different purposes
  */
-export type ScriptPurpose = "testing" | "minting" | "spending" | "staking" | "linking" | "module" | "unknown";
+export type ScriptPurpose = "testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown";
 export type UplcRawStack = [null | string, UplcValue][];
 export type UplcRTECallbacks = {
     onPrint: (msg: string) => Promise<void>;

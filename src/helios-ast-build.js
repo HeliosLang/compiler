@@ -201,8 +201,8 @@ export function buildScriptPurpose(ts, expectedPurpose = null) {
 		purpose = "staking";
 	} else if (purposeWord.isWord("testing")) { // 'test' is not reserved as a keyword though
 		purpose = "testing";
-	} else if (purposeWord.isWord("linking")) {
-		purpose = "linking";
+	} else if (purposeWord.isWord("endpoint")) {
+		purpose = "endpoint";
 	} else if (purposeWord.isWord("module")) {
 		purpose = "module";
 	} else if (purposeWord.isKeyword()) {
@@ -212,7 +212,7 @@ export function buildScriptPurpose(ts, expectedPurpose = null) {
 
 		return null;
 	} else {
-		purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting', 'linking' or 'module')`);
+		purposeWord.syntaxError(`unrecognized script purpose '${purposeWord.value}' (expected 'testing', 'spending', 'staking', 'minting', 'endpoint' or 'module')`);
 		purpose = "unknown";
 	}
 

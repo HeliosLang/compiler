@@ -1150,6 +1150,14 @@ async function test27() {
   }`, "already defined")
 }
 
+async function test28() {
+	await testTrue(`testing utf8_bytearray_literal
+
+	func main() -> Bool {
+		b"Hello world" == "Hello world".encode_utf8()
+	}`)
+}
+
 export default async function main() {
   await test0();
 
@@ -1204,4 +1212,6 @@ export default async function main() {
   await test26();
 
   await test27();
+
+  await test28();
 }

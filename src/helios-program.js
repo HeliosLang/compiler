@@ -508,8 +508,8 @@ const DEFAULT_PROGRAM_CONFIG = {
 			case "staking":
 				program = new StakingProgram(modules, config);
 				break;
-			case "linking":
-				program = new LinkingProgram(modules);
+			case "endpoint":
+				program = new EndpointProgram(modules);
 				break;
 			default:
 				throw new Error("unhandled script purpose");
@@ -519,7 +519,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		program.throwErrors();
 
-		if (purpose != "linking") {
+		if (purpose != "endpoint") {
 			program.fillTypes(topScope);
 		}
 
@@ -871,7 +871,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		const ir = this.wrapInner(ctx, inner, map);
 
-		const irProgram = IRProgram.new(ir, this.#purpose, true, true);
+		const irProgram = IRProgram.new(ir, this.#purpose, true);
 
 		return new UplcDataValue(irProgram.site, irProgram.data);
 	}
@@ -1852,12 +1852,12 @@ class StakingProgram extends RedeemerProgram {
 /**
  * @internal
  */
-class LinkingProgram extends GenericProgram {
+class EndpointProgram extends GenericProgram {
 	/**
 	 * @param {Module[]} modules 
 	 */
 	constructor(modules) {
-		super("linking", modules, DEFAULT_PROGRAM_CONFIG);
+		super("endpoint", modules, DEFAULT_PROGRAM_CONFIG);
 	}
 
 	/**

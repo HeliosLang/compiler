@@ -31,7 +31,6 @@ export const config = {
      *   AUTO_SET_VALIDITY_RANGE?: boolean
      *   VALIDITY_RANGE_START_OFFSET?: number
      *   VALIDITY_RANGE_END_OFFSET?: number
-     *   EXPERIMENTAL_CEK?: boolean
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
      * }} props 
@@ -107,16 +106,6 @@ export const config = {
      * @type {number} seconds
      */
     VALIDITY_RANGE_END_OFFSET: 300,
-
-
-    /**
-     * Evaluate UPLC program using the CEK algorithm instead of the recursive algorithm.
-     * The CEK algorithm is more complex but is more efficient and creates a much better stack trace when errors are thrown.
-     * 
-     * Default: `false`.
-     * @type {boolean}
-     */
-    EXPERIMENTAL_CEK: false,
 
     /**
      * Ignore constants that can't be evaluated during compile-time.

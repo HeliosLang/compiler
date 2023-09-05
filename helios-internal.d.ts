@@ -861,7 +861,6 @@ declare module "helios" {
             AUTO_SET_VALIDITY_RANGE?: boolean | undefined;
             VALIDITY_RANGE_START_OFFSET?: number | undefined;
             VALIDITY_RANGE_END_OFFSET?: number | undefined;
-            EXPERIMENTAL_CEK?: boolean | undefined;
             IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
             CHECK_CASTS?: boolean | undefined;
         }): void;
@@ -872,7 +871,6 @@ declare module "helios" {
         const AUTO_SET_VALIDITY_RANGE: boolean;
         const VALIDITY_RANGE_START_OFFSET: number;
         const VALIDITY_RANGE_END_OFFSET: number;
-        const EXPERIMENTAL_CEK: boolean;
         const IGNORE_UNEVALUATED_CONSTANTS: boolean;
         const CHECK_CASTS: boolean;
     }
@@ -3572,7 +3570,7 @@ declare module "helios" {
     export const UPLC_MACROS: string[];
     /**
      * A Helios/Uplc Program can have different purposes
-     * @typedef {"testing" | "minting" | "spending" | "staking" | "linking" | "module" | "unknown"} ScriptPurpose
+     * @typedef {"testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown"} ScriptPurpose
      */
     /**
      * a UplcValue is passed around by Plutus-core expressions.
@@ -3610,21 +3608,6 @@ declare module "helios" {
          * @type {number}
          */
         get memSize(): number;
-        /**
-         * Throws an error because most values can't be called (overridden by UplcAnon)
-         * @internal
-         * @param {UplcRte | UplcStack} rte
-         * @param {Site} site
-         * @param {UplcValue} value
-         * @returns {Promise<UplcValue>}
-         */
-        call(rte: UplcRte | UplcStack, site: Site, value: UplcValue): Promise<UplcValue>;
-        /**
-         * @internal
-         * @param {UplcRte | UplcStack} rte
-         * @returns {Promise<UplcValue>}
-         */
-        eval(rte: UplcRte | UplcStack): Promise<UplcValue>;
         /**
          * @returns {boolean}
          */
@@ -3811,6 +3794,7 @@ declare module "helios" {
          * @returns {UplcValue}
          */
         error(err: string | RuntimeError): UplcValue;
+        throwError(): void;
         /**
          * @param {string} name - for breakdown
          * @param {boolean} isTerm
@@ -3878,52 +3862,10 @@ declare module "helios" {
         #private;
     }
     /**
-     * Allows doing a dummy eval of a UplcProgram in order to determine some non-changing properties (eg. the address fetched via the network in a LinkingProgram)
+     * Allows doing a dummy eval of a UplcProgram in order to determine some non-changing properties (eg. the address fetched via the network in an EndpointProgram)
      * @internal
      */
     export class UplcAny extends UplcValue {
-    }
-    /**
-     * @internal
-     * @typedef {(callSite: Site, subStack: UplcStack, ...args: UplcValue[]) => (UplcValue | Promise<UplcValue>)} UplcAnonCallback
-     */
-    /**
-     * @internal
-     * @typedef {{
-     *   rte: UplcRte | UplcStack
-     *   nArgs?: number
-     *   argNames?: string[]
-     *   argCount?: number
-     *   fn: UplcAnonCallback
-     *   callSite?: Site
-     *   allowAnyArgs?: boolean
-     * }} UplcAnonProps
-     */
-    /**
-     * Anonymous Plutus-core function.
-     * Returns a new UplcAnon whenever it is called/applied (args are 'accumulated'), except final application, when the function itself is evaluated.
-     * @internal
-     */
-    export class UplcAnon extends UplcValue {
-        /**
-         *
-         * @param {Site} site
-         * @param {UplcAnonProps} props
-         */
-        constructor(site: Site, props: UplcAnonProps);
-        /**
-         * @param {Site} newSite
-         * @returns {UplcAnon}
-         */
-        copy(newSite: Site): UplcAnon;
-        /**
-         * @param {Site} callSite
-         * @param {UplcStack} subStack
-         * @param {UplcValue[]} args
-         * @returns {UplcValue | Promise<UplcValue>}
-         */
-        callSync(callSite: Site, subStack: UplcStack, args: UplcValue[]): UplcValue | Promise<UplcValue>;
-        #private;
     }
     /**
      * @internal
@@ -4266,13 +4208,6 @@ declare module "helios" {
          */
         toString(): string;
         /**
-         * Calculates a value, and also increments the cost
-         * @internal
-         * @param {UplcRte | UplcStack} rte
-         * @returns {Promise<UplcValue>}
-         */
-        eval(rte: UplcRte | UplcStack): Promise<UplcValue>;
-        /**
          * Writes bits of flat encoded Plutus-core terms to bitWriter. Doesn't return anything.
          * @internal
          * @param {BitWriter} bitWriter
@@ -4528,15 +4463,9 @@ declare module "helios" {
          * @param {UplcRte} rte
          * @param {Site} site
          * @param {UplcValue[]} args
-         * @returns {UplcValue | Promise<UplcValue>}
+         * @returns {UplcValue | Promise<UplcValue>} // trace returns a Promise (async print), all the other builtins return a synchronous value
          */
         evalBuiltin(rte: UplcRte, site: Site, args: UplcValue[]): UplcValue | Promise<UplcValue>;
-        /**
-         * @internal
-         * @param {UplcRte | UplcStack} rte
-         * @returns {UplcAnon}
-         */
-        evalInternal(rte?: UplcRte | UplcStack): UplcAnon;
         /**
          * @internal
          * @type {number}
@@ -4770,12 +4699,6 @@ declare module "helios" {
          */
         toFlatWithMapping(bitWriter: BitWriter, codeMapFileIndices: null | Map<string, number>): void;
         /**
-         * @internal
-         * @param {UplcRte} rte
-         * @returns {Promise<UplcValue>}
-         */
-        eval(rte: UplcRte): Promise<UplcValue>;
-        /**
          * Evaluates the term contained in UplcProgram (assuming it is a lambda term)
          * @internal
          * @param {null | UplcValue[]} args
@@ -4983,6 +4906,18 @@ declare module "helios" {
          * @param {Site} site
          */
         readByteArray(site: Site): void;
+        /**
+         * Reads literal Utf8 string and immediately encodes it as a ByteArray
+         * @param {Site} site
+         */
+        readMaybeUtf8ByteArray(site: Site): void;
+        /**
+         * Doesn't push a token, instead returning the string itself
+         * @internal
+         * @param {Site} site
+         * @returns {string}
+         */
+        readStringInternal(site: Site): string;
         /**
          * Reads literal string delimited by double quotes.
          * Allows for three escape character: '\\', '\n' and '\t'
@@ -8518,6 +8453,8 @@ declare module "helios" {
      * @typedef {Map<IRVariable, IRLiteralExpr>} IRLiteralRegistry
      */
     /**
+     * A map from variables to variable references
+     * Scope-based
      * @internal
      */
     export class IRNameExprRegistry {
@@ -8603,7 +8540,7 @@ declare module "helios" {
          */
         resolveNames(scope: IRScope): void;
         /**
-         * Turns all IRConstExpr istances into IRLiteralExpr instances
+         * Turns all IRConstExpr instances into IRLiteralExpr instances
          * @param {IRCallStack} stack
          * @returns {IRExpr}
          */
@@ -8613,9 +8550,9 @@ declare module "helios" {
          * Returns null if it the result would be worse than the current expression
          * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
          * @param {IRCallStack} stack
-         * @returns {?IRValue}
+         * @returns {null | IRValue}
          */
-        eval(stack: IRCallStack): IRValue | null;
+        eval(stack: IRCallStack): null | IRValue;
         /**
          * Used to inline literals and to evaluate IRCoreCallExpr instances with only literal args.
          * @param {IRLiteralRegistry} literals
@@ -8638,11 +8575,6 @@ declare module "helios" {
          * @returns {IRExpr}
          */
         simplifyTopology(registry: IRExprRegistry): IRExpr;
-        /**
-         * @param {IRExprRegistry} registry
-         * @returns {IRExpr}
-         */
-        simplifyUnused(registry: IRExprRegistry): IRExpr;
         /**
          * @param {IRVariable} fnVar
          * @param {number[]} remaining
@@ -8690,6 +8622,11 @@ declare module "helios" {
          * @returns {IRExpr}
          */
         removeUnusedCallArgs(fnVar: IRVariable, remaining: number[]): IRExpr;
+        /**
+         * @param {IRExprRegistry} registry
+         * @returns {IRExpr}
+         */
+        simplifyUnused(registry: IRExprRegistry): IRExpr;
         #private;
     }
     /**
@@ -8715,6 +8652,11 @@ declare module "helios" {
          * @returns {IRExpr}
          */
         removeUnusedCallArgs(fnVar: IRVariable, remaining: number[]): IRExpr;
+        /**
+         * @param {IRExprRegistry} registry
+         * @returns {IRExpr}
+         */
+        simplifyUnused(registry: IRExprRegistry): IRExpr;
         /**
          * @returns {UplcConst}
          */
@@ -8759,11 +8701,6 @@ declare module "helios" {
          * @param {IRCallStack} stack
          */
         evalConstants(stack: IRCallStack): IRFuncExpr;
-        /**
-         * @param {IRExprRegistry} registry
-         * @returns {IRFuncExpr}
-         */
-        simplifyUnused(registry: IRExprRegistry): IRFuncExpr;
         #private;
     }
     /**
@@ -8812,11 +8749,6 @@ declare module "helios" {
          * @returns {IRExpr[]}
          */
         simplifyTopologyInArgs(registry: IRExprRegistry): IRExpr[];
-        /**
-         * @param {IRExprRegistry} registry
-         * @returns {IRExpr[]}
-         */
-        simplifyUnusedInArgs(registry: IRExprRegistry): IRExpr[];
         /**
          * @param {UplcTerm} term
          * @returns {UplcTerm}
@@ -8867,12 +8799,13 @@ declare module "helios" {
      */
     export class IRUserCallExpr extends IRCallExpr {
         /**
+         * Handles upgrade to more complicated IRExpr types
          * @param {IRExpr} fnExpr
          * @param {IRExpr[]} argExprs
          * @param {Site} parensSite
-         * @returns {IRUserCallExpr}
+         * @returns {IRNestedAnonCallExpr | IRAnonCallExpr | IRFuncDefExpr | IRUserCallExpr}
          */
-        static new(fnExpr: IRExpr, argExprs: IRExpr[], parensSite: Site): IRUserCallExpr;
+        static new(fnExpr: IRExpr, argExprs: IRExpr[], parensSite: Site): IRNestedAnonCallExpr | IRAnonCallExpr | IRFuncDefExpr | IRUserCallExpr;
         /**
          * @param {IRExpr} fnExpr
          * @param {IRExpr[]} argExprs
@@ -8895,6 +8828,14 @@ declare module "helios" {
      */
     export class IRAnonCallExpr extends IRUserCallExpr {
         /**
+         * Handles upgrade to IRFuncDefExpr, which is very important to avoid inlining expensive expressions into potentially recursive scopes
+         * @param {IRFuncExpr} fnExpr
+         * @param {IRExpr[]} argExprs
+         * @param {Site} parensSite
+         * @returns {IRAnonCallExpr | IRFuncDefExpr}
+         */
+        static new(fnExpr: IRFuncExpr, argExprs: IRExpr[], parensSite: Site): IRAnonCallExpr | IRFuncDefExpr;
+        /**
          * @param {IRFuncExpr} fnExpr
          * @param {IRExpr[]} argExprs
          * @param {Site} parensSite
@@ -8913,7 +8854,7 @@ declare module "helios" {
          * Add args to the stack as IRDeferredValue instances
          * @param {IRCallStack} stack
          */
-        evalConstants(stack: IRCallStack): IRLiteralExpr | IRUserCallExpr;
+        evalConstants(stack: IRCallStack): any;
         #private;
     }
     /**
@@ -8955,6 +8896,11 @@ declare module "helios" {
          * @param {string} msg
          */
         constructor(site: Site, msg?: string);
+        /**
+         * @param {IRExprRegistry} registry
+         * @returns {IRExpr}
+         */
+        simplifyUnused(registry: IRExprRegistry): IRExpr;
         #private;
     }
     /**
@@ -8972,11 +8918,10 @@ declare module "helios" {
          * @param {IR} ir
          * @param {null | ScriptPurpose} purpose
          * @param {boolean} simplify
-         * @param {boolean} throwSimplifyRTErrors - if true -> throw RuntimErrors caught during evaluation steps
          * @param {IRScope} scope
          * @returns {IRProgram}
          */
-        static new(ir: IR, purpose: null | ScriptPurpose, simplify?: boolean, throwSimplifyRTErrors?: boolean, scope?: IRScope): IRProgram;
+        static new(ir: IR, purpose: null | ScriptPurpose, simplify?: boolean, scope?: IRScope): IRProgram;
         /**
          * @param {IRExpr} expr
          * @returns {IRExpr}
@@ -8992,11 +8937,6 @@ declare module "helios" {
          * @returns {IRExpr}
          */
         static simplifyTopology(expr: IRExpr): IRExpr;
-        /**
-         * @param {IRExpr} expr
-         * @returns {IRExpr}
-         */
-        static simplifyUnused(expr: IRExpr): IRExpr;
         /**
          * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
          * @param {ProgramProperties} properties
@@ -12754,7 +12694,7 @@ declare module "helios" {
     /**
      * A Helios/Uplc Program can have different purposes
      */
-    export type ScriptPurpose = "testing" | "minting" | "spending" | "staking" | "linking" | "module" | "unknown";
+    export type ScriptPurpose = "testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown";
     export type UplcRawStack = [null | string, UplcValue][];
     export type UplcRTECallbacks = {
         onPrint: (msg: string) => Promise<void>;
@@ -12766,16 +12706,6 @@ declare module "helios" {
         macros?: {
             [name: string]: (rte: UplcRte, args: UplcValue[]) => Promise<UplcValue>;
         } | undefined;
-    };
-    export type UplcAnonCallback = (callSite: Site, subStack: UplcStack, ...args: UplcValue[]) => (UplcValue | Promise<UplcValue>);
-    export type UplcAnonProps = {
-        rte: UplcRte | UplcStack;
-        nArgs?: number;
-        argNames?: string[];
-        argCount?: number;
-        fn: UplcAnonCallback;
-        callSite?: Site;
-        allowAnyArgs?: boolean;
     };
     /**
      * TODO: purpose as enum type

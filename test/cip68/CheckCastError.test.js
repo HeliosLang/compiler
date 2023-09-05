@@ -14,7 +14,6 @@ import {
 
 export default async function test() {
 	config.set({
-		EXPERIMENTAL_CEK: true, 
 		CHECK_CASTS: true
 	})
 
