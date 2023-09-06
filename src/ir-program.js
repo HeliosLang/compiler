@@ -49,23 +49,31 @@ import {
 } from "./tokenization.js";
 
 import {
-	IRCallStack,
 	IRScope,
 	IRVariable
 } from "./ir-context.js";
 
+/**
+ * @typedef {import("./ir-ast.js").IRExpr} IRExpr
+ */
+
 import {
-	IRExpr,
     IRCallExpr,
     IRFuncExpr,
-    IRLiteralExpr,
-	IRNameExprRegistry,
-	IRExprRegistry
+    IRLiteralExpr
 } from "./ir-ast.js";
 
 import {
     buildIRExpr
 } from "./ir-build.js";
+
+import { 
+	IREvaluation
+} from "./ir-evaluation.js";
+
+import {
+	optimizeIR
+} from "./ir-optimize.js";
 
 
 /**
@@ -121,8 +129,6 @@ export class IRProgram {
 
 			throw e;
 		}
-		
-		expr = expr.evalConstants(new IRCallStack(true));
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
@@ -151,9 +157,11 @@ export class IRProgram {
 		while (dirty) {
 			dirty = false;
 
-			expr = IRProgram.simplifyLiterals(expr);
+			const evaluation = new IREvaluation();
 
-			expr = IRProgram.simplifyTopology(expr);
+			evaluation.eval(expr);
+
+			expr = optimizeIR(evaluation, expr);
 
 			const newState = expr.toString();
 
@@ -164,26 +172,6 @@ export class IRProgram {
 		}
 
 		return expr;
-	}
-
-	/**
-	 * @param {IRExpr} expr 
-	 * @returns {IRExpr}
-	 */
-	static simplifyLiterals(expr) {
-		return expr.simplifyLiterals(new Map());
-	}
-
-	/**
-	 * @param {IRExpr} expr 
-	 * @returns {IRExpr}
-	 */
-	static simplifyTopology(expr) {
-		const nameExprs = new IRNameExprRegistry();
-
-		expr.registerNameExprs(nameExprs);
-
-		return expr.simplifyTopology(new IRExprRegistry(nameExprs));
 	}
 
 	/**

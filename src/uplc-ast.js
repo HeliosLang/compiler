@@ -37,6 +37,7 @@ import {
 } from "./uplc-costmodels.js";
 
 import {
+	BUILTIN_PREFIX,
     UPLC_BUILTINS,
     UPLC_MACROS,
     UPLC_MACROS_OFFSET,
@@ -2555,7 +2556,7 @@ export class UplcBuiltin extends UplcTerm {
 	constructor(site, name) {
 		super(site, 7);
 		this.#name = assertDefined(name);
-		this.#forceCount = (typeof this.#name === "string" && !this.#name.startsWith("macro__")) ? UPLC_BUILTINS[findUplcBuiltin("__core__" + this.#name)].forceCount : 0;
+		this.#forceCount = (typeof this.#name === "string" && !this.#name.startsWith("macro__")) ? UPLC_BUILTINS[findUplcBuiltin(BUILTIN_PREFIX + this.#name)].forceCount : 0;
 		
 		if (this.isMacro()) {
 			this.#nArgs = -1;
@@ -2693,7 +2694,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
-	 * Used by IRCoreCallExpr
+	 * Used by IREvaluation
 	 * @internal
 	 * @param {Word} name
 	 * @param {UplcValue[]} args
@@ -2704,7 +2705,7 @@ export class UplcBuiltin extends UplcTerm {
 
 		let rte = new UplcRte();
 
-		let res = builtin.evalBuiltin(rte, name.site, args);
+		let res = builtin.evalBuiltin(rte, name.site, args, true);
 
 		rte.throwError()
 
@@ -2749,9 +2750,10 @@ export class UplcBuiltin extends UplcTerm {
 	 * @param {UplcRte} rte 
 	 * @param {Site} site
 	 * @param {UplcValue[]} args
+	 * @param {boolean} syncTrace if true => don't call rte.print method (used by IREvaluation)
 	 * @returns {UplcValue | Promise<UplcValue>} // trace returns a Promise (async print), all the other builtins return a synchronous value
 	 */
-	evalBuiltin(rte, site, args) {
+	evalBuiltin(rte, site, args, syncTrace = false) {
 		if (!this.allowAny() && args.some(a => a.isAny())) {
 			return new UplcAny(site);
 		} 
@@ -2913,7 +2915,7 @@ export class UplcBuiltin extends UplcTerm {
 				return b;
 			},
 			trace: (a, b) => {
-				if (a.isAny()) {
+				if (a.isAny() || syncTrace) {
 					return b;
 				} else {
 					return rte.print(a.string.split("\n").map(l => `INFO  (${site.toString()}) ${l}`)).then(() => {

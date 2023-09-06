@@ -54,7 +54,7 @@ import {
 } from "./uplc-program.js";
 
 import {
-    tokenize
+    tokenize, tokenizeIR
 } from "./tokenization.js";
 
 /**
@@ -113,6 +113,9 @@ import {
     IRProgram,
 	IRParametricProgram
 } from "./ir-program.js";
+import { buildIRExpr } from "./ir-build.js";
+import { IREvaluation } from "./ir-evaluation.js";
+import { IRScope } from "./ir-context.js";
 
 
 /**
@@ -862,18 +865,31 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		const path = constStatement.path;
 
-		const inner = new IR([
-			new IR("const"),
-			new IR("("),
-			new IR(path),
-			new IR(")")
-		]);
+		const inner = new IR(path);
 
 		const ir = this.wrapInner(ctx, inner, map);
 
-		const irProgram = IRProgram.new(ir, this.#purpose, true);
+		const [irSrc, codeMap] = ir.generateSource();
 
-		return new UplcDataValue(irProgram.site, irProgram.data);
+		const irTokens = tokenizeIR(irSrc, codeMap);
+
+		const expr = buildIRExpr(irTokens);
+
+		const scope = new IRScope(null, null);
+
+		expr.resolveNames(scope);
+
+		const evaluation = new IREvaluation();
+		
+		try {
+			const data = evaluation.evalConst(expr);
+
+			return new UplcDataValue(expr.site, data);
+		} catch (e) {
+			console.log(irSrc);
+
+			throw e;
+		}
 	}
 
 	/**

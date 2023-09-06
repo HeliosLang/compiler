@@ -1080,7 +1080,7 @@ function makeRawFunctions(simplify) {
 	add(new RawFunc("__helios__int__show",
 	`(self) -> {
 		() -> {
-			__core__decodeUtf8(
+			__core__decodeUtf8__safe(
 				(recurse) -> {
 					__core__ifThenElse(
 						__core__lessThanInteger(self, 0),
@@ -1763,7 +1763,7 @@ function makeRawFunctions(simplify) {
 							__core__lessThanInteger(0, n),
 							() -> {
 								__core__appendString(
-									__core__decodeUtf8(
+									__core__decodeUtf8__safe(
 										(hexBytes) -> {
 											__core__ifThenElse(
 												__core__equalsInteger(__core__lengthOfByteString(hexBytes), 1),

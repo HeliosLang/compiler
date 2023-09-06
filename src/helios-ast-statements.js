@@ -516,17 +516,13 @@ export class ConstStatement extends Statement {
 		if (this.#valueExpr instanceof LiteralDataExpr) {
 			ir = new IR([
 				new IR(`${this.#valueExpr.type.path}__from_data`),
-				new IR("("),
+				new IR("(", this.site),
 				ir,
 				new IR(")")
 			]);
 		}
 
-		return new IR([
-			new IR("const(", this.site),
-			ir,
-			new IR(")")
-		]);
+		return ir;
 	}
 
 	/**

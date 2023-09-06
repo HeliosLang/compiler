@@ -4642,6 +4642,14 @@ export type Profile = {
     result?: RuntimeError | UplcValue | undefined;
     messages?: string[] | undefined;
 };
+/**
+ * Interface for:
+ *   * IRErrorExpr
+ *   * IRCallExpr
+ *   * IRFuncExpr
+ *   * IRNameExpr
+ *   * IRLiteralExpr
+ */
 export type UserTypes = {
     [name: string]: any;
 };

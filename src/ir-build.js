@@ -33,16 +33,16 @@ import {
 	IRVariable
 } from "./ir-context.js";
 
+/**
+ * @typedef {import("./ir-ast.js").IRExpr} IRExpr
+ */
+
 import {
-	IRConstExpr,
-    IRCoreCallExpr,
-    IRErrorCallExpr,
-    IRExpr,
     IRFuncExpr,
+	IRCallExpr,
+	IRErrorExpr,
     IRLiteralExpr,
-    IRNameExpr,
-    IRSimplifyAsExpr,
-    IRUserCallExpr
+    IRNameExpr
 } from "./ir-ast.js";
 
 /**
@@ -52,7 +52,7 @@ import {
  * @internal
  */
 export function buildIRExpr(ts) {
-	/** @type {?IRExpr} */
+	/** @type {null | IRExpr} */
 	let expr = null;
 
 	while (ts.length > 0) {
@@ -62,7 +62,7 @@ export function buildIRExpr(ts) {
 			throw new Error("unexpected: no tokens");
 		} else {
 			if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
-				assert(expr === null, "should be preceded by expr");
+				assert(expr === null, "shouldn't be preceded by an expr");
 
 				ts.unshift(t);
 
@@ -84,15 +84,7 @@ export function buildIRExpr(ts) {
 						args.push(buildIRExpr(f));
 					}
 
-					if (expr instanceof IRNameExpr && expr.name.startsWith("__core")) {
-						if (!IRScope.isBuiltin(expr.name)) {
-							throw expr.site.referenceError(`builtin '${expr.name}' undefined`);
-						}
-
-						expr = new IRCoreCallExpr(new Word(expr.site, expr.name), args, t.site);
-					} else {
-						expr = IRUserCallExpr.new(expr, args, t.site);
-					}
+					expr = new IRCallExpr(t.site, expr, args, t.site);
 				}
 			} else if (t.isSymbol("-")) {
 				// only makes sense next to IntegerLiterals
@@ -125,18 +117,6 @@ export function buildIRExpr(ts) {
 			} else if (t instanceof StringLiteral) {
 				assert(expr === null);
 				expr = new IRLiteralExpr(new UplcString(t.site, t.value));
-			} else if (t.isWord("const")) {
-				assert(expr === null, "unexpected expr before 'const'");
-
-				let maybeGroup = ts.shift();
-				if (maybeGroup === undefined) {
-					throw t.site.syntaxError("expected parens after const");
-				} else {
-					let parens = assertDefined(maybeGroup.assertGroup("(", 1), "expected parens with single entry after 'const'");
-					let pts = parens.fields[0];
-
-					expr = new IRConstExpr(t.site, buildIRExpr(pts));
-				}
 			} else if (t.isWord("error")) {
 				assert(expr === null, "unexpected expr before 'error'");
 
@@ -146,7 +126,7 @@ export function buildIRExpr(ts) {
 				} else {
 					assertDefined(maybeGroup.assertGroup("(", 0), "expected empty parens after 'error'");
 					
-					expr = new IRErrorCallExpr(t.site, "");
+					expr = new IRErrorExpr(t.site, "");
 				}
 			} else if (t.isWord()) {
 				const w = assertDefined(t.assertWord(), "expected word");

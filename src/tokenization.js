@@ -865,7 +865,7 @@ export function tokenize(src) {
  * @param {CodeMap} codeMap 
  * @returns {Token[]}
  */
-export function tokenizeIR(rawSrc, codeMap) {
+export function tokenizeIR(rawSrc, codeMap = []) {
 	let src = new Source(rawSrc, "<ir>");
 
 	// the Tokenizer for Helios can simply be reused for the IR
