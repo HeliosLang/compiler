@@ -253,9 +253,10 @@
 //
 //     Section 30: IR pseudo evaluation      IRLiteralValue, IRDataValue, IRFuncValue, 
 //                                           IRErrorValue, IRAnyValue, IRMultiValue, 
-//                                           IR_BUILTIN_CALLBACKS, IREvaluation, annotateIR
+//                                           IR_BUILTIN_CALLBACKS, compareIRStacks, IREvaluator, 
+//                                           annotateIR
 //
-//     Section 31: IR optimization           optimizeIR
+//     Section 31: IR optimization           IROptimizer
 //
 //     Section 32: IR Program                IRProgram, IRParametricProgram
 //
@@ -13519,7 +13520,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
-	 * Used by IREvaluation
+	 * Used by IREvaluator
 	 * @internal
 	 * @param {Word} name
 	 * @param {UplcValue[]} args
@@ -13575,7 +13576,7 @@ export class UplcBuiltin extends UplcTerm {
 	 * @param {UplcRte} rte 
 	 * @param {Site} site
 	 * @param {UplcValue[]} args
-	 * @param {boolean} syncTrace if true => don't call rte.print method (used by IREvaluation)
+	 * @param {boolean} syncTrace if true => don't call rte.print method (used by IREvaluator)
 	 * @returns {UplcValue | Promise<UplcValue>} // trace returns a Promise (async print), all the other builtins return a synchronous value
 	 */
 	evalBuiltin(rte, site, args, syncTrace = false) {
@@ -13798,7 +13799,7 @@ export class UplcBuiltin extends UplcTerm {
 
 					return lst[0];
 				} else {
-					throw site.typeError(`__core__head expects list or map, got '${a.toString()}'`);
+					throw site.typeError(`__core__headList expects list or map, got '${a.toString()}'`);
 				}
 			},
 			tailList: (a) => {
@@ -13810,7 +13811,7 @@ export class UplcBuiltin extends UplcTerm {
 
 					return new UplcList(site, a.itemType, lst.slice(1));
 				} else {
-					throw site.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
+					throw site.typeError(`__core__tailList expects list or map, got '${a.toString()}'`);
 				}
 			},
 			nullList: (a) => {
@@ -22685,9 +22686,9 @@ function makeRawFunctions(simplify) {
 					() -> {false}, 
 					() -> {
 						__core__ifThenElse(
-							fn(__core__headList(self)),
+							fn(__core__headList__safe(self)),
 							() -> {true}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
+							() -> {recurse(recurse, __core__tailList__safe(self), fn)}
 						)()
 					}
 				)()
@@ -22705,8 +22706,8 @@ function makeRawFunctions(simplify) {
 					() -> {true},
 					() -> {
 						__core__ifThenElse(
-							fn(__core__headList(self)),
-							() -> {recurse(recurse, __core__tailList(self), fn)},
+							fn(__core__headList__safe(self)),
+							() -> {recurse(recurse, __core__tailList__safe(self), fn)},
 							() -> {false}
 						)()
 					}
@@ -22725,8 +22726,8 @@ function makeRawFunctions(simplify) {
 					() -> {lst},
 					() -> {
 						__core__mkCons(
-							fn(__core__headList(rem)), 
-							recurse(recurse, __core__tailList(rem), lst)
+							fn(__core__headList__safe(rem)), 
+							recurse(recurse, __core__tailList__safe(rem), lst)
 						)
 					}
 				)()
@@ -22743,11 +22744,13 @@ function makeRawFunctions(simplify) {
 					self, 
 					() -> {nil}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)),
-							() -> {__core__mkCons(__core__headList(self), recurse(recurse, __core__tailList(self), fn))}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head),
+								() -> {__core__mkCons(head, recurse(recurse, __core__tailList__safe(self), fn))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -22771,11 +22774,13 @@ function makeRawFunctions(simplify) {
 					self, 
 					() -> {__helios__error("not found")}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)), 
-							() -> {__core__headList(self)}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head), 
+								() -> {head}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -22791,11 +22796,13 @@ function makeRawFunctions(simplify) {
 					self, 
 					() -> {__core__constrData(1, __helios__common__list_0)}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)), 
-							() -> {__core__constrData(0, __helios__common__list_1(callback(__core__headList(self))))}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head), 
+								() -> {__core__constrData(0, __helios__common__list_1(callback(head)))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -22810,7 +22817,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
+					() -> {recurse(recurse, __core__tailList__safe(self), fn, fn(z, __core__headList__safe(self)))}
 				)()
 			}
 		)
@@ -22824,7 +22831,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {fn(__core__headList(self), () -> {recurse(recurse, __core__tailList(self), fn, z)})}
+					() -> {fn(__core__headList__safe(self), () -> {recurse(recurse, __core__tailList__safe(self), fn, z)})}
 				)()
 			}
 		)
@@ -22843,9 +22850,9 @@ function makeRawFunctions(simplify) {
 							__core__ifThenElse(
 								comp(x, head),
 								() -> {__core__mkCons(x, lst)},
-								() -> {__core__mkCons(head, recurse(recurse, __core__tailList(lst)))}
+								() -> {__core__mkCons(head, recurse(recurse, __core__tailList__safe(lst)))}
 							)()
-						}(__core__headList(lst))
+						}(__core__headList__safe(lst))
 					}
 				)()
 			}
@@ -22863,7 +22870,7 @@ function makeRawFunctions(simplify) {
 					() -> {
 						(head, tail) -> {
 							__helios__common__insert_in_sorted(head, tail, comp)
-						}(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+						}(__core__headList__safe(lst), recurse(recurse, __core__tailList__safe(lst)))
 					}
 				)()
 			}
@@ -22879,11 +22886,13 @@ function makeRawFunctions(simplify) {
 					self, 
 					fnNotFound, 
 					() -> {
-						__core__ifThenElse(
-							__core__equalsData(key, __core__fstPair(__core__headList(self))), 
-							() -> {fnFound(__core__sndPair(__core__headList(self)))}, 
-							() -> {recurse(recurse, __core__tailList(self), key)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								__core__equalsData(key, __core__fstPair(head)), 
+								() -> {fnFound(__core__sndPair(head))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), key)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -22902,7 +22911,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					lst, 
 					() -> {0}, 
-					() -> {__core__addInteger(recurse(recurse, __core__tailList(lst)), 1)}
+					() -> {__core__addInteger(recurse(recurse, __core__tailList__safe(lst)), 1)}
 				)()
 			}
 		)
@@ -22916,7 +22925,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					rem,
 					() -> {lst},
-					() -> {__core__mkCons(__core__headList(rem), recurse(recurse, lst, __core__tailList(rem)))}
+					() -> {__core__mkCons(__core__headList__safe(rem), recurse(recurse, lst, __core__tailList__safe(rem)))}
 				)()
 			}
 		)
@@ -23010,11 +23019,11 @@ function makeRawFunctions(simplify) {
 											value
 										},
 										() -> {
-											recurse(recurse, __core__tailList(map))
+											recurse(recurse, __core__tailList__safe(map))
 										}
 									)()
 								}(__core__fstPair(head), __core__sndPair(head))
-							}(__core__headList(map))
+							}(__core__headList__safe(map))
 						}
 					)()
 				}
@@ -24602,8 +24611,8 @@ function makeRawFunctions(simplify) {
 											callback(
 												false,
 												${head},
-												${FTPP}0__from_data(__core__headList(lst)),
-												recurse(recurse, next_iterator, __core__tailList(lst))
+												${FTPP}0__from_data(__core__headList__safe(lst)),
+												recurse(recurse, next_iterator, __core__tailList__safe(lst))
 											)
 										}
 									)()
@@ -24644,8 +24653,8 @@ function makeRawFunctions(simplify) {
 							},
 							() -> {
 								__core__mkCons(
-									${TTPP}0____to_data(${TTPP}0__from_data(__core__headList(lst))),
-									recurse(recurse, __core__tailList(lst))
+									${TTPP}0____to_data(${TTPP}0__from_data(__core__headList__safe(lst))),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -24702,8 +24711,8 @@ function makeRawFunctions(simplify) {
 							() -> {
 								callback(
 									false, 
-									__core__headList(lst),
-									recurse(recurse, __core__tailList(lst))
+									__core__headList__safe(lst),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -24728,8 +24737,8 @@ function makeRawFunctions(simplify) {
 							() -> {
 								callback(
 									false, 
-									${TTPP}0__from_data(__core__headList(lst)),
-									recurse(recurse, __core__tailList(lst))
+									${TTPP}0__from_data(__core__headList__safe(lst)),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -24784,9 +24793,9 @@ function makeRawFunctions(simplify) {
 								() -> {
 									callback(
 										false,
-										${TTPP}0__from_data(__core__headList(lst1)),
-										${FTPP}0__from_data(__core__headList(lst2)),
-										recurse(recurse, __core__tailList(lst1), __core__tailList(lst2))
+										${TTPP}0__from_data(__core__headList__safe(lst1)),
+										${FTPP}0__from_data(__core__headList__safe(lst2)),
+										recurse(recurse, __core__tailList__safe(lst1), __core__tailList__safe(lst2))
 									)
 								}
 							)()
@@ -24818,10 +24827,10 @@ function makeRawFunctions(simplify) {
 							__core__ifThenElse(
 								__core__equalsInteger(index, i), 
 								() -> {
-									__core__headList(self)
+									__core__headList__safe(self)
 								}, 
 								() -> {
-									recurse(recurse, __core__tailList(self), __core__addInteger(i, 1))
+									recurse(recurse, __core__tailList__safe(self), __core__addInteger(i, 1))
 								}
 							)()
 						}
@@ -24872,12 +24881,12 @@ function makeRawFunctions(simplify) {
 							__core__ifThenElse(
 								__core__equalsInteger(i, index),
 								() -> {
-									__core__mkCons(item, __core__tailList(lst))
+									__core__mkCons(item, __core__tailList__safe(lst))
 								},
 								() -> {
 									__core__mkCons(
-										__core__headList(lst),
-										recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))
+										__core__headList__safe(lst),
+										recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1))
 									)
 								}
 							)()
@@ -24909,8 +24918,8 @@ function makeRawFunctions(simplify) {
 									}
 								},
 								() -> {
-									recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1), (h) -> {
-										build_head(__core__mkCons(__core__headList(lst), h))
+									recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1), (h) -> {
+										build_head(__core__mkCons(__core__headList__safe(lst), h))
 									})
 								}
 							)()
@@ -24987,7 +24996,7 @@ function makeRawFunctions(simplify) {
 							(callback) -> {callback(0, lst)}
 						},
 						() -> {
-							recurse(recurse, __core__tailList(lst))(
+							recurse(recurse, __core__tailList__safe(lst))(
 								(count, result) -> {
 									__core__ifThenElse(
 										__core__equalsInteger(count, n),
@@ -24996,7 +25005,7 @@ function makeRawFunctions(simplify) {
 												callback(
 													count,
 													__core__mkCons(
-														__core__headList(lst), 
+														__core__headList__safe(lst), 
 														result
 													)
 												)
@@ -25089,7 +25098,7 @@ function makeRawFunctions(simplify) {
 							(callback) -> {callback(0, lst)}
 						},
 						() -> {
-							recurse(recurse, __core__tailList(lst))(
+							recurse(recurse, __core__tailList__safe(lst))(
 								(count, tail) -> {
 									__core__ifThenElse(
 										__core__equalsInteger(count, n),
@@ -25148,7 +25157,7 @@ function makeRawFunctions(simplify) {
 							__core__mkCons(item, lst)
 						},
 						() -> {
-							__core__mkCons(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+							__core__mkCons(__core__headList__safe(lst), recurse(recurse, __core__tailList__safe(lst)))
 						}
 					)()
 				}
@@ -25182,9 +25191,9 @@ function makeRawFunctions(simplify) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(lst))}
+									() -> {recurse(recurse, __core__tailList__safe(lst))}
 								)()
-							}(${TTPP}0__from_data(__core__headList(lst)))
+							}(${TTPP}0__from_data(__core__headList__safe(lst)))
 						}
 					)()
 				}
@@ -25206,9 +25215,9 @@ function makeRawFunctions(simplify) {
 								__core__ifThenElse(
 									fn(item),
 									() -> {i},
-									() -> {recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))}
+									() -> {recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1))}
 								)()
-							}(${TTPP}0__from_data(__core__headList(lst)))
+							}(${TTPP}0__from_data(__core__headList__safe(lst)))
 						}
 					)()
 				}
@@ -25252,8 +25261,8 @@ function makeRawFunctions(simplify) {
 						},
 						() -> {
 							__core__chooseUnit(
-								fn(${TTPP}0__from_data(__core__headList(lst))),
-								recurse(recurse, __core__tailList(lst))
+								fn(${TTPP}0__from_data(__core__headList__safe(lst))),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -25376,8 +25385,8 @@ function makeRawFunctions(simplify) {
 									)()
 								}(__core__unConstrData(fn(head)))
 							}(
-								${TTPP}0__from_data(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								${TTPP}0__from_data(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -25413,8 +25422,8 @@ function makeRawFunctions(simplify) {
 						},
 						() -> {
 							${TTPP}0____add(
-								${TTPP}0__from_data(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								${TTPP}0__from_data(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -25439,9 +25448,9 @@ function makeRawFunctions(simplify) {
 								__helios__string____add(
 									__helios__string____add(
 										sep,
-										__helios__string__from_data(__core__headList(lst))
+										__helios__string__from_data(__core__headList__safe(lst))
 									),
-									recurse(recurse, __core__tailList(lst), separator)
+									recurse(recurse, __core__tailList__safe(lst), separator)
 								)
 							}
 						)()
@@ -25467,9 +25476,9 @@ function makeRawFunctions(simplify) {
 								__helios__bytearray____add(
 									__helios__bytearray____add(
 										sep,
-										__core__unBData(__core__headList(lst))
+										__core__unBData(__core__headList__safe(lst))
 									),
-									recurse(recurse, __core__tailList(lst), separator)
+									recurse(recurse, __core__tailList__safe(lst), separator)
 								)
 							}
 						)()
@@ -25492,8 +25501,8 @@ function makeRawFunctions(simplify) {
 						},
 						() -> {
 							__helios__list[${TTPP}0]____add(
-								__core__unListData(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								__core__unListData(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -25525,8 +25534,8 @@ function makeRawFunctions(simplify) {
 											${TTPP}0____to_data(${TTPP}0__from_data(__core__fstPair(head))),
 											${TTPP}1____to_data(${TTPP}1__from_data(__core__sndPair(head)))
 										)
-									}(__core__headList(map)),
-									recurse(recurse, __core__tailList(map))
+									}(__core__headList__safe(map)),
+									recurse(recurse, __core__tailList__safe(map))
 								)
 							}
 						)()
@@ -25653,7 +25662,7 @@ function makeRawFunctions(simplify) {
 										() -> {recurse(recurse, tail)},
 										() -> {__core__mkCons(head, recurse(recurse, tail))}
 									)()
-								}(__core__headList(self), __core__tailList(self))
+								}(__core__headList__safe(self), __core__tailList__safe(self))
 							}
 						)()
 					}
@@ -25693,14 +25702,14 @@ function makeRawFunctions(simplify) {
 											}
 										}, 
 										() -> {
-											recurse(recurse, __core__tailList(self))
+											recurse(recurse, __core__tailList__safe(self))
 										}
 									)()
 								}(
 									${TTPP}0__from_data(__core__fstPair(head)), 
 									${TTPP}1__from_data(__core__sndPair(head))
 								)
-							}(__core__headList(self))
+							}(__core__headList__safe(self))
 						}
 					)()
 				}
@@ -25739,11 +25748,11 @@ function makeRawFunctions(simplify) {
 											}
 										}, 
 										() -> {
-											recurse(recurse, __core__tailList(self), fn)
+											recurse(recurse, __core__tailList__safe(self), fn)
 										}
 									)()
 								}(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head)))
-							}(__core__headList(self))
+							}(__core__headList__safe(self))
 						}
 					)()
 				}
@@ -25765,9 +25774,9 @@ function makeRawFunctions(simplify) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
-							}(${TTPP}0__from_data(__core__fstPair(__core__headList(map))))
+							}(${TTPP}0__from_data(__core__fstPair(__core__headList__safe(map))))
 						}
 					)()
 				}
@@ -25801,9 +25810,9 @@ function makeRawFunctions(simplify) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
-							}(${TTPP}1__from_data(__core__sndPair(__core__headList(map))))
+							}(${TTPP}1__from_data(__core__sndPair(__core__headList__safe(map))))
 						}
 					)()
 				}
@@ -25878,9 +25887,9 @@ function makeRawFunctions(simplify) {
 							(head) -> {
 								__core__chooseUnit(
 									fn(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head))),
-									recurse(recurse, __core__tailList(map))
+									recurse(recurse, __core__tailList__safe(map))
 								)
-							}(__core__headList(map))
+							}(__core__headList__safe(map))
 						}
 					)()
 				}
@@ -25911,7 +25920,7 @@ function makeRawFunctions(simplify) {
 											__core__mkCons(head, recurse(recurse, tail))
 										}
 									)()
-								}(__core__headList(self), __core__tailList(self))
+								}(__core__headList__safe(self), __core__tailList__safe(self))
 							}
 						)()
 					}
@@ -25938,9 +25947,9 @@ function makeRawFunctions(simplify) {
 										false, 
 										${TTPP}0__from_data(__core__fstPair(head)),
 										${TTPP}1__from_data(__core__sndPair(head)),
-										recurse(recurse, __core__tailList(map))
+										recurse(recurse, __core__tailList__safe(map))
 									)
-								}(__core__headList(map))	
+								}(__core__headList__safe(map))	
 							}
 						)()
 					}
@@ -26000,10 +26009,10 @@ function makeRawFunctions(simplify) {
 											)
 										},
 										() -> {
-											__core__mkCons(pair, recurse(recurse, __core__tailList(map)))
+											__core__mkCons(pair, recurse(recurse, __core__tailList__safe(map)))
 										}
 									)()
-								}(__core__headList(map))
+								}(__core__headList__safe(map))
 							}
 						)()
 					}
@@ -26198,9 +26207,9 @@ function makeRawFunctions(simplify) {
 									__core__ifThenElse(
 										__core__equalsData(__helios__txinput__output_id(item), id), 
 										() -> {item}, 
-										() -> {recurse(recurse, __core__tailList(lst))}
+										() -> {recurse(recurse, __core__tailList__safe(lst))}
 									)()
-								}(__core__headList(lst))
+								}(__core__headList__safe(lst))
 							}
 						)()
 					}
@@ -26600,9 +26609,9 @@ function makeRawFunctions(simplify) {
 						},
 						() -> {
 							__helios__txbuilder__redeem[${FTPP}0](
-								recurse(recurse, __core__tailList(inputs))
+								recurse(recurse, __core__tailList__safe(inputs))
 							)(
-								__core__headList(inputs),
+								__core__headList__safe(inputs),
 								redeemer
 							)
 						}
@@ -27908,7 +27917,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					map, 
 					() -> {__helios__common__list_0}, 
-					() -> {__core__mkCons(__core__fstPair(__core__headList(map)), recurse(recurse, __core__tailList(map)))}
+					() -> {__core__mkCons(__core__fstPair(__core__headList__safe(map)), recurse(recurse, __core__tailList__safe(map)))}
 				)()
 			}
 		)
@@ -27929,10 +27938,10 @@ function makeRawFunctions(simplify) {
 							(key) -> {
 								__core__ifThenElse(
 									__helios__common__is_in_bytearray_list(aKeys, key), 
-									() -> {recurse(recurse, keys, __core__tailList(map))},
-									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList(map)))}
+									() -> {recurse(recurse, keys, __core__tailList__safe(map))},
+									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList__safe(map)))}
 								)()
-							}(__core__fstPair(__core__headList(map)))
+							}(__core__fstPair(__core__headList__safe(map)))
 						}
 					)()
 				}
@@ -27951,9 +27960,9 @@ function makeRawFunctions(simplify) {
 					() -> {__core__mkNilPairData(())},
 					() -> {
 						__core__ifThenElse(
-							__core__equalsData(__core__fstPair(__core__headList(map)), mph), 
-							() -> {__core__unMapData(__core__sndPair(__core__headList(map)))},
-							() -> {recurse(recurse, __core__tailList(map))}
+							__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph), 
+							() -> {__core__unMapData(__core__sndPair(__core__headList__safe(map)))},
+							() -> {recurse(recurse, __core__tailList__safe(map))}
 						)()
 					}
 				)()
@@ -27971,9 +27980,9 @@ function makeRawFunctions(simplify) {
 					() -> {0}, 
 					() -> {
 						__core__ifThenElse(
-							__core__equalsData(__core__fstPair(__core__headList(map)), key), 
-							() -> {__core__unIData(__core__sndPair(__core__headList(map)))}, 
-							() -> {recurse(recurse, __core__tailList(map), key)}
+							__core__equalsData(__core__fstPair(__core__headList__safe(map)), key), 
+							() -> {__core__unIData(__core__sndPair(__core__headList__safe(map)))}, 
+							() -> {recurse(recurse, __core__tailList__safe(map), key)}
 						)()
 					}
 				)()
@@ -27999,7 +28008,7 @@ function makeRawFunctions(simplify) {
 										() -> {__core__mkCons(__core__mkPairData(key, __core__iData(sum)), tail)}
 									)()
 								}(op(__helios__value__get_inner_map_int(a, key), __helios__value__get_inner_map_int(b, key)))
-							}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
+							}(__core__headList__safe(keys), recurse(recurse, __core__tailList__safe(keys), result))
 						}
 					)()
 				}
@@ -28024,7 +28033,7 @@ function makeRawFunctions(simplify) {
 									() -> {__core__mkCons(__core__mkPairData(key, __core__mapData(item)), tail)}
 								)()
 							}(__helios__value__add_or_subtract_inner(op)(__helios__value__get_inner_map(a, key), __helios__value__get_inner_map(b, key)))
-						}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
+						}(__core__headList__safe(keys), recurse(recurse, __core__tailList__safe(keys), result))
 					}
 				)()
 			}
@@ -28047,9 +28056,9 @@ function makeRawFunctions(simplify) {
 										__core__fstPair(head), 
 										__core__mapData(recurseInner(recurseInner, __core__unMapData(__core__sndPair(head))))
 									),  
-									recurseOuter(recurseOuter, __core__tailList(outer))
+									recurseOuter(recurseOuter, __core__tailList__safe(outer))
 								)
-							}(__core__headList(outer))
+							}(__core__headList__safe(outer))
 						}
 					)()
 				}
@@ -28066,9 +28075,9 @@ function makeRawFunctions(simplify) {
 									__core__fstPair(head),
 									__core__iData(op(__core__unIData(__core__sndPair(head))))
 								),
-								recurseInner(recurseInner, __core__tailList(inner))
+								recurseInner(recurseInner, __core__tailList__safe(inner))
 							)
-						}(__core__headList(inner))
+						}(__core__headList__safe(inner))
 					}
 				)()
 			}
@@ -28093,9 +28102,9 @@ function makeRawFunctions(simplify) {
 									)
 								), 
 								() -> {false}, 
-								() -> {recurse(recurse, __core__tailList(keys))}
+								() -> {recurse(recurse, __core__tailList__safe(keys))}
 							)()
-						}(__core__headList(keys))
+						}(__core__headList__safe(keys))
 					}
 				)()
 			}
@@ -28121,9 +28130,9 @@ function makeRawFunctions(simplify) {
 									)
 								), 
 								() -> {false}, 
-								() -> {recurse(recurse, __core__tailList(keys))}
+								() -> {recurse(recurse, __core__tailList__safe(keys))}
 							)()
-						}(__core__headList(keys))
+						}(__core__headList__safe(keys))
 					}
 				)()
 			}
@@ -28233,10 +28242,10 @@ function makeRawFunctions(simplify) {
 					() -> {
 						__helios__bool__and(
 							() -> {
-								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList(tokens))), 0)
+								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList__safe(tokens))), 0)
 							},
 							() -> {
-								recurse(recurse, __core__tailList(tokens))
+								recurse(recurse, __core__tailList__safe(tokens))
 							}
 						)
 					}
@@ -28259,10 +28268,10 @@ function makeRawFunctions(simplify) {
 						() -> {
 							__helios__bool__and(
 								() -> {
-									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList(map))))
+									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList__safe(map))))
 								},
 								() -> {
-									recurse(recurse, __core__tailList(map))
+									recurse(recurse, __core__tailList__safe(map))
 								}
 							)
 						}
@@ -28294,9 +28303,9 @@ function makeRawFunctions(simplify) {
 							},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph), 
-									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
-									() -> {outer(outer, inner, __core__tailList(map))}
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList__safe(map))))}, 
+									() -> {outer(outer, inner, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -28306,12 +28315,12 @@ function makeRawFunctions(simplify) {
 							() -> {__helios__error("tokenName not found")}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), tokenName),
 									() -> {
-										__core__unIData(__core__sndPair(__core__headList(map)))
+										__core__unIData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										inner(inner, __core__tailList(map))
+										inner(inner, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -28334,9 +28343,9 @@ function makeRawFunctions(simplify) {
 							() -> {0}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mintingPolicyHash), 
-									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
-									() -> {outer(outer, inner, __core__tailList(map))}
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mintingPolicyHash), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList__safe(map))))}, 
+									() -> {outer(outer, inner, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -28346,12 +28355,12 @@ function makeRawFunctions(simplify) {
 							() -> {0}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), tokenName),
 									() -> {
-										__core__unIData(__core__sndPair(__core__headList(map)))
+										__core__unIData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										inner(inner, __core__tailList(map))
+										inner(inner, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -28391,12 +28400,12 @@ function makeRawFunctions(simplify) {
 							() -> {__helios__error("policy not found")},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph),
 									() -> {
-										__core__unMapData(__core__sndPair(__core__headList(map)))
+										__core__unMapData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										recurse(recurse, __core__tailList(map))
+										recurse(recurse, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -28419,9 +28428,9 @@ function makeRawFunctions(simplify) {
 							() -> {false},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph),
 									() -> {true},
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -28497,8 +28506,8 @@ function makeRawFunctions(simplify) {
 					},
 					() -> {
 						__helios__value____add(
-							${FTPP}0__value(${FTPP}0__from_data(__core__headList(lst))),
-							recurse(recurse, __core__tailList(lst))
+							${FTPP}0__value(${FTPP}0__from_data(__core__headList__safe(lst))),
+							recurse(recurse, __core__tailList__safe(lst))
 						)
 					}
 				)()
@@ -38954,11 +38963,16 @@ export class IRVariable extends Token {
  *   * IRFuncExpr
  *   * IRNameExpr
  *   * IRLiteralExpr
+ * 
+ * The copy() method is needed because inlining can't use the same IRNameExpr twice, 
+ *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+ *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
  * @internal
  * @typedef {{
  *   site: Site,
  *   resolveNames(scope: IRScope): void,
  *   toString(indent?: string): string,
+ *   copy(): IRExpr,
  *   toUplc(): UplcTerm
  * }} IRExpr
  */
@@ -39017,6 +39031,14 @@ export class IRNameExpr {
 		} else {
 			return this.#variable;
 		}
+	}
+
+	/**
+	 * Used when inlining
+	 * @returns {IRNameExpr}
+	 */
+	copy() {
+		return new IRNameExpr(this.#name, this.#variable);
 	}
 
 	/**
@@ -39125,6 +39147,13 @@ export class IRLiteralExpr {
 	}
 
 	/**
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		return this;
+	}
+
+	/**
 	 * Linking doesn't do anything for literals
 	 * @param {IRScope} scope 
 	 */
@@ -39152,13 +39181,15 @@ export class IRFuncExpr {
 	site;
 
 	/**
-	 * @readonly
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
 	 * @type {IRVariable[]}
 	 */
 	args;
 
 	/**
-	 * @readonly
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
 	 * @type {IRExpr}
 	 */
 	body;
@@ -39218,6 +39249,13 @@ export class IRFuncExpr {
 		this.body.resolveNames(scope);
 	}
 
+	/**
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		return new IRFuncExpr(this.site, this.args, this.body.copy());
+	}
+
 	/** 
 	 * @returns {UplcTerm}
 	 */
@@ -39250,13 +39288,15 @@ export class IRCallExpr {
 	site;
 
 	/**
-	 * @readonly
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
 	 * @type {IRExpr}
 	 */
 	func;
 
 	/**
-	 * @readonly
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
 	 * @type {IRExpr[]}
 	 */
 	args;
@@ -39264,11 +39304,10 @@ export class IRCallExpr {
 	/**
 	 * @param {Site} site
 	 * @param {IRExpr} func
-	 * @param {IRExpr[]} args 
-	 * @param {Site} parensSite 
+	 * @param {IRExpr[]} args
 	 */
-	constructor(site, func, args, parensSite) {
-		this.site = parensSite;
+	constructor(site, func, args) {
+		this.site = site;
 		this.func = func;
 		this.args = args;
 	}
@@ -39316,7 +39355,7 @@ export class IRCallExpr {
 	 */
 	toString(indent = "") {
 		if (this.builtinName == "ifThenElse") {
-			return `${this.builtinName}(\n${indent}${TAB}${this.args[0].toString(indent + TAB)},\n${indent}${TAB}${this.args[1].toString(indent + TAB)},\n${indent}${TAB}${this.args[2].toString(indent+TAB)}\n${indent})`;
+			return `${BUILTIN_PREFIX}${this.builtinName}(\n${indent}${TAB}${this.args[0].toString(indent + TAB)},\n${indent}${TAB}${this.args[1].toString(indent + TAB)},\n${indent}${TAB}${this.args[2].toString(indent+TAB)}\n${indent})`;
 		} else if (this.builtinName != "") {
 			return `${BUILTIN_PREFIX}${this.builtinName}(${this.argsToString(indent)})`;
 		} else {
@@ -39345,6 +39384,13 @@ export class IRCallExpr {
 			this.func.resolveNames(scope);
 			this.resolveNamesInArgs(scope);
 		}
+	}
+
+	/**
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		return new IRCallExpr(this.site, this.func.copy(), this.args.map(a => a.copy()));
 	}
 
 	/**
@@ -39447,6 +39493,13 @@ export class IRErrorExpr {
 	}
 
 	/**
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		return new IRErrorExpr(this.site, this.#msg);
+	}
+
+	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
@@ -39498,7 +39551,7 @@ export function buildIRExpr(ts) {
 						args.push(buildIRExpr(f));
 					}
 
-					expr = new IRCallExpr(t.site, expr, args, t.site);
+					expr = new IRCallExpr(t.site, expr, args);
 				}
 			} else if (t.isSymbol("-")) {
 				// only makes sense next to IntegerLiterals
@@ -39635,11 +39688,14 @@ export class IRLiteralValue {
 
     /**
      * @param {IRValue} other 
+     * @param {boolean} permissive
      * @returns {boolean}
      */
-    eq(other) {
+    eq(other, permissive = false) {
         if (other instanceof IRLiteralValue) {
-            return other.value.toString() == this.value.toString();
+            return other.value.toString() == this.value.toString() || permissive;
+        } else if (permissive && other instanceof IRDataValue) {
+            return true;
         } else {
             return other instanceof IRAnyValue;
         }
@@ -39652,10 +39708,15 @@ export class IRLiteralValue {
 export class IRDataValue {
     /**
      * @param {IRValue} other 
+     * @param {boolean} permissive
      * @returns {boolean}
      */
-    eq(other) {
-        return (other instanceof IRDataValue) || (other instanceof IRAnyValue);
+    eq(other, permissive = false) {
+        if (permissive && other instanceof IRLiteralValue) {
+            return true;
+        } else {
+            return (other instanceof IRDataValue) || (other instanceof IRAnyValue);
+        }
     }
 
     /**
@@ -39697,9 +39758,14 @@ export class IRFuncValue {
 
     /**
      * @param {IRValue} other 
+     * @param {boolean} permissive
      * @returns {boolean}
      */
-    eq(other) {
+    eq(other, permissive = false) {
+        if (other == this) {
+            return true;
+        }
+
         if (other instanceof IRFuncValue) {
             if (this.definition instanceof IRNameExpr && other.definition instanceof IRNameExpr) {
                 if (this.definition.isCore() && other.definition.isCore()) {
@@ -39710,7 +39776,7 @@ export class IRFuncValue {
                     return false;
                 }
             } else {
-                return this.definition == other.definition;
+                return (this.definition == other.definition && compareIRStacks(this.stack, other.stack, permissive)) || permissive;
             }
         } else {
             return other instanceof IRAnyValue;
@@ -39739,9 +39805,10 @@ export class IRFuncValue {
 export class IRErrorValue {
     /**
      * @param {IRValue} other 
+     * @param {boolean} permissive
      * @returns {boolean}
      */
-    eq(other) {
+    eq(other, permissive = false) {
         return (other instanceof IRErrorValue) || (other instanceof IRAnyValue);
     }
 
@@ -39761,10 +39828,15 @@ export class IRErrorValue {
 export class IRAnyValue {
     /**
      * @param {IRValue} other 
+     * @param {boolean} permissive
      * @returns {boolean}
      */
-    eq(other) {
+    eq(other, permissive = false) {
         return true;
+    }
+
+    toString() {
+        return `Any`;
     }
 }
 
@@ -39798,6 +39870,13 @@ export class IRMultiValue {
         return this.values.some(v => v instanceof IRDataValue);
     }
 
+    /**
+     * @returns {boolean}
+     */
+    hasLiteral() {
+        return this.values.some(v => v instanceof IRLiteralValue);
+    }
+
     toString() {
         /**
          * @type {string[]}
@@ -39822,16 +39901,41 @@ export class IRMultiValue {
             }
         });
 
+        if (parts.length == 1 && parts[0] == `Error` && this.values.some(v => v instanceof IRAnyValue)) {
+            parts.push("Any");
+        }
+
         return `(${parts.join(" | ")})`;
     }
 
     /**
      * Order can be different
      * @param {IRValue} other
+     * @param {boolean} permissive
      * @returns {boolean}
      */
-    eq(other) {
-        if (other instanceof IRMultiValue) {
+    eq(other, permissive = false) {
+        if (permissive && other instanceof IRMultiValue) {
+            const thisHasData = this.hasData() || this.hasLiteral();
+            const otherHasData = other.hasData() || other.hasLiteral();
+
+            if (thisHasData !== otherHasData) {
+                return false
+            } else if (this.hasError() !== other.hasError()) {
+                return false;
+            } else {
+                const thisValues = this.values.filter(v => {
+                    return (v instanceof IRFuncValue);
+                });
+
+                const otherValues = other.values.filter(v => {
+                    return (v instanceof IRFuncValue);
+                });
+
+                return thisValues.every(v => otherValues.some(ov => ov.eq(v, permissive))) && 
+                    otherValues.every(ov => thisValues.some(v => v.eq(ov, permissive)));
+            }
+        } else if (other instanceof IRMultiValue) {
             if (this.hasError() !== other.hasError()) {
                 return false;
             } else if (this.hasData() !== other.hasData()) {
@@ -39845,8 +39949,8 @@ export class IRMultiValue {
                     return (v instanceof IRFuncValue) || (v instanceof IRLiteralValue);
                 });
 
-                return thisValues.every(v => otherValues.some(ov => ov.eq(v))) && 
-                    otherValues.every(ov => thisValues.some(v => v.eq(ov)));
+                return thisValues.every(v => otherValues.some(ov => ov.eq(v, permissive))) && 
+                    otherValues.every(ov => thisValues.some(v => v.eq(ov, permissive)));
             }
         } else {
             return other instanceof IRAnyValue;
@@ -39858,6 +39962,10 @@ export class IRMultiValue {
 	 * @returns {IRValue}
 	 */
 	static flatten(values) {
+        if (values.length == 1) {
+            return values[0];
+        }
+
 		// flatten nested IRMultiValues
 		values = values.map(v => {
 			if (v instanceof IRMultiValue) {
@@ -39867,18 +39975,42 @@ export class IRMultiValue {
 			}
 		}).flat();
 
+        if (values.length == 1) {
+            return values[0];
+        }
+        
 		const hasError = values.some(v => v instanceof IRErrorValue);
-		const hasData = values.some(v => v instanceof IRDataValue);
+		let hasData = values.some(v => v instanceof IRDataValue);
+        const hasAny = values.some(v => v instanceof IRAnyValue);
+
+        let nLiterals = 0;
+
+        values.forEach(v => {
+            if (v instanceof IRLiteralValue) {
+                nLiterals += 1;
+            }
+        })
+
+        if (!hasData && hasAny && nLiterals > 0) {
+            hasData = true;
+        }
+
+
+        /*if (!hasData && nLiterals > 1) {
+            hasData = true;
+        }*/
 
 		/**
 		 * @type {Map<string, IRLiteralValue>}
 		 */
 		const literals = new Map();
-		values.forEach(v => {
-			if (v instanceof IRLiteralValue) {
-				literals.set(v.value.toString(), v);
-			}
-		});
+        if (!hasAny && !hasData) {
+            values.forEach(v => {
+                if (v instanceof IRLiteralValue) {
+                    literals.set(v.value.toString(), v);
+                }
+            });
+        }
 
 		// assume each IRFuncValue is different
 		const fns = values.filter(v => v instanceof IRFuncValue);
@@ -39896,7 +40028,15 @@ export class IRMultiValue {
 			flattened.push(new IRErrorValue());
 		}
 
-		if (flattened.length == 1) {
+        if (!hasData && fns.length == 0 && literals.size == 0) {
+            flattened.push(new IRAnyValue());
+        }
+
+        if (flattened.length == 0) {
+            assert(values.some(v => v instanceof IRAnyValue));
+
+            return new IRAnyValue();
+        } else if (flattened.length == 1) {
 			return flattened[0];
 		} else {
 			return new IRMultiValue(flattened);
@@ -39959,10 +40099,10 @@ export class IRMultiValue {
 	}
 
     /**
-     * @returns {IRMultiValue}
+     * @returns {IRValue}
      */
     withoutError() {
-        return new IRMultiValue(this.values.filter(v => !(v instanceof IRErrorValue)));
+        return IRMultiValue.flatten(this.values.filter(v => !(v instanceof IRErrorValue)));
     }
 }
 
@@ -39989,7 +40129,7 @@ const IR_BUILTIN_CALLBACKS = {
     },
     divideInteger: ([a, b]) => {
         if (a instanceof IRLiteralValue && a.value.int == 0n) {
-            return new IRMultiValue([a, new IRErrorValue()]);
+            return IRMultiValue.flatten([a, new IRErrorValue()]);
         } else if (b instanceof IRLiteralValue) {
             if (b.value.int == 0n) {
                 return new IRErrorValue();
@@ -39999,7 +40139,7 @@ const IR_BUILTIN_CALLBACKS = {
                 return new IRDataValue();
             }
         } else {
-            return new IRMultiValue([new IRDataValue(), new IRErrorValue()]);
+            return IRMultiValue.flatten([new IRDataValue(), new IRErrorValue()]);
         }
     },
     modInteger: ([a, b]) => {
@@ -40012,7 +40152,7 @@ const IR_BUILTIN_CALLBACKS = {
                 return new IRDataValue();
             }
         } else {
-            return new IRMultiValue([
+            return IRMultiValue.flatten([
                 new IRDataValue(),
                 new IRErrorValue()
             ]);
@@ -40020,7 +40160,7 @@ const IR_BUILTIN_CALLBACKS = {
     },
     quotientInteger: ([a, b]) => {
         if (a instanceof IRLiteralValue && a.value.int == 0n) {
-            return new IRMultiValue([a, new IRErrorValue()]);
+            return IRMultiValue.flatten([a, new IRErrorValue()]);
         } else if (b instanceof IRLiteralValue) {
             if (b.value.int == 0n) {
                 return new IRErrorValue();
@@ -40030,7 +40170,7 @@ const IR_BUILTIN_CALLBACKS = {
                 return new IRDataValue();
             }
         } else {
-            return new IRMultiValue([new IRDataValue(), new IRErrorValue()]);
+            return IRMultiValue.flatten([new IRDataValue(), new IRErrorValue()]);
         }
     },
     remainderInteger: ([a, b]) => {
@@ -40043,7 +40183,7 @@ const IR_BUILTIN_CALLBACKS = {
                 return new IRDataValue();
             }
         } else {
-            return new IRMultiValue([
+            return IRMultiValue.flatten([
                 new IRDataValue(),
                 new IRErrorValue()
             ]);
@@ -40080,7 +40220,7 @@ const IR_BUILTIN_CALLBACKS = {
         } else if (a instanceof IRLiteralValue && a.value.bytes.length == 0) {
             return new IRErrorValue();
         } else {
-            return new IRMultiValue([
+            return IRMultiValue.flatten([
                 new IRDataValue(),
                 new IRErrorValue()
             ]);
@@ -40105,7 +40245,7 @@ const IR_BUILTIN_CALLBACKS = {
         return new IRDataValue();
     },
     decodeUtf8: ([a]) => {
-        return new IRMultiValue([
+        return IRMultiValue.flatten([
             new IRDataValue(),
             new IRErrorValue()
         ]);
@@ -40125,7 +40265,7 @@ const IR_BUILTIN_CALLBACKS = {
         } else if (c instanceof IRLiteralValue && c.value.bytes.length != 64) {
             return new IRErrorValue();
         } else {
-            return new IRMultiValue([
+            return IRMultiValue.flatten([
                 new IRDataValue(),
                 new IRErrorValue()
             ]);
@@ -40169,13 +40309,13 @@ const IR_BUILTIN_CALLBACKS = {
         return new IRDataValue();
     },
     headList: ([a]) => {
-        return new IRMultiValue([
+        return IRMultiValue.flatten([
             new IRDataValue(),
             new IRErrorValue()
         ]);
     },
     tailList: ([a]) => {
-        return new IRMultiValue([
+        return IRMultiValue.flatten([
             new IRDataValue(),
             new IRErrorValue()
         ]);
@@ -40220,31 +40360,31 @@ const IR_BUILTIN_CALLBACKS = {
         return new IRDataValue();
     },
     unConstrData: ([a]) => {
-        return new IRMultiValue([
+        return IRMultiValue.flatten([
             new IRDataValue(),
             new IRErrorValue()
         ]);
     },
     unMapData: ([a]) => {
-        return new IRMultiValue([
+        return IRMultiValue.flatten([
             new IRDataValue(),
             new IRErrorValue()
         ]);
     },
     unListData: ([a]) => {
-        return new IRMultiValue([
+        return IRMultiValue.flatten([
             new IRDataValue(),
             new IRErrorValue()
         ]);
     },
     unIData: ([a]) => {
-        return new IRMultiValue([
+        return IRMultiValue.flatten([
             new IRDataValue(),
             new IRErrorValue()
         ]);
     },
     unBData: ([a]) => {
-        return new IRMultiValue([
+        return IRMultiValue.flatten([
             new IRDataValue(),
             new IRErrorValue()
         ]);
@@ -40267,6 +40407,43 @@ const IR_BUILTIN_CALLBACKS = {
 };
 
 /**
+ * @param {IRStack} a 
+ * @param {IRStack} b 
+ * @param {boolean} permissive 
+ * @returns 
+ */
+function compareIRStacks(a, b, permissive = false) {
+    if (a.length == b.length && a.every((s, i) => {
+        const t = b[i];
+
+        const res = s.args.every(([_, a], j) => {
+            const other = t.args[j][1];
+
+            const res_ = a.eq(other, permissive);
+
+            //if (permissive && !res_) {
+              //  console.log(`col ${j} failed ${a.toString()} vs ${other.toString()}`)
+            //}
+            return res_;
+            
+            //return a.eq(other, permissive);
+        })
+
+        /*if (permissive && !res) {
+            console.log(a.map(x => x.args.map(y => y[1].toString()).join(", ")).join("\n"))
+            console.log(b.map(x => x.args.map(y => y[1].toString()).join(", ")).join("\n"))
+            console.log(`row$ ${i} failed`)
+        }*/
+
+        return res;
+    })) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
  * @internal
  * @typedef {{fn: IRFuncExpr, args: [IRVariable, IRValue][]}[]} IRStack
  */
@@ -40274,7 +40451,7 @@ const IR_BUILTIN_CALLBACKS = {
 /**
  * @internal
  */
-export class IREvaluation {
+export class IREvaluator {
     /**
      * Unwraps an IR AST
      * @type {(
@@ -40282,9 +40459,11 @@ export class IREvaluation {
      *     stack: IRStack,
      *     expr: IRErrorExpr | IRLiteralExpr | IRNameExpr | IRFuncExpr | IRCallExpr
      *   } |
-     *   {fn: IRFuncExpr, owner: IRExpr, args: [IRVariable, IRValue][]} | 
-     *   {multi: number, owner: IRExpr} | 
-     *   {value: IRValue, owner: IRExpr}
+     *   {calling: IRCallExpr} |
+     *   {fn: IRFuncExpr, owner: null | IRExpr, stack: IRStack} | 
+     *   {multi: number, owner: null | IRExpr} | 
+     *   {value: IRValue, owner: null | IRExpr} |
+     *   {ignore: number}
      * )[]}
      */
     #computeStack;
@@ -40298,13 +40477,13 @@ export class IREvaluation {
 	 * Keep track of the eval result of each expression
 	 * @type {Map<IRExpr, IRValue>}
 	 */
-	#outputs;
+	#exprValues;
 
     /**
      * Keep track of all values passed through IRVariables
      * @type {Map<IRVariable, IRValue>}
      */
-    #variables;
+    #variableValues;
 
 
     /**
@@ -40313,26 +40492,44 @@ export class IREvaluation {
     #callCount;
 
     /**
+     * @type {Map<IRFuncExpr, Set<IRCallExpr>>}
+     */
+    #funcCallExprs;
+
+    /**
      * @type {Map<IRVariable, Set<IRNameExpr>>}
      */
-    #refCount;
+    #variableReferences;
+
+    /**
+     * @type {Map<IRCallExpr, number>}
+     */
+    #activeCalls;
+
+    /**
+     * @type {number}
+     */
+    #maxRecursion;
 
 	constructor() {
         this.#computeStack = [];
         this.#reductionStack = [];
 
         // data structures used by optimization
-        this.#outputs = new Map();
-        this.#variables = new Map();
+        this.#exprValues = new Map();
+        this.#variableValues = new Map();
         this.#callCount = new Map();
-        this.#refCount = new Map();
+        this.#funcCallExprs = new Map();
+        this.#variableReferences = new Map();
+        this.#activeCalls = new Map();
+        this.#maxRecursion = 10;
 	}
 
     /**
-     * TODO: defined summary type in ir-context.js
+     * @type {IRFuncExpr[]}
      */
-    get summary() {
-        return {}
+    get funcExprs() {
+        return Array.from(this.#funcCallExprs.keys());
     }
 
     /**
@@ -40340,16 +40537,167 @@ export class IREvaluation {
      * @param {IRExpr} expr 
      * @returns {undefined | IRValue}
      */
-    getExprOutput(expr) {
-        return this.#outputs.get(expr);
+    getExprValue(expr) {
+        return this.#exprValues.get(expr);
     }
 
     /**
      * @param {IRVariable} v
      * @returns {undefined | IRValue}
      */
-    getVarValues(v) {
-        return this.#variables.get(v);
+    getVariableValue(v) {
+        return this.#variableValues.get(v);
+    }
+
+    /**
+     * @param {IRVariable} v 
+     * @returns {number}
+     */
+    countVariableReferences(v) {
+        return this.#variableReferences.get(v)?.size ?? 0;
+    }
+
+    /**
+     * @param {IRVariable} v 
+     * @returns {IRNameExpr[]}
+     */
+    getVariableReferences(v) {
+        return Array.from(this.#variableReferences.get(v) ?? [])
+    }
+
+    /**
+     * @param {IRFuncExpr} fn
+     * @returns {number}
+     */
+    countFuncCalls(fn) {
+        return this.#callCount.get(fn) ?? 0;
+    }
+
+    /**
+     * @param {IRExpr} expr 
+     * @returns {boolean}
+     */
+    expectsError(expr) {
+        const v = this.getExprValue(expr);
+
+        if (v) {
+            if (v instanceof IRErrorValue) {
+                return true;
+            } else if (v instanceof IRMultiValue && v.hasError()) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * @param {IRFuncExpr} fn
+     * @returns {number[]} indices
+     */
+    getUnusedFuncVariables(fn) {
+        /**
+         * @type {number[]}
+         */
+        const indices = [];
+
+        fn.args.forEach((a, i) => {
+            const s = this.#variableReferences.get(a);
+            if (!s || s.size == 0) {
+                indices.push(i);
+            }
+        })
+
+        return indices;
+    }
+
+    /**
+     * @param {IRFuncExpr} fn 
+     * @returns {IRCallExpr[]}
+     */
+    getFuncCallExprs(fn) {
+        return Array.from(this.#funcCallExprs.get(fn) ?? []);
+    }
+
+    /**
+     * @param {IRFuncExpr} fn 
+     * @returns {boolean}
+     */
+    onlyDedicatedCallExprs(fn) {
+        const callExprs = this.getFuncCallExprs(fn);
+
+        // if there are no callExprs then we don't know exactly how the function is called (eg. main), and we can't flatten
+        if (callExprs.length == 0) {
+            return false;
+        }
+
+        return callExprs.every(ce => {
+            if (ce.func == fn) {
+                // literally calling fn directly
+                return true;
+            }
+
+            const v = this.getExprValue(ce.func);
+
+            if (!v) {
+                return false;
+            } else if (v instanceof IRMultiValue) {
+                return v.values.every(vv => !(vv instanceof IRFuncValue) || (vv.definition == fn))
+            } else if (v instanceof IRFuncValue) {
+                //assert(v.definition == fn, `expected ${fn.toString()}, not ${v.definition.toString()}`);
+                return true;
+            } else {
+                throw new Error(`unexpected ${v.toString()}`);
+            }
+        });
+    }
+
+    /**
+     * @param {IRFuncExpr} fn
+     * @param {number[]} unused
+     * @returns {boolean}
+     */
+    noUnusedArgErrors(fn, unused) {
+        const callExprs = this.getFuncCallExprs(fn);
+
+        return callExprs.every(ce => {
+            return unused.every(i => {
+                return !this.expectsError(ce.args[i]);
+            });
+        });
+    }
+
+    /**
+     * @param {IRFuncExpr} first 
+     * @param {IRFuncExpr} second
+     */
+    onlyNestedCalls(first, second) {
+        const callExprs = this.getFuncCallExprs(second);
+
+        // if there are no callExprs then we don't know exactly how the function is called (eg. main), and we can't flatten
+        if (callExprs.length == 0) {
+            return false;
+        }
+
+        return callExprs.every(ce => {
+            if (ce.func instanceof IRCallExpr) {
+                const v = this.getExprValue(ce.func.func);
+
+                if (!v) {
+                    return false;
+                } else if (v instanceof IRMultiValue) {
+                    return v.values.every(vv => !(vv instanceof IRFuncValue) || (vv.definition == first))
+                } else if (v instanceof IRFuncValue) {
+                    return v.definition == first;
+                } else {
+                    throw new Error(`unexpected ${v.toString()}`);
+                }
+            } else {
+                return false;
+            }
+        });
     }
 
     /**
@@ -40382,22 +40730,24 @@ export class IREvaluation {
      * @param {IRExpr} expr 
      * @param {IRValue} value 
      */
-    setOutputValue(expr, value) {
-        const outputs = this.#outputs.get(expr);
+    setExprValue(expr, value) {
+        const outputs = this.#exprValues.get(expr);
 
         if (outputs) {
-            this.#outputs.set(expr, IRMultiValue.flatten([outputs, value]));
+            this.#exprValues.set(expr, IRMultiValue.flatten([outputs, value]));
         } else {
-            this.#outputs.set(expr, value);
+            this.#exprValues.set(expr, value);
         }
     }
 
     /**
-     * @param {IRExpr} owner 
+     * @param {null | IRExpr} owner 
      * @param {IRValue} value 
      */
     pushReductionValue(owner, value) {
-        this.setOutputValue(owner, value);
+        if (owner) {
+            this.setExprValue(owner, value);
+        }
 
         this.#reductionStack.push(value);
     }
@@ -40411,12 +40761,12 @@ export class IREvaluation {
     getValue(stack, nameExpr) {
         const variable = nameExpr.variable;
 
-        const s = this.#refCount.get(variable);
+        const s = this.#variableReferences.get(variable);
 
         if (s) {
             s.add(nameExpr);
         } else {
-            this.#refCount.set(variable, new Set([nameExpr]));
+            this.#variableReferences.set(variable, new Set([nameExpr]));
         }
 
         for (let i = stack.length - 1; i >= 0; i--) {
@@ -40465,8 +40815,9 @@ export class IREvaluation {
                 }
             } else if (args.some(a => a instanceof IRErrorValue)) {
                 return new IRErrorValue();
-            } else {		
+            } else {
                 const res = assertDefined(IR_BUILTIN_CALLBACKS[builtin], `builtin ${builtin} not defined in IR_BUILTIN_CALLBACKS`)(args);
+                
                 if (isSafe && res instanceof IRMultiValue && res.hasError()) {
                     return res.withoutError();
                 } else {
@@ -40485,7 +40836,7 @@ export class IREvaluation {
         const prev = this.#callCount.get(fn);
 
         if (prev) {
-            this.#callCount.set(fn, prev + 1);
+            this.#callCount.set(fn, Math.min(prev + 1, Number.MAX_SAFE_INTEGER));
         } else {
             this.#callCount.set(fn, 1);
         }
@@ -40495,17 +40846,19 @@ export class IREvaluation {
      * @private
      * @param {IRStack} stack
      * @param {IRFuncExpr} fn
-     * @param {IRValue[]} args
      */
-    isRecursing(stack, fn, args) {
-        const depth = 2;
-        let count = 0;
+    isRecursing(stack, fn) {
+        const maybeRunaway = this.#computeStack.length > 100;
 
+        const depth = 3;
+        let count = 0;
+        
         for (let i = this.#computeStack.length - 1; i >= 0; i--) {
             const entry = this.#computeStack[i];
 
             if ("fn" in entry && entry.fn == fn) {
-                if (args.every((a, i) => a.eq(entry.args[i][1]))) {
+                
+                if (compareIRStacks(stack, entry.stack, maybeRunaway)) {
                     count += 1;
                 }
             }
@@ -40535,12 +40888,12 @@ export class IREvaluation {
         variables.forEach((variable, i) => {
             const value = values[i];
 
-            const allValues = this.#variables.get(variable);
+            const allValues = this.#variableValues.get(variable);
 
             if (allValues) {
-                this.#variables.set(variable, IRMultiValue.flatten([allValues, value]));
+                this.#variableValues.set(variable, IRMultiValue.flatten([allValues, value]));
             } else {
-                this.#variables.set(variable, value);
+                this.#variableValues.set(variable, value);
             }
 
             m.push([variable, value]);
@@ -40552,12 +40905,17 @@ export class IREvaluation {
     /**
      * @private
      * @param {IRStack} stack
-     * @param {IRExpr} owner
+     * @param {null | IRExpr} owner
      * @param {IRFuncExpr} fn
      * @param {IRValue[]} args
      */
     pushFuncCall(stack, owner, fn, args) {
         const permutations = IRMultiValue.allPermutations(args);
+
+        if (owner instanceof IRCallExpr) {
+            this.#computeStack.push({calling: owner});
+            this.#activeCalls.set(owner, (this.#activeCalls.get(owner) ?? 0) + 1);
+        }
 
         if (permutations.length > 1) {
             this.#computeStack.push({multi: permutations.length, owner: owner});
@@ -40566,14 +40924,12 @@ export class IREvaluation {
         permutations.forEach(args => {
             if (args.some(a => a instanceof IRErrorValue)) {
                 this.#computeStack.push({value: new IRErrorValue(), owner: owner});
-            } else if (this.isRecursing(stack, fn, args)) {
-                this.#computeStack.push({value: new IRAnyValue(), owner: owner});
             } else {
-                this.incrCallCount(fn);
-
                 const varsToValues = this.mapVarsToValues(fn.args, args);
                 const stack_ = stack.concat([{fn: fn, args: varsToValues}]);
-                this.#computeStack.push({fn: fn, owner: owner, args: varsToValues});
+
+                this.incrCallCount(fn);
+                this.#computeStack.push({fn: fn, owner: owner, stack: stack_});
                 this.pushExpr(stack_, fn.body);
             }
         });
@@ -40581,7 +40937,7 @@ export class IREvaluation {
 
     /**
      * @private
-     * @param {IRExpr} owner
+     * @param {IRExpr} owner for entry point ths is the entry point IRFuncExpr, for all other calls this is the IRCallExpr
      * @param {IRFuncValue} v
      * @param {IRValue[]} args 
      */
@@ -40593,8 +40949,57 @@ export class IREvaluation {
             const res = this.callBuiltin(fn, args);
             this.pushReductionValue(owner, res);
         } else {
+            if (owner instanceof IRCallExpr) {
+                const s = this.#funcCallExprs.get(fn);
+
+                if (!s) {
+                    this.#funcCallExprs.set(fn, new Set([owner]));
+                } else {
+                    s.add(owner);
+                }
+            }
+
             this.pushFuncCall(stack, owner, fn, args);
         }
+    }
+
+    /**
+     * Call an unknown function (eg. returned at the deepest point of recursion)
+     * Make sure any arguments that are functions are also called so that all possible execution paths are touched
+     * Absorb the return values of these functions
+     * @private
+     * @param {IRExpr} owner
+     * @param {IRAnyValue} fn
+     * @param {IRValue[]} args
+     */
+    callAnyFunc(owner, fn, args) {
+        /**
+         * Only user-defined functions!
+         * @type {IRFuncValue[]}
+         */
+        const fnsInArgs = [];
+
+        args.forEach(a => {
+            if (a instanceof IRMultiValue) {
+                a.values.forEach(aa => {
+                    if (aa instanceof IRFuncValue && (aa.definition instanceof IRFuncExpr)) {
+                        fnsInArgs.push(aa);
+                    }
+                });
+            } else if (a instanceof IRFuncValue && (a.definition instanceof IRFuncExpr)) {
+                fnsInArgs.push(a);
+            }
+        });
+
+        this.#computeStack.push({value: fn, owner: owner});
+
+        this.#computeStack.push({ignore: fnsInArgs.length});
+
+        fnsInArgs.forEach(fn => {
+            const def = assertClass(fn.definition, IRFuncExpr);
+
+            this.pushFuncCall(fn.stack, null, def, def.args.map(a => new IRAnyValue()));
+        });
     }
 
     /**
@@ -40619,34 +41024,46 @@ export class IREvaluation {
                         args.push(assertDefined(this.#reductionStack.pop()))
                     }
 
-                    if (v instanceof IRErrorValue || args.some(a => a instanceof IRErrorValue)) {
-                        this.pushReductionValue(expr, new IRErrorValue());
+                    if ((this.#activeCalls.get(expr) ?? 0) > this.#maxRecursion) {
+                        // we are recursing too deep, simply return Any
+                        this.pushReductionValue(expr, new IRAnyValue());
                     } else {
-                        if (v instanceof IRFuncValue) {
-                            this.callFunc(expr, v, args);
-                        } else if (v instanceof IRMultiValue) {
-                            this.#computeStack.push({multi: v.values.length, owner: expr});
-
-                            for (let subValue of v.values) {
-                                if (subValue instanceof IRErrorValue) {
-                                    this.pushReductionValue(expr, subValue);
-                                } else if (subValue instanceof IRDataValue) {
-                                    throw new Error("unexpected function value");
-                                } else if (subValue instanceof IRLiteralValue) {
-                                    throw new Error("unexpected function value");
-                                } else if (subValue instanceof IRMultiValue) {
-                                    throw new Error("unexpected multi subvalue");
-                                } else if (subValue instanceof IRFuncValue) {
-                                    this.callFunc(expr, subValue, args);
-                                }
-                            }
+                        if (v instanceof IRAnyValue) {
+                            this.callAnyFunc(expr, v, args);
+                        } else if (v instanceof IRErrorValue || args.some(a => a instanceof IRErrorValue)) {
+                            this.pushReductionValue(expr, new IRErrorValue());
                         } else {
-                            throw new Error("unexpected function term");
+                            if (v instanceof IRFuncValue) {
+                                this.callFunc(expr, v, args);
+                            } else if (v instanceof IRMultiValue) {
+                                this.#computeStack.push({multi: v.values.length, owner: expr});
+
+                                for (let subValue of v.values) {
+                                    if (subValue instanceof IRErrorValue) {
+                                        this.pushReductionValue(expr, subValue);
+                                    } else if (subValue instanceof IRDataValue) {
+                                        throw new Error("unexpected function value");
+                                    } else if (subValue instanceof IRLiteralValue) {
+                                        throw new Error("unexpected function value");
+                                    } else if (subValue instanceof IRMultiValue) {
+                                        throw new Error("unexpected multi subvalue");
+                                    } else if (subValue instanceof IRFuncValue) {
+                                        this.callFunc(expr, subValue, args);
+                                    } else if (subValue instanceof IRAnyValue) {
+                                        this.callAnyFunc(expr, subValue, args);  
+                                    } else {
+                                        throw new Error("unexpected function value");
+                                    }
+                                }
+                            } else {
+                                throw new Error("unexpected function term " + v.toString());
+                            }
                         }
                     }
                 } else if (expr instanceof IRErrorExpr) {
                     this.pushReductionValue(expr, new IRErrorValue());
                 } else if (expr instanceof IRNameExpr) {
+                    
                     if (expr.isCore()) {
                         this.pushReductionValue(expr, new IRFuncValue(head.stack, expr));
                     } else {
@@ -40665,7 +41082,7 @@ export class IREvaluation {
                 const owner = head.owner;
                 const last = assertDefined(this.#reductionStack.pop());
 
-                this.setOutputValue(head.fn, last);
+                this.setExprValue(head.fn, last);
                 this.pushReductionValue(owner, last);
 			} else if ("multi" in head) {
                 // collect multiple IRValues from the reductionStack and put it back as a single IRMultiValue
@@ -40682,6 +41099,12 @@ export class IREvaluation {
                 this.pushReductionValue(head.owner, IRMultiValue.flatten(values));
             } else if ("value" in head) {
                 this.pushReductionValue(head.owner, head.value);
+            } else if ("ignore" in head) {
+                for (let i = 0; i < head.ignore; i++) {
+                    assertDefined(this.#reductionStack.pop());
+                }
+            } else if ("calling" in head) {
+                this.#activeCalls.set(head.calling, assertDefined(this.#activeCalls.get(head.calling)) - 1);
 			} else {
 				throw new Error("unexpected term");
 			}
@@ -40731,9 +41154,11 @@ export class IREvaluation {
 
         for (let v of finalValues) {
             if (v instanceof IRErrorValue) {
-                if (finalValues.length == 1) {
+
+                // ok
+                /*if (finalValues.length == 1) {
                     console.error("Warning: script always fails");
-                }
+                }*/
             } else if (v instanceof IRLiteralValue) {
                 // ok
             } else if (v instanceof IRDataValue) {
@@ -40803,7 +41228,7 @@ export class IREvaluation {
 /**
  * Used to debug the result of IREvalation
  * @internal
- * @param {IREvaluation} evaluation 
+ * @param {IREvaluator} evaluation 
  * @param {IRExpr} expr 
  * @returns {string}
  */
@@ -40819,7 +41244,7 @@ export function annotateIR(evaluation, expr) {
         } else if (expr instanceof IRErrorExpr) {
             return `error()`;
         } else if (expr instanceof IRNameExpr) {
-            const output = evaluation.getExprOutput(expr);
+            const output = evaluation.getExprValue(expr);
 
             if (output) {
                 return `${expr.name}: ${output.toString()}`
@@ -40827,22 +41252,30 @@ export function annotateIR(evaluation, expr) {
                 return expr.name;
             }
         } else if (expr instanceof IRFuncExpr) {
-            const output = evaluation.getExprOutput(expr);
+            const output = evaluation.getExprValue(expr);
 
             const isGlobalDef = expr.args.length == 1 && expr.args[0].name.startsWith("__");
             const innerIndent = indent + (isGlobalDef ? "" : TAB);
 
+            let countStr = "";
+            const count = evaluation.countFuncCalls(expr);
+            if (count == Number.MAX_SAFE_INTEGER) {
+                countStr = "\u221e";
+            } else {
+                countStr = count.toString();
+            }
+
             return `(${expr.args.map(a => {
-                const v = evaluation.getVarValues(a);
+                const v = evaluation.getVariableValue(a);
 
                 if (v) {
                     return `${a.name}: ${v.toString()}`;
                 } else {
                     return a.name;
                 }
-            }).join(", ")}) -> ${output ? output.toString() + " " : ""}{\n${innerIndent}${annotate(expr.body, innerIndent)}\n${indent}}`;
+            }).join(", ")})${countStr} -> ${output ? output.toString() + " " : ""}{\n${innerIndent}${annotate(expr.body, innerIndent)}\n${indent}}`;
         } else if (expr instanceof IRCallExpr) {
-            const output = evaluation.getExprOutput(expr);
+            const output = evaluation.getExprValue(expr);
 
             const isGlobalDef = expr.func instanceof IRFuncExpr && expr.func.args.length == 1 && expr.func.args[0].name.startsWith("__");
             const globalDef = expr.func instanceof IRFuncExpr && expr.func.args.length == 1 ? expr.func.args[0].name : "";
@@ -40866,16 +41299,779 @@ export function annotateIR(evaluation, expr) {
 //////////////////////////////
 // Section 31: IR optimization
 //////////////////////////////
+
+
+
 /**
+ * Recursive algorithm that performs the following optimizations.
+ * 
+ * Optimizations performed in both `aggressive == false` and `aggressive == true` cases:
+ *   * replace `IRNameExpr` by `IRLiteralExpr` if the expected value is IRLiteralValue
+ *   * replace `IRCallExpr` by `IRLiteralExpr` if the expected value is IRLiteralValue
+ * 
+ * Optimizations only performed in the `aggressive == true` case:
+ *   * replace `IRNameExpr` by `IRErrorExpr` if the expected value is IRErrorValue
+ *   * replace `IRCallExpr` by `IRErrorExpr` if the expected value is IRErrorValue
+ *   * replace `__core__addInteger(<expr>, 0)` or `__core__addInteger(0, <expr>)` by `<expr>`
+ *   * replace `__core__subtractInteger(<expr>, 0)` by `<expr>`
+ *   * replace `__core__multiplyInteger(<expr>, 1)` or `__core__multiplyInteger(1, <expr>)` by `<expr>`
+ *   * replace `__core__divideInteger(<expr>, 1)` by `<expr>`
+ *   * replace `__core__quotientInteger(<expr>, 1)` by `<expr>`
+ *   * replace `__core__appendByteString(<expr>, #)` or `__core__appendByteString(#, <expr>)` by `<expr>`
+ *   * replace `__core__appendString(<expr>, "")` or `__core__appendString("", <expr>)` by `<expr>`
+ *   * replace `__core__decodeUtf8(__core__encodeUtf8(<expr>))` by `<expr>`
+ *   * replace `__core__ifThenElse(true, <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
+ *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
+ *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
+ *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
+ *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
+ *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
+ *   * replace `__core__chooseList([...], <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
+ *   * replace `__core__chooseData(ConstrData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(MapData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(ListData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(IntData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(ByteArrayData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__unMapData(__core__mapData(<expr>))` by `<expr>`
+ *   * replace `__core__unListData(__core__listData(<expr>))` by `<expr>`
+ *   * replace `__core__unIData(__core__iData(<expr>))` by `<expr>`
+ *   * replace `__core__unBData(__core__bData(<expr>))` by `<expr>`
+ *   * replace `__core__equalsData(__core__iData(<expr-a>), __core__iData(<expr-b>))` by `__core__equalsInteger(<expr-a>, <expr-b>)`
+ *   * replace `__core__equalsData(__core__bData(<expr-a>), __core__bData(<expr-b>))` by `__core__equalsByteString(<expr-a>, <expr-b>)`
+ *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
+ *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
+ *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each is only referenced once (i.e. only referenced in the call)
+ *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each is only referenced once (i.e. only referenced in the call)
+ *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
+ *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
+ *   * replace `() -> {<expr>}()` by `<expr>`
+ * 
+ * Optimizations that we have considered, but are NOT performed:
+ *   * replace `__core__subtractInteger(0, <expr>)` by `__core__multiplyInteger(<expr>, -1)`
+ *       reason: it is unclear if either method is cheaper for the majority of cases
+ *   * replace `__core__multiplyInteger(<expr>, -1)` by `__core__subtractInteger(0, <expr>)`
+ *       reason: it is unclear if either method is cheaper for the majority of cases
+ * 
  * @internal
- * @param {IREvaluation} evaluation 
+ * @param {IREvaluator} evaluation 
  * @param {IRExpr} expr
+ * @param {boolean} aggressive
  * @returns {IRExpr}
  */
-export function optimizeIR(evaluation, expr) {
-    return expr;
-}
+export class IROptimizer {
+    #evaluator;
+    #root;
+    #aggressive;
 
+    /**
+     * @type {Map<IRVariable, IRExpr>}
+     */
+    #inlining;
+
+    /**
+     * @type {Map<IRFuncExpr, number>}
+     */
+    #callCount;
+
+    /**
+     * @param {IRExpr} root
+     * @param {boolean} aggressive 
+     */
+    constructor(root, aggressive = false) {
+        this.#evaluator = new IREvaluator();
+        this.#root = root;
+        IROptimizer.assertNoDuplicateExprs(root);
+        this.#aggressive = aggressive;
+
+        this.#inlining = new Map();
+        this.#callCount = new Map();
+
+        this.init();
+    }
+
+    /**
+     * @param {IRExpr} expr 
+     * @returns {boolean}
+     */
+    expectsError(expr) {
+        return this.#evaluator.expectsError(expr);
+    }
+
+    /**
+     * @private
+     * @param {IRFuncExpr} fn 
+     */
+    countFuncCalls(fn) {
+        return this.#callCount.get(fn) ?? this.#evaluator.countFuncCalls(fn);
+    }
+
+    /**
+     * Makes sure the callCount is copied from IREvaluator
+     * @private
+     * @param {IRFuncExpr} old 
+     * @param {IRVariable[]} args
+     * @param {IRExpr} body
+     * @returns {IRFuncExpr}
+     */
+    newFuncExpr(old, args, body) {
+        const n = this.countFuncCalls(old);
+
+        const funcExpr = new IRFuncExpr(
+            old.site,
+            args,
+            body
+        );
+
+        this.#callCount.set(funcExpr, n);
+
+        return funcExpr;
+    }
+
+    /**
+     * 
+     * @param {IRExpr} root 
+     * @param {{
+     *   nameExpr?: (expr: IRNameExpr) => void
+     *   errorExpr?: (expr: IRErrorExpr) => void
+     *   literalExpr?: (expr: IRLiteralExpr) => void
+     *   callExpr?: (expr: IRCallExpr) => void
+     *   funcExpr?: (expr: IRFuncExpr) => void
+     *   exit?: () => boolean
+     * }} callbacks 
+     * @returns 
+     */
+    static loop(root, callbacks) {
+        const stack = [root];
+
+        let head = stack.pop();
+
+        while (head) {
+            if (head instanceof IRNameExpr) {
+                if (callbacks.nameExpr) {
+                    callbacks.nameExpr(head);
+                }
+            } else if (head instanceof IRErrorExpr) {
+                if (callbacks.errorExpr) {
+                    callbacks.errorExpr(head);
+                }
+            } else if (head instanceof IRLiteralExpr) {
+                if (callbacks.literalExpr) {
+                    callbacks.literalExpr(head);
+                }
+            } else if (head instanceof IRCallExpr) {
+                stack.push(head.func);
+
+                for (let a of head.args) {
+                    stack.push(a);
+                }
+
+                if (callbacks.callExpr) {
+                    callbacks.callExpr(head);
+                }
+            } else if (head instanceof IRFuncExpr) {
+                if (callbacks.funcExpr) {
+                    callbacks.funcExpr(head);
+                }
+
+                stack.push(head.body);
+            }
+
+            if (callbacks.exit && callbacks.exit()) {
+                return;
+            }
+
+            head = stack.pop();
+        }
+    }
+
+    /**
+     * Apply optimizations that require access to the root:
+     *   * flatten nested IRFuncExpr where possible
+     *   * remove unused IRFuncExpr variables
+     */
+    init() {
+        this.#evaluator.eval(this.#root);
+
+        if (!this.#aggressive) {
+            return;
+        }
+
+        this.removeUnusedArgs();
+
+        // rerun evaluation
+        this.#evaluator = new IREvaluator();
+
+        this.#evaluator.eval(this.#root);
+
+        this.flattenNestedFuncExprs();
+    }
+
+    /**
+     * Mutates
+     * @private
+     */
+    removeUnusedArgs() {
+        const funcExprs = this.#evaluator.funcExprs.filter(expr => {
+            const unusedIndices = this.#evaluator.getUnusedFuncVariables(expr);
+
+            return unusedIndices.length > 0 && this.#evaluator.onlyDedicatedCallExprs(expr) && this.#evaluator.noUnusedArgErrors(expr, unusedIndices);
+        });
+
+        funcExprs.forEach(expr => {
+            const unusedIndices = this.#evaluator.getUnusedFuncVariables(expr);
+            const unused = new Set(unusedIndices);
+
+            const callExprs = this.#evaluator.getFuncCallExprs(expr);
+
+            callExprs.forEach(callExpr => {
+                callExpr.args = callExpr.args.filter((a, i) => !unused.has(i));
+            });
+            
+            expr.args = expr.args.filter((a, i) => !unused.has(i));
+        });
+    }
+
+    /**
+     * In scope order, call func before call args
+     */
+    collectFuncExprs() {
+        /**
+         * @type {IRFuncExpr[]}
+         */
+        const funcExprs = [];
+
+        IROptimizer.loop(this.#root, {
+            funcExpr: (funcExpr) => {
+                funcExprs.push(funcExpr);
+            }
+        });
+
+        return funcExprs;
+    }
+
+    /**
+     * @private
+     */
+    flattenNestedFuncExprs() {
+        const funcExprs = this.collectFuncExprs();
+
+        /**
+         * @type {Set<IRFuncExpr>}
+         */
+        const done = new Set();
+
+        funcExprs.forEach(expr => {
+            if (done.has(expr)) {
+                return;
+            }
+
+            let last = expr;
+            let args = expr.args.slice();
+            let depth = 1;
+
+            while (last.body instanceof IRFuncExpr && this.#evaluator.onlyDedicatedCallExprs(last.body) && this.#evaluator.onlyNestedCalls(last, last.body)) {
+                depth += 1;
+                last = last.body;
+                args = args.concat(last.args.slice());
+                done.add(last);
+            }
+
+            if (depth == 1) {
+                // don't do anything
+                return;
+            }
+
+            const callExprs = this.#evaluator.getFuncCallExprs(last);
+
+            assert(callExprs.length > 0);
+
+            callExprs.forEach(callExpr => {
+                let inner = callExpr;
+
+                /**
+                 * @type {IRExpr[][]}
+                 */
+                let allArgs = [];
+
+                for (let i = 0; i < depth; i++) {
+                    allArgs.push(inner.args.slice());
+
+                    if (i < depth - 1) {
+                        inner = assertClass(inner.func, IRCallExpr);
+                    }
+                }
+
+                callExpr.func = inner.func;
+                callExpr.args = allArgs.reverse().flat();
+            });
+                
+            expr.args = args;
+            expr.body = last.body;
+        })
+    }
+
+    /**
+     * @param {IRFuncExpr} start
+     * @param {IRNameExpr} nameExpr
+     * @returns {boolean}
+     */
+    isEvaluatedMoreThanOnce(start, nameExpr) {
+        /**
+         * @type {Map<IRExpr, IRCallExpr | IRFuncExpr>}
+         */
+        const parents = new Map();
+
+        let foundNameExpr = false;
+
+        IROptimizer.loop(start, {
+            funcExpr: (funcExpr) => {
+                parents.set(funcExpr.body, funcExpr);
+            },
+            callExpr: (callExpr) => {
+                parents.set(callExpr.func, callExpr);
+                callExpr.args.forEach(a => {parents.set(a, callExpr)});
+            },
+            nameExpr: (ne) => {
+                foundNameExpr = ne == nameExpr;
+            },
+            exit: () => {
+                return foundNameExpr;
+            }
+        });
+
+        let parent = parents.get(nameExpr);
+
+        while (parent && parent != start) {
+            if (parent instanceof IRFuncExpr && this.countFuncCalls(parent) > 1) {
+                return true;
+            }
+            
+            parent = parents.get(parent);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param {IRVariable} v 
+     * @param {IRExpr} expr 
+     */
+    inline(v, expr) {
+        this.#inlining.set(v, expr);
+    }
+    
+    /**
+     * @private
+     * @param {IRNameExpr} expr 
+     * @returns {IRExpr}
+     */
+    optimizeNameExpr(expr) {
+        const v = this.#evaluator.getExprValue(expr);
+    
+        if (v) {
+            if (v instanceof IRLiteralValue) {
+                return new IRLiteralExpr(v.value);
+            } else if (v instanceof IRErrorValue && this.#aggressive) {
+                return new IRErrorExpr(expr.site);
+            }
+        }
+
+        if (!expr.isCore()) {
+            const newExpr = this.#inlining.get(expr.variable);
+
+            if (newExpr) {
+                // always copy to make sure any (nested) IRNameExpr is unique (=> unique DeBruijn index)
+                return newExpr.copy();
+            }
+        }
+
+        return expr;
+    }
+
+    /**
+     * The optimizations are only performed in aggressive mode
+     * @private
+     * @param {IRCallExpr} expr
+     * @returns {IRExpr}
+     */
+    optimizeBuiltinCallExpr(expr) {
+        const builtinName = expr.builtinName;
+
+        const args = expr.args;
+
+        switch (builtinName) {
+            case "addInteger": {
+                const [a, b] = args;
+
+                if (a instanceof IRLiteralExpr && a.value.int == 0n) {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value.int == 0n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "subtractInteger": {
+                const [a, b] = args;
+
+                if (b instanceof IRLiteralExpr && b.value.int == 0n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "multiplyInteger": {
+                const [a, b] = args;
+
+                if (a instanceof IRLiteralExpr && a.value.int == 1n) {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value.int == 1n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "divideInteger": {
+                const [a, b] = args;
+
+                if (b instanceof IRLiteralExpr && b.value.int == 1n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "quotientInteger": {
+                const [a, b] = args;
+
+                if (b instanceof IRLiteralExpr && b.value.int == 1n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "appendByteString": {
+                const [a, b] = args;
+
+                if (a instanceof IRLiteralExpr && a.value.bytes.length == 0) {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value.bytes.length == 0) {
+                    return a;
+                }
+
+                break;
+            };
+            case "appendString": {
+                const [a, b] = args;
+
+                if (a instanceof IRLiteralExpr && a.value.string == "") {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value.string == "") {
+                    return a;
+                }
+
+                break;
+            };
+            case "decodeUtf8": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "encodeUtf8") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "ifThenElse": {
+                const [cond, a, b] = args;
+
+                if (cond instanceof IRLiteralExpr) {
+                    if (cond.value.bool && !this.expectsError(b)) {
+                        return a;
+                    } else if (!cond.value.bool && !this.expectsError(a)) {
+                        return b;
+                    }
+                } else if (cond instanceof IRCallExpr && cond.func instanceof IRNameExpr && cond.builtinName == "nullList") {
+                    return new IRCallExpr(
+                        expr.site,
+                        new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}chooseList`)),
+                        [cond.args[0], a, b]
+                    );
+                }
+
+                break;
+            };
+            case "chooseUnit": {
+                const [a, b] = args;
+
+                if (b instanceof IRLiteralExpr && b.value instanceof UplcUnit) {
+                    return a;
+                }
+
+                break;
+            };
+            case "trace": {
+                const [a, b] = args;
+
+                if (!this.expectsError(a)) {
+                    return b;
+                }
+
+                break;
+            };
+            case "chooseList": {
+                const [lst, a, b] = args;
+
+                if (lst instanceof IRLiteralExpr) {
+                    if (lst.value.list.length == 0 && !this.expectsError(b)) {
+                        return a;
+                    } else if (lst.value.list.length > 0 && !this.expectsError(a)) {
+                        return b;
+                    }
+                }
+
+                break;
+            };
+            case "chooseData": {
+                const [cond, C, M, L, I, B] = args;
+
+                if (cond instanceof IRLiteralExpr) {
+                    if (cond.value.data instanceof ConstrData && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return C;
+                    } else if (cond.value.data instanceof MapData && !this.expectsError(C) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return M;
+                    } else if (cond.value.data instanceof ListData && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return L;
+                    } else if (cond.value.data instanceof IntData && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(B)) {
+                        return I;
+                    } else if (cond.value.data instanceof ByteArrayData && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I)) {
+                        return B;
+                    }
+                }
+
+                break;
+            };
+            case "unMapData": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "mapData") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "unListData": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "listData") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "unIData": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "iData") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "unBData": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "bData") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "equalsData": {
+                const [a, b] = args;
+
+                if (
+                    a instanceof IRCallExpr && a.func instanceof IRNameExpr && a.builtinName == "iData" &&
+                    b instanceof IRCallExpr && b.func instanceof IRNameExpr && b.builtinName == "iData"
+                ) {
+                    return new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsInteger`)), [a.args[0], b.args[0]]);
+                } else if (
+                    a instanceof IRCallExpr && a.func instanceof IRNameExpr && a.builtinName == "bData" &&
+                    b instanceof IRCallExpr && b.func instanceof IRNameExpr && b.builtinName == "bData"
+                ) {
+                    return new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsByteString`)), [a.args[0], b.args[0]]);
+                }
+
+                break;
+            };
+        }
+
+        return expr;
+    }
+
+    /**
+     * @private
+     * @param {IRCallExpr} expr 
+     * @returns {IRExpr}
+     */
+    optimizeCallExpr(expr) {
+        const v = this.#evaluator.getExprValue(expr);
+    
+        if (v) {
+            if (v instanceof IRLiteralValue) {
+                return new IRLiteralExpr(v.value);
+            } else if (v instanceof IRErrorValue && this.#aggressive) {
+                return new IRErrorExpr(expr.site);
+            }
+        }
+
+        let func = expr.func;
+        
+        let args = expr.args.map(a => this.optimizeInternal(a));
+
+        // see if any arguments can be inlined
+        if (func instanceof IRFuncExpr) {
+            let unused = new Set();
+
+            const funcExpr = func;
+            const variables = func.args;
+
+            args.forEach((a, i) => {
+                const v = variables[i];
+
+                if (a instanceof IRNameExpr) {
+                    // inline all IRNameExprs
+                    unused.add(i);
+                    this.inline(v, a);
+                } else if (a instanceof IRFuncExpr && this.#evaluator.countVariableReferences(v) == 1) {
+                    // inline IRFuncExpr if it is only reference once
+                    unused.add(i);
+                    this.inline(v, a);
+                } else if (a instanceof IRCallExpr && this.#evaluator.countVariableReferences(v) == 1) {
+                    const nameExpr = this.#evaluator.getVariableReferences(v)[0];
+
+                    if (!this.isEvaluatedMoreThanOnce(funcExpr, nameExpr)) {
+                        unused.add(i);
+                        this.inline(v, a);
+                    }
+                }
+            });
+
+            if (unused.size > 0) {
+                args = args.filter((a, i) => !unused.has(i));
+
+                const newFuncExpr = this.newFuncExpr(
+                    func,
+                    func.args.filter((a, i) => !unused.has(i)),
+                    func.body
+                );
+
+                func = newFuncExpr;
+            }
+        }
+
+        if (args.length == 0 && func instanceof IRFuncExpr && func.args.length == 0) {
+            return this.optimizeInternal(func.body);
+        }
+
+        const old  = expr;
+        expr = new IRCallExpr(
+            expr.site, 
+            this.optimizeInternal(func),
+            args
+        );
+
+        const builtinName = expr.builtinName;
+
+        if (builtinName != "" && this.#aggressive) {
+            return this.optimizeBuiltinCallExpr(expr);
+        }
+
+        return expr;
+    }
+
+    /**
+     * @private
+     * @param {IRFuncExpr} expr 
+     * @returns {IRExpr}
+     */
+    optimizeFuncExpr(expr) {
+        expr = this.newFuncExpr(
+            expr, 
+            expr.args,
+            this.optimizeInternal(expr.body)
+        );
+
+        if (
+            expr.body instanceof IRCallExpr && 
+            (expr.body.func instanceof IRNameExpr || expr.body.func instanceof IRFuncExpr) && 
+            expr.body.args.length == expr.args.length && 
+            expr.body.args.every((a, i) => {
+                return a instanceof IRNameExpr && a.isVariable(expr.args[i]) && this.#evaluator.countVariableReferences(expr.args[i]) == 1;
+            })
+        ) {
+            return expr.body.func;
+        }
+
+        return expr;
+    }
+
+    /**
+     * @private
+     * @param {IRExpr} expr 
+     */
+    optimizeInternal(expr) {
+        const newExpr = (() => {
+            if (expr instanceof IRLiteralExpr) {
+                // already optimal
+                return expr;
+            } else if (expr instanceof IRErrorExpr) {
+                // already optimal
+                return expr;
+            } else if (expr instanceof IRNameExpr) {
+                return this.optimizeNameExpr(expr);
+            } else if (expr instanceof IRCallExpr) {
+                return this.optimizeCallExpr(expr);
+            } else if (expr instanceof IRFuncExpr) {
+                return this.optimizeFuncExpr(expr);
+            } else {
+                throw new Error("unhandled IRExpr");
+            }
+        })();
+
+        return newExpr;
+    }
+
+    /**
+     * @param {IRExpr} expr 
+     */
+    static assertNoDuplicateExprs(expr) {
+        /**
+         * @type {Set<IRExpr>}
+         */
+        const s = new Set();
+
+        IROptimizer.loop(expr, {
+            nameExpr: (nameExpr) => {
+                if (s.has(nameExpr)) {
+                    console.log(expr.toString());
+                    throw new Error("duplicate IRNameExpr " + nameExpr.name);
+                }
+
+                s.add(nameExpr);
+            }
+        });
+    }
+
+    /**
+     * @returns {IRExpr}
+     */
+    optimize() {
+        const expr = this.optimizeInternal(this.#root);
+
+        IROptimizer.assertNoDuplicateExprs(expr);
+
+        return expr;
+    }
+}
 
 
 /////////////////////////
@@ -40964,11 +42160,9 @@ export class IRProgram {
 		while (dirty) {
 			dirty = false;
 
-			const evaluation = new IREvaluation();
+			const optimizer = new IROptimizer(expr, true);
 
-			//evaluation.eval(expr);
-
-			expr = optimizeIR(evaluation, expr);
+			expr = optimizer.optimize();
 
 			const newState = expr.toString();
 
@@ -41894,7 +43088,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		expr.resolveNames(scope);
 
-		const evaluation = new IREvaluation();
+		const evaluation = new IREvaluator();
 		
 		try {
 			const data = evaluation.evalConst(expr);

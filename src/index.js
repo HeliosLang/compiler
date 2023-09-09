@@ -35,7 +35,7 @@ const FILES = [
 	"ir-context.js",
 	"ir-ast.js",
 	"ir-build.js",
-	"ir-evaluation.js",
+	"ir-evaluate.js",
 	"ir-optimize.js",
 	"ir-program.js",
 	"helios-program.js",

@@ -108,14 +108,22 @@ import {
 	buildScript, extractScriptPurposeAndName
 } from "./helios-ast-build.js";
 
+import { 
+	IRScope
+} from "./ir-context.js";
+
+import { 
+	buildIRExpr
+} from "./ir-build.js";
+
+import { 
+	IREvaluator
+} from "./ir-evaluate.js";
 
 import {
     IRProgram,
 	IRParametricProgram
 } from "./ir-program.js";
-import { buildIRExpr } from "./ir-build.js";
-import { IREvaluation } from "./ir-evaluation.js";
-import { IRScope } from "./ir-context.js";
 
 
 /**
@@ -879,7 +887,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		expr.resolveNames(scope);
 
-		const evaluation = new IREvaluation();
+		const evaluation = new IREvaluator();
 		
 		try {
 			const data = evaluation.evalConst(expr);

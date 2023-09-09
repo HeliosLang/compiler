@@ -84,7 +84,7 @@ export function buildIRExpr(ts) {
 						args.push(buildIRExpr(f));
 					}
 
-					expr = new IRCallExpr(t.site, expr, args, t.site);
+					expr = new IRCallExpr(t.site, expr, args);
 				}
 			} else if (t.isSymbol("-")) {
 				// only makes sense next to IntegerLiterals

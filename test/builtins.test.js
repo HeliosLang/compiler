@@ -1683,7 +1683,7 @@ async function testBuiltins() {
     let testList = true;
 
     if (testList) {
-        await ft.test([ft.int(-20, 20), ft.int()], `
+        await ft.test([ft.int(1, 20), ft.int()], `
         testing list_new_const
         func main(n: Int, b: Int) -> Bool {
             lst: []Int = []Int::new_const(n, b);

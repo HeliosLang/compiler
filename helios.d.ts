@@ -4649,6 +4649,10 @@ export type Profile = {
  *   * IRFuncExpr
  *   * IRNameExpr
  *   * IRLiteralExpr
+ *
+ * The copy() method is needed because inlining can't use the same IRNameExpr twice,
+ *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+ *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
  */
 export type UserTypes = {
     [name: string]: any;

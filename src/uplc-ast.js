@@ -2694,7 +2694,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
-	 * Used by IREvaluation
+	 * Used by IREvaluator
 	 * @internal
 	 * @param {Word} name
 	 * @param {UplcValue[]} args
@@ -2750,7 +2750,7 @@ export class UplcBuiltin extends UplcTerm {
 	 * @param {UplcRte} rte 
 	 * @param {Site} site
 	 * @param {UplcValue[]} args
-	 * @param {boolean} syncTrace if true => don't call rte.print method (used by IREvaluation)
+	 * @param {boolean} syncTrace if true => don't call rte.print method (used by IREvaluator)
 	 * @returns {UplcValue | Promise<UplcValue>} // trace returns a Promise (async print), all the other builtins return a synchronous value
 	 */
 	evalBuiltin(rte, site, args, syncTrace = false) {
@@ -2973,7 +2973,7 @@ export class UplcBuiltin extends UplcTerm {
 
 					return lst[0];
 				} else {
-					throw site.typeError(`__core__head expects list or map, got '${a.toString()}'`);
+					throw site.typeError(`__core__headList expects list or map, got '${a.toString()}'`);
 				}
 			},
 			tailList: (a) => {
@@ -2985,7 +2985,7 @@ export class UplcBuiltin extends UplcTerm {
 
 					return new UplcList(site, a.itemType, lst.slice(1));
 				} else {
-					throw site.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
+					throw site.typeError(`__core__tailList expects list or map, got '${a.toString()}'`);
 				}
 			},
 			nullList: (a) => {

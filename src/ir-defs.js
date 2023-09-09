@@ -310,9 +310,9 @@ function makeRawFunctions(simplify) {
 					() -> {false}, 
 					() -> {
 						__core__ifThenElse(
-							fn(__core__headList(self)),
+							fn(__core__headList__safe(self)),
 							() -> {true}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
+							() -> {recurse(recurse, __core__tailList__safe(self), fn)}
 						)()
 					}
 				)()
@@ -330,8 +330,8 @@ function makeRawFunctions(simplify) {
 					() -> {true},
 					() -> {
 						__core__ifThenElse(
-							fn(__core__headList(self)),
-							() -> {recurse(recurse, __core__tailList(self), fn)},
+							fn(__core__headList__safe(self)),
+							() -> {recurse(recurse, __core__tailList__safe(self), fn)},
 							() -> {false}
 						)()
 					}
@@ -350,8 +350,8 @@ function makeRawFunctions(simplify) {
 					() -> {lst},
 					() -> {
 						__core__mkCons(
-							fn(__core__headList(rem)), 
-							recurse(recurse, __core__tailList(rem), lst)
+							fn(__core__headList__safe(rem)), 
+							recurse(recurse, __core__tailList__safe(rem), lst)
 						)
 					}
 				)()
@@ -368,11 +368,13 @@ function makeRawFunctions(simplify) {
 					self, 
 					() -> {nil}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)),
-							() -> {__core__mkCons(__core__headList(self), recurse(recurse, __core__tailList(self), fn))}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head),
+								() -> {__core__mkCons(head, recurse(recurse, __core__tailList__safe(self), fn))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -396,11 +398,13 @@ function makeRawFunctions(simplify) {
 					self, 
 					() -> {__helios__error("not found")}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)), 
-							() -> {__core__headList(self)}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head), 
+								() -> {head}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -416,11 +420,13 @@ function makeRawFunctions(simplify) {
 					self, 
 					() -> {__core__constrData(1, __helios__common__list_0)}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)), 
-							() -> {__core__constrData(0, __helios__common__list_1(callback(__core__headList(self))))}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head), 
+								() -> {__core__constrData(0, __helios__common__list_1(callback(head)))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -435,7 +441,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
+					() -> {recurse(recurse, __core__tailList__safe(self), fn, fn(z, __core__headList__safe(self)))}
 				)()
 			}
 		)
@@ -449,7 +455,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {fn(__core__headList(self), () -> {recurse(recurse, __core__tailList(self), fn, z)})}
+					() -> {fn(__core__headList__safe(self), () -> {recurse(recurse, __core__tailList__safe(self), fn, z)})}
 				)()
 			}
 		)
@@ -468,9 +474,9 @@ function makeRawFunctions(simplify) {
 							__core__ifThenElse(
 								comp(x, head),
 								() -> {__core__mkCons(x, lst)},
-								() -> {__core__mkCons(head, recurse(recurse, __core__tailList(lst)))}
+								() -> {__core__mkCons(head, recurse(recurse, __core__tailList__safe(lst)))}
 							)()
-						}(__core__headList(lst))
+						}(__core__headList__safe(lst))
 					}
 				)()
 			}
@@ -488,7 +494,7 @@ function makeRawFunctions(simplify) {
 					() -> {
 						(head, tail) -> {
 							__helios__common__insert_in_sorted(head, tail, comp)
-						}(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+						}(__core__headList__safe(lst), recurse(recurse, __core__tailList__safe(lst)))
 					}
 				)()
 			}
@@ -504,11 +510,13 @@ function makeRawFunctions(simplify) {
 					self, 
 					fnNotFound, 
 					() -> {
-						__core__ifThenElse(
-							__core__equalsData(key, __core__fstPair(__core__headList(self))), 
-							() -> {fnFound(__core__sndPair(__core__headList(self)))}, 
-							() -> {recurse(recurse, __core__tailList(self), key)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								__core__equalsData(key, __core__fstPair(head)), 
+								() -> {fnFound(__core__sndPair(head))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), key)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -527,7 +535,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					lst, 
 					() -> {0}, 
-					() -> {__core__addInteger(recurse(recurse, __core__tailList(lst)), 1)}
+					() -> {__core__addInteger(recurse(recurse, __core__tailList__safe(lst)), 1)}
 				)()
 			}
 		)
@@ -541,7 +549,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					rem,
 					() -> {lst},
-					() -> {__core__mkCons(__core__headList(rem), recurse(recurse, lst, __core__tailList(rem)))}
+					() -> {__core__mkCons(__core__headList__safe(rem), recurse(recurse, lst, __core__tailList__safe(rem)))}
 				)()
 			}
 		)
@@ -635,11 +643,11 @@ function makeRawFunctions(simplify) {
 											value
 										},
 										() -> {
-											recurse(recurse, __core__tailList(map))
+											recurse(recurse, __core__tailList__safe(map))
 										}
 									)()
 								}(__core__fstPair(head), __core__sndPair(head))
-							}(__core__headList(map))
+							}(__core__headList__safe(map))
 						}
 					)()
 				}
@@ -2227,8 +2235,8 @@ function makeRawFunctions(simplify) {
 											callback(
 												false,
 												${head},
-												${FTPP}0__from_data(__core__headList(lst)),
-												recurse(recurse, next_iterator, __core__tailList(lst))
+												${FTPP}0__from_data(__core__headList__safe(lst)),
+												recurse(recurse, next_iterator, __core__tailList__safe(lst))
 											)
 										}
 									)()
@@ -2269,8 +2277,8 @@ function makeRawFunctions(simplify) {
 							},
 							() -> {
 								__core__mkCons(
-									${TTPP}0____to_data(${TTPP}0__from_data(__core__headList(lst))),
-									recurse(recurse, __core__tailList(lst))
+									${TTPP}0____to_data(${TTPP}0__from_data(__core__headList__safe(lst))),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -2327,8 +2335,8 @@ function makeRawFunctions(simplify) {
 							() -> {
 								callback(
 									false, 
-									__core__headList(lst),
-									recurse(recurse, __core__tailList(lst))
+									__core__headList__safe(lst),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -2353,8 +2361,8 @@ function makeRawFunctions(simplify) {
 							() -> {
 								callback(
 									false, 
-									${TTPP}0__from_data(__core__headList(lst)),
-									recurse(recurse, __core__tailList(lst))
+									${TTPP}0__from_data(__core__headList__safe(lst)),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -2409,9 +2417,9 @@ function makeRawFunctions(simplify) {
 								() -> {
 									callback(
 										false,
-										${TTPP}0__from_data(__core__headList(lst1)),
-										${FTPP}0__from_data(__core__headList(lst2)),
-										recurse(recurse, __core__tailList(lst1), __core__tailList(lst2))
+										${TTPP}0__from_data(__core__headList__safe(lst1)),
+										${FTPP}0__from_data(__core__headList__safe(lst2)),
+										recurse(recurse, __core__tailList__safe(lst1), __core__tailList__safe(lst2))
 									)
 								}
 							)()
@@ -2443,10 +2451,10 @@ function makeRawFunctions(simplify) {
 							__core__ifThenElse(
 								__core__equalsInteger(index, i), 
 								() -> {
-									__core__headList(self)
+									__core__headList__safe(self)
 								}, 
 								() -> {
-									recurse(recurse, __core__tailList(self), __core__addInteger(i, 1))
+									recurse(recurse, __core__tailList__safe(self), __core__addInteger(i, 1))
 								}
 							)()
 						}
@@ -2497,12 +2505,12 @@ function makeRawFunctions(simplify) {
 							__core__ifThenElse(
 								__core__equalsInteger(i, index),
 								() -> {
-									__core__mkCons(item, __core__tailList(lst))
+									__core__mkCons(item, __core__tailList__safe(lst))
 								},
 								() -> {
 									__core__mkCons(
-										__core__headList(lst),
-										recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))
+										__core__headList__safe(lst),
+										recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1))
 									)
 								}
 							)()
@@ -2534,8 +2542,8 @@ function makeRawFunctions(simplify) {
 									}
 								},
 								() -> {
-									recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1), (h) -> {
-										build_head(__core__mkCons(__core__headList(lst), h))
+									recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1), (h) -> {
+										build_head(__core__mkCons(__core__headList__safe(lst), h))
 									})
 								}
 							)()
@@ -2612,7 +2620,7 @@ function makeRawFunctions(simplify) {
 							(callback) -> {callback(0, lst)}
 						},
 						() -> {
-							recurse(recurse, __core__tailList(lst))(
+							recurse(recurse, __core__tailList__safe(lst))(
 								(count, result) -> {
 									__core__ifThenElse(
 										__core__equalsInteger(count, n),
@@ -2621,7 +2629,7 @@ function makeRawFunctions(simplify) {
 												callback(
 													count,
 													__core__mkCons(
-														__core__headList(lst), 
+														__core__headList__safe(lst), 
 														result
 													)
 												)
@@ -2714,7 +2722,7 @@ function makeRawFunctions(simplify) {
 							(callback) -> {callback(0, lst)}
 						},
 						() -> {
-							recurse(recurse, __core__tailList(lst))(
+							recurse(recurse, __core__tailList__safe(lst))(
 								(count, tail) -> {
 									__core__ifThenElse(
 										__core__equalsInteger(count, n),
@@ -2773,7 +2781,7 @@ function makeRawFunctions(simplify) {
 							__core__mkCons(item, lst)
 						},
 						() -> {
-							__core__mkCons(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+							__core__mkCons(__core__headList__safe(lst), recurse(recurse, __core__tailList__safe(lst)))
 						}
 					)()
 				}
@@ -2807,9 +2815,9 @@ function makeRawFunctions(simplify) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(lst))}
+									() -> {recurse(recurse, __core__tailList__safe(lst))}
 								)()
-							}(${TTPP}0__from_data(__core__headList(lst)))
+							}(${TTPP}0__from_data(__core__headList__safe(lst)))
 						}
 					)()
 				}
@@ -2831,9 +2839,9 @@ function makeRawFunctions(simplify) {
 								__core__ifThenElse(
 									fn(item),
 									() -> {i},
-									() -> {recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))}
+									() -> {recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1))}
 								)()
-							}(${TTPP}0__from_data(__core__headList(lst)))
+							}(${TTPP}0__from_data(__core__headList__safe(lst)))
 						}
 					)()
 				}
@@ -2877,8 +2885,8 @@ function makeRawFunctions(simplify) {
 						},
 						() -> {
 							__core__chooseUnit(
-								fn(${TTPP}0__from_data(__core__headList(lst))),
-								recurse(recurse, __core__tailList(lst))
+								fn(${TTPP}0__from_data(__core__headList__safe(lst))),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -3001,8 +3009,8 @@ function makeRawFunctions(simplify) {
 									)()
 								}(__core__unConstrData(fn(head)))
 							}(
-								${TTPP}0__from_data(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								${TTPP}0__from_data(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -3038,8 +3046,8 @@ function makeRawFunctions(simplify) {
 						},
 						() -> {
 							${TTPP}0____add(
-								${TTPP}0__from_data(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								${TTPP}0__from_data(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -3064,9 +3072,9 @@ function makeRawFunctions(simplify) {
 								__helios__string____add(
 									__helios__string____add(
 										sep,
-										__helios__string__from_data(__core__headList(lst))
+										__helios__string__from_data(__core__headList__safe(lst))
 									),
-									recurse(recurse, __core__tailList(lst), separator)
+									recurse(recurse, __core__tailList__safe(lst), separator)
 								)
 							}
 						)()
@@ -3092,9 +3100,9 @@ function makeRawFunctions(simplify) {
 								__helios__bytearray____add(
 									__helios__bytearray____add(
 										sep,
-										__core__unBData(__core__headList(lst))
+										__core__unBData(__core__headList__safe(lst))
 									),
-									recurse(recurse, __core__tailList(lst), separator)
+									recurse(recurse, __core__tailList__safe(lst), separator)
 								)
 							}
 						)()
@@ -3117,8 +3125,8 @@ function makeRawFunctions(simplify) {
 						},
 						() -> {
 							__helios__list[${TTPP}0]____add(
-								__core__unListData(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								__core__unListData(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -3150,8 +3158,8 @@ function makeRawFunctions(simplify) {
 											${TTPP}0____to_data(${TTPP}0__from_data(__core__fstPair(head))),
 											${TTPP}1____to_data(${TTPP}1__from_data(__core__sndPair(head)))
 										)
-									}(__core__headList(map)),
-									recurse(recurse, __core__tailList(map))
+									}(__core__headList__safe(map)),
+									recurse(recurse, __core__tailList__safe(map))
 								)
 							}
 						)()
@@ -3278,7 +3286,7 @@ function makeRawFunctions(simplify) {
 										() -> {recurse(recurse, tail)},
 										() -> {__core__mkCons(head, recurse(recurse, tail))}
 									)()
-								}(__core__headList(self), __core__tailList(self))
+								}(__core__headList__safe(self), __core__tailList__safe(self))
 							}
 						)()
 					}
@@ -3318,14 +3326,14 @@ function makeRawFunctions(simplify) {
 											}
 										}, 
 										() -> {
-											recurse(recurse, __core__tailList(self))
+											recurse(recurse, __core__tailList__safe(self))
 										}
 									)()
 								}(
 									${TTPP}0__from_data(__core__fstPair(head)), 
 									${TTPP}1__from_data(__core__sndPair(head))
 								)
-							}(__core__headList(self))
+							}(__core__headList__safe(self))
 						}
 					)()
 				}
@@ -3364,11 +3372,11 @@ function makeRawFunctions(simplify) {
 											}
 										}, 
 										() -> {
-											recurse(recurse, __core__tailList(self), fn)
+											recurse(recurse, __core__tailList__safe(self), fn)
 										}
 									)()
 								}(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head)))
-							}(__core__headList(self))
+							}(__core__headList__safe(self))
 						}
 					)()
 				}
@@ -3390,9 +3398,9 @@ function makeRawFunctions(simplify) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
-							}(${TTPP}0__from_data(__core__fstPair(__core__headList(map))))
+							}(${TTPP}0__from_data(__core__fstPair(__core__headList__safe(map))))
 						}
 					)()
 				}
@@ -3426,9 +3434,9 @@ function makeRawFunctions(simplify) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
-							}(${TTPP}1__from_data(__core__sndPair(__core__headList(map))))
+							}(${TTPP}1__from_data(__core__sndPair(__core__headList__safe(map))))
 						}
 					)()
 				}
@@ -3503,9 +3511,9 @@ function makeRawFunctions(simplify) {
 							(head) -> {
 								__core__chooseUnit(
 									fn(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head))),
-									recurse(recurse, __core__tailList(map))
+									recurse(recurse, __core__tailList__safe(map))
 								)
-							}(__core__headList(map))
+							}(__core__headList__safe(map))
 						}
 					)()
 				}
@@ -3536,7 +3544,7 @@ function makeRawFunctions(simplify) {
 											__core__mkCons(head, recurse(recurse, tail))
 										}
 									)()
-								}(__core__headList(self), __core__tailList(self))
+								}(__core__headList__safe(self), __core__tailList__safe(self))
 							}
 						)()
 					}
@@ -3563,9 +3571,9 @@ function makeRawFunctions(simplify) {
 										false, 
 										${TTPP}0__from_data(__core__fstPair(head)),
 										${TTPP}1__from_data(__core__sndPair(head)),
-										recurse(recurse, __core__tailList(map))
+										recurse(recurse, __core__tailList__safe(map))
 									)
-								}(__core__headList(map))	
+								}(__core__headList__safe(map))	
 							}
 						)()
 					}
@@ -3625,10 +3633,10 @@ function makeRawFunctions(simplify) {
 											)
 										},
 										() -> {
-											__core__mkCons(pair, recurse(recurse, __core__tailList(map)))
+											__core__mkCons(pair, recurse(recurse, __core__tailList__safe(map)))
 										}
 									)()
-								}(__core__headList(map))
+								}(__core__headList__safe(map))
 							}
 						)()
 					}
@@ -3823,9 +3831,9 @@ function makeRawFunctions(simplify) {
 									__core__ifThenElse(
 										__core__equalsData(__helios__txinput__output_id(item), id), 
 										() -> {item}, 
-										() -> {recurse(recurse, __core__tailList(lst))}
+										() -> {recurse(recurse, __core__tailList__safe(lst))}
 									)()
-								}(__core__headList(lst))
+								}(__core__headList__safe(lst))
 							}
 						)()
 					}
@@ -4225,9 +4233,9 @@ function makeRawFunctions(simplify) {
 						},
 						() -> {
 							__helios__txbuilder__redeem[${FTPP}0](
-								recurse(recurse, __core__tailList(inputs))
+								recurse(recurse, __core__tailList__safe(inputs))
 							)(
-								__core__headList(inputs),
+								__core__headList__safe(inputs),
 								redeemer
 							)
 						}
@@ -5533,7 +5541,7 @@ function makeRawFunctions(simplify) {
 				__core__chooseList(
 					map, 
 					() -> {__helios__common__list_0}, 
-					() -> {__core__mkCons(__core__fstPair(__core__headList(map)), recurse(recurse, __core__tailList(map)))}
+					() -> {__core__mkCons(__core__fstPair(__core__headList__safe(map)), recurse(recurse, __core__tailList__safe(map)))}
 				)()
 			}
 		)
@@ -5554,10 +5562,10 @@ function makeRawFunctions(simplify) {
 							(key) -> {
 								__core__ifThenElse(
 									__helios__common__is_in_bytearray_list(aKeys, key), 
-									() -> {recurse(recurse, keys, __core__tailList(map))},
-									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList(map)))}
+									() -> {recurse(recurse, keys, __core__tailList__safe(map))},
+									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList__safe(map)))}
 								)()
-							}(__core__fstPair(__core__headList(map)))
+							}(__core__fstPair(__core__headList__safe(map)))
 						}
 					)()
 				}
@@ -5576,9 +5584,9 @@ function makeRawFunctions(simplify) {
 					() -> {__core__mkNilPairData(())},
 					() -> {
 						__core__ifThenElse(
-							__core__equalsData(__core__fstPair(__core__headList(map)), mph), 
-							() -> {__core__unMapData(__core__sndPair(__core__headList(map)))},
-							() -> {recurse(recurse, __core__tailList(map))}
+							__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph), 
+							() -> {__core__unMapData(__core__sndPair(__core__headList__safe(map)))},
+							() -> {recurse(recurse, __core__tailList__safe(map))}
 						)()
 					}
 				)()
@@ -5596,9 +5604,9 @@ function makeRawFunctions(simplify) {
 					() -> {0}, 
 					() -> {
 						__core__ifThenElse(
-							__core__equalsData(__core__fstPair(__core__headList(map)), key), 
-							() -> {__core__unIData(__core__sndPair(__core__headList(map)))}, 
-							() -> {recurse(recurse, __core__tailList(map), key)}
+							__core__equalsData(__core__fstPair(__core__headList__safe(map)), key), 
+							() -> {__core__unIData(__core__sndPair(__core__headList__safe(map)))}, 
+							() -> {recurse(recurse, __core__tailList__safe(map), key)}
 						)()
 					}
 				)()
@@ -5624,7 +5632,7 @@ function makeRawFunctions(simplify) {
 										() -> {__core__mkCons(__core__mkPairData(key, __core__iData(sum)), tail)}
 									)()
 								}(op(__helios__value__get_inner_map_int(a, key), __helios__value__get_inner_map_int(b, key)))
-							}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
+							}(__core__headList__safe(keys), recurse(recurse, __core__tailList__safe(keys), result))
 						}
 					)()
 				}
@@ -5649,7 +5657,7 @@ function makeRawFunctions(simplify) {
 									() -> {__core__mkCons(__core__mkPairData(key, __core__mapData(item)), tail)}
 								)()
 							}(__helios__value__add_or_subtract_inner(op)(__helios__value__get_inner_map(a, key), __helios__value__get_inner_map(b, key)))
-						}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
+						}(__core__headList__safe(keys), recurse(recurse, __core__tailList__safe(keys), result))
 					}
 				)()
 			}
@@ -5672,9 +5680,9 @@ function makeRawFunctions(simplify) {
 										__core__fstPair(head), 
 										__core__mapData(recurseInner(recurseInner, __core__unMapData(__core__sndPair(head))))
 									),  
-									recurseOuter(recurseOuter, __core__tailList(outer))
+									recurseOuter(recurseOuter, __core__tailList__safe(outer))
 								)
-							}(__core__headList(outer))
+							}(__core__headList__safe(outer))
 						}
 					)()
 				}
@@ -5691,9 +5699,9 @@ function makeRawFunctions(simplify) {
 									__core__fstPair(head),
 									__core__iData(op(__core__unIData(__core__sndPair(head))))
 								),
-								recurseInner(recurseInner, __core__tailList(inner))
+								recurseInner(recurseInner, __core__tailList__safe(inner))
 							)
-						}(__core__headList(inner))
+						}(__core__headList__safe(inner))
 					}
 				)()
 			}
@@ -5718,9 +5726,9 @@ function makeRawFunctions(simplify) {
 									)
 								), 
 								() -> {false}, 
-								() -> {recurse(recurse, __core__tailList(keys))}
+								() -> {recurse(recurse, __core__tailList__safe(keys))}
 							)()
-						}(__core__headList(keys))
+						}(__core__headList__safe(keys))
 					}
 				)()
 			}
@@ -5746,9 +5754,9 @@ function makeRawFunctions(simplify) {
 									)
 								), 
 								() -> {false}, 
-								() -> {recurse(recurse, __core__tailList(keys))}
+								() -> {recurse(recurse, __core__tailList__safe(keys))}
 							)()
-						}(__core__headList(keys))
+						}(__core__headList__safe(keys))
 					}
 				)()
 			}
@@ -5858,10 +5866,10 @@ function makeRawFunctions(simplify) {
 					() -> {
 						__helios__bool__and(
 							() -> {
-								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList(tokens))), 0)
+								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList__safe(tokens))), 0)
 							},
 							() -> {
-								recurse(recurse, __core__tailList(tokens))
+								recurse(recurse, __core__tailList__safe(tokens))
 							}
 						)
 					}
@@ -5884,10 +5892,10 @@ function makeRawFunctions(simplify) {
 						() -> {
 							__helios__bool__and(
 								() -> {
-									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList(map))))
+									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList__safe(map))))
 								},
 								() -> {
-									recurse(recurse, __core__tailList(map))
+									recurse(recurse, __core__tailList__safe(map))
 								}
 							)
 						}
@@ -5919,9 +5927,9 @@ function makeRawFunctions(simplify) {
 							},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph), 
-									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
-									() -> {outer(outer, inner, __core__tailList(map))}
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList__safe(map))))}, 
+									() -> {outer(outer, inner, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -5931,12 +5939,12 @@ function makeRawFunctions(simplify) {
 							() -> {__helios__error("tokenName not found")}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), tokenName),
 									() -> {
-										__core__unIData(__core__sndPair(__core__headList(map)))
+										__core__unIData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										inner(inner, __core__tailList(map))
+										inner(inner, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -5959,9 +5967,9 @@ function makeRawFunctions(simplify) {
 							() -> {0}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mintingPolicyHash), 
-									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
-									() -> {outer(outer, inner, __core__tailList(map))}
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mintingPolicyHash), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList__safe(map))))}, 
+									() -> {outer(outer, inner, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -5971,12 +5979,12 @@ function makeRawFunctions(simplify) {
 							() -> {0}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), tokenName),
 									() -> {
-										__core__unIData(__core__sndPair(__core__headList(map)))
+										__core__unIData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										inner(inner, __core__tailList(map))
+										inner(inner, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -6016,12 +6024,12 @@ function makeRawFunctions(simplify) {
 							() -> {__helios__error("policy not found")},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph),
 									() -> {
-										__core__unMapData(__core__sndPair(__core__headList(map)))
+										__core__unMapData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										recurse(recurse, __core__tailList(map))
+										recurse(recurse, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -6044,9 +6052,9 @@ function makeRawFunctions(simplify) {
 							() -> {false},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph),
 									() -> {true},
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -6122,8 +6130,8 @@ function makeRawFunctions(simplify) {
 					},
 					() -> {
 						__helios__value____add(
-							${FTPP}0__value(${FTPP}0__from_data(__core__headList(lst))),
-							recurse(recurse, __core__tailList(lst))
+							${FTPP}0__value(${FTPP}0__from_data(__core__headList__safe(lst))),
+							recurse(recurse, __core__tailList__safe(lst))
 						)
 					}
 				)()

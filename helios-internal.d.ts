@@ -806,18 +806,11 @@ declare module "helios" {
     /**
      * Used to debug the result of IREvalation
      * @internal
-     * @param {IREvaluation} evaluation
+     * @param {IREvaluator} evaluation
      * @param {IRExpr} expr
      * @returns {string}
      */
-    export function annotateIR(evaluation: IREvaluation, expr: IRExpr): string;
-    /**
-     * @internal
-     * @param {IREvaluation} evaluation
-     * @param {IRExpr} expr
-     * @returns {IRExpr}
-     */
-    export function optimizeIR(evaluation: IREvaluation, expr: IRExpr): IRExpr;
+    export function annotateIR(evaluation: IREvaluator, expr: IRExpr): string;
     /**
      * Returns Uint8Array with the same length as the number of chars in the script.
      * Each resulting byte respresents a different syntax category.
@@ -4428,7 +4421,7 @@ declare module "helios" {
      */
     export class UplcBuiltin extends UplcTerm {
         /**
-         * Used by IREvaluation
+         * Used by IREvaluator
          * @internal
          * @param {Word} name
          * @param {UplcValue[]} args
@@ -4486,7 +4479,7 @@ declare module "helios" {
          * @param {UplcRte} rte
          * @param {Site} site
          * @param {UplcValue[]} args
-         * @param {boolean} syncTrace if true => don't call rte.print method (used by IREvaluation)
+         * @param {boolean} syncTrace if true => don't call rte.print method (used by IREvaluator)
          * @returns {UplcValue | Promise<UplcValue>} // trace returns a Promise (async print), all the other builtins return a synchronous value
          */
         evalBuiltin(rte: UplcRte, site: Site, args: UplcValue[], syncTrace?: boolean): UplcValue | Promise<UplcValue>;
@@ -8402,11 +8395,16 @@ declare module "helios" {
      *   * IRFuncExpr
      *   * IRNameExpr
      *   * IRLiteralExpr
+     *
+     * The copy() method is needed because inlining can't use the same IRNameExpr twice,
+     *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+     *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
      * @internal
      * @typedef {{
      *   site: Site,
      *   resolveNames(scope: IRScope): void,
      *   toString(indent?: string): string,
+     *   copy(): IRExpr,
      *   toUplc(): UplcTerm
      * }} IRExpr
      */
@@ -8435,6 +8433,11 @@ declare module "helios" {
          * @type {IRVariable}
          */
         get variable(): IRVariable;
+        /**
+         * Used when inlining
+         * @returns {IRNameExpr}
+         */
+        copy(): IRNameExpr;
         /**
          * @internal
          * @returns {boolean}
@@ -8485,6 +8488,10 @@ declare module "helios" {
          */
         toString(indent?: string): string;
         /**
+         * @returns {IRExpr}
+         */
+        copy(): IRExpr;
+        /**
          * Linking doesn't do anything for literals
          * @param {IRScope} scope
          */
@@ -8513,15 +8520,17 @@ declare module "helios" {
          */
         readonly site: Site;
         /**
-         * @readonly
+         * Mutation is more convenient and much faster when applying some optimizations.
+         * @readwrite
          * @type {IRVariable[]}
          */
-        readonly args: IRVariable[];
+        args: IRVariable[];
         /**
-         * @readonly
+         * Mutation is more convenient and much faster when applying some optimizations.
+         * @readwrite
          * @type {IRExpr}
          */
-        readonly body: IRExpr;
+        body: IRExpr;
         /**
          * @returns {boolean}
          */
@@ -8535,6 +8544,10 @@ declare module "helios" {
          * @param {IRScope} scope
          */
         resolveNames(scope: IRScope): void;
+        /**
+         * @returns {IRExpr}
+         */
+        copy(): IRExpr;
         /**
          * @returns {UplcTerm}
          */
@@ -8556,24 +8569,25 @@ declare module "helios" {
          * @param {Site} site
          * @param {IRExpr} func
          * @param {IRExpr[]} args
-         * @param {Site} parensSite
          */
-        constructor(site: Site, func: IRExpr, args: IRExpr[], parensSite: Site);
+        constructor(site: Site, func: IRExpr, args: IRExpr[]);
         /**
          * @readonly
          * @type {Site}
          */
         readonly site: Site;
         /**
-         * @readonly
+         * Mutation is more convenient and much faster when applying some optimizations.
+         * @readwrite
          * @type {IRExpr}
          */
-        readonly func: IRExpr;
+        func: IRExpr;
         /**
-         * @readonly
+         * Mutation is more convenient and much faster when applying some optimizations.
+         * @readwrite
          * @type {IRExpr[]}
          */
-        readonly args: IRExpr[];
+        args: IRExpr[];
         /**
          * @returns {boolean}
          */
@@ -8601,6 +8615,10 @@ declare module "helios" {
          * @param {IRScope} scope
          */
         resolveNames(scope: IRScope): void;
+        /**
+         * @returns {IRExpr}
+         */
+        copy(): IRExpr;
         /**
          * @param {UplcTerm} term
          * @returns {UplcTerm}
@@ -8637,6 +8655,10 @@ declare module "helios" {
          */
         resolveNames(scope: IRScope): void;
         /**
+         * @returns {IRExpr}
+         */
+        copy(): IRExpr;
+        /**
          * @returns {UplcTerm}
          */
         toUplc(): UplcTerm;
@@ -8664,9 +8686,10 @@ declare module "helios" {
         toString(): string;
         /**
          * @param {IRValue} other
+         * @param {boolean} permissive
          * @returns {boolean}
          */
-        eq(other: IRValue): boolean;
+        eq(other: IRValue, permissive?: boolean): boolean;
     }
     /**
      * @internal
@@ -8674,9 +8697,10 @@ declare module "helios" {
     export class IRDataValue {
         /**
          * @param {IRValue} other
+         * @param {boolean} permissive
          * @returns {boolean}
          */
-        eq(other: IRValue): boolean;
+        eq(other: IRValue, permissive?: boolean): boolean;
         /**
          * @returns {string}
          */
@@ -8703,9 +8727,10 @@ declare module "helios" {
         readonly definition: IRFuncExpr | IRNameExpr;
         /**
          * @param {IRValue} other
+         * @param {boolean} permissive
          * @returns {boolean}
          */
-        eq(other: IRValue): boolean;
+        eq(other: IRValue, permissive?: boolean): boolean;
         /**
          * @returns {string}
          */
@@ -8717,9 +8742,10 @@ declare module "helios" {
     export class IRErrorValue {
         /**
          * @param {IRValue} other
+         * @param {boolean} permissive
          * @returns {boolean}
          */
-        eq(other: IRValue): boolean;
+        eq(other: IRValue, permissive?: boolean): boolean;
         /**
          * @returns {string}
          */
@@ -8733,9 +8759,11 @@ declare module "helios" {
     export class IRAnyValue {
         /**
          * @param {IRValue} other
+         * @param {boolean} permissive
          * @returns {boolean}
          */
-        eq(other: IRValue): boolean;
+        eq(other: IRValue, permissive?: boolean): boolean;
+        toString(): string;
     }
     /**
      * @internal
@@ -8767,17 +8795,22 @@ declare module "helios" {
          * @returns {boolean}
          */
         hasData(): boolean;
+        /**
+         * @returns {boolean}
+         */
+        hasLiteral(): boolean;
         toString(): string;
         /**
          * Order can be different
          * @param {IRValue} other
+         * @param {boolean} permissive
          * @returns {boolean}
          */
-        eq(other: IRValue): boolean;
+        eq(other: IRValue, permissive?: boolean): boolean;
         /**
-         * @returns {IRMultiValue}
+         * @returns {IRValue}
          */
-        withoutError(): IRMultiValue;
+        withoutError(): IRValue;
     }
     /**
      * @internal
@@ -8786,22 +8819,68 @@ declare module "helios" {
     /**
      * @internal
      */
-    export class IREvaluation {
+    export class IREvaluator {
         /**
-         * TODO: defined summary type in ir-context.js
+         * @type {IRFuncExpr[]}
          */
-        get summary(): {};
+        get funcExprs(): IRFuncExpr[];
         /**
          *
          * @param {IRExpr} expr
          * @returns {undefined | IRValue}
          */
-        getExprOutput(expr: IRExpr): undefined | IRValue;
+        getExprValue(expr: IRExpr): undefined | IRValue;
         /**
          * @param {IRVariable} v
          * @returns {undefined | IRValue}
          */
-        getVarValues(v: IRVariable): undefined | IRValue;
+        getVariableValue(v: IRVariable): undefined | IRValue;
+        /**
+         * @param {IRVariable} v
+         * @returns {number}
+         */
+        countVariableReferences(v: IRVariable): number;
+        /**
+         * @param {IRVariable} v
+         * @returns {IRNameExpr[]}
+         */
+        getVariableReferences(v: IRVariable): IRNameExpr[];
+        /**
+         * @param {IRFuncExpr} fn
+         * @returns {number}
+         */
+        countFuncCalls(fn: IRFuncExpr): number;
+        /**
+         * @param {IRExpr} expr
+         * @returns {boolean}
+         */
+        expectsError(expr: IRExpr): boolean;
+        /**
+         * @param {IRFuncExpr} fn
+         * @returns {number[]} indices
+         */
+        getUnusedFuncVariables(fn: IRFuncExpr): number[];
+        /**
+         * @param {IRFuncExpr} fn
+         * @returns {IRCallExpr[]}
+         */
+        getFuncCallExprs(fn: IRFuncExpr): IRCallExpr[];
+        /**
+         * @param {IRFuncExpr} fn
+         * @returns {boolean}
+         */
+        onlyDedicatedCallExprs(fn: IRFuncExpr): boolean;
+        /**
+         * @param {IRFuncExpr} fn
+         * @param {number[]} unused
+         * @returns {boolean}
+         */
+        noUnusedArgErrors(fn: IRFuncExpr, unused: number[]): boolean;
+        /**
+         * @param {IRFuncExpr} first
+         * @param {IRFuncExpr} second
+         */
+        onlyNestedCalls(first: IRFuncExpr, second: IRFuncExpr): boolean;
         /**
          * Push onto the computeStack, unwrapping IRCallExprs
          * @private
@@ -8813,12 +8892,12 @@ declare module "helios" {
          * @param {IRExpr} expr
          * @param {IRValue} value
          */
-        setOutputValue(expr: IRExpr, value: IRValue): void;
+        setExprValue(expr: IRExpr, value: IRValue): void;
         /**
-         * @param {IRExpr} owner
+         * @param {null | IRExpr} owner
          * @param {IRValue} value
          */
-        pushReductionValue(owner: IRExpr, value: IRValue): void;
+        pushReductionValue(owner: null | IRExpr, value: IRValue): void;
         /**
          * @private
          * @param {IRStack} stack
@@ -8841,7 +8920,6 @@ declare module "helios" {
          * @private
          * @param {IRStack} stack
          * @param {IRFuncExpr} fn
-         * @param {IRValue[]} args
          */
         private isRecursing;
         /**
@@ -8853,18 +8931,28 @@ declare module "helios" {
         /**
          * @private
          * @param {IRStack} stack
-         * @param {IRExpr} owner
+         * @param {null | IRExpr} owner
          * @param {IRFuncExpr} fn
          * @param {IRValue[]} args
          */
         private pushFuncCall;
         /**
          * @private
-         * @param {IRExpr} owner
+         * @param {IRExpr} owner for entry point ths is the entry point IRFuncExpr, for all other calls this is the IRCallExpr
          * @param {IRFuncValue} v
          * @param {IRValue[]} args
          */
         private callFunc;
+        /**
+         * Call an unknown function (eg. returned at the deepest point of recursion)
+         * Make sure any arguments that are functions are also called so that all possible execution paths are touched
+         * Absorb the return values of these functions
+         * @private
+         * @param {IRExpr} owner
+         * @param {IRAnyValue} fn
+         * @param {IRValue[]} args
+         */
+        private callAnyFunc;
         /**
          * @internal
          */
@@ -8889,6 +8977,178 @@ declare module "helios" {
          * @returns {UplcData}
          */
         evalConst(expr: IRExpr): UplcData;
+        #private;
+    }
+    /**
+     * Recursive algorithm that performs the following optimizations.
+     *
+     * Optimizations performed in both `aggressive == false` and `aggressive == true` cases:
+     *   * replace `IRNameExpr` by `IRLiteralExpr` if the expected value is IRLiteralValue
+     *   * replace `IRCallExpr` by `IRLiteralExpr` if the expected value is IRLiteralValue
+     *
+     * Optimizations only performed in the `aggressive == true` case:
+     *   * replace `IRNameExpr` by `IRErrorExpr` if the expected value is IRErrorValue
+     *   * replace `IRCallExpr` by `IRErrorExpr` if the expected value is IRErrorValue
+     *   * replace `__core__addInteger(<expr>, 0)` or `__core__addInteger(0, <expr>)` by `<expr>`
+     *   * replace `__core__subtractInteger(<expr>, 0)` by `<expr>`
+     *   * replace `__core__multiplyInteger(<expr>, 1)` or `__core__multiplyInteger(1, <expr>)` by `<expr>`
+     *   * replace `__core__divideInteger(<expr>, 1)` by `<expr>`
+     *   * replace `__core__quotientInteger(<expr>, 1)` by `<expr>`
+     *   * replace `__core__appendByteString(<expr>, #)` or `__core__appendByteString(#, <expr>)` by `<expr>`
+     *   * replace `__core__appendString(<expr>, "")` or `__core__appendString("", <expr>)` by `<expr>`
+     *   * replace `__core__decodeUtf8(__core__encodeUtf8(<expr>))` by `<expr>`
+     *   * replace `__core__ifThenElse(true, <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
+     *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
+     *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
+     *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
+     *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
+     *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
+     *   * replace `__core__chooseList([...], <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
+     *   * replace `__core__chooseData(ConstrData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(MapData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(ListData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(IntData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(ByteArrayData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__unMapData(__core__mapData(<expr>))` by `<expr>`
+     *   * replace `__core__unListData(__core__listData(<expr>))` by `<expr>`
+     *   * replace `__core__unIData(__core__iData(<expr>))` by `<expr>`
+     *   * replace `__core__unBData(__core__bData(<expr>))` by `<expr>`
+     *   * replace `__core__equalsData(__core__iData(<expr-a>), __core__iData(<expr-b>))` by `__core__equalsInteger(<expr-a>, <expr-b>)`
+     *   * replace `__core__equalsData(__core__bData(<expr-a>), __core__bData(<expr-b>))` by `__core__equalsByteString(<expr-a>, <expr-b>)`
+     *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
+     *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
+     *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each is only referenced once (i.e. only referenced in the call)
+     *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each is only referenced once (i.e. only referenced in the call)
+     *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
+     *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
+     *   * replace `() -> {<expr>}()` by `<expr>`
+     *
+     * Optimizations that we have considered, but are NOT performed:
+     *   * replace `__core__subtractInteger(0, <expr>)` by `__core__multiplyInteger(<expr>, -1)`
+     *       reason: it is unclear if either method is cheaper for the majority of cases
+     *   * replace `__core__multiplyInteger(<expr>, -1)` by `__core__subtractInteger(0, <expr>)`
+     *       reason: it is unclear if either method is cheaper for the majority of cases
+     *
+     * @internal
+     * @param {IREvaluator} evaluation
+     * @param {IRExpr} expr
+     * @param {boolean} aggressive
+     * @returns {IRExpr}
+     */
+    export class IROptimizer {
+        /**
+         *
+         * @param {IRExpr} root
+         * @param {{
+         *   nameExpr?: (expr: IRNameExpr) => void
+         *   errorExpr?: (expr: IRErrorExpr) => void
+         *   literalExpr?: (expr: IRLiteralExpr) => void
+         *   callExpr?: (expr: IRCallExpr) => void
+         *   funcExpr?: (expr: IRFuncExpr) => void
+         *   exit?: () => boolean
+         * }} callbacks
+         * @returns
+         */
+        static loop(root: IRExpr, callbacks: {
+            nameExpr?: ((expr: IRNameExpr) => void) | undefined;
+            errorExpr?: ((expr: IRErrorExpr) => void) | undefined;
+            literalExpr?: ((expr: IRLiteralExpr) => void) | undefined;
+            callExpr?: ((expr: IRCallExpr) => void) | undefined;
+            funcExpr?: ((expr: IRFuncExpr) => void) | undefined;
+            exit?: (() => boolean) | undefined;
+        }): void;
+        /**
+         * @param {IRExpr} expr
+         */
+        static assertNoDuplicateExprs(expr: IRExpr): void;
+        /**
+         * @param {IRExpr} root
+         * @param {boolean} aggressive
+         */
+        constructor(root: IRExpr, aggressive?: boolean);
+        /**
+         * @param {IRExpr} expr
+         * @returns {boolean}
+         */
+        expectsError(expr: IRExpr): boolean;
+        /**
+         * @private
+         * @param {IRFuncExpr} fn
+         */
+        private countFuncCalls;
+        /**
+         * Makes sure the callCount is copied from IREvaluator
+         * @private
+         * @param {IRFuncExpr} old
+         * @param {IRVariable[]} args
+         * @param {IRExpr} body
+         * @returns {IRFuncExpr}
+         */
+        private newFuncExpr;
+        /**
+         * Apply optimizations that require access to the root:
+         *   * flatten nested IRFuncExpr where possible
+         *   * remove unused IRFuncExpr variables
+         */
+        init(): void;
+        /**
+         * Mutates
+         * @private
+         */
+        private removeUnusedArgs;
+        /**
+         * In scope order, call func before call args
+         */
+        collectFuncExprs(): IRFuncExpr[];
+        /**
+         * @private
+         */
+        private flattenNestedFuncExprs;
+        /**
+         * @param {IRFuncExpr} start
+         * @param {IRNameExpr} nameExpr
+         * @returns {boolean}
+         */
+        isEvaluatedMoreThanOnce(start: IRFuncExpr, nameExpr: IRNameExpr): boolean;
+        /**
+         * @param {IRVariable} v
+         * @param {IRExpr} expr
+         */
+        inline(v: IRVariable, expr: IRExpr): void;
+        /**
+         * @private
+         * @param {IRNameExpr} expr
+         * @returns {IRExpr}
+         */
+        private optimizeNameExpr;
+        /**
+         * The optimizations are only performed in aggressive mode
+         * @private
+         * @param {IRCallExpr} expr
+         * @returns {IRExpr}
+         */
+        private optimizeBuiltinCallExpr;
+        /**
+         * @private
+         * @param {IRCallExpr} expr
+         * @returns {IRExpr}
+         */
+        private optimizeCallExpr;
+        /**
+         * @private
+         * @param {IRFuncExpr} expr
+         * @returns {IRExpr}
+         */
+        private optimizeFuncExpr;
+        /**
+         * @private
+         * @param {IRExpr} expr
+         */
+        private optimizeInternal;
+        /**
+         * @returns {IRExpr}
+         */
+        optimize(): IRExpr;
         #private;
     }
     /**
@@ -12758,11 +13018,16 @@ declare module "helios" {
      *   * IRFuncExpr
      *   * IRNameExpr
      *   * IRLiteralExpr
+     *
+     * The copy() method is needed because inlining can't use the same IRNameExpr twice,
+     *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+     *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
      */
     export type IRExpr = {
         site: Site;
         resolveNames(scope: IRScope): void;
         toString(indent?: string): string;
+        copy(): IRExpr;
         toUplc(): UplcTerm;
     };
     export type IRValue = (IRLiteralValue | IRErrorValue | IRDataValue | IRFuncValue | IRAnyValue | IRMultiValue);

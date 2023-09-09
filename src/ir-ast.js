@@ -48,11 +48,16 @@ import {
  *   * IRFuncExpr
  *   * IRNameExpr
  *   * IRLiteralExpr
+ * 
+ * The copy() method is needed because inlining can't use the same IRNameExpr twice, 
+ *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+ *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
  * @internal
  * @typedef {{
  *   site: Site,
  *   resolveNames(scope: IRScope): void,
  *   toString(indent?: string): string,
+ *   copy(): IRExpr,
  *   toUplc(): UplcTerm
  * }} IRExpr
  */
@@ -111,6 +116,14 @@ export class IRNameExpr {
 		} else {
 			return this.#variable;
 		}
+	}
+
+	/**
+	 * Used when inlining
+	 * @returns {IRNameExpr}
+	 */
+	copy() {
+		return new IRNameExpr(this.#name, this.#variable);
 	}
 
 	/**
@@ -219,6 +232,13 @@ export class IRLiteralExpr {
 	}
 
 	/**
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		return this;
+	}
+
+	/**
 	 * Linking doesn't do anything for literals
 	 * @param {IRScope} scope 
 	 */
@@ -246,13 +266,15 @@ export class IRFuncExpr {
 	site;
 
 	/**
-	 * @readonly
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
 	 * @type {IRVariable[]}
 	 */
 	args;
 
 	/**
-	 * @readonly
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
 	 * @type {IRExpr}
 	 */
 	body;
@@ -312,6 +334,13 @@ export class IRFuncExpr {
 		this.body.resolveNames(scope);
 	}
 
+	/**
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		return new IRFuncExpr(this.site, this.args, this.body.copy());
+	}
+
 	/** 
 	 * @returns {UplcTerm}
 	 */
@@ -344,13 +373,15 @@ export class IRCallExpr {
 	site;
 
 	/**
-	 * @readonly
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
 	 * @type {IRExpr}
 	 */
 	func;
 
 	/**
-	 * @readonly
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
 	 * @type {IRExpr[]}
 	 */
 	args;
@@ -358,11 +389,10 @@ export class IRCallExpr {
 	/**
 	 * @param {Site} site
 	 * @param {IRExpr} func
-	 * @param {IRExpr[]} args 
-	 * @param {Site} parensSite 
+	 * @param {IRExpr[]} args
 	 */
-	constructor(site, func, args, parensSite) {
-		this.site = parensSite;
+	constructor(site, func, args) {
+		this.site = site;
 		this.func = func;
 		this.args = args;
 	}
@@ -410,7 +440,7 @@ export class IRCallExpr {
 	 */
 	toString(indent = "") {
 		if (this.builtinName == "ifThenElse") {
-			return `${this.builtinName}(\n${indent}${TAB}${this.args[0].toString(indent + TAB)},\n${indent}${TAB}${this.args[1].toString(indent + TAB)},\n${indent}${TAB}${this.args[2].toString(indent+TAB)}\n${indent})`;
+			return `${BUILTIN_PREFIX}${this.builtinName}(\n${indent}${TAB}${this.args[0].toString(indent + TAB)},\n${indent}${TAB}${this.args[1].toString(indent + TAB)},\n${indent}${TAB}${this.args[2].toString(indent+TAB)}\n${indent})`;
 		} else if (this.builtinName != "") {
 			return `${BUILTIN_PREFIX}${this.builtinName}(${this.argsToString(indent)})`;
 		} else {
@@ -439,6 +469,13 @@ export class IRCallExpr {
 			this.func.resolveNames(scope);
 			this.resolveNamesInArgs(scope);
 		}
+	}
+
+	/**
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		return new IRCallExpr(this.site, this.func.copy(), this.args.map(a => a.copy()));
 	}
 
 	/**
@@ -538,6 +575,13 @@ export class IRErrorExpr {
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
+	}
+
+	/**
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		return new IRErrorExpr(this.site, this.#msg);
 	}
 
 	/**
