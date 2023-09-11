@@ -292,9 +292,9 @@ export default async function test() {
             .map((item: Int) -> {item*2})
             .filter((item: Int) -> {item == 0})
             .get_singleton()
-    }`));
+    }`, 3));
 
-    console.log(optimizeHelios(`
+    /*console.log(optimizeHelios(`
     testing list_split_at
     func main(a: []Int, b: Int) -> []Int {
       (c: []Int, d: []Int) = a.split_at(b);
@@ -316,7 +316,7 @@ export default async function test() {
     console.log(optimizeHelios(`testing timerange_never
     func main(a: Int) -> Bool {
         TimeRange::NEVER.contains(Time::new(a))
-    }`, 2))*/
+    }`, 2))
 
     console.log(optimizeHelios(` testing map_find_value_safe
     func main(a: Map[Int]Int) -> Option[Int] {
@@ -327,5 +327,21 @@ export default async function test() {
         } else {
             Option[Int]::None
         }
-    }`))
+    }`));
+
+    console.log(optimizeHelios(`testing hash_new
+    func main(a: PubKeyHash) -> Bool {
+        []ByteArray{#70, #71, #72, #73, #74, #75, #76, #77, #78, #79, #7a, #7b, #7c, #7d, #7e, #7f}.any((ba: ByteArray) -> Bool {
+            PubKeyHash::new(ba) == a
+        })
+    }`))*/
+
+    console.log(optimizeHelios(`testing list_fold2_verbose
+    func main(a: []Int) -> Int {
+        (sa: Int, sb: Int) = a.fold((sum: () -> (Int, Int), x: Int) -> () -> (Int, Int) {
+            (sa_: Int, sb_: Int) = sum();
+            () -> {(sa_ + x, sb_ + x)}
+        }, () -> {(0, 0)})();
+        (sa + sb)/2
+    }`, 10))
 }

@@ -591,3 +591,60 @@ export class IRErrorExpr {
 		return new UplcError(this.site, this.#msg);
 	}
 }
+
+/**
+ * @internal
+ * @param {IRExpr} root 
+ * @param {{
+ *   nameExpr?: (expr: IRNameExpr) => void
+ *   errorExpr?: (expr: IRErrorExpr) => void
+ *   literalExpr?: (expr: IRLiteralExpr) => void
+ *   callExpr?: (expr: IRCallExpr) => void
+ *   funcExpr?: (expr: IRFuncExpr) => void
+ *   exit?: () => boolean
+ * }} callbacks 
+ * @returns 
+ */
+export function loopIRExprs(root, callbacks) {
+	const stack = [root];
+
+	let head = stack.pop();
+
+	while (head) {
+		if (head instanceof IRNameExpr) {
+			if (callbacks.nameExpr) {
+				callbacks.nameExpr(head);
+			}
+		} else if (head instanceof IRErrorExpr) {
+			if (callbacks.errorExpr) {
+				callbacks.errorExpr(head);
+			}
+		} else if (head instanceof IRLiteralExpr) {
+			if (callbacks.literalExpr) {
+				callbacks.literalExpr(head);
+			}
+		} else if (head instanceof IRCallExpr) {
+			stack.push(head.func);
+
+			for (let a of head.args) {
+				stack.push(a);
+			}
+
+			if (callbacks.callExpr) {
+				callbacks.callExpr(head);
+			}
+		} else if (head instanceof IRFuncExpr) {
+			if (callbacks.funcExpr) {
+				callbacks.funcExpr(head);
+			}
+
+			stack.push(head.body);
+		}
+
+		if (callbacks.exit && callbacks.exit()) {
+			return;
+		}
+
+		head = stack.pop();
+	}
+}

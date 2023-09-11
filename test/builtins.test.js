@@ -462,7 +462,6 @@ const certifyingScriptContextParam = `
 async function testBuiltins() {
     const ft = new FuzzyTest(/*Math.random()*/42, 100, true);
 
-
     /////////////
     // Data tests
     /////////////

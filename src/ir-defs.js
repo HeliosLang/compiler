@@ -435,13 +435,13 @@ function makeRawFunctions(simplify) {
 	add(new RawFunc("__helios__common__fold",
 	`(self, fn, z) -> {
 		(recurse) -> {
-			recurse(recurse, self, fn, z)
+			recurse(recurse, self, z)
 		}(
-			(recurse, self, fn, z) -> {
+			(recurse, self, z) -> {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {recurse(recurse, __core__tailList__safe(self), fn, fn(z, __core__headList__safe(self)))}
+					() -> {recurse(recurse, __core__tailList__safe(self), fn(z, __core__headList__safe(self)))}
 				)()
 			}
 		)
@@ -449,13 +449,13 @@ function makeRawFunctions(simplify) {
 	add(new RawFunc("__helios__common__fold_lazy",
 	`(self, fn, z) -> {
 		(recurse) -> {
-			recurse(recurse, self, fn, z)
+			recurse(recurse, self)
 		}(
-			(recurse, self, fn, z) -> {
+			(recurse, self) -> {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {fn(__core__headList__safe(self), () -> {recurse(recurse, __core__tailList__safe(self), fn, z)})}
+					() -> {fn(__core__headList__safe(self), () -> {recurse(recurse, __core__tailList__safe(self))})}
 				)()
 			}
 		)

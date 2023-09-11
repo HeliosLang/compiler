@@ -484,7 +484,7 @@ export default async function test() {
           } else {
               a.to_iterator().head() == a.get(0)
           }
-      }`))*/
+      }`))
 
       console.log(compileHeliosAndAnnotate(`testing map_find_value_safe
       func main(a: Map[Int]Int) -> Option[Int] {
@@ -495,6 +495,78 @@ export default async function test() {
           } else {
               Option[Int]::None
           }
+      }`))
+
+      console.log(compileHeliosAndAnnotate(`testing hash_new
+      func main(a: PubKeyHash) -> Bool {
+          []ByteArray{#70, #71, #72, #73, #74, #75, #76, #77, #78, #79, #7a, #7b, #7c, #7d, #7e, #7f}.any((ba: ByteArray) -> Bool {
+              PubKeyHash::new(ba) == a
+          })
+      }`))
+
+      console.log(compileHeliosAndAnnotate(`testing bytearray_show
+      func main(a: ByteArray) -> String {
+          a.show()
+      }`))
+
+      console.log(compileHeliosAndAnnotate(`testing list_filter_get_singleton
+      func main(a: []Int) -> Int {
+          a.map((item: Int) -> {item*2}).filter((item: Int) -> {item == 0}).get_singleton()
+      }`))
+
+      console.log(compileHeliosAndAnnotate(`testing bool_and_alt
+      func main(a: Bool, b: Bool) -> Bool {
+          Bool::and(() -> Bool {
+              a
+          }, () -> Bool {
+              b && (0 / 0 == 0)
+          })
+      }`))
+
+      console.log(compileHeliosAndAnnotate(`testing list_filter_get_singleton_iterator
+      func main(a: []Int) -> Int {
+          a
+              .to_iterator()
+              .map((item: Int) -> {item*2})
+              .filter((item: Int) -> {item == 0})
+              .get_singleton()
+      }`))
+
+      console.log(compileHeliosAndAnnotate(`testing list_fold2_verbose
+      func main(a: []Int) -> Int {
+          (sa: Int, sb: Int) = a.fold((sum: () -> (Int, Int), x: Int) -> () -> (Int, Int) {
+              (sa_: Int, sb_: Int) = sum();
+              () -> {(sa_ + x, sb_ + x)}
+          }, () -> {(0, 0)})();
+          (sa + sb)/2
+      }`))*/
+
+      console.log(compileAndAnnotate(`(arg0) -> {
+        __core__iData((recurse) -> {
+          recurse(recurse, __core__unListData(arg0), () -> {
+            (callback) -> {
+              callback(0, 0)
+            }
+          })
+        }((recurse, self, z) -> {
+          __core__chooseList(self, () -> {
+            z
+          }, () -> {
+            recurse(recurse, __core__tailList(self), (prev, item) -> {
+              (sum, x) -> {
+                sum()((sa_, sb_) -> {
+                  () -> {
+                    (callback) -> {
+                      callback(__core__addInteger(sa_, x), __core__addInteger(sb_, x))
+                    }
+                  }
+                })
+              }(prev, __core__unIData(item))
+            }(z, __core__headList(self)))
+          })()
+        })()((sa, sb) -> {
+          __core__divideInteger(__core__addInteger(sa, sb), 2)
+        }))
       }`))
 
 }

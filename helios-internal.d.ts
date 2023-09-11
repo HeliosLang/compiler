@@ -797,6 +797,27 @@ declare module "helios" {
      */
     export function extractScriptPurposeAndName(rawSrc: string): null | [ScriptPurpose, string];
     /**
+     * @internal
+     * @param {IRExpr} root
+     * @param {{
+     *   nameExpr?: (expr: IRNameExpr) => void
+     *   errorExpr?: (expr: IRErrorExpr) => void
+     *   literalExpr?: (expr: IRLiteralExpr) => void
+     *   callExpr?: (expr: IRCallExpr) => void
+     *   funcExpr?: (expr: IRFuncExpr) => void
+     *   exit?: () => boolean
+     * }} callbacks
+     * @returns
+     */
+    export function loopIRExprs(root: IRExpr, callbacks: {
+        nameExpr?: ((expr: IRNameExpr) => void) | undefined;
+        errorExpr?: ((expr: IRErrorExpr) => void) | undefined;
+        literalExpr?: ((expr: IRLiteralExpr) => void) | undefined;
+        callExpr?: ((expr: IRCallExpr) => void) | undefined;
+        funcExpr?: ((expr: IRFuncExpr) => void) | undefined;
+        exit?: (() => boolean) | undefined;
+    }): void;
+    /**
      * Build an Intermediate Representation expression
      * @param {Token[]} ts
      * @returns {IRExpr}
@@ -8918,8 +8939,10 @@ declare module "helios" {
         incrCallCount(fn: IRFuncExpr): void;
         /**
          * @private
-         * @param {IRStack} stack
-         * @param {IRFuncExpr} fn
+         * @param {IRCallExpr} expr
+         * @param {IRValue} func
+         * @param {IRValue[]} args
+         * @returns {boolean}
          */
         private isRecursing;
         /**
@@ -8928,6 +8951,13 @@ declare module "helios" {
          * @returns {[IRVariable, IRValue][]}
          */
         mapVarsToValues(variables: IRVariable[], values: IRValue[]): [IRVariable, IRValue][];
+        /**
+         *
+         * @param {IRCallExpr} expr
+         * @param {IRValue} fn
+         * @param {IRValue[]} args
+         */
+        pushActiveCall(expr: IRCallExpr, fn: IRValue, args: IRValue[]): void;
         /**
          * @private
          * @param {IRStack} stack
@@ -9016,6 +9046,7 @@ declare module "helios" {
      *   * replace `__core__equalsData(__core__iData(<expr-a>), __core__iData(<expr-b>))` by `__core__equalsInteger(<expr-a>, <expr-b>)`
      *   * replace `__core__equalsData(__core__bData(<expr-a>), __core__bData(<expr-b>))` by `__core__equalsByteString(<expr-a>, <expr-b>)`
      *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
+     *   * replace IRCallExpr args that are uncalled IRFuncExprs with `()`
      *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
      *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each is only referenced once (i.e. only referenced in the call)
      *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each is only referenced once (i.e. only referenced in the call)
@@ -9036,27 +9067,6 @@ declare module "helios" {
      * @returns {IRExpr}
      */
     export class IROptimizer {
-        /**
-         *
-         * @param {IRExpr} root
-         * @param {{
-         *   nameExpr?: (expr: IRNameExpr) => void
-         *   errorExpr?: (expr: IRErrorExpr) => void
-         *   literalExpr?: (expr: IRLiteralExpr) => void
-         *   callExpr?: (expr: IRCallExpr) => void
-         *   funcExpr?: (expr: IRFuncExpr) => void
-         *   exit?: () => boolean
-         * }} callbacks
-         * @returns
-         */
-        static loop(root: IRExpr, callbacks: {
-            nameExpr?: ((expr: IRNameExpr) => void) | undefined;
-            errorExpr?: ((expr: IRErrorExpr) => void) | undefined;
-            literalExpr?: ((expr: IRLiteralExpr) => void) | undefined;
-            callExpr?: ((expr: IRCallExpr) => void) | undefined;
-            funcExpr?: ((expr: IRFuncExpr) => void) | undefined;
-            exit?: (() => boolean) | undefined;
-        }): void;
         /**
          * @param {IRExpr} expr
          */
@@ -9089,17 +9099,23 @@ declare module "helios" {
          * Apply optimizations that require access to the root:
          *   * flatten nested IRFuncExpr where possible
          *   * remove unused IRFuncExpr variables
+         * @private
          */
-        init(): void;
+        private init;
         /**
          * Mutates
          * @private
          */
         private removeUnusedArgs;
         /**
-         * In scope order, call func before call args
+         * @private
          */
-        collectFuncExprs(): IRFuncExpr[];
+        private replaceUncalledArgsWithUnit;
+        /**
+         * In scope order, call func before call args
+         * @private
+         */
+        private collectFuncExprs;
         /**
          * @private
          */

@@ -36,7 +36,8 @@ import {
     IRErrorExpr,
     IRFuncExpr,
     IRLiteralExpr,
-    IRNameExpr
+    IRNameExpr,
+    loopIRExprs
 } from "./ir-ast.js";
 
 import { 
@@ -88,6 +89,7 @@ import { IRVariable } from "./ir-context.js";
  *   * replace `__core__equalsData(__core__iData(<expr-a>), __core__iData(<expr-b>))` by `__core__equalsInteger(<expr-a>, <expr-b>)`
  *   * replace `__core__equalsData(__core__bData(<expr-a>), __core__bData(<expr-b>))` by `__core__equalsByteString(<expr-a>, <expr-b>)`
  *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
+ *   * replace IRCallExpr args that are uncalled IRFuncExprs with `()`
  *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
  *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each is only referenced once (i.e. only referenced in the call)
  *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each is only referenced once (i.e. only referenced in the call)
@@ -176,67 +178,13 @@ export class IROptimizer {
         return funcExpr;
     }
 
-    /**
-     * 
-     * @param {IRExpr} root 
-     * @param {{
-     *   nameExpr?: (expr: IRNameExpr) => void
-     *   errorExpr?: (expr: IRErrorExpr) => void
-     *   literalExpr?: (expr: IRLiteralExpr) => void
-     *   callExpr?: (expr: IRCallExpr) => void
-     *   funcExpr?: (expr: IRFuncExpr) => void
-     *   exit?: () => boolean
-     * }} callbacks 
-     * @returns 
-     */
-    static loop(root, callbacks) {
-        const stack = [root];
-
-        let head = stack.pop();
-
-        while (head) {
-            if (head instanceof IRNameExpr) {
-                if (callbacks.nameExpr) {
-                    callbacks.nameExpr(head);
-                }
-            } else if (head instanceof IRErrorExpr) {
-                if (callbacks.errorExpr) {
-                    callbacks.errorExpr(head);
-                }
-            } else if (head instanceof IRLiteralExpr) {
-                if (callbacks.literalExpr) {
-                    callbacks.literalExpr(head);
-                }
-            } else if (head instanceof IRCallExpr) {
-                stack.push(head.func);
-
-                for (let a of head.args) {
-                    stack.push(a);
-                }
-
-                if (callbacks.callExpr) {
-                    callbacks.callExpr(head);
-                }
-            } else if (head instanceof IRFuncExpr) {
-                if (callbacks.funcExpr) {
-                    callbacks.funcExpr(head);
-                }
-
-                stack.push(head.body);
-            }
-
-            if (callbacks.exit && callbacks.exit()) {
-                return;
-            }
-
-            head = stack.pop();
-        }
-    }
+   
 
     /**
      * Apply optimizations that require access to the root:
      *   * flatten nested IRFuncExpr where possible
      *   * remove unused IRFuncExpr variables
+     * @private
      */
     init() {
         this.#evaluator.eval(this.#root);
@@ -246,6 +194,8 @@ export class IROptimizer {
         }
 
         this.removeUnusedArgs();
+
+        this.replaceUncalledArgsWithUnit();
 
         // rerun evaluation
         this.#evaluator = new IREvaluator();
@@ -281,7 +231,25 @@ export class IROptimizer {
     }
 
     /**
+     * @private
+     */
+    replaceUncalledArgsWithUnit() {
+        loopIRExprs(this.#root, {
+            callExpr: (callExpr) => {
+                callExpr.args = callExpr.args.map(a => {
+                    if (a instanceof IRFuncExpr && this.#evaluator.countFuncCalls(a) == 0) {
+                        return new IRLiteralExpr(new UplcUnit(a.site));
+                    } else {
+                        return a;
+                    }
+                });
+            }
+        });
+    }
+
+    /**
      * In scope order, call func before call args
+     * @private
      */
     collectFuncExprs() {
         /**
@@ -289,7 +257,7 @@ export class IROptimizer {
          */
         const funcExprs = [];
 
-        IROptimizer.loop(this.#root, {
+        loopIRExprs(this.#root, {
             funcExpr: (funcExpr) => {
                 funcExprs.push(funcExpr);
             }
@@ -372,7 +340,7 @@ export class IROptimizer {
 
         let foundNameExpr = false;
 
-        IROptimizer.loop(start, {
+        loopIRExprs(start, {
             funcExpr: (funcExpr) => {
                 parents.set(funcExpr.body, funcExpr);
             },
@@ -798,7 +766,7 @@ export class IROptimizer {
          */
         const s = new Set();
 
-        IROptimizer.loop(expr, {
+        loopIRExprs(expr, {
             nameExpr: (nameExpr) => {
                 if (s.has(nameExpr)) {
                     console.log(expr.toString());
