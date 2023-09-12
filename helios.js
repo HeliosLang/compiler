@@ -44643,7 +44643,8 @@ export class Tx extends CborData {
 	 */
 	addRefInputs(inputs) {
 		for (let input of inputs) {
-			this.addRefInput(input);
+			const refScript = input.origOutput.refScript;
+			this.addRefInput(input, refScript);
 		}
 
 		return this;
@@ -49148,6 +49149,7 @@ export class TxMetadata {
 		return txMetadata;
 	}
 }
+
 
 
 ////////////////////////////////////
