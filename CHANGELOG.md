@@ -1,5 +1,9 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2023/09/12
+* cleanup of IR simplication (might change some script hashes)
+* StakeKeyHash replaced by PubKeyHash everywhere (has almost exactly the same functionality, so makes little sense for it to be a different type)
+
 # 2023/05/21
 * Generic typing for functions, enums and structs
 * `map.update` and `map.update_safe`

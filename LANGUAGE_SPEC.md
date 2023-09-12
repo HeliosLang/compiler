@@ -275,7 +275,7 @@ methods:     serialize
 internal ns: __helios__scripthash
 ```
 
-## PubKeyHash, StakeKeyHash, DatumHash
+## PubKeyHash, DatumHash
 ```
 associated:  new, from_data, __to_data
 operators:   __eq, __neq, __lt, __leq, __gt, __geq

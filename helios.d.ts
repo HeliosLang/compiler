@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.15.10";
+export const VERSION: "0.15.11";
 /**
  * Mutable global config properties.
  * @namespace
@@ -1038,13 +1038,10 @@ export class PubKey extends HeliosData {
      */
     get hex(): string;
     /**
+     * Can also be used as a Stake key hash
      * @type {PubKeyHash}
      */
     get pubKeyHash(): PubKeyHash;
-    /**
-     * @type {StakeKeyHash}
-     */
-    get stakeKeyHash(): StakeKeyHash;
     /**
      * @returns {boolean}
      */
@@ -1060,6 +1057,9 @@ export class PubKey extends HeliosData {
     #private;
 }
 /**
+ * Represents a blake2b-224 hash of a PubKey
+ *
+ * **Note**: A `PubKeyHash` can also be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
  * @typedef {HashProps} PubKeyHashProps
  */
 export class PubKeyHash extends Hash {
@@ -1122,26 +1122,6 @@ export class MintingPolicyHash extends ScriptHash {
      * @returns {string}
      */
     toBech32(): string;
-}
-/**
- * @typedef {HashProps} StakeKeyHashProps
- */
-/**
- * Represents a blake2b-224 hash of staking key.
- *
- * A `StakeKeyHash` can be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
- */
-export class StakeKeyHash extends Hash {
-    /**
-     * @param {UplcData} data
-     * @returns {StakeKeyHash}
-     */
-    static fromUplcData(data: UplcData): StakeKeyHash;
-    /**
-     * @param {string | number[]} bytes
-     * @returns {StakeKeyHash}
-     */
-    static fromUplcCbor(bytes: string | number[]): StakeKeyHash;
 }
 /**
  * @typedef {HashProps} StakingValidatorHashProps
@@ -1340,13 +1320,13 @@ export class Address extends HeliosData {
     /**
      * Constructs an Address using either a `PubKeyHash` (i.e. simple payment address)
      * or `ValidatorHash` (i.e. script address),
-     * in combination with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+     * in combination with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
      * @param {PubKeyHash | ValidatorHash} hash
-     * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
      * @returns {Address}
      */
-    static fromHashes(hash: PubKeyHash | ValidatorHash, stakingHash?: null | (StakeKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
+    static fromHashes(hash: PubKeyHash | ValidatorHash, stakingHash?: null | (PubKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
     /**
      * Returns `true` if the given `Address` is a testnet address.
      * @param {Address} address
@@ -1402,10 +1382,10 @@ export class Address extends HeliosData {
      */
     get validatorHash(): ValidatorHash | null;
     /**
-     * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
-     * @type {null | StakeKeyHash | StakingValidatorHash}
+     * Returns the underlying `PubKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
+     * @type {null | PubKeyHash | StakingValidatorHash}
      */
-    get stakingHash(): StakeKeyHash | StakingValidatorHash | null;
+    get stakingHash(): PubKeyHash | StakingValidatorHash | null;
     #private;
 }
 /**
@@ -1622,7 +1602,6 @@ export class Assets extends CborData {
     /**
      * Makes sure minting policies are in correct order, and for each minting policy make sure the tokens are in the correct order
      * Mutates 'this'
-     * Order of tokens per mintingPolicyHash isn't changed
      */
     sort(): void;
     assertSorted(): void;
@@ -3217,7 +3196,7 @@ export class TxOutput extends CborData {
 /**
  * Wrapper for Cardano stake address bytes. An StakeAddress consists of two parts internally:
  *   - Header (1 byte, see CIP 8)
- *   - Staking witness hash (28 bytes that represent the `StakeKeyHash` or `StakingValidatorHash`)
+ *   - Staking witness hash (28 bytes that represent the `PubKeyHash` or `StakingValidatorHash`)
  *
  * Stake addresses are used to query the assets held by given staking credentials.
  */
@@ -3252,12 +3231,12 @@ export class StakeAddress {
      */
     static fromHex(hex: string): StakeAddress;
     /**
-     * Converts a `StakeKeyHash` or `StakingValidatorHash` into `StakeAddress`.
+     * Converts a `PubKeyHash` or `StakingValidatorHash` into `StakeAddress`.
      * @param {boolean} isTestnet
-     * @param {StakeKeyHash | StakingValidatorHash} hash
+     * @param {PubKeyHash | StakingValidatorHash} hash
      * @returns {StakeAddress}
      */
-    static fromHash(isTestnet: boolean, hash: StakeKeyHash | StakingValidatorHash): StakeAddress;
+    static fromHash(isTestnet: boolean, hash: PubKeyHash | StakingValidatorHash): StakeAddress;
     /**
      * @param {number[]} bytes
      */
@@ -3287,10 +3266,10 @@ export class StakeAddress {
      */
     get hex(): string;
     /**
-     * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`.
-     * @returns {StakeKeyHash | StakingValidatorHash}
+     * Returns the underlying `PubKeyHash` or `StakingValidatorHash`.
+     * @returns {PubKeyHash | StakingValidatorHash}
      */
-    get stakingHash(): StakeKeyHash | StakingValidatorHash;
+    get stakingHash(): PubKeyHash | StakingValidatorHash;
     #private;
 }
 /**
@@ -4548,9 +4527,13 @@ export type ByteArrayProps = number[] | string;
 export type HashProps = number[] | string;
 export type DatumHashProps = HashProps;
 export type PubKeyProps = number[] | string;
+/**
+ * Represents a blake2b-224 hash of a PubKey
+ *
+ * **Note**: A `PubKeyHash` can also be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
+ */
 export type PubKeyHashProps = HashProps;
 export type MintingPolicyHashProps = HashProps;
-export type StakeKeyHashProps = HashProps;
 export type StakingValidatorHashProps = HashProps;
 export type ValidatorHashProps = HashProps;
 export type TxIdProps = HashProps;

@@ -3749,7 +3749,7 @@ function makeRawFunctions(simplify) {
 	}`));
 
 	
-	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash", "datumhash", "stakekeyhash"]) {
+	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash", "datumhash"]) {
 	// Hash builtins
 		addByteArrayLikeFuncs(`__helios__${hash}`);
 		add(new RawFunc(`__helios__${hash}__from_script_hash`, "__helios__common__identity"));
