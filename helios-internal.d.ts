@@ -863,7 +863,7 @@ declare module "helios" {
             VALIDITY_RANGE_END_OFFSET?: number | undefined;
             IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
             CHECK_CASTS?: boolean | undefined;
-            MAX_ASSETS_PER_CHANGE_OUTPUT: number;
+            MAX_ASSETS_PER_CHANGE_OUTPUT?: number | undefined;
         }): void;
         const DEBUG: boolean;
         const STRICT_BABBAGE: boolean;

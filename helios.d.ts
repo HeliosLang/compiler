@@ -123,7 +123,7 @@ export namespace config {
      *   VALIDITY_RANGE_END_OFFSET?: number
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
-     *   MAX_ASSETS_PER_CHANGE_OUTPUT: number
+     *   MAX_ASSETS_PER_CHANGE_OUTPUT?: number
      * }} props 
      */
     function set(props: {
@@ -136,7 +136,7 @@ export namespace config {
         VALIDITY_RANGE_END_OFFSET?: number | undefined;
         IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
         CHECK_CASTS?: boolean | undefined;
-        MAX_ASSETS_PER_CHANGE_OUTPUT: number;
+        MAX_ASSETS_PER_CHANGE_OUTPUT?: number | undefined;
     }): void;
     /**
      * Global debug flag. Currently unused.
