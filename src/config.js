@@ -33,7 +33,7 @@ export const config = {
      *   VALIDITY_RANGE_END_OFFSET?: number
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
-     *   MAX_ASSETS_PER_CHANGE_OUTPUT: number
+     *   MAX_ASSETS_PER_CHANGE_OUTPUT?: number
      * }} props 
      */
     set: (props) => {
