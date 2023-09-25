@@ -335,6 +335,7 @@ export const config = {
      *   VALIDITY_RANGE_END_OFFSET?: number
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
+     *   MAX_ASSETS_PER_CHANGE_OUTPUT: number
      * }} props 
      */
     set: (props) => {
@@ -424,6 +425,13 @@ export const config = {
      * @type {boolean}
      */
     CHECK_CASTS: false,
+
+    /**
+     * Maximum number of assets per change output. Used to break up very large asset outputs into multiple outputs.
+     * 
+     * Default: `undefined` (no limit).
+     */
+    MAX_ASSETS_PER_CHANGE_OUTPUT: undefined,
 }
 
 
@@ -44802,9 +44810,34 @@ export class Tx extends CborData {
 		} else {
 			const diff = inputAssets.sub(outputAssets);
 
-			const changeOutput = new TxOutput(changeAddress, new Value(0n, diff));
+			if (config.MAX_ASSETS_PER_CHANGE_OUTPUT) {
+				const maxAssetsPerOutput = config.MAX_ASSETS_PER_CHANGE_OUTPUT;
 
-			this.#body.addOutput(changeOutput);
+				let changeAssets = new Assets();
+				let tokensAdded = 0;
+
+				diff.mintingPolicies.forEach((mph) => {
+					const tokens = diff.getTokens(mph);
+					tokens.forEach(([token, quantity], i) => {
+						changeAssets.addComponent(mph, token, quantity);
+						tokensAdded += 1;
+						if (tokensAdded == maxAssetsPerOutput) {
+							this.#body.addOutput(new TxOutput(changeAddress, new Value(0n, changeAssets)));
+							changeAssets = new Assets();
+							tokensAdded = 0;
+						}
+					});
+				});
+
+				// If we are here and have No assets, they we're done
+				if (!changeAssets.isZero()) {
+					this.#body.addOutput(new TxOutput(changeAddress, new Value(0n, changeAssets)));
+				}
+			} else {
+				const changeOutput = new TxOutput(changeAddress, new Value(0n, diff));
+	
+				this.#body.addOutput(changeOutput);
+			}
 		}
 	}
 

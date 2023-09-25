@@ -123,6 +123,7 @@ export namespace config {
      *   VALIDITY_RANGE_END_OFFSET?: number
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
+     *   MAX_ASSETS_PER_CHANGE_OUTPUT: number
      * }} props 
      */
     function set(props: {
@@ -135,6 +136,7 @@ export namespace config {
         VALIDITY_RANGE_END_OFFSET?: number | undefined;
         IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
         CHECK_CASTS?: boolean | undefined;
+        MAX_ASSETS_PER_CHANGE_OUTPUT: number;
     }): void;
     /**
      * Global debug flag. Currently unused.
@@ -207,6 +209,12 @@ export namespace config {
      * @type {boolean}
      */
     const CHECK_CASTS: boolean;
+    /**
+     * Maximum number of assets per change output. Used to break up very large asset outputs into multiple outputs.
+     * 
+     * Default: `undefined` (no limit).
+     */
+    const MAX_ASSETS_PER_CHANGE_OUTPUT: undefined;
 }
 /**
  * Function that generates a random number between 0 and 1

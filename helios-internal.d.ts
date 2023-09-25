@@ -863,6 +863,7 @@ declare module "helios" {
             VALIDITY_RANGE_END_OFFSET?: number | undefined;
             IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
             CHECK_CASTS?: boolean | undefined;
+            MAX_ASSETS_PER_CHANGE_OUTPUT: number;
         }): void;
         const DEBUG: boolean;
         const STRICT_BABBAGE: boolean;
@@ -873,6 +874,7 @@ declare module "helios" {
         const VALIDITY_RANGE_END_OFFSET: number;
         const IGNORE_UNEVALUATED_CONSTANTS: boolean;
         const CHECK_CASTS: boolean;
+        const MAX_ASSETS_PER_CHANGE_OUTPUT: undefined;
     }
     /**
      * Read non-byte aligned numbers
