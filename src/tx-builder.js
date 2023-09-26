@@ -1046,7 +1046,7 @@ export class Tx extends CborData {
 		nonChangeOutputValue = feeValue.add(nonChangeOutputValue);
 
 		// this is quite restrictive, but we really don't want to touch UTxOs containing assets just for balancing purposes
-		const spareAssetUTxOs = spareUtxos.some(utxo => !utxo.value.assets.isZero());
+		const spareAssetUTxOs = spareUtxos.filter(utxo => !utxo.value.assets.isZero());
 		spareUtxos = spareUtxos.filter(utxo => utxo.value.assets.isZero());
 		
 		// use some spareUtxos if the inputValue doesn't cover the outputs and fees
@@ -1056,8 +1056,15 @@ export class Tx extends CborData {
 			let spare = spareUtxos.pop();
 
 			if (spare === undefined) {
-				if (spareAssetUTxOs) {
-					throw new Error(`UTxOs too fragmented`);
+				if (spareAssetUTxOs.length > 0) {
+					spare = spareAssetUTxOs.pop();
+
+					if (!spare){
+						throw new Error(`UTxOs too fragmented - or no Spare UTxOs available to fix this mess`);
+					}
+					
+					this.#body.addInput(spare);
+					this.balanceAssets(changeAddress);
 				} else {
 					throw new Error(`need ${totalOutputValue.lovelace} lovelace, but only have ${inputValue.lovelace}`);
 				}
