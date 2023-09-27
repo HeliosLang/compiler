@@ -1057,7 +1057,7 @@ export class Tx extends CborData {
 
 			if (spare === undefined) {
 				if (spareAssetUTxOs.length > 0) {
-					spare = spareAssetUTxOs.pop();
+					spare = spareAssetUTxOs.sort((a, b) => a.output.value.assets.nTokenTypes - b.output.value.assets.nTokenTypes ).pop(); // Should sort so that we get the UTxO with the 'least' number of Assets
 
 					if (!spare){
 						throw new Error(`UTxOs too fragmented - or no Spare UTxOs available to fix this mess`);
