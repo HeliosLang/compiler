@@ -838,7 +838,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.15.11";
+    export const VERSION: "0.15.12";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
@@ -3252,7 +3252,9 @@ declare module "helios" {
          */
         get maxTxSize(): number;
         /**
-         * @internal
+         * Tx balancing picks additional inputs by starting from maxTxFee.
+         * This is done because the order of the inputs can have a huge impact on the tx fee, so the order must be known before balancing.
+         * If there aren't enough inputs to cover the maxTxFee and the min deposits of newly created UTxOs, the balancing will fail.
          * @type {bigint}
          */
         get maxTxFee(): bigint;

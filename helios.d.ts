@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.15.11";
+export const VERSION: "0.15.12";
 /**
  * Mutable global config properties.
  * @namespace
@@ -1776,6 +1776,13 @@ export class NetworkParams {
      * @type {null | bigint}
      */
     get liveSlot(): bigint | null;
+    /**
+     * Tx balancing picks additional inputs by starting from maxTxFee.
+     * This is done because the order of the inputs can have a huge impact on the tx fee, so the order must be known before balancing.
+     * If there aren't enough inputs to cover the maxTxFee and the min deposits of newly created UTxOs, the balancing will fail.
+     * @type {bigint}
+     */
+    get maxTxFee(): bigint;
     /**
      * Calculates the time (in milliseconds in 01/01/1970) associated with a given slot number.
      * @param {bigint} slot
