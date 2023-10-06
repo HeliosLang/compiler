@@ -8,7 +8,7 @@
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
 // Version:       0.15.11
-// Last update:   September 2023
+// Last update:   October 2023
 // License type:  BSD-3-Clause
 //
 //
@@ -280,9 +280,9 @@
 //
 //     Section 36: Wallets                   Cip30Wallet, WalletHelper, RemoteWallet
 //
-//     Section 37: Network                   BlockfrostV0
+//     Section 37: Network                   BlockfrostV0, KoiosV0
 //
-//     Section 38: Emulator                  rawNetworkEmulatorParams, WalletEmulator, GenesisTx, 
+//     Section 38: Emulator                  rawNetworkEmulatorParams, SimpleWallet, GenesisTx, 
 //                                           RegularTx, NetworkEmulator, TxChainWallet, TxChain, 
 //                                           NetworkSlice
 //
@@ -50189,7 +50189,7 @@ export class BlockfrostV0 {
     async getParameters() {
         const response = await fetch(`https://d1t0d7c2nekuk0.cloudfront.net/${this.#networkName}.json`);
 
-        // TODO: build networkParams from blockfrost endpoints instead (see lambda function)
+        // TODO: build networkParams from Blockfrost endpoints instead
         return new NetworkParams(await response.json());
     }
 
@@ -50416,6 +50416,303 @@ export class BlockfrostV0 {
     }
 }
 
+/**
+ * Koios network interface.
+ * @implements {Network}
+ */
+export class KoiosV0 {
+    #networkName;
+
+    /**
+     * @param {"preview" | "preprod" | "mainnet"} networkName 
+     */
+    constructor(networkName) {
+        this.#networkName = networkName;
+    }
+
+    /**
+     * @private
+     * @type {string}
+     */
+    get rootUrl() {
+        return {
+            preview: "https://preview.koios.rest",
+            preprod: "https://preprod.koios.rest",
+            guildnet: "https://guild.koios.rest",
+            mainnet: "https://api.koios.rest"
+        }[this.#networkName];
+    }
+
+     /**
+     * @returns {Promise<NetworkParams>}
+     */
+     async getParameters() {
+        const response = await fetch(`https://d1t0d7c2nekuk0.cloudfront.net/${this.#networkName}.json`);
+
+        // TODO: build networkParams from Koios endpoints instead
+        return new NetworkParams(await response.json());
+    }
+
+    /**
+     * @private
+     * @param {TxOutputId[]} ids 
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxosInternal(ids) {
+        const url = `${this.rootUrl}/api/v0/tx_info`;
+
+        /**
+         * @type {Map<string, number[]>}
+         */
+        const txIds = new Map();
+        
+        ids.forEach(id => {
+            const prev = txIds.get(id.txId.hex);
+
+            if (prev) {
+                prev.push(id.utxoIdx);
+            } else {
+                txIds.set(id.txId.hex, [id.utxoIdx]);
+            }
+        });
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "accept": "application/json",
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                _tx_hashes: Array.from(txIds.keys())
+            })
+        });
+
+        const responseText = await response.text();
+
+        if (response.status != 200) {
+            // analyze error and throw a different error if it was detected that an input UTxO might not exist
+            throw new Error(responseText);
+        }
+
+        const obj = JSON.parse(responseText);
+
+        /**
+         * @type {Map<string, TxInput>}
+         */
+        const result = new Map();
+
+        const rawTxs = obj;
+
+        if (!Array.isArray(rawTxs)) {
+            throw new Error(`unexpected tx_info format: ${responseText}`);
+        }
+
+        rawTxs.forEach(rawTx => {
+            const rawOutputs = rawTx["outputs"];
+            
+            if (!rawOutputs) {
+                throw new Error(`unexpected tx_info format: ${JSON.stringify(rawTx)}`);
+            }
+
+            const utxoIdxs = assertDefined(txIds.get(rawTx.tx_hash));
+
+            for (let utxoIdx of utxoIdxs) {
+                const id = new TxOutputId(new TxId(rawTx.tx_hash), utxoIdx);
+                
+                const rawOutput = rawOutputs[id.utxoIdx]
+
+                if (!rawOutput) {
+                    throw new Error(`UTxO ${id.toString()} doesn't exist`);
+                }
+
+                const rawPaymentAddr = rawOutput.payment_addr?.bech32;
+
+                if (!rawPaymentAddr || typeof rawPaymentAddr != "string") {
+                    throw new Error(`unexpected tx_info format: ${JSON.stringify(rawTx)}`);
+                }
+
+                const rawStakeAddr = rawOutput.stake_addr;
+
+                if (rawStakeAddr === undefined) {
+                    throw new Error(`unexpected tx_info format: ${JSON.stringify(rawTx)}`);
+                }
+
+                const paymentAddr = Address.fromBech32(rawPaymentAddr);
+                
+                const stakeAddr = rawStakeAddr ? StakeAddress.fromBech32(rawStakeAddr) : null;
+
+                const address = Address.fromHashes(
+                    assertDefined(paymentAddr.pubKeyHash ?? paymentAddr.validatorHash),
+                    stakeAddr?.stakingHash ?? null,
+                    this.#networkName != "mainnet"
+                );
+
+                const lovelace = BigInt(parseInt(assertDefined(rawOutput.value)));
+
+                assert(lovelace.toString() == rawOutput.value, `unexpected tx_info format: ${JSON.stringify(rawTx)}`)
+
+                /**
+                 * @type {[AssetClass, bigint][]}
+                 */
+                const assets = [];
+
+                for (let rawAsset of rawOutput.asset_list) {
+                    const qty = BigInt(parseInt(rawAsset.quantity));
+                    assert(qty.toString() == rawAsset.quantity, `unexpected tx_info format: ${JSON.stringify(rawTx)}`)
+
+                    assets.push([
+                        new AssetClass(`${rawAsset.policy_id}.${rawAsset.asset_name ?? ""}`),
+                        qty
+                    ]);
+                }
+
+                const datum = rawOutput.inline_datum ? 
+                    (Datum.inline(UplcData.fromCbor(rawOutput.inline_datum.bytes))) : 
+                    (rawOutput.datum_hash ? new HashedDatum(new DatumHash(rawOutput.datum_hash)) : null);
+
+                const refScript = rawOutput.reference_script ? UplcProgram.fromCbor(rawOutput.reference_script) : null;
+
+                const txInput =  new TxInput(
+                    id,
+                    new TxOutput(
+                        address,
+                        new Value(lovelace, new Assets(assets)),
+                        datum,
+                        refScript
+                    )
+                );
+
+                result.set(id.toString(), txInput);
+            }
+        });
+
+        return ids.map(id => assertDefined(result.get(id.toString())));
+    }
+
+     /**
+     * Throws an error if a Blockfrost project_id is missing for that specific network.
+     * @param {TxInput} refUtxo
+     * @returns {Promise<KoiosV0>}
+     */
+    static async resolveUsingUtxo(refUtxo) {
+        const preprodNetwork = new KoiosV0("preprod");
+
+        if (await preprodNetwork.hasUtxo(refUtxo)) {
+            return preprodNetwork;
+        }
+        
+        const previewNetwork = new KoiosV0("preview");
+
+        if (await previewNetwork.hasUtxo(refUtxo)) {
+            return previewNetwork;
+        }
+
+        const mainnetNetwork = new KoiosV0("mainnet");
+
+        if (await mainnetNetwork.hasUtxo(refUtxo)) {
+            return mainnetNetwork;
+        }
+
+        throw new Error("refUtxo not found on any network");
+    }
+
+    /** 
+     * @param {TxOutputId} id 
+     * @returns {Promise<TxInput>}
+     */
+    async getUtxo(id) {
+        return assertDefined(await this.getUtxosInternal([id])[0]);
+    }
+
+     /**
+     * Used by `KoiosV0.resolveUsingUtxo()`.
+     * @param {TxInput} utxo
+     * @returns {Promise<boolean>}
+     */
+     async hasUtxo(utxo) {
+        const url = `${this.rootUrl}/api/v0/tx_info`;
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "accept": "application/json",
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                _tx_hashes: [utxo.outputId.txId.hex]
+            })
+        });
+
+        return response.ok;
+    }
+
+    /**
+     * @param {Address} address 
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxos(address) {
+        const url = `${this.rootUrl}/api/v0/credential_utxos`;
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "accept": "application/json",
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                _payment_credentials: [assertDefined(address.pubKeyHash ?? address.validatorHash).hex]
+            })
+        });
+
+        const responseText = await response.text();
+
+        if (response.status != 200) {
+            // analyze error and throw a different error if it was detected that an input UTxO might not exist
+            throw new Error(responseText);
+        }
+
+        const obj = JSON.parse(responseText);
+
+        if (!Array.isArray(obj)) {
+            throw new Error(`unexpected credential_utxos format: ${responseText}`);
+        }
+
+        const ids = obj.map(rawId => {
+            const utxoIdx = Number(rawId.tx_index);
+            const id = new TxOutputId(new TxId(rawId.tx_hash), utxoIdx);
+
+            return id;
+        });
+
+        return this.getUtxosInternal(ids);
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        const url = `${this.rootUrl}/api/v0/submittx`;
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "accept": "application/json",
+                "content-type": "application/cbor"
+            },
+            body: new Uint8Array(tx.toCbor())
+        });
+
+        const responseText = await response.text();
+
+        if (response.status != 200) {
+            // analyze error and throw a different error if it was detected that an input UTxO might not exist
+            throw new Error(responseText);
+        }
+
+        return new TxId(responseText);
+    }
+}
 
 
 ///////////////////////
@@ -51082,12 +51379,10 @@ export const rawNetworkEmulatorParams = {
 };
 
 /**
- * An emulated `Wallet`, created by calling `emulator.createWallet()`.
- * 
  * This wallet only has a single private/public key, which isn't rotated. Staking is not yet supported.
  * @implements {Wallet}
  */
-export class WalletEmulator {
+export class SimpleWallet {
     /**
      * @type {Network}
      */
@@ -51472,14 +51767,14 @@ export class NetworkEmulator {
     }
 
     /**
-     * Creates a new WalletEmulator and populates it with a given lovelace quantity and assets.
+     * Creates a new SimpleWallet and populates it with a given lovelace quantity and assets.
      * Special genesis transactions are added to the emulated chain in order to create these assets.
      * @param {bigint} lovelace
      * @param {Assets} assets
-     * @returns {WalletEmulator}
+     * @returns {SimpleWallet}
      */
     createWallet(lovelace = 0n, assets = new Assets([])) {
-        const wallet = new WalletEmulator(this, Bip32PrivateKey.random(this.#random));
+        const wallet = new SimpleWallet(this, Bip32PrivateKey.random(this.#random));
 
         this.createUtxo(wallet, lovelace, assets);
 
@@ -51488,7 +51783,7 @@ export class NetworkEmulator {
 
     /**
      * Creates a UTxO using a GenesisTx.
-     * @param {WalletEmulator} wallet
+     * @param {SimpleWallet} wallet
      * @param {bigint} lovelace
      * @param {Assets} assets
      */

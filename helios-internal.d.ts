@@ -11375,6 +11375,59 @@ declare module "helios" {
         dumpMempool(): Promise<void>;
         #private;
     }
+    /**
+     * Koios network interface.
+     * @implements {Network}
+     */
+    export class KoiosV0 implements Network {
+        /**
+        * Throws an error if a Blockfrost project_id is missing for that specific network.
+        * @param {TxInput} refUtxo
+        * @returns {Promise<KoiosV0>}
+        */
+        static resolveUsingUtxo(refUtxo: TxInput): Promise<KoiosV0>;
+        /**
+         * @param {"preview" | "preprod" | "mainnet"} networkName
+         */
+        constructor(networkName: "preview" | "preprod" | "mainnet");
+        /**
+         * @private
+         * @type {string}
+         */
+        private get rootUrl();
+        /**
+        * @returns {Promise<NetworkParams>}
+        */
+        getParameters(): Promise<NetworkParams>;
+        /**
+         * @private
+         * @param {TxOutputId[]} ids
+         * @returns {Promise<TxInput[]>}
+         */
+        private getUtxosInternal;
+        /**
+         * @param {TxOutputId} id
+         * @returns {Promise<TxInput>}
+         */
+        getUtxo(id: TxOutputId): Promise<TxInput>;
+        /**
+        * Used by `KoiosV0.resolveUsingUtxo()`.
+        * @param {TxInput} utxo
+        * @returns {Promise<boolean>}
+        */
+        hasUtxo(utxo: TxInput): Promise<boolean>;
+        /**
+         * @param {Address} address
+         * @returns {Promise<TxInput[]>}
+         */
+        getUtxos(address: Address): Promise<TxInput[]>;
+        /**
+         * @param {Tx} tx
+         * @returns {Promise<TxId>}
+         */
+        submitTx(tx: Tx): Promise<TxId>;
+        #private;
+    }
     export namespace rawNetworkEmulatorParams {
         namespace shelleyGenesis {
             const activeSlotsCoeff: number;
@@ -12049,12 +12102,10 @@ declare module "helios" {
         }
     }
     /**
-     * An emulated `Wallet`, created by calling `emulator.createWallet()`.
-     *
      * This wallet only has a single private/public key, which isn't rotated. Staking is not yet supported.
      * @implements {Wallet}
      */
-    export class WalletEmulator implements Wallet {
+    export class SimpleWallet implements Wallet {
         /**
          * @param {Network} network
          * @param {Bip32PrivateKey} privateKey
@@ -12135,20 +12186,20 @@ declare module "helios" {
          */
         initNetworkParams(networkParams: NetworkParams): NetworkParams;
         /**
-         * Creates a new WalletEmulator and populates it with a given lovelace quantity and assets.
+         * Creates a new SimpleWallet and populates it with a given lovelace quantity and assets.
          * Special genesis transactions are added to the emulated chain in order to create these assets.
          * @param {bigint} lovelace
          * @param {Assets} assets
-         * @returns {WalletEmulator}
+         * @returns {SimpleWallet}
          */
-        createWallet(lovelace?: bigint, assets?: Assets): WalletEmulator;
+        createWallet(lovelace?: bigint, assets?: Assets): SimpleWallet;
         /**
          * Creates a UTxO using a GenesisTx.
-         * @param {WalletEmulator} wallet
+         * @param {SimpleWallet} wallet
          * @param {bigint} lovelace
          * @param {Assets} assets
          */
-        createUtxo(wallet: WalletEmulator, lovelace: bigint, assets?: Assets): void;
+        createUtxo(wallet: SimpleWallet, lovelace: bigint, assets?: Assets): void;
         /**
          * Mint a block with the current mempool, and advance the slot by a number of slots.
          * @param {bigint} nSlots
