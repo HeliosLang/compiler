@@ -838,7 +838,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.15.12";
+    export const VERSION: "0.15.13";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
@@ -5035,6 +5035,7 @@ declare module "helios" {
         toString(): string;
     }
     /**
+     * Used to represent all possible types whenever a TypeExpr throws an error (so type evaluation can continue in order to collect all type errors at once)
      * @internal
      * @implements {DataType}
      */

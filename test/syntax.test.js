@@ -1158,6 +1158,33 @@ async function test28() {
 	}`)
 }
 
+async function test29() {
+  const moduleSrc = `module Foo
+
+  struct DelegateDetails {
+      name:  String
+      addrs: Address[]
+  }
+  `
+
+  const mainSrc = `testing main_
+  
+  import { DelegateDetails } from Foo
+
+  func main(dd: DelegateDetails) -> Bool {
+    dd.name == dd.name
+  }`
+
+  try {
+    Program.new(mainSrc, [moduleSrc]).compile()
+  } catch (e) {
+    if (!e.message.includes("isn't") && !e.message.includes("parametric")) {
+      throw e
+    }
+  }
+  
+}
+
 export default async function main() {
   await test0();
 
@@ -1214,4 +1241,6 @@ export default async function main() {
   await test27();
 
   await test28();
+
+  await test29();
 }

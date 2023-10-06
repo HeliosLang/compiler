@@ -495,6 +495,7 @@ export class Common {
 }
 
 /**
+ * Used to represent all possible types whenever a TypeExpr throws an error (so type evaluation can continue in order to collect all type errors at once)
  * @internal
  * @implements {DataType}
  */

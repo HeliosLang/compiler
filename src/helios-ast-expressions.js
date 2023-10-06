@@ -1760,7 +1760,8 @@ export class NameTypePair {
 		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set in " + this.site.src.raw.split("\n")[0]);
 		} else {
-			return assertDefined(this.#typeExpr.cache?.asType);
+			// asDataType might be null if the evaluation of its TypeExpr threw a syntax error
+			return this.#typeExpr.cache?.asType ?? new AllType();
 		}
 	}
 
@@ -2298,16 +2299,20 @@ export class ParametricExpr extends Expr {
 
 		const baseVal = this.#baseExpr.eval(scope);
 
-		if (!baseVal || paramTypes === null) {
+		if (!baseVal) {
 			return null;
 		}
 
 		if (!baseVal.asParametric) {
-			this.site.typeError(`'${baseVal.toString()}' isn't a parametric instance`);
+			this.site.typeError(`'${baseVal.toString()}' isn't a parametric type`);
 			return null;
-		} else {
-			return baseVal.asParametric.apply(paramTypes, this.site);
+		} 
+
+		if (paramTypes === null) {
+			return null
 		}
+		
+		return baseVal.asParametric.apply(paramTypes, this.site);
 	}
 
 	/**

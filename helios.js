@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.15.12
+// Version:       0.15.13
 // Last update:   October 2023
 // License type:  BSD-3-Clause
 //
@@ -301,7 +301,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.15.12";
+export const VERSION = "0.15.13";
 
 /**
  * A tab used for indenting of the IR.
@@ -16385,8 +16385,22 @@ export class Tokenizer {
 		}
 
 		if (stack.length > 0) {
-			const t = assertDefined(stack[stack.length - 1][0]?.assertSymbol());
-			t.syntaxError(`unmatched '${t.value}'`);
+			const t = stack[stack.length - 1][0];
+
+			if (!t.isSymbol()) {
+				if (current.length > 0) {
+					const open = current[0];
+					
+					if (open && open.isSymbol()) {
+						open.syntaxError(`unmatched '${open.assertSymbol()?.value}`);
+					} else {
+						console.log(current)
+						throw new Error("unhandled")
+					}
+				}
+			} else {
+				t.syntaxError(`unmatched '${t.assertSymbol()?.value}'`);
+			}
 		}
 		
 		return current;
@@ -16903,6 +16917,7 @@ export class Common {
 }
 
 /**
+ * Used to represent all possible types whenever a TypeExpr throws an error (so type evaluation can continue in order to collect all type errors at once)
  * @internal
  * @implements {DataType}
  */
@@ -30215,7 +30230,8 @@ export class NameTypePair {
 		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set in " + this.site.src.raw.split("\n")[0]);
 		} else {
-			return assertDefined(this.#typeExpr.cache?.asType);
+			// asDataType might be null if the evaluation of its TypeExpr threw a syntax error
+			return this.#typeExpr.cache?.asType ?? new AllType();
 		}
 	}
 
@@ -30753,16 +30769,20 @@ export class ParametricExpr extends Expr {
 
 		const baseVal = this.#baseExpr.eval(scope);
 
-		if (!baseVal || paramTypes === null) {
+		if (!baseVal) {
 			return null;
 		}
 
 		if (!baseVal.asParametric) {
-			this.site.typeError(`'${baseVal.toString()}' isn't a parametric instance`);
+			this.site.typeError(`'${baseVal.toString()}' isn't a parametric type`);
 			return null;
-		} else {
-			return baseVal.asParametric.apply(paramTypes, this.site);
+		} 
+
+		if (paramTypes === null) {
+			return null
 		}
+		
+		return baseVal.asParametric.apply(paramTypes, this.site);
 	}
 
 	/**
