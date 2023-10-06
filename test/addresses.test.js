@@ -95,7 +95,7 @@ async function bip32AndBip39Test() {
 
 	const pubKeyHash = root.deriveSpendingKey().derivePubKey().pubKeyHash;
 
-	const stakeKeyHash = root.deriveStakingKey().derivePubKey().stakeKeyHash;
+	const stakeKeyHash = root.deriveStakingKey().derivePubKey().pubKeyHash;
 
 	const addr = Address.fromBech32("addr1qxut5hcdy9dff5qlsdj4krjs2u77fmn3s56tdwuttje8m00ypyzw6a9pgzkm3ru6uh8h03z0ffh0j2u9kne092rxzclqn3wv80");
 

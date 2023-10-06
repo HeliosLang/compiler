@@ -16,7 +16,6 @@ import {
 	MintingPolicyHash,
 	PubKey,
 	PubKeyHash,
-	StakeKeyHash,
 	StakingValidatorHash,
 	ValidatorHash
 } from "./helios-data.js";
@@ -214,18 +213,6 @@ export const PubKeyHashType = new GenericType({
 });
 
 /**
- * @internal
- * @type {DataType}
- */
-export const StakeKeyHashType = new GenericType({
-    ...genHashTypeProps(StakeKeyHash),
-    name: "StakeKeyHash",
-    offChainType: StakeKeyHash,
-    genInstanceMembers: genHashInstanceMembers,
-    genTypeMembers: genHashTypeMembers
-});
-
-/**
  * Builtin StakingHash type
  * @internal
  * @type {DataType}
@@ -236,7 +223,7 @@ export const StakingHashType = new GenericType({
     genTypeMembers: (self) => ({
         StakeKey: StakingHashStakeKeyType,
         Validator: StakingHashValidatorType,
-        new_stakekey: new FuncType([StakeKeyHashType], StakingHashStakeKeyType),
+        new_stakekey: new FuncType([PubKeyHashType], StakingHashStakeKeyType),
         new_validator: new FuncType([StakingValidatorHashType], StakingHashValidatorType)
     })
 });
@@ -251,7 +238,7 @@ export const StakingHashStakeKeyType = new GenericEnumMemberType({
     parentType: StakingHashType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        hash: StakeKeyHashType
+        hash: PubKeyHashType
     }),
     genTypeMembers: (self) => ({
         ...genCommonEnumTypeMembers(self, StakingHashType)

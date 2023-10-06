@@ -55,6 +55,7 @@ import {
 	GenericEnumMemberType,
 	ModuleNamespace,
 	NamedEntity,
+	AnyType,
 } from "./eval-common.js";
 
 /**

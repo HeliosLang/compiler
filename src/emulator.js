@@ -707,12 +707,10 @@ export const rawNetworkEmulatorParams = {
 };
 
 /**
- * An emulated `Wallet`, created by calling `emulator.createWallet()`.
- * 
  * This wallet only has a single private/public key, which isn't rotated. Staking is not yet supported.
  * @implements {Wallet}
  */
-export class WalletEmulator {
+export class SimpleWallet {
     /**
      * @type {Network}
      */
@@ -1097,14 +1095,14 @@ export class NetworkEmulator {
     }
 
     /**
-     * Creates a new WalletEmulator and populates it with a given lovelace quantity and assets.
+     * Creates a new SimpleWallet and populates it with a given lovelace quantity and assets.
      * Special genesis transactions are added to the emulated chain in order to create these assets.
      * @param {bigint} lovelace
      * @param {Assets} assets
-     * @returns {WalletEmulator}
+     * @returns {SimpleWallet}
      */
     createWallet(lovelace = 0n, assets = new Assets([])) {
-        const wallet = new WalletEmulator(this, Bip32PrivateKey.random(this.#random));
+        const wallet = new SimpleWallet(this, Bip32PrivateKey.random(this.#random));
 
         this.createUtxo(wallet, lovelace, assets);
 
@@ -1113,7 +1111,7 @@ export class NetworkEmulator {
 
     /**
      * Creates a UTxO using a GenesisTx.
-     * @param {WalletEmulator} wallet
+     * @param {SimpleWallet} wallet
      * @param {bigint} lovelace
      * @param {Assets} assets
      */

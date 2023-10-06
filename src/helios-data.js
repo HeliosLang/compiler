@@ -1227,17 +1227,11 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
+	 * Can also be used as a Stake key hash
 	 * @type {PubKeyHash}
 	 */
 	get pubKeyHash() {
 		return new PubKeyHash(this.hash());
-	}
-
-	/**
-	 * @type {StakeKeyHash}
-	 */
-	get stakeKeyHash() {
-		return new StakeKeyHash(this.hash());
 	}
 
 	/**
@@ -1301,9 +1295,11 @@ export class PubKey extends HeliosData {
 }
 
 /**
+ * Represents a blake2b-224 hash of a PubKey
+ * 
+ * **Note**: A `PubKeyHash` can also be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
  * @typedef {HashProps} PubKeyHashProps
  */
-
 export class PubKeyHash extends Hash {
 
 	/**
@@ -1458,66 +1454,6 @@ export class MintingPolicyHash extends ScriptHash {
 	 */
 	toBech32() {
 		return Crypto.encodeBech32("asset", Crypto.blake2b(this.bytes, 20));
-	}
-}
-
-/**
- * @typedef {HashProps} StakeKeyHashProps
- */
-
-/**
- * Represents a blake2b-224 hash of staking key.
- * 
- * A `StakeKeyHash` can be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
- */
-export class StakeKeyHash extends Hash {
-	/**
-	 * @param {StakeKeyHashProps} props
-	 */
-	constructor(props) {
-		const bytes = Hash.cleanConstructorArg(props);
-		
-		assert(bytes.length == 28, `expected 28 bytes for StakeKeyHash, got ${bytes.length}`);
-		super(bytes);
-	}
-
-	/**
-	 * @param {StakeKeyHash | StakeKeyHashProps} props 
-	 */
-	static fromProps(props) {
-		return props instanceof StakeKeyHash ? props : new StakeKeyHash(props);
-	}
-
-	/**
-	 * @param {number[]} bytes 
-	 * @returns {StakeKeyHash}
-	 */
-	static fromCbor(bytes) {
-		return new StakeKeyHash(Cbor.decodeBytes(bytes));
-	}
-
-	/**
-	 * @param {UplcData} data
-	 * @returns {StakeKeyHash}
-	 */
-	static fromUplcData(data) {
-		return new StakeKeyHash(data.bytes);
-	}
-
-	/**
-	 * @param {string | number[]} bytes
-	 * @returns {StakeKeyHash}
-	 */
-	static fromUplcCbor(bytes) {
-		return StakeKeyHash.fromUplcData(UplcData.fromCbor(bytes));
-	}
-
-	/**
-	 * @param {string} str
-	 * @returns {StakeKeyHash}
-	 */
-	static fromHex(str) {
-		return new StakeKeyHash(hexToBytes(str));
 	}
 }
 
@@ -2059,9 +1995,9 @@ export class Address extends HeliosData {
     /**
 	 * Constructs an Address using either a `PubKeyHash` (i.e. simple payment address)
 	 * or `ValidatorHash` (i.e. script address),
-	 * in combination with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * in combination with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
      * @param {PubKeyHash | ValidatorHash} hash
-     * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
      * @returns {Address}
      */
@@ -2076,16 +2012,16 @@ export class Address extends HeliosData {
     }
 
 	/**
-	 * Simple payment address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * Simple payment address with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
 	 * @internal
 	 * @param {PubKeyHash} hash
-	 * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+	 * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
 	 * @returns {Address}
 	 */
 	static fromPubKeyHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
 		if (stakingHash !== null) {
-			if (stakingHash instanceof StakeKeyHash) {
+			if (stakingHash instanceof PubKeyHash) {
 				return new Address(
 					[isTestnet ? 0x00 : 0x01].concat(hash.bytes).concat(stakingHash.bytes)
 				);
@@ -2101,16 +2037,16 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Simple script address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * Simple script address with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
 	 * @internal
 	 * @param {ValidatorHash} hash
-	 * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+	 * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
 	 * @returns {Address}
 	 */
 	static fromValidatorHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
 		if (stakingHash !== null) {
-			if (stakingHash instanceof StakeKeyHash) {
+			if (stakingHash instanceof PubKeyHash) {
 				return new Address(
 					[isTestnet ? 0x10 : 0x11].concat(hash.bytes).concat(stakingHash.bytes)
 				);
@@ -2212,7 +2148,7 @@ export class Address extends HeliosData {
                 return new ConstrData(0, [
                     // staking credential -> 0, 1 -> pointer
                     new ConstrData(0, [
-                        // StakeKeyHash credential
+                        // PubKeyHash credential
                         new ConstrData(0, [new ByteArrayData(sh.bytes)]),
                     ]),
                 ]);
@@ -2244,7 +2180,7 @@ export class Address extends HeliosData {
         assert(credData.fields.length == 1);
 
         /**
-         * @type {?(StakeKeyHash | StakingValidatorHash)}
+         * @type {null | (PubKeyHash | StakingValidatorHash)}
          */
         let sh;
 
@@ -2262,7 +2198,7 @@ export class Address extends HeliosData {
                 assert(innerInner.fields.length == 1);
 
                 if (innerInner.index == 0) {
-                    sh = new StakeKeyHash(innerInner.fields[0].bytes);
+                    sh = new PubKeyHash(innerInner.fields[0].bytes);
                 } else if (innerInner.index == 1) {
                     sh = new StakingValidatorHash(innerInner.fields[0].bytes);
                 } else {
@@ -2325,8 +2261,8 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
-	 * @type {null | StakeKeyHash | StakingValidatorHash}
+	 * Returns the underlying `PubKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
+	 * @type {null | PubKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
 		let type = this.#bytes[0] >> 4;
@@ -2336,7 +2272,7 @@ export class Address extends HeliosData {
 
         if (type == 0 || type == 1) {
             assert(bytes.length == 28);
-            return new StakeKeyHash(bytes);
+            return new PubKeyHash(bytes);
         } else if (type == 2 || type == 3) {
             assert(bytes.length == 28);
             return new StakingValidatorHash(bytes);
@@ -3088,7 +3024,6 @@ export class Assets extends CborData {
 	/**
 	 * Makes sure minting policies are in correct order, and for each minting policy make sure the tokens are in the correct order
 	 * Mutates 'this'
-	 * Order of tokens per mintingPolicyHash isn't changed
 	 */
 	sort() {
 		this.assets.sort((a, b) => {
@@ -3107,7 +3042,7 @@ export class Assets extends CborData {
 			if (i > 0) {
 				const a = this.assets[i-1];
 
-				assert(Hash.compare(a[0], b[0]) == -1, "assets not sorted")
+				assert(Hash.compare(a[0], b[0]) == -1, `assets not sorted (${a[0].hex} vs ${b[0].hex})`);
 
 				b[1].forEach((bb, j) => {
 					if (j > 0) {

@@ -492,7 +492,7 @@ export default async function main() {
 	const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
 		StakingCredential::new_ptr(0, 0, 0)
 	} else {
-		StakingCredential::new_hash(StakingHash::new_stakekey(StakeKeyHash::new(PUB_KEY_HASH_BYTES)))
+		StakingCredential::new_hash(StakingHash::new_stakekey(PubKeyHash::new(PUB_KEY_HASH_BYTES)))
 	}
 	const STAKING_CRED_IN: Option[StakingCredential] = if (HAS_STAKING_CRED_IN) {
 		Option[StakingCredential]::Some{SOME_STAKING_CRED_IN}

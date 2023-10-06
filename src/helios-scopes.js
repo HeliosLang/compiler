@@ -68,7 +68,6 @@ import {
 	PubKeyType,
 	PubKeyHashType,
 	scriptHashType,
-	StakeKeyHashType,
 	StakingHashType,
 	StakingValidatorHashType,
 	ValidatorHashType
@@ -127,7 +126,6 @@ export const builtinTypes = {
 	Real: RealType,
 	ScriptHash: scriptHashType,
     ScriptPurpose: ScriptPurposeType,
-    StakeKeyHash: StakeKeyHashType,
     StakingCredential: StakingCredentialType,
     StakingHash: StakingHashType,
     StakingPurpose: StakingPurposeType,

@@ -59,7 +59,6 @@ import {
     MintingPolicyHash,
 	PubKey,
     PubKeyHash,
-    StakeKeyHash,
     StakingValidatorHash,
     TxId,
 	TxOutputId,
@@ -608,7 +607,8 @@ export class Tx extends CborData {
 	 */
 	addRefInputs(inputs) {
 		for (let input of inputs) {
-			this.addRefInput(input);
+			const refScript = input.origOutput.refScript;
+			this.addRefInput(input, refScript);
 		}
 
 		return this;
@@ -663,6 +663,21 @@ export class Tx extends CborData {
 		assert(!this.#valid);
 
 		this.#body.addSigner(hash);
+
+		return this;
+	}
+
+	/**
+	 * Add a `DCert` to the transactions being built. `DCert` contains information about a staking-related action.
+	 * 
+	 * TODO: implement all DCert (de)serialization methods.
+	 * 
+	 * Returns the transaction instance so build methods can be chained.
+	 * @internal
+	 * @param {DCert} dcert 
+	 */
+	addDCert(dcert) {
+		this.#body.addDCert(dcert);
 
 		return this;
 	}
@@ -852,9 +867,34 @@ export class Tx extends CborData {
 		} else {
 			const diff = inputAssets.sub(outputAssets);
 
-			const changeOutput = new TxOutput(changeAddress, new Value(0n, diff));
+			if (config.MAX_ASSETS_PER_CHANGE_OUTPUT) {
+				const maxAssetsPerOutput = config.MAX_ASSETS_PER_CHANGE_OUTPUT;
 
-			this.#body.addOutput(changeOutput);
+				let changeAssets = new Assets();
+				let tokensAdded = 0;
+
+				diff.mintingPolicies.forEach((mph) => {
+					const tokens = diff.getTokens(mph);
+					tokens.forEach(([token, quantity], i) => {
+						changeAssets.addComponent(mph, token, quantity);
+						tokensAdded += 1;
+						if (tokensAdded == maxAssetsPerOutput) {
+							this.#body.addOutput(new TxOutput(changeAddress, new Value(0n, changeAssets)));
+							changeAssets = new Assets();
+							tokensAdded = 0;
+						}
+					});
+				});
+
+				// If we are here and have No assets, they we're done
+				if (!changeAssets.isZero()) {
+					this.#body.addOutput(new TxOutput(changeAddress, new Value(0n, changeAssets)));
+				}
+			} else {
+				const changeOutput = new TxOutput(changeAddress, new Value(0n, diff));
+	
+				this.#body.addOutput(changeOutput);
+			}
 		}
 	}
 
@@ -1005,15 +1045,22 @@ export class Tx extends CborData {
 
 		nonChangeOutputValue = feeValue.add(nonChangeOutputValue);
 
+		// this is quite restrictive, but we really don't want to touch UTxOs containing assets just for balancing purposes
+		const spareAssetUTxOs = spareUtxos.some(utxo => !utxo.value.assets.isZero());
 		spareUtxos = spareUtxos.filter(utxo => utxo.value.assets.isZero());
 		
 		// use some spareUtxos if the inputValue doesn't cover the outputs and fees
 
-		while (!inputValue.ge(nonChangeOutputValue.add(changeOutput.value))) {
+		const totalOutputValue = nonChangeOutputValue.add(changeOutput.value);
+		while (!inputValue.ge(totalOutputValue)) {
 			let spare = spareUtxos.pop();
 
 			if (spare === undefined) {
-				throw new Error("transaction doesn't have enough inputs to cover the outputs + fees + minLovelace");
+				if (spareAssetUTxOs) {
+					throw new Error(`UTxOs too fragmented`);
+				} else {
+					throw new Error(`need ${totalOutputValue.lovelace} lovelace, but only have ${inputValue.lovelace}`);
+				}
 			} else {
 				this.#body.addInput(spare);
 
@@ -1202,7 +1249,7 @@ export class Tx extends CborData {
 		this.finalizeValidityTimeRange(networkParams);
 
 		// inputs, minted assets, and withdrawals must all be in a particular order
-		this.#body.sort();
+		this.#body.sortInputs();
 
 		// after inputs etc. have been sorted we can calculate the indices of the redeemers referring to those inputs
 		this.#witnesses.updateRedeemerIndices(this.#body);
@@ -1210,7 +1257,10 @@ export class Tx extends CborData {
 		this.checkScripts();
 
 		// balance the non-ada assets
-		this.balanceAssets(changeAddress)
+		this.balanceAssets(changeAddress);
+
+		// sort the assets in the outputs, including the asset change output
+		this.#body.sortOutputs();
 
 		// make sure that each output contains the necessary minimum amount of lovelace	
 		this.#body.correctOutputs(networkParams);
@@ -1965,6 +2015,14 @@ export class TxBody extends CborData {
 
 	/**
 	 * @internal
+	 * @param {DCert} dcert 
+	 */
+	addDCert(dcert) {
+		this.#dcerts.push(dcert);
+	}
+
+	/**
+	 * @internal
 	 * @param {TxInput} input 
 	 */
 	addCollateral(input) {
@@ -2081,6 +2139,8 @@ export class TxBody extends CborData {
 			let minLovelace = output.calcMinLovelace(networkParams);
 
 			assert(minLovelace <= output.value.lovelace, `not enough lovelace in output (expected at least ${minLovelace.toString()}, got ${output.value.lovelace})`);
+
+			output.value.assets.assertSorted();
 		}
 	}
 	
@@ -2120,11 +2180,11 @@ export class TxBody extends CborData {
 	}
 
 	/**
-	 * Makes sore inputs, withdrawals, and minted assets are in correct order
+	 * Makes sore inputs, withdrawals, and minted assets are in correct order, this is needed for the redeemer indices
 	 * Mutates
 	 * @internal
 	 */
-	sort() {
+	sortInputs() {
 		// inputs should've been added in sorted manner, so this is just a check
 		this.#inputs.forEach((input, i) => {
 			if (i > 0) {
@@ -2145,11 +2205,6 @@ export class TxBody extends CborData {
 			}
 		});
 
-		// sort the tokens in the outputs, needed by the flint wallet
-		this.#outputs.forEach(output => {
-			output.value.assets.sort();
-		});
-
 		// TODO: also add withdrawals in sorted manner
 		this.#withdrawals = new Map(Array.from(this.#withdrawals.entries()).sort((a, b) => {
 			return Address.compStakingHashes(a[0], b[0]);
@@ -2157,6 +2212,18 @@ export class TxBody extends CborData {
 
 		// minted assets should've been added in sorted manner, so this is just a check
 		this.#minted.assertSorted();
+	}
+
+
+	/**
+	 * Not done in the same routine as sortInputs(), because balancing of assets happens after redeemer indices are set
+	 * @internal
+	 */
+	sortOutputs() {
+		// sort the tokens in the outputs, needed by the flint wallet
+		this.#outputs.forEach(output => {
+			output.value.assets.sort();
+		});
 	}
 
 	/**
@@ -3471,8 +3538,11 @@ export class TxOutput extends CborData {
 	}
 }
 
-// TODO: enum members
-class DCert extends CborData {
+/**
+ * A `DCert` represents a staking action (eg. withdrawing rewards, delegating to another pool).
+ * @internal
+ */
+export class DCert extends CborData {
 	constructor() {
 		super();
 	}
@@ -3502,9 +3572,44 @@ class DCert extends CborData {
 }
 
 /**
+ * @internal
+ */
+export class DCertDelegate extends DCert {
+
+}
+
+/**
+ * @internal
+ */
+export class DCertDeregister extends DCert {
+
+}
+
+/**
+ * @internal
+ */
+export class DCertRegister extends DCert {
+
+}
+
+/**
+ * @internal
+ */
+export class DCertRegisterPool extends DCert {
+
+}
+
+/**
+ * @internal
+ */
+export class DCertRetire extends DCert {
+
+}
+
+/**
  * Wrapper for Cardano stake address bytes. An StakeAddress consists of two parts internally:
  *   - Header (1 byte, see CIP 8)
- *   - Staking witness hash (28 bytes that represent the `StakeKeyHash` or `StakingValidatorHash`)
+ *   - Staking witness hash (28 bytes that represent the `PubKeyHash` or `StakingValidatorHash`)
  * 
  * Stake addresses are used to query the assets held by given staking credentials.
  */
@@ -3619,13 +3724,13 @@ export class StakeAddress {
 	}
 
 	/**
-	 * Address with only staking part (regular StakeKeyHash)
+	 * Address with only staking part (regular PubKeyHash)
 	 * @internal
 	 * @param {boolean} isTestnet
-	 * @param {StakeKeyHash} hash
+	 * @param {PubKeyHash} hash
 	 * @returns {StakeAddress}
 	 */
-	static fromStakeKeyHash(isTestnet, hash) {
+	static fromPubKeyHash(isTestnet, hash) {
 		return new StakeAddress(
 			[isTestnet ? 0xe0 : 0xe1].concat(hash.bytes)
 		);
@@ -3645,28 +3750,28 @@ export class StakeAddress {
 	}
 
 	/**
-	 * Converts a `StakeKeyHash` or `StakingValidatorHash` into `StakeAddress`.
+	 * Converts a `PubKeyHash` or `StakingValidatorHash` into `StakeAddress`.
 	 * @param {boolean} isTestnet
-	 * @param {StakeKeyHash | StakingValidatorHash} hash
+	 * @param {PubKeyHash | StakingValidatorHash} hash
 	 * @returns {StakeAddress}
 	 */
 	static fromHash(isTestnet, hash) {
-		if (hash instanceof StakeKeyHash) {
-			return StakeAddress.fromStakeKeyHash(isTestnet, hash);
+		if (hash instanceof PubKeyHash) {
+			return StakeAddress.fromPubKeyHash(isTestnet, hash);
 		} else {
 			return StakeAddress.fromStakingValidatorHash(isTestnet, hash);
 		}
 	}
 
 	/**
-	 * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`.
-	 * @returns {StakeKeyHash | StakingValidatorHash}
+	 * Returns the underlying `PubKeyHash` or `StakingValidatorHash`.
+	 * @returns {PubKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
 		const type = this.bytes[0];
 
 		if (type == 0xe0 || type == 0xe1) {
-			return new StakeKeyHash(this.bytes.slice(1));
+			return new PubKeyHash(this.bytes.slice(1));
 		} else if (type == 0xf0 || type == 0xf1) {
 			return new StakingValidatorHash(this.bytes.slice(1));
 		} else {

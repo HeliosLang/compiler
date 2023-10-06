@@ -867,7 +867,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.15.10";
+    export const VERSION: "0.15.13";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
@@ -892,6 +892,7 @@ declare module "helios" {
             VALIDITY_RANGE_END_OFFSET?: number | undefined;
             IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
             CHECK_CASTS?: boolean | undefined;
+            MAX_ASSETS_PER_CHANGE_OUTPUT?: number | undefined;
         }): void;
         const DEBUG: boolean;
         const STRICT_BABBAGE: boolean;
@@ -902,6 +903,7 @@ declare module "helios" {
         const VALIDITY_RANGE_END_OFFSET: number;
         const IGNORE_UNEVALUATED_CONSTANTS: boolean;
         const CHECK_CASTS: boolean;
+        const MAX_ASSETS_PER_CHANGE_OUTPUT: undefined;
     }
     /**
      * Read non-byte aligned numbers
@@ -2385,13 +2387,10 @@ declare module "helios" {
          */
         get hex(): string;
         /**
+         * Can also be used as a Stake key hash
          * @type {PubKeyHash}
          */
         get pubKeyHash(): PubKeyHash;
-        /**
-         * @type {StakeKeyHash}
-         */
-        get stakeKeyHash(): StakeKeyHash;
         /**
          * @returns {boolean}
          */
@@ -2407,6 +2406,9 @@ declare module "helios" {
         #private;
     }
     /**
+     * Represents a blake2b-224 hash of a PubKey
+     *
+     * **Note**: A `PubKeyHash` can also be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
      * @typedef {HashProps} PubKeyHashProps
      */
     export class PubKeyHash extends Hash {
@@ -2473,26 +2475,6 @@ declare module "helios" {
          * @returns {string}
          */
         toBech32(): string;
-    }
-    /**
-     * @typedef {HashProps} StakeKeyHashProps
-     */
-    /**
-     * Represents a blake2b-224 hash of staking key.
-     *
-     * A `StakeKeyHash` can be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
-     */
-    export class StakeKeyHash extends Hash {
-        /**
-         * @param {UplcData} data
-         * @returns {StakeKeyHash}
-         */
-        static fromUplcData(data: UplcData): StakeKeyHash;
-        /**
-         * @param {string | number[]} bytes
-         * @returns {StakeKeyHash}
-         */
-        static fromUplcCbor(bytes: string | number[]): StakeKeyHash;
     }
     /**
      * @typedef {HashProps} StakingValidatorHashProps
@@ -2697,31 +2679,31 @@ declare module "helios" {
         /**
          * Constructs an Address using either a `PubKeyHash` (i.e. simple payment address)
          * or `ValidatorHash` (i.e. script address),
-         * in combination with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+         * in combination with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
          * @param {PubKeyHash | ValidatorHash} hash
-         * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+         * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
          * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
          * @returns {Address}
          */
-        static fromHashes(hash: PubKeyHash | ValidatorHash, stakingHash?: null | (StakeKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
+        static fromHashes(hash: PubKeyHash | ValidatorHash, stakingHash?: null | (PubKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
         /**
-         * Simple payment address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+         * Simple payment address with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
          * @internal
          * @param {PubKeyHash} hash
-         * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+         * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
          * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
          * @returns {Address}
          */
-        static fromPubKeyHash(hash: PubKeyHash, stakingHash?: null | (StakeKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
+        static fromPubKeyHash(hash: PubKeyHash, stakingHash?: null | (PubKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
         /**
-         * Simple script address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+         * Simple script address with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
          * @internal
          * @param {ValidatorHash} hash
-         * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+         * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
          * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
          * @returns {Address}
          */
-        static fromValidatorHash(hash: ValidatorHash, stakingHash?: null | (StakeKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
+        static fromValidatorHash(hash: ValidatorHash, stakingHash?: null | (PubKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
         /**
          * Returns `true` if the given `Address` is a testnet address.
          * @param {Address} address
@@ -2802,10 +2784,10 @@ declare module "helios" {
          */
         get validatorHash(): ValidatorHash | null;
         /**
-         * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
-         * @type {null | StakeKeyHash | StakingValidatorHash}
+         * Returns the underlying `PubKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
+         * @type {null | PubKeyHash | StakingValidatorHash}
          */
-        get stakingHash(): StakeKeyHash | StakingValidatorHash | null;
+        get stakingHash(): PubKeyHash | StakingValidatorHash | null;
         #private;
     }
     /**
@@ -3035,7 +3017,6 @@ declare module "helios" {
         /**
          * Makes sure minting policies are in correct order, and for each minting policy make sure the tokens are in the correct order
          * Mutates 'this'
-         * Order of tokens per mintingPolicyHash isn't changed
          */
         sort(): void;
         assertSorted(): void;
@@ -3300,7 +3281,9 @@ declare module "helios" {
          */
         get maxTxSize(): number;
         /**
-         * @internal
+         * Tx balancing picks additional inputs by starting from maxTxFee.
+         * This is done because the order of the inputs can have a huge impact on the tx fee, so the order must be known before balancing.
+         * If there aren't enough inputs to cover the maxTxFee and the min deposits of newly created UTxOs, the balancing will fail.
          * @type {bigint}
          */
         get maxTxFee(): bigint;
@@ -5090,6 +5073,7 @@ declare module "helios" {
         toString(): string;
     }
     /**
+     * Used to represent all possible types whenever a TypeExpr throws an error (so type evaluation can continue in order to collect all type errors at once)
      * @internal
      * @implements {DataType}
      */
@@ -6342,11 +6326,6 @@ declare module "helios" {
      * @type {DataType}
      */
     export const PubKeyHashType: DataType;
-    /**
-     * @internal
-     * @type {DataType}
-     */
-    export const StakeKeyHashType: DataType;
     /**
      * Builtin StakingHash type
      * @internal
@@ -9874,6 +9853,16 @@ declare module "helios" {
          */
         addSigner(hash: PubKeyHash): Tx;
         /**
+         * Add a `DCert` to the transactions being built. `DCert` contains information about a staking-related action.
+         *
+         * TODO: implement all DCert (de)serialization methods.
+         *
+         * Returns the transaction instance so build methods can be chained.
+         * @internal
+         * @param {DCert} dcert
+         */
+        addDCert(dcert: DCert): Tx;
+        /**
          * Attaches a script witness to the transaction being built.
          * The script witness can be either a `UplcProgram` or a legacy `NativeScript`.
          * A `UplcProgram` instance can be created by compiling a Helios `Program`.
@@ -10236,6 +10225,11 @@ declare module "helios" {
         addSigner(hash: PubKeyHash, checkUniqueness?: boolean): void;
         /**
          * @internal
+         * @param {DCert} dcert
+         */
+        addDCert(dcert: DCert): void;
+        /**
+         * @internal
          * @param {TxInput} input
          */
         addCollateral(input: TxInput): void;
@@ -10285,11 +10279,16 @@ declare module "helios" {
          */
         checkCollateral(networkParams: NetworkParams, minCollateral: null | bigint): void;
         /**
-         * Makes sore inputs, withdrawals, and minted assets are in correct order
+         * Makes sore inputs, withdrawals, and minted assets are in correct order, this is needed for the redeemer indices
          * Mutates
          * @internal
          */
-        sort(): void;
+        sortInputs(): void;
+        /**
+         * Not done in the same routine as sortInputs(), because balancing of assets happens after redeemer indices are set
+         * @internal
+         */
+        sortOutputs(): void;
         /**
          * Used by (indirectly) by emulator to check if slot range is valid.
          * Note: firstValidSlot == lastValidSlot is allowed
@@ -10688,9 +10687,54 @@ declare module "helios" {
         #private;
     }
     /**
+     * A `DCert` represents a staking action (eg. withdrawing rewards, delegating to another pool).
+     * @internal
+     */
+    export class DCert extends CborData {
+        /**
+         * @param {number[]} bytes
+         * @returns {DCert}
+         */
+        static fromCbor(bytes: number[]): DCert;
+        /**
+         * @param {UplcData} data
+         * @returns {DCert}
+         */
+        static fromUplcData(data: UplcData): DCert;
+        /**
+         * @returns {ConstrData}
+         */
+        toData(): ConstrData;
+    }
+    /**
+     * @internal
+     */
+    export class DCertDelegate extends DCert {
+    }
+    /**
+     * @internal
+     */
+    export class DCertDeregister extends DCert {
+    }
+    /**
+     * @internal
+     */
+    export class DCertRegister extends DCert {
+    }
+    /**
+     * @internal
+     */
+    export class DCertRegisterPool extends DCert {
+    }
+    /**
+     * @internal
+     */
+    export class DCertRetire extends DCert {
+    }
+    /**
      * Wrapper for Cardano stake address bytes. An StakeAddress consists of two parts internally:
      *   - Header (1 byte, see CIP 8)
-     *   - Staking witness hash (28 bytes that represent the `StakeKeyHash` or `StakingValidatorHash`)
+     *   - Staking witness hash (28 bytes that represent the `PubKeyHash` or `StakingValidatorHash`)
      *
      * Stake addresses are used to query the assets held by given staking credentials.
      */
@@ -10725,13 +10769,13 @@ declare module "helios" {
          */
         static fromHex(hex: string): StakeAddress;
         /**
-         * Address with only staking part (regular StakeKeyHash)
+         * Address with only staking part (regular PubKeyHash)
          * @internal
          * @param {boolean} isTestnet
-         * @param {StakeKeyHash} hash
+         * @param {PubKeyHash} hash
          * @returns {StakeAddress}
          */
-        static fromStakeKeyHash(isTestnet: boolean, hash: StakeKeyHash): StakeAddress;
+        static fromPubKeyHash(isTestnet: boolean, hash: PubKeyHash): StakeAddress;
         /**
          * Address with only staking part (script StakingValidatorHash)
          * @internal
@@ -10741,12 +10785,12 @@ declare module "helios" {
          */
         static fromStakingValidatorHash(isTestnet: boolean, hash: StakingValidatorHash): StakeAddress;
         /**
-         * Converts a `StakeKeyHash` or `StakingValidatorHash` into `StakeAddress`.
+         * Converts a `PubKeyHash` or `StakingValidatorHash` into `StakeAddress`.
          * @param {boolean} isTestnet
-         * @param {StakeKeyHash | StakingValidatorHash} hash
+         * @param {PubKeyHash | StakingValidatorHash} hash
          * @returns {StakeAddress}
          */
-        static fromHash(isTestnet: boolean, hash: StakeKeyHash | StakingValidatorHash): StakeAddress;
+        static fromHash(isTestnet: boolean, hash: PubKeyHash | StakingValidatorHash): StakeAddress;
         /**
          * @param {number[]} bytes
          */
@@ -10776,10 +10820,10 @@ declare module "helios" {
          */
         get hex(): string;
         /**
-         * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`.
-         * @returns {StakeKeyHash | StakingValidatorHash}
+         * Returns the underlying `PubKeyHash` or `StakingValidatorHash`.
+         * @returns {PubKeyHash | StakingValidatorHash}
          */
-        get stakingHash(): StakeKeyHash | StakingValidatorHash;
+        get stakingHash(): PubKeyHash | StakingValidatorHash;
         #private;
     }
     /**
@@ -11605,6 +11649,59 @@ declare module "helios" {
         dumpMempool(): Promise<void>;
         #private;
     }
+    /**
+     * Koios network interface.
+     * @implements {Network}
+     */
+    export class KoiosV0 implements Network {
+        /**
+        * Throws an error if a Blockfrost project_id is missing for that specific network.
+        * @param {TxInput} refUtxo
+        * @returns {Promise<KoiosV0>}
+        */
+        static resolveUsingUtxo(refUtxo: TxInput): Promise<KoiosV0>;
+        /**
+         * @param {"preview" | "preprod" | "mainnet"} networkName
+         */
+        constructor(networkName: "preview" | "preprod" | "mainnet");
+        /**
+         * @private
+         * @type {string}
+         */
+        private get rootUrl();
+        /**
+        * @returns {Promise<NetworkParams>}
+        */
+        getParameters(): Promise<NetworkParams>;
+        /**
+         * @private
+         * @param {TxOutputId[]} ids
+         * @returns {Promise<TxInput[]>}
+         */
+        private getUtxosInternal;
+        /**
+         * @param {TxOutputId} id
+         * @returns {Promise<TxInput>}
+         */
+        getUtxo(id: TxOutputId): Promise<TxInput>;
+        /**
+        * Used by `KoiosV0.resolveUsingUtxo()`.
+        * @param {TxInput} utxo
+        * @returns {Promise<boolean>}
+        */
+        hasUtxo(utxo: TxInput): Promise<boolean>;
+        /**
+         * @param {Address} address
+         * @returns {Promise<TxInput[]>}
+         */
+        getUtxos(address: Address): Promise<TxInput[]>;
+        /**
+         * @param {Tx} tx
+         * @returns {Promise<TxId>}
+         */
+        submitTx(tx: Tx): Promise<TxId>;
+        #private;
+    }
     export namespace rawNetworkEmulatorParams {
         namespace shelleyGenesis {
             const activeSlotsCoeff: number;
@@ -12279,12 +12376,10 @@ declare module "helios" {
         }
     }
     /**
-     * An emulated `Wallet`, created by calling `emulator.createWallet()`.
-     *
      * This wallet only has a single private/public key, which isn't rotated. Staking is not yet supported.
      * @implements {Wallet}
      */
-    export class WalletEmulator implements Wallet {
+    export class SimpleWallet implements Wallet {
         /**
          * @param {Network} network
          * @param {Bip32PrivateKey} privateKey
@@ -12365,20 +12460,20 @@ declare module "helios" {
          */
         initNetworkParams(networkParams: NetworkParams): NetworkParams;
         /**
-         * Creates a new WalletEmulator and populates it with a given lovelace quantity and assets.
+         * Creates a new SimpleWallet and populates it with a given lovelace quantity and assets.
          * Special genesis transactions are added to the emulated chain in order to create these assets.
          * @param {bigint} lovelace
          * @param {Assets} assets
-         * @returns {WalletEmulator}
+         * @returns {SimpleWallet}
          */
-        createWallet(lovelace?: bigint, assets?: Assets): WalletEmulator;
+        createWallet(lovelace?: bigint, assets?: Assets): SimpleWallet;
         /**
          * Creates a UTxO using a GenesisTx.
-         * @param {WalletEmulator} wallet
+         * @param {SimpleWallet} wallet
          * @param {bigint} lovelace
          * @param {Assets} assets
          */
-        createUtxo(wallet: WalletEmulator, lovelace: bigint, assets?: Assets): void;
+        createUtxo(wallet: SimpleWallet, lovelace: bigint, assets?: Assets): void;
         /**
          * Mint a block with the current mempool, and advance the slot by a number of slots.
          * @param {bigint} nSlots
@@ -12895,10 +12990,14 @@ declare module "helios" {
     export type HashProps = number[] | string;
     export type DatumHashProps = HashProps;
     export type PubKeyProps = number[] | string;
+    /**
+     * Represents a blake2b-224 hash of a PubKey
+     *
+     * **Note**: A `PubKeyHash` can also be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
+     */
     export type PubKeyHashProps = HashProps;
     export type ScriptHashProps = HashProps;
     export type MintingPolicyHashProps = HashProps;
-    export type StakeKeyHashProps = HashProps;
     export type StakingValidatorHashProps = HashProps;
     export type ValidatorHashProps = HashProps;
     export type TxIdProps = HashProps;

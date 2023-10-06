@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.15.10";
+export const VERSION: "0.15.13";
 /**
  * Mutable global config properties.
  * @namespace
@@ -123,6 +123,7 @@ export namespace config {
      *   VALIDITY_RANGE_END_OFFSET?: number
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
+     *   MAX_ASSETS_PER_CHANGE_OUTPUT?: number
      * }} props 
      */
     function set(props: {
@@ -135,6 +136,7 @@ export namespace config {
         VALIDITY_RANGE_END_OFFSET?: number | undefined;
         IGNORE_UNEVALUATED_CONSTANTS?: boolean | undefined;
         CHECK_CASTS?: boolean | undefined;
+        MAX_ASSETS_PER_CHANGE_OUTPUT?: number | undefined;
     }): void;
     /**
      * Global debug flag. Currently unused.
@@ -207,6 +209,12 @@ export namespace config {
      * @type {boolean}
      */
     const CHECK_CASTS: boolean;
+    /**
+     * Maximum number of assets per change output. Used to break up very large asset outputs into multiple outputs.
+     * 
+     * Default: `undefined` (no limit).
+     */
+    const MAX_ASSETS_PER_CHANGE_OUTPUT: undefined;
 }
 /**
  * Function that generates a random number between 0 and 1
@@ -1038,13 +1046,10 @@ export class PubKey extends HeliosData {
      */
     get hex(): string;
     /**
+     * Can also be used as a Stake key hash
      * @type {PubKeyHash}
      */
     get pubKeyHash(): PubKeyHash;
-    /**
-     * @type {StakeKeyHash}
-     */
-    get stakeKeyHash(): StakeKeyHash;
     /**
      * @returns {boolean}
      */
@@ -1060,6 +1065,9 @@ export class PubKey extends HeliosData {
     #private;
 }
 /**
+ * Represents a blake2b-224 hash of a PubKey
+ *
+ * **Note**: A `PubKeyHash` can also be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
  * @typedef {HashProps} PubKeyHashProps
  */
 export class PubKeyHash extends Hash {
@@ -1122,26 +1130,6 @@ export class MintingPolicyHash extends ScriptHash {
      * @returns {string}
      */
     toBech32(): string;
-}
-/**
- * @typedef {HashProps} StakeKeyHashProps
- */
-/**
- * Represents a blake2b-224 hash of staking key.
- *
- * A `StakeKeyHash` can be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
- */
-export class StakeKeyHash extends Hash {
-    /**
-     * @param {UplcData} data
-     * @returns {StakeKeyHash}
-     */
-    static fromUplcData(data: UplcData): StakeKeyHash;
-    /**
-     * @param {string | number[]} bytes
-     * @returns {StakeKeyHash}
-     */
-    static fromUplcCbor(bytes: string | number[]): StakeKeyHash;
 }
 /**
  * @typedef {HashProps} StakingValidatorHashProps
@@ -1340,13 +1328,13 @@ export class Address extends HeliosData {
     /**
      * Constructs an Address using either a `PubKeyHash` (i.e. simple payment address)
      * or `ValidatorHash` (i.e. script address),
-     * in combination with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+     * in combination with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
      * @param {PubKeyHash | ValidatorHash} hash
-     * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
      * @returns {Address}
      */
-    static fromHashes(hash: PubKeyHash | ValidatorHash, stakingHash?: null | (StakeKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
+    static fromHashes(hash: PubKeyHash | ValidatorHash, stakingHash?: null | (PubKeyHash | StakingValidatorHash), isTestnet?: boolean): Address;
     /**
      * Returns `true` if the given `Address` is a testnet address.
      * @param {Address} address
@@ -1402,10 +1390,10 @@ export class Address extends HeliosData {
      */
     get validatorHash(): ValidatorHash | null;
     /**
-     * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
-     * @type {null | StakeKeyHash | StakingValidatorHash}
+     * Returns the underlying `PubKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
+     * @type {null | PubKeyHash | StakingValidatorHash}
      */
-    get stakingHash(): StakeKeyHash | StakingValidatorHash | null;
+    get stakingHash(): PubKeyHash | StakingValidatorHash | null;
     #private;
 }
 /**
@@ -1622,7 +1610,6 @@ export class Assets extends CborData {
     /**
      * Makes sure minting policies are in correct order, and for each minting policy make sure the tokens are in the correct order
      * Mutates 'this'
-     * Order of tokens per mintingPolicyHash isn't changed
      */
     sort(): void;
     assertSorted(): void;
@@ -1789,6 +1776,13 @@ export class NetworkParams {
      * @type {null | bigint}
      */
     get liveSlot(): bigint | null;
+    /**
+     * Tx balancing picks additional inputs by starting from maxTxFee.
+     * This is done because the order of the inputs can have a huge impact on the tx fee, so the order must be known before balancing.
+     * If there aren't enough inputs to cover the maxTxFee and the min deposits of newly created UTxOs, the balancing will fail.
+     * @type {bigint}
+     */
+    get maxTxFee(): bigint;
     /**
      * Calculates the time (in milliseconds in 01/01/1970) associated with a given slot number.
      * @param {bigint} slot
@@ -3217,7 +3211,7 @@ export class TxOutput extends CborData {
 /**
  * Wrapper for Cardano stake address bytes. An StakeAddress consists of two parts internally:
  *   - Header (1 byte, see CIP 8)
- *   - Staking witness hash (28 bytes that represent the `StakeKeyHash` or `StakingValidatorHash`)
+ *   - Staking witness hash (28 bytes that represent the `PubKeyHash` or `StakingValidatorHash`)
  *
  * Stake addresses are used to query the assets held by given staking credentials.
  */
@@ -3252,12 +3246,12 @@ export class StakeAddress {
      */
     static fromHex(hex: string): StakeAddress;
     /**
-     * Converts a `StakeKeyHash` or `StakingValidatorHash` into `StakeAddress`.
+     * Converts a `PubKeyHash` or `StakingValidatorHash` into `StakeAddress`.
      * @param {boolean} isTestnet
-     * @param {StakeKeyHash | StakingValidatorHash} hash
+     * @param {PubKeyHash | StakingValidatorHash} hash
      * @returns {StakeAddress}
      */
-    static fromHash(isTestnet: boolean, hash: StakeKeyHash | StakingValidatorHash): StakeAddress;
+    static fromHash(isTestnet: boolean, hash: PubKeyHash | StakingValidatorHash): StakeAddress;
     /**
      * @param {number[]} bytes
      */
@@ -3287,10 +3281,10 @@ export class StakeAddress {
      */
     get hex(): string;
     /**
-     * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`.
-     * @returns {StakeKeyHash | StakingValidatorHash}
+     * Returns the underlying `PubKeyHash` or `StakingValidatorHash`.
+     * @returns {PubKeyHash | StakingValidatorHash}
      */
-    get stakingHash(): StakeKeyHash | StakingValidatorHash;
+    get stakingHash(): PubKeyHash | StakingValidatorHash;
     #private;
 }
 /**
@@ -4102,12 +4096,63 @@ export class BlockfrostV0 implements Network {
     #private;
 }
 /**
- * An emulated `Wallet`, created by calling `emulator.createWallet()`.
- *
+ * Koios network interface.
+ * @implements {Network}
+ */
+export class KoiosV0 implements Network {
+    /**
+    * Throws an error if a Blockfrost project_id is missing for that specific network.
+    * @param {TxInput} refUtxo
+    * @returns {Promise<KoiosV0>}
+    */
+    static resolveUsingUtxo(refUtxo: TxInput): Promise<KoiosV0>;
+    /**
+     * @param {"preview" | "preprod" | "mainnet"} networkName
+     */
+    constructor(networkName: "preview" | "preprod" | "mainnet");
+    /**
+     * @private
+     * @type {string}
+     */
+    private get rootUrl();
+    /**
+    * @returns {Promise<NetworkParams>}
+    */
+    getParameters(): Promise<NetworkParams>;
+    /**
+     * @private
+     * @param {TxOutputId[]} ids
+     * @returns {Promise<TxInput[]>}
+     */
+    private getUtxosInternal;
+    /**
+     * @param {TxOutputId} id
+     * @returns {Promise<TxInput>}
+     */
+    getUtxo(id: TxOutputId): Promise<TxInput>;
+    /**
+    * Used by `KoiosV0.resolveUsingUtxo()`.
+    * @param {TxInput} utxo
+    * @returns {Promise<boolean>}
+    */
+    hasUtxo(utxo: TxInput): Promise<boolean>;
+    /**
+     * @param {Address} address
+     * @returns {Promise<TxInput[]>}
+     */
+    getUtxos(address: Address): Promise<TxInput[]>;
+    /**
+     * @param {Tx} tx
+     * @returns {Promise<TxId>}
+     */
+    submitTx(tx: Tx): Promise<TxId>;
+    #private;
+}
+/**
  * This wallet only has a single private/public key, which isn't rotated. Staking is not yet supported.
  * @implements {Wallet}
  */
-export class WalletEmulator implements Wallet {
+export class SimpleWallet implements Wallet {
     /**
      * @param {Network} network
      * @param {Bip32PrivateKey} privateKey
@@ -4188,20 +4233,20 @@ export class NetworkEmulator implements Network {
      */
     initNetworkParams(networkParams: NetworkParams): NetworkParams;
     /**
-     * Creates a new WalletEmulator and populates it with a given lovelace quantity and assets.
+     * Creates a new SimpleWallet and populates it with a given lovelace quantity and assets.
      * Special genesis transactions are added to the emulated chain in order to create these assets.
      * @param {bigint} lovelace
      * @param {Assets} assets
-     * @returns {WalletEmulator}
+     * @returns {SimpleWallet}
      */
-    createWallet(lovelace?: bigint, assets?: Assets): WalletEmulator;
+    createWallet(lovelace?: bigint, assets?: Assets): SimpleWallet;
     /**
      * Creates a UTxO using a GenesisTx.
-     * @param {WalletEmulator} wallet
+     * @param {SimpleWallet} wallet
      * @param {bigint} lovelace
      * @param {Assets} assets
      */
-    createUtxo(wallet: WalletEmulator, lovelace: bigint, assets?: Assets): void;
+    createUtxo(wallet: SimpleWallet, lovelace: bigint, assets?: Assets): void;
     /**
      * Mint a block with the current mempool, and advance the slot by a number of slots.
      * @param {bigint} nSlots
@@ -4548,9 +4593,13 @@ export type ByteArrayProps = number[] | string;
 export type HashProps = number[] | string;
 export type DatumHashProps = HashProps;
 export type PubKeyProps = number[] | string;
+/**
+ * Represents a blake2b-224 hash of a PubKey
+ *
+ * **Note**: A `PubKeyHash` can also be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
+ */
 export type PubKeyHashProps = HashProps;
 export type MintingPolicyHashProps = HashProps;
-export type StakeKeyHashProps = HashProps;
 export type StakingValidatorHashProps = HashProps;
 export type ValidatorHashProps = HashProps;
 export type TxIdProps = HashProps;

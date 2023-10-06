@@ -837,8 +837,22 @@ export class Tokenizer {
 		}
 
 		if (stack.length > 0) {
-			const t = assertDefined(stack[stack.length - 1][0]?.assertSymbol());
-			t.syntaxError(`unmatched '${t.value}'`);
+			const t = stack[stack.length - 1][0];
+
+			if (!t.isSymbol()) {
+				if (current.length > 0) {
+					const open = current[0];
+					
+					if (open && open.isSymbol()) {
+						open.syntaxError(`unmatched '${open.assertSymbol()?.value}`);
+					} else {
+						console.log(current)
+						throw new Error("unhandled")
+					}
+				}
+			} else {
+				t.syntaxError(`unmatched '${t.assertSymbol()?.value}'`);
+			}
 		}
 		
 		return current;

@@ -33,6 +33,7 @@ export const config = {
      *   VALIDITY_RANGE_END_OFFSET?: number
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
+     *   MAX_ASSETS_PER_CHANGE_OUTPUT?: number
      * }} props 
      */
     set: (props) => {
@@ -122,4 +123,11 @@ export const config = {
      * @type {boolean}
      */
     CHECK_CASTS: false,
+
+    /**
+     * Maximum number of assets per change output. Used to break up very large asset outputs into multiple outputs.
+     * 
+     * Default: `undefined` (no limit).
+     */
+    MAX_ASSETS_PER_CHANGE_OUTPUT: undefined,
 }

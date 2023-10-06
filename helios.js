@@ -7,8 +7,8 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.15.10
-// Last update:   September 2023
+// Version:       0.15.13
+// Last update:   October 2023
 // License type:  BSD-3-Clause
 //
 //
@@ -103,8 +103,8 @@
 //     Section 7: Helios data objects        HeliosData, HInt, Time, Duration, Bool, HString, 
 //                                           ByteArray, HList, HMap, Option, Hash, DatumHash, 
 //                                           PubKey, PubKeyHash, ScriptHash, MintingPolicyHash, 
-//                                           StakeKeyHash, StakingValidatorHash, ValidatorHash, 
-//                                           TxId, TxOutputId, Address, AssetClass, Assets, Value
+//                                           StakingValidatorHash, ValidatorHash, TxId, 
+//                                           TxOutputId, Address, AssetClass, Assets, Value
 //
 //     Section 8: Uplc cost-models           NetworkParams, CostModel, ConstCost, LinearCost, 
 //                                           ArgSizeCost, Arg0SizeCost, Arg1SizeCost, 
@@ -158,7 +158,7 @@
 //     Section 19: Eval hash types           genHashInstanceMembers, genHashTypeMembers, 
 //                                           genHashTypeProps, ScriptHashType, scriptHashType, 
 //                                           DatumHashType, MintingPolicyHashType, PubKeyType, 
-//                                           PubKeyHashType, StakeKeyHashType, StakingHashType, 
+//                                           PubKeyHashType, StakingHashType, 
 //                                           StakingHashStakeKeyType, StakingHashValidatorType, 
 //                                           StakingValidatorHashType, ValidatorHashType
 //
@@ -302,7 +302,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.15.10";
+export const VERSION = "0.15.13";
 
 /**
  * A tab used for indenting of the IR.
@@ -336,6 +336,7 @@ export const config = {
      *   VALIDITY_RANGE_END_OFFSET?: number
      *   IGNORE_UNEVALUATED_CONSTANTS?: boolean
      *   CHECK_CASTS?: boolean
+     *   MAX_ASSETS_PER_CHANGE_OUTPUT?: number
      * }} props 
      */
     set: (props) => {
@@ -425,6 +426,13 @@ export const config = {
      * @type {boolean}
      */
     CHECK_CASTS: false,
+
+    /**
+     * Maximum number of assets per change output. Used to break up very large asset outputs into multiple outputs.
+     * 
+     * Default: `undefined` (no limit).
+     */
+    MAX_ASSETS_PER_CHANGE_OUTPUT: undefined,
 }
 
 
@@ -7634,17 +7642,11 @@ export class PubKey extends HeliosData {
 	}
 
 	/**
+	 * Can also be used as a Stake key hash
 	 * @type {PubKeyHash}
 	 */
 	get pubKeyHash() {
 		return new PubKeyHash(this.hash());
-	}
-
-	/**
-	 * @type {StakeKeyHash}
-	 */
-	get stakeKeyHash() {
-		return new StakeKeyHash(this.hash());
 	}
 
 	/**
@@ -7708,9 +7710,11 @@ export class PubKey extends HeliosData {
 }
 
 /**
+ * Represents a blake2b-224 hash of a PubKey
+ * 
+ * **Note**: A `PubKeyHash` can also be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
  * @typedef {HashProps} PubKeyHashProps
  */
-
 export class PubKeyHash extends Hash {
 
 	/**
@@ -7865,66 +7869,6 @@ export class MintingPolicyHash extends ScriptHash {
 	 */
 	toBech32() {
 		return Crypto.encodeBech32("asset", Crypto.blake2b(this.bytes, 20));
-	}
-}
-
-/**
- * @typedef {HashProps} StakeKeyHashProps
- */
-
-/**
- * Represents a blake2b-224 hash of staking key.
- * 
- * A `StakeKeyHash` can be used as the second part of a payment `Address`, or to construct a `StakeAddress`.
- */
-export class StakeKeyHash extends Hash {
-	/**
-	 * @param {StakeKeyHashProps} props
-	 */
-	constructor(props) {
-		const bytes = Hash.cleanConstructorArg(props);
-		
-		assert(bytes.length == 28, `expected 28 bytes for StakeKeyHash, got ${bytes.length}`);
-		super(bytes);
-	}
-
-	/**
-	 * @param {StakeKeyHash | StakeKeyHashProps} props 
-	 */
-	static fromProps(props) {
-		return props instanceof StakeKeyHash ? props : new StakeKeyHash(props);
-	}
-
-	/**
-	 * @param {number[]} bytes 
-	 * @returns {StakeKeyHash}
-	 */
-	static fromCbor(bytes) {
-		return new StakeKeyHash(Cbor.decodeBytes(bytes));
-	}
-
-	/**
-	 * @param {UplcData} data
-	 * @returns {StakeKeyHash}
-	 */
-	static fromUplcData(data) {
-		return new StakeKeyHash(data.bytes);
-	}
-
-	/**
-	 * @param {string | number[]} bytes
-	 * @returns {StakeKeyHash}
-	 */
-	static fromUplcCbor(bytes) {
-		return StakeKeyHash.fromUplcData(UplcData.fromCbor(bytes));
-	}
-
-	/**
-	 * @param {string} str
-	 * @returns {StakeKeyHash}
-	 */
-	static fromHex(str) {
-		return new StakeKeyHash(hexToBytes(str));
 	}
 }
 
@@ -8466,9 +8410,9 @@ export class Address extends HeliosData {
     /**
 	 * Constructs an Address using either a `PubKeyHash` (i.e. simple payment address)
 	 * or `ValidatorHash` (i.e. script address),
-	 * in combination with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * in combination with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
      * @param {PubKeyHash | ValidatorHash} hash
-     * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+     * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
      * @returns {Address}
      */
@@ -8483,16 +8427,16 @@ export class Address extends HeliosData {
     }
 
 	/**
-	 * Simple payment address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * Simple payment address with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
 	 * @internal
 	 * @param {PubKeyHash} hash
-	 * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+	 * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
 	 * @returns {Address}
 	 */
 	static fromPubKeyHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
 		if (stakingHash !== null) {
-			if (stakingHash instanceof StakeKeyHash) {
+			if (stakingHash instanceof PubKeyHash) {
 				return new Address(
 					[isTestnet ? 0x00 : 0x01].concat(hash.bytes).concat(stakingHash.bytes)
 				);
@@ -8508,16 +8452,16 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Simple script address with an optional staking hash (`StakeKeyHash` or `StakingValidatorHash`).
+	 * Simple script address with an optional staking hash (`PubKeyHash` or `StakingValidatorHash`).
 	 * @internal
 	 * @param {ValidatorHash} hash
-	 * @param {null | (StakeKeyHash | StakingValidatorHash)} stakingHash
+	 * @param {null | (PubKeyHash | StakingValidatorHash)} stakingHash
      * @param {boolean} isTestnet Defaults to `config.IS_TESTNET`
 	 * @returns {Address}
 	 */
 	static fromValidatorHash(hash, stakingHash = null, isTestnet = config.IS_TESTNET) {
 		if (stakingHash !== null) {
-			if (stakingHash instanceof StakeKeyHash) {
+			if (stakingHash instanceof PubKeyHash) {
 				return new Address(
 					[isTestnet ? 0x10 : 0x11].concat(hash.bytes).concat(stakingHash.bytes)
 				);
@@ -8619,7 +8563,7 @@ export class Address extends HeliosData {
                 return new ConstrData(0, [
                     // staking credential -> 0, 1 -> pointer
                     new ConstrData(0, [
-                        // StakeKeyHash credential
+                        // PubKeyHash credential
                         new ConstrData(0, [new ByteArrayData(sh.bytes)]),
                     ]),
                 ]);
@@ -8651,7 +8595,7 @@ export class Address extends HeliosData {
         assert(credData.fields.length == 1);
 
         /**
-         * @type {?(StakeKeyHash | StakingValidatorHash)}
+         * @type {null | (PubKeyHash | StakingValidatorHash)}
          */
         let sh;
 
@@ -8669,7 +8613,7 @@ export class Address extends HeliosData {
                 assert(innerInner.fields.length == 1);
 
                 if (innerInner.index == 0) {
-                    sh = new StakeKeyHash(innerInner.fields[0].bytes);
+                    sh = new PubKeyHash(innerInner.fields[0].bytes);
                 } else if (innerInner.index == 1) {
                     sh = new StakingValidatorHash(innerInner.fields[0].bytes);
                 } else {
@@ -8732,8 +8676,8 @@ export class Address extends HeliosData {
 	}
 
 	/**
-	 * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
-	 * @type {null | StakeKeyHash | StakingValidatorHash}
+	 * Returns the underlying `PubKeyHash` or `StakingValidatorHash`, or `null` for non-staked addresses.
+	 * @type {null | PubKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
 		let type = this.#bytes[0] >> 4;
@@ -8743,7 +8687,7 @@ export class Address extends HeliosData {
 
         if (type == 0 || type == 1) {
             assert(bytes.length == 28);
-            return new StakeKeyHash(bytes);
+            return new PubKeyHash(bytes);
         } else if (type == 2 || type == 3) {
             assert(bytes.length == 28);
             return new StakingValidatorHash(bytes);
@@ -9495,7 +9439,6 @@ export class Assets extends CborData {
 	/**
 	 * Makes sure minting policies are in correct order, and for each minting policy make sure the tokens are in the correct order
 	 * Mutates 'this'
-	 * Order of tokens per mintingPolicyHash isn't changed
 	 */
 	sort() {
 		this.assets.sort((a, b) => {
@@ -9514,7 +9457,7 @@ export class Assets extends CborData {
 			if (i > 0) {
 				const a = this.assets[i-1];
 
-				assert(Hash.compare(a[0], b[0]) == -1, "assets not sorted")
+				assert(Hash.compare(a[0], b[0]) == -1, `assets not sorted (${a[0].hex} vs ${b[0].hex})`);
 
 				b[1].forEach((bb, j) => {
 					if (j > 0) {
@@ -10096,7 +10039,9 @@ export class NetworkParams {
 	}
 
 	/**
-	 * @internal
+	 * Tx balancing picks additional inputs by starting from maxTxFee. 
+	 * This is done because the order of the inputs can have a huge impact on the tx fee, so the order must be known before balancing.
+	 * If there aren't enough inputs to cover the maxTxFee and the min deposits of newly created UTxOs, the balancing will fail.
 	 * @type {bigint}
 	 */
 	get maxTxFee() {
@@ -16452,8 +16397,22 @@ export class Tokenizer {
 		}
 
 		if (stack.length > 0) {
-			const t = assertDefined(stack[stack.length - 1][0]?.assertSymbol());
-			t.syntaxError(`unmatched '${t.value}'`);
+			const t = stack[stack.length - 1][0];
+
+			if (!t.isSymbol()) {
+				if (current.length > 0) {
+					const open = current[0];
+					
+					if (open && open.isSymbol()) {
+						open.syntaxError(`unmatched '${open.assertSymbol()?.value}`);
+					} else {
+						console.log(current)
+						throw new Error("unhandled")
+					}
+				}
+			} else {
+				t.syntaxError(`unmatched '${t.assertSymbol()?.value}'`);
+			}
 		}
 		
 		return current;
@@ -16970,6 +16929,7 @@ export class Common {
 }
 
 /**
+ * Used to represent all possible types whenever a TypeExpr throws an error (so type evaluation can continue in order to collect all type errors at once)
  * @internal
  * @implements {DataType}
  */
@@ -18876,7 +18836,7 @@ export const RealType = new GenericType({
         }
     }),
     jsToUplc: async (obj, helpers) => {
-        return new IntData(BigInt(obj*1000000))
+        return new IntData(BigInt(Math.round(obj*1000000)))
     },
     uplcToJs: async (data, helpers) => {
         return Number(data.int)/1000000
@@ -20691,18 +20651,6 @@ export const PubKeyHashType = new GenericType({
 });
 
 /**
- * @internal
- * @type {DataType}
- */
-export const StakeKeyHashType = new GenericType({
-    ...genHashTypeProps(StakeKeyHash),
-    name: "StakeKeyHash",
-    offChainType: StakeKeyHash,
-    genInstanceMembers: genHashInstanceMembers,
-    genTypeMembers: genHashTypeMembers
-});
-
-/**
  * Builtin StakingHash type
  * @internal
  * @type {DataType}
@@ -20713,7 +20661,7 @@ export const StakingHashType = new GenericType({
     genTypeMembers: (self) => ({
         StakeKey: StakingHashStakeKeyType,
         Validator: StakingHashValidatorType,
-        new_stakekey: new FuncType([StakeKeyHashType], StakingHashStakeKeyType),
+        new_stakekey: new FuncType([PubKeyHashType], StakingHashStakeKeyType),
         new_validator: new FuncType([StakingValidatorHashType], StakingHashValidatorType)
     })
 });
@@ -20728,7 +20676,7 @@ export const StakingHashStakeKeyType = new GenericEnumMemberType({
     parentType: StakingHashType,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        hash: StakeKeyHashType
+        hash: PubKeyHashType
     }),
     genTypeMembers: (self) => ({
         ...genCommonEnumTypeMembers(self, StakingHashType)
@@ -21980,7 +21928,6 @@ export const builtinTypes = {
 	Real: RealType,
 	ScriptHash: scriptHashType,
     ScriptPurpose: ScriptPurposeType,
-    StakeKeyHash: StakeKeyHashType,
     StakingCredential: StakingCredentialType,
     StakingHash: StakingHashType,
     StakingPurpose: StakingPurposeType,
@@ -26133,7 +26080,7 @@ function makeRawFunctions(simplify) {
 	}`));
 
 	
-	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash", "datumhash", "stakekeyhash"]) {
+	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash", "datumhash"]) {
 	// Hash builtins
 		addByteArrayLikeFuncs(`__helios__${hash}`);
 		add(new RawFunc(`__helios__${hash}__from_script_hash`, "__helios__common__identity"));
@@ -30303,7 +30250,8 @@ export class NameTypePair {
 		} else if (this.#typeExpr === null) {
 			throw new Error("typeExpr not set in " + this.site.src.raw.split("\n")[0]);
 		} else {
-			return assertDefined(this.#typeExpr.cache?.asType);
+			// asDataType might be null if the evaluation of its TypeExpr threw a syntax error
+			return this.#typeExpr.cache?.asType ?? new AllType();
 		}
 	}
 
@@ -30841,16 +30789,20 @@ export class ParametricExpr extends Expr {
 
 		const baseVal = this.#baseExpr.eval(scope);
 
-		if (!baseVal || paramTypes === null) {
+		if (!baseVal) {
 			return null;
 		}
 
 		if (!baseVal.asParametric) {
-			this.site.typeError(`'${baseVal.toString()}' isn't a parametric instance`);
+			this.site.typeError(`'${baseVal.toString()}' isn't a parametric type`);
 			return null;
-		} else {
-			return baseVal.asParametric.apply(paramTypes, this.site);
+		} 
+
+		if (paramTypes === null) {
+			return null
 		}
+		
+		return baseVal.asParametric.apply(paramTypes, this.site);
 	}
 
 	/**
@@ -45367,7 +45319,8 @@ export class Tx extends CborData {
 	 */
 	addRefInputs(inputs) {
 		for (let input of inputs) {
-			this.addRefInput(input);
+			const refScript = input.origOutput.refScript;
+			this.addRefInput(input, refScript);
 		}
 
 		return this;
@@ -45422,6 +45375,21 @@ export class Tx extends CborData {
 		assert(!this.#valid);
 
 		this.#body.addSigner(hash);
+
+		return this;
+	}
+
+	/**
+	 * Add a `DCert` to the transactions being built. `DCert` contains information about a staking-related action.
+	 * 
+	 * TODO: implement all DCert (de)serialization methods.
+	 * 
+	 * Returns the transaction instance so build methods can be chained.
+	 * @internal
+	 * @param {DCert} dcert 
+	 */
+	addDCert(dcert) {
+		this.#body.addDCert(dcert);
 
 		return this;
 	}
@@ -45611,9 +45579,34 @@ export class Tx extends CborData {
 		} else {
 			const diff = inputAssets.sub(outputAssets);
 
-			const changeOutput = new TxOutput(changeAddress, new Value(0n, diff));
+			if (config.MAX_ASSETS_PER_CHANGE_OUTPUT) {
+				const maxAssetsPerOutput = config.MAX_ASSETS_PER_CHANGE_OUTPUT;
 
-			this.#body.addOutput(changeOutput);
+				let changeAssets = new Assets();
+				let tokensAdded = 0;
+
+				diff.mintingPolicies.forEach((mph) => {
+					const tokens = diff.getTokens(mph);
+					tokens.forEach(([token, quantity], i) => {
+						changeAssets.addComponent(mph, token, quantity);
+						tokensAdded += 1;
+						if (tokensAdded == maxAssetsPerOutput) {
+							this.#body.addOutput(new TxOutput(changeAddress, new Value(0n, changeAssets)));
+							changeAssets = new Assets();
+							tokensAdded = 0;
+						}
+					});
+				});
+
+				// If we are here and have No assets, they we're done
+				if (!changeAssets.isZero()) {
+					this.#body.addOutput(new TxOutput(changeAddress, new Value(0n, changeAssets)));
+				}
+			} else {
+				const changeOutput = new TxOutput(changeAddress, new Value(0n, diff));
+	
+				this.#body.addOutput(changeOutput);
+			}
 		}
 	}
 
@@ -45764,15 +45757,22 @@ export class Tx extends CborData {
 
 		nonChangeOutputValue = feeValue.add(nonChangeOutputValue);
 
+		// this is quite restrictive, but we really don't want to touch UTxOs containing assets just for balancing purposes
+		const spareAssetUTxOs = spareUtxos.some(utxo => !utxo.value.assets.isZero());
 		spareUtxos = spareUtxos.filter(utxo => utxo.value.assets.isZero());
 		
 		// use some spareUtxos if the inputValue doesn't cover the outputs and fees
 
-		while (!inputValue.ge(nonChangeOutputValue.add(changeOutput.value))) {
+		const totalOutputValue = nonChangeOutputValue.add(changeOutput.value);
+		while (!inputValue.ge(totalOutputValue)) {
 			let spare = spareUtxos.pop();
 
 			if (spare === undefined) {
-				throw new Error("transaction doesn't have enough inputs to cover the outputs + fees + minLovelace");
+				if (spareAssetUTxOs) {
+					throw new Error(`UTxOs too fragmented`);
+				} else {
+					throw new Error(`need ${totalOutputValue.lovelace} lovelace, but only have ${inputValue.lovelace}`);
+				}
 			} else {
 				this.#body.addInput(spare);
 
@@ -45961,7 +45961,7 @@ export class Tx extends CborData {
 		this.finalizeValidityTimeRange(networkParams);
 
 		// inputs, minted assets, and withdrawals must all be in a particular order
-		this.#body.sort();
+		this.#body.sortInputs();
 
 		// after inputs etc. have been sorted we can calculate the indices of the redeemers referring to those inputs
 		this.#witnesses.updateRedeemerIndices(this.#body);
@@ -45969,7 +45969,10 @@ export class Tx extends CborData {
 		this.checkScripts();
 
 		// balance the non-ada assets
-		this.balanceAssets(changeAddress)
+		this.balanceAssets(changeAddress);
+
+		// sort the assets in the outputs, including the asset change output
+		this.#body.sortOutputs();
 
 		// make sure that each output contains the necessary minimum amount of lovelace	
 		this.#body.correctOutputs(networkParams);
@@ -46724,6 +46727,14 @@ export class TxBody extends CborData {
 
 	/**
 	 * @internal
+	 * @param {DCert} dcert 
+	 */
+	addDCert(dcert) {
+		this.#dcerts.push(dcert);
+	}
+
+	/**
+	 * @internal
 	 * @param {TxInput} input 
 	 */
 	addCollateral(input) {
@@ -46840,6 +46851,8 @@ export class TxBody extends CborData {
 			let minLovelace = output.calcMinLovelace(networkParams);
 
 			assert(minLovelace <= output.value.lovelace, `not enough lovelace in output (expected at least ${minLovelace.toString()}, got ${output.value.lovelace})`);
+
+			output.value.assets.assertSorted();
 		}
 	}
 	
@@ -46879,11 +46892,11 @@ export class TxBody extends CborData {
 	}
 
 	/**
-	 * Makes sore inputs, withdrawals, and minted assets are in correct order
+	 * Makes sore inputs, withdrawals, and minted assets are in correct order, this is needed for the redeemer indices
 	 * Mutates
 	 * @internal
 	 */
-	sort() {
+	sortInputs() {
 		// inputs should've been added in sorted manner, so this is just a check
 		this.#inputs.forEach((input, i) => {
 			if (i > 0) {
@@ -46904,11 +46917,6 @@ export class TxBody extends CborData {
 			}
 		});
 
-		// sort the tokens in the outputs, needed by the flint wallet
-		this.#outputs.forEach(output => {
-			output.value.assets.sort();
-		});
-
 		// TODO: also add withdrawals in sorted manner
 		this.#withdrawals = new Map(Array.from(this.#withdrawals.entries()).sort((a, b) => {
 			return Address.compStakingHashes(a[0], b[0]);
@@ -46916,6 +46924,18 @@ export class TxBody extends CborData {
 
 		// minted assets should've been added in sorted manner, so this is just a check
 		this.#minted.assertSorted();
+	}
+
+
+	/**
+	 * Not done in the same routine as sortInputs(), because balancing of assets happens after redeemer indices are set
+	 * @internal
+	 */
+	sortOutputs() {
+		// sort the tokens in the outputs, needed by the flint wallet
+		this.#outputs.forEach(output => {
+			output.value.assets.sort();
+		});
 	}
 
 	/**
@@ -48230,8 +48250,11 @@ export class TxOutput extends CborData {
 	}
 }
 
-// TODO: enum members
-class DCert extends CborData {
+/**
+ * A `DCert` represents a staking action (eg. withdrawing rewards, delegating to another pool).
+ * @internal
+ */
+export class DCert extends CborData {
 	constructor() {
 		super();
 	}
@@ -48261,9 +48284,44 @@ class DCert extends CborData {
 }
 
 /**
+ * @internal
+ */
+export class DCertDelegate extends DCert {
+
+}
+
+/**
+ * @internal
+ */
+export class DCertDeregister extends DCert {
+
+}
+
+/**
+ * @internal
+ */
+export class DCertRegister extends DCert {
+
+}
+
+/**
+ * @internal
+ */
+export class DCertRegisterPool extends DCert {
+
+}
+
+/**
+ * @internal
+ */
+export class DCertRetire extends DCert {
+
+}
+
+/**
  * Wrapper for Cardano stake address bytes. An StakeAddress consists of two parts internally:
  *   - Header (1 byte, see CIP 8)
- *   - Staking witness hash (28 bytes that represent the `StakeKeyHash` or `StakingValidatorHash`)
+ *   - Staking witness hash (28 bytes that represent the `PubKeyHash` or `StakingValidatorHash`)
  * 
  * Stake addresses are used to query the assets held by given staking credentials.
  */
@@ -48378,13 +48436,13 @@ export class StakeAddress {
 	}
 
 	/**
-	 * Address with only staking part (regular StakeKeyHash)
+	 * Address with only staking part (regular PubKeyHash)
 	 * @internal
 	 * @param {boolean} isTestnet
-	 * @param {StakeKeyHash} hash
+	 * @param {PubKeyHash} hash
 	 * @returns {StakeAddress}
 	 */
-	static fromStakeKeyHash(isTestnet, hash) {
+	static fromPubKeyHash(isTestnet, hash) {
 		return new StakeAddress(
 			[isTestnet ? 0xe0 : 0xe1].concat(hash.bytes)
 		);
@@ -48404,28 +48462,28 @@ export class StakeAddress {
 	}
 
 	/**
-	 * Converts a `StakeKeyHash` or `StakingValidatorHash` into `StakeAddress`.
+	 * Converts a `PubKeyHash` or `StakingValidatorHash` into `StakeAddress`.
 	 * @param {boolean} isTestnet
-	 * @param {StakeKeyHash | StakingValidatorHash} hash
+	 * @param {PubKeyHash | StakingValidatorHash} hash
 	 * @returns {StakeAddress}
 	 */
 	static fromHash(isTestnet, hash) {
-		if (hash instanceof StakeKeyHash) {
-			return StakeAddress.fromStakeKeyHash(isTestnet, hash);
+		if (hash instanceof PubKeyHash) {
+			return StakeAddress.fromPubKeyHash(isTestnet, hash);
 		} else {
 			return StakeAddress.fromStakingValidatorHash(isTestnet, hash);
 		}
 	}
 
 	/**
-	 * Returns the underlying `StakeKeyHash` or `StakingValidatorHash`.
-	 * @returns {StakeKeyHash | StakingValidatorHash}
+	 * Returns the underlying `PubKeyHash` or `StakingValidatorHash`.
+	 * @returns {PubKeyHash | StakingValidatorHash}
 	 */
 	get stakingHash() {
 		const type = this.bytes[0];
 
 		if (type == 0xe0 || type == 0xe1) {
-			return new StakeKeyHash(this.bytes.slice(1));
+			return new PubKeyHash(this.bytes.slice(1));
 		} else if (type == 0xf0 || type == 0xf1) {
 			return new StakingValidatorHash(this.bytes.slice(1));
 		} else {
@@ -49874,6 +49932,7 @@ export class TxMetadata {
 }
 
 
+
 ////////////////////////////////////
 // Section 36: Highlighting function
 ////////////////////////////////////
@@ -50932,7 +50991,7 @@ export class BlockfrostV0 {
     async getParameters() {
         const response = await fetch(`https://d1t0d7c2nekuk0.cloudfront.net/${this.#networkName}.json`);
 
-        // TODO: build networkParams from blockfrost endpoints instead (see lambda function)
+        // TODO: build networkParams from Blockfrost endpoints instead
         return new NetworkParams(await response.json());
     }
 
@@ -51159,6 +51218,303 @@ export class BlockfrostV0 {
     }
 }
 
+/**
+ * Koios network interface.
+ * @implements {Network}
+ */
+export class KoiosV0 {
+    #networkName;
+
+    /**
+     * @param {"preview" | "preprod" | "mainnet"} networkName 
+     */
+    constructor(networkName) {
+        this.#networkName = networkName;
+    }
+
+    /**
+     * @private
+     * @type {string}
+     */
+    get rootUrl() {
+        return {
+            preview: "https://preview.koios.rest",
+            preprod: "https://preprod.koios.rest",
+            guildnet: "https://guild.koios.rest",
+            mainnet: "https://api.koios.rest"
+        }[this.#networkName];
+    }
+
+     /**
+     * @returns {Promise<NetworkParams>}
+     */
+     async getParameters() {
+        const response = await fetch(`https://d1t0d7c2nekuk0.cloudfront.net/${this.#networkName}.json`);
+
+        // TODO: build networkParams from Koios endpoints instead
+        return new NetworkParams(await response.json());
+    }
+
+    /**
+     * @private
+     * @param {TxOutputId[]} ids 
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxosInternal(ids) {
+        const url = `${this.rootUrl}/api/v0/tx_info`;
+
+        /**
+         * @type {Map<string, number[]>}
+         */
+        const txIds = new Map();
+        
+        ids.forEach(id => {
+            const prev = txIds.get(id.txId.hex);
+
+            if (prev) {
+                prev.push(id.utxoIdx);
+            } else {
+                txIds.set(id.txId.hex, [id.utxoIdx]);
+            }
+        });
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "accept": "application/json",
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                _tx_hashes: Array.from(txIds.keys())
+            })
+        });
+
+        const responseText = await response.text();
+
+        if (response.status != 200) {
+            // analyze error and throw a different error if it was detected that an input UTxO might not exist
+            throw new Error(responseText);
+        }
+
+        const obj = JSON.parse(responseText);
+
+        /**
+         * @type {Map<string, TxInput>}
+         */
+        const result = new Map();
+
+        const rawTxs = obj;
+
+        if (!Array.isArray(rawTxs)) {
+            throw new Error(`unexpected tx_info format: ${responseText}`);
+        }
+
+        rawTxs.forEach(rawTx => {
+            const rawOutputs = rawTx["outputs"];
+            
+            if (!rawOutputs) {
+                throw new Error(`unexpected tx_info format: ${JSON.stringify(rawTx)}`);
+            }
+
+            const utxoIdxs = assertDefined(txIds.get(rawTx.tx_hash));
+
+            for (let utxoIdx of utxoIdxs) {
+                const id = new TxOutputId(new TxId(rawTx.tx_hash), utxoIdx);
+                
+                const rawOutput = rawOutputs[id.utxoIdx]
+
+                if (!rawOutput) {
+                    throw new Error(`UTxO ${id.toString()} doesn't exist`);
+                }
+
+                const rawPaymentAddr = rawOutput.payment_addr?.bech32;
+
+                if (!rawPaymentAddr || typeof rawPaymentAddr != "string") {
+                    throw new Error(`unexpected tx_info format: ${JSON.stringify(rawTx)}`);
+                }
+
+                const rawStakeAddr = rawOutput.stake_addr;
+
+                if (rawStakeAddr === undefined) {
+                    throw new Error(`unexpected tx_info format: ${JSON.stringify(rawTx)}`);
+                }
+
+                const paymentAddr = Address.fromBech32(rawPaymentAddr);
+                
+                const stakeAddr = rawStakeAddr ? StakeAddress.fromBech32(rawStakeAddr) : null;
+
+                const address = Address.fromHashes(
+                    assertDefined(paymentAddr.pubKeyHash ?? paymentAddr.validatorHash),
+                    stakeAddr?.stakingHash ?? null,
+                    this.#networkName != "mainnet"
+                );
+
+                const lovelace = BigInt(parseInt(assertDefined(rawOutput.value)));
+
+                assert(lovelace.toString() == rawOutput.value, `unexpected tx_info format: ${JSON.stringify(rawTx)}`)
+
+                /**
+                 * @type {[AssetClass, bigint][]}
+                 */
+                const assets = [];
+
+                for (let rawAsset of rawOutput.asset_list) {
+                    const qty = BigInt(parseInt(rawAsset.quantity));
+                    assert(qty.toString() == rawAsset.quantity, `unexpected tx_info format: ${JSON.stringify(rawTx)}`)
+
+                    assets.push([
+                        new AssetClass(`${rawAsset.policy_id}.${rawAsset.asset_name ?? ""}`),
+                        qty
+                    ]);
+                }
+
+                const datum = rawOutput.inline_datum ? 
+                    (Datum.inline(UplcData.fromCbor(rawOutput.inline_datum.bytes))) : 
+                    (rawOutput.datum_hash ? new HashedDatum(new DatumHash(rawOutput.datum_hash)) : null);
+
+                const refScript = rawOutput.reference_script ? UplcProgram.fromCbor(rawOutput.reference_script) : null;
+
+                const txInput =  new TxInput(
+                    id,
+                    new TxOutput(
+                        address,
+                        new Value(lovelace, new Assets(assets)),
+                        datum,
+                        refScript
+                    )
+                );
+
+                result.set(id.toString(), txInput);
+            }
+        });
+
+        return ids.map(id => assertDefined(result.get(id.toString())));
+    }
+
+     /**
+     * Throws an error if a Blockfrost project_id is missing for that specific network.
+     * @param {TxInput} refUtxo
+     * @returns {Promise<KoiosV0>}
+     */
+    static async resolveUsingUtxo(refUtxo) {
+        const preprodNetwork = new KoiosV0("preprod");
+
+        if (await preprodNetwork.hasUtxo(refUtxo)) {
+            return preprodNetwork;
+        }
+        
+        const previewNetwork = new KoiosV0("preview");
+
+        if (await previewNetwork.hasUtxo(refUtxo)) {
+            return previewNetwork;
+        }
+
+        const mainnetNetwork = new KoiosV0("mainnet");
+
+        if (await mainnetNetwork.hasUtxo(refUtxo)) {
+            return mainnetNetwork;
+        }
+
+        throw new Error("refUtxo not found on any network");
+    }
+
+    /** 
+     * @param {TxOutputId} id 
+     * @returns {Promise<TxInput>}
+     */
+    async getUtxo(id) {
+        return assertDefined(await this.getUtxosInternal([id])[0]);
+    }
+
+     /**
+     * Used by `KoiosV0.resolveUsingUtxo()`.
+     * @param {TxInput} utxo
+     * @returns {Promise<boolean>}
+     */
+     async hasUtxo(utxo) {
+        const url = `${this.rootUrl}/api/v0/tx_info`;
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "accept": "application/json",
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                _tx_hashes: [utxo.outputId.txId.hex]
+            })
+        });
+
+        return response.ok;
+    }
+
+    /**
+     * @param {Address} address 
+     * @returns {Promise<TxInput[]>}
+     */
+    async getUtxos(address) {
+        const url = `${this.rootUrl}/api/v0/credential_utxos`;
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "accept": "application/json",
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                _payment_credentials: [assertDefined(address.pubKeyHash ?? address.validatorHash).hex]
+            })
+        });
+
+        const responseText = await response.text();
+
+        if (response.status != 200) {
+            // analyze error and throw a different error if it was detected that an input UTxO might not exist
+            throw new Error(responseText);
+        }
+
+        const obj = JSON.parse(responseText);
+
+        if (!Array.isArray(obj)) {
+            throw new Error(`unexpected credential_utxos format: ${responseText}`);
+        }
+
+        const ids = obj.map(rawId => {
+            const utxoIdx = Number(rawId.tx_index);
+            const id = new TxOutputId(new TxId(rawId.tx_hash), utxoIdx);
+
+            return id;
+        });
+
+        return this.getUtxosInternal(ids);
+    }
+
+    /**
+     * @param {Tx} tx 
+     * @returns {Promise<TxId>}
+     */
+    async submitTx(tx) {
+        const url = `${this.rootUrl}/api/v0/submittx`;
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "accept": "application/json",
+                "content-type": "application/cbor"
+            },
+            body: new Uint8Array(tx.toCbor())
+        });
+
+        const responseText = await response.text();
+
+        if (response.status != 200) {
+            // analyze error and throw a different error if it was detected that an input UTxO might not exist
+            throw new Error(responseText);
+        }
+
+        return new TxId(responseText);
+    }
+}
 
 
 ///////////////////////
@@ -51825,12 +52181,10 @@ export const rawNetworkEmulatorParams = {
 };
 
 /**
- * An emulated `Wallet`, created by calling `emulator.createWallet()`.
- * 
  * This wallet only has a single private/public key, which isn't rotated. Staking is not yet supported.
  * @implements {Wallet}
  */
-export class WalletEmulator {
+export class SimpleWallet {
     /**
      * @type {Network}
      */
@@ -52215,14 +52569,14 @@ export class NetworkEmulator {
     }
 
     /**
-     * Creates a new WalletEmulator and populates it with a given lovelace quantity and assets.
+     * Creates a new SimpleWallet and populates it with a given lovelace quantity and assets.
      * Special genesis transactions are added to the emulated chain in order to create these assets.
      * @param {bigint} lovelace
      * @param {Assets} assets
-     * @returns {WalletEmulator}
+     * @returns {SimpleWallet}
      */
     createWallet(lovelace = 0n, assets = new Assets([])) {
-        const wallet = new WalletEmulator(this, Bip32PrivateKey.random(this.#random));
+        const wallet = new SimpleWallet(this, Bip32PrivateKey.random(this.#random));
 
         this.createUtxo(wallet, lovelace, assets);
 
@@ -52231,7 +52585,7 @@ export class NetworkEmulator {
 
     /**
      * Creates a UTxO using a GenesisTx.
-     * @param {WalletEmulator} wallet
+     * @param {SimpleWallet} wallet
      * @param {bigint} lovelace
      * @param {Assets} assets
      */

@@ -263,7 +263,7 @@ export const RealType = new GenericType({
         }
     }),
     jsToUplc: async (obj, helpers) => {
-        return new IntData(BigInt(obj*1000000))
+        return new IntData(BigInt(Math.round(obj*1000000)))
     },
     uplcToJs: async (data, helpers) => {
         return Number(data.int)/1000000
