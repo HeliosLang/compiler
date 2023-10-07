@@ -8444,6 +8444,11 @@ declare module "helios" {
          */
         isCore(): boolean;
         /**
+         * @internal
+         * @returns {boolean}
+         */
+        isParam(): boolean;
+        /**
          * @param {IRVariable} ref
          * @returns {boolean}
          */

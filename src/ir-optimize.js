@@ -44,13 +44,10 @@ import {
     IREvaluator,
     IRErrorValue,
     IRLiteralValue,
-    IRMultiValue,
-    IRFuncValue,
     annotateIR
 } from "./ir-evaluate.js";
+
 import { IRVariable } from "./ir-context.js";
-
-
 
 /**
  * Recursive algorithm that performs the following optimizations.
@@ -203,6 +200,7 @@ export class IROptimizer {
         this.#evaluator.eval(this.#root);
 
         this.flattenNestedFuncExprs();
+        //console.log(annotateIR(this.#evaluator, this.#root))
     }
 
     /**

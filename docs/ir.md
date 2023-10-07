@@ -1,11 +1,10 @@
 # IR
 
-Helios compiles a set of scripts in an Internal Representation. This IR is a simplified version of the Helios, and only uses a few terms:
+Helios compiles a set of scripts into an Internal Representation. This IR is a simplified version of Helios, and only uses a few expression terms:
   * IRNameExpr
   * IRCallExpr
   * IRFuncExpr
   * IRLiteralExpr
-  * IRConstExpr
   * IRErrorCallExpr
 
 ## IRNameExpr
@@ -30,8 +29,10 @@ Helios compiles a set of scripts in an Internal Representation. This IR is a sim
 
 ## IRLiteralExpr
 
-Syntax is identical to Helios.
+Literals like strings, bytearrays and integers. The IR literal syntax is identical to the Helios literal syntax.
 
-## IRConstExpr
+## IRErrorExpr
 
-Used by `const` statements so parts that should be evaluated into literal expressions can easily be identified.
+```
+error()
+```

@@ -137,6 +137,14 @@ export class IRNameExpr {
 	}
 
 	/**
+	 * @internal
+	 * @returns {boolean}
+	 */
+	isParam() {
+		return this.name.startsWith("__PARAM")
+	}
+
+	/**
 	 * @param {IRVariable} ref 
 	 * @returns {boolean}
 	 */
@@ -161,7 +169,7 @@ export class IRNameExpr {
 	 */
 	resolveNames(scope) {
 		if (!this.isCore()) {
-			if (this.#variable == null || this.name.startsWith("__PARAM")) {
+			if (this.#variable == null || this.isParam()) {
 				[this.#index, this.#variable] = scope.get(this.#name);
 			} else {
 				[this.#index, this.#variable] = scope.get(this.#variable);

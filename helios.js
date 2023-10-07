@@ -269,11 +269,13 @@
 //                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
 //
 //     Section 35: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
-//                                           TxOutput, DCert, StakeAddress, Signature, 
-//                                           Ed25519PrivateKey, BIP32_HARDEN, Bip32PrivateKey, 
-//                                           RootPrivateKey, Redeemer, SpendingRedeemer, 
-//                                           MintingRedeemer, Datum, HashedDatum, InlineDatum, 
-//                                           encodeMetadata, decodeMetadata, TxMetadata
+//                                           TxOutput, DCert, DCertDelegate, DCertDeregister, 
+//                                           DCertRegister, DCertRegisterPool, DCertRetire, 
+//                                           StakeAddress, Signature, Ed25519PrivateKey, 
+//                                           BIP32_HARDEN, Bip32PrivateKey, RootPrivateKey, 
+//                                           Redeemer, SpendingRedeemer, MintingRedeemer, Datum, 
+//                                           HashedDatum, InlineDatum, encodeMetadata, 
+//                                           decodeMetadata, TxMetadata
 //
 //     Section 36: Highlighting function     SyntaxCategory, highlight
 //
@@ -281,9 +283,9 @@
 //
 //     Section 38: Wallets                   Cip30Wallet, WalletHelper, RemoteWallet
 //
-//     Section 39: Network                   BlockfrostV0
+//     Section 39: Network                   BlockfrostV0, KoiosV0
 //
-//     Section 40: Emulator                  rawNetworkEmulatorParams, WalletEmulator, GenesisTx, 
+//     Section 40: Emulator                  rawNetworkEmulatorParams, SimpleWallet, GenesisTx, 
 //                                           RegularTx, NetworkEmulator, TxChainWallet, TxChain, 
 //                                           NetworkSlice
 //
@@ -39004,6 +39006,14 @@ export class IRNameExpr {
 	}
 
 	/**
+	 * @internal
+	 * @returns {boolean}
+	 */
+	isParam() {
+		return this.name.startsWith("__PARAM")
+	}
+
+	/**
 	 * @param {IRVariable} ref 
 	 * @returns {boolean}
 	 */
@@ -39028,7 +39038,7 @@ export class IRNameExpr {
 	 */
 	resolveNames(scope) {
 		if (!this.isCore()) {
-			if (this.#variable == null || this.name.startsWith("__PARAM")) {
+			if (this.#variable == null || this.isParam()) {
 				[this.#index, this.#variable] = scope.get(this.#name);
 			} else {
 				[this.#index, this.#variable] = scope.get(this.#variable);
@@ -40540,12 +40550,12 @@ export class IREvaluator {
      *   {ignore: number, owner: null | IRExpr}
      * )[]}
      */
-    #computeStack;
+    #compute;
 
     /**
      * @type {IRValue[]}
      */
-    #reductionStack;
+    #reduce;
 
     /**
 	 * Keep track of the eval result of each expression
@@ -40591,8 +40601,8 @@ export class IREvaluator {
     #maxRecursion;
 
 	constructor() {
-        this.#computeStack = [];
-        this.#reductionStack = [];
+        this.#compute = [];
+        this.#reduce = [];
 
         // data structures used by optimization
         this.#exprValues = new Map();
@@ -40788,15 +40798,15 @@ export class IREvaluator {
      */
     pushExpr(stack, expr) {
         if (expr instanceof IRErrorExpr) {
-            this.#computeStack.push({stack: stack, expr: expr});
+            this.#compute.push({stack: stack, expr: expr});
         } else if (expr instanceof IRLiteralExpr) {
-            this.#computeStack.push({stack: stack, expr: expr});
+            this.#compute.push({stack: stack, expr: expr});
         } else if (expr instanceof IRNameExpr) {
-            this.#computeStack.push({stack: stack, expr: expr});
+            this.#compute.push({stack: stack, expr: expr});
         } else if (expr instanceof IRFuncExpr) {
-            this.#computeStack.push({stack: stack, expr: expr});
+            this.#compute.push({stack: stack, expr: expr});
         } else if (expr instanceof IRCallExpr) {
-            this.#computeStack.push({stack: stack, expr: expr});
+            this.#compute.push({stack: stack, expr: expr});
 
             this.pushExpr(stack, expr.func);
 
@@ -40829,7 +40839,7 @@ export class IREvaluator {
             this.setExprValue(owner, value);
         }
 
-        this.#reductionStack.push(value);
+        this.#reduce.push(value);
     }
 
     /**
@@ -40944,7 +40954,7 @@ export class IREvaluator {
 
 			const prev = this.#activeCalls.get(expr);
 
-			if (!prev || prev.length < 5) {
+			if (!prev || prev.length < 10) {
 				return false;
             }  else if (prev.length > this.#maxRecursion) {
                 return true;
@@ -41027,23 +41037,23 @@ export class IREvaluator {
         const permutations = IRMultiValue.allPermutations(args);
 
         if (owner instanceof IRCallExpr) {
-            this.#computeStack.push({calling: owner});
+            this.#compute.push({calling: owner});
             this.pushActiveCall(owner, new IRFuncValue(stack, fn), args);
         }
 
         if (permutations.length > 1) {
-            this.#computeStack.push({multi: permutations.length, owner: owner});
+            this.#compute.push({multi: permutations.length, owner: owner});
         }
 
         permutations.forEach(args => {
             if (args.some(a => a instanceof IRErrorValue)) {
-                this.#computeStack.push({value: new IRErrorValue(), owner: owner});
+                this.#compute.push({value: new IRErrorValue(), owner: owner});
             } else {
                 const varsToValues = this.mapVarsToValues(fn.args, args);
                 const stack_ = stack.concat([{fn: fn, args: varsToValues}]);
 
                 this.incrCallCount(fn);
-                this.#computeStack.push({fn: fn, owner: owner, stack: stack_});
+                this.#compute.push({fn: fn, owner: owner, stack: stack_});
                 this.pushExpr(stack_, fn.body);
             }
         });
@@ -41106,7 +41116,7 @@ export class IREvaluator {
             }
         });
 
-        this.#computeStack.push({ignore: fnsInArgs.length, owner: owner});
+        this.#compute.push({ignore: fnsInArgs.length, owner: owner});
 
         fnsInArgs.forEach(fn => {
             const def = assertClass(fn.definition, IRFuncExpr);
@@ -41119,14 +41129,14 @@ export class IREvaluator {
      * @internal
      */
     evalInternal() {
-        let head = this.#computeStack.pop();
+        let head = this.#compute.pop();
 
 		while (head) {
             if ("expr" in head) {
                 const expr = head.expr;
 
                 if (expr instanceof IRCallExpr) {
-                    const v = assertDefined(this.#reductionStack.pop());
+                    const v = assertDefined(this.#reduce.pop());
 
                     /**
                      * @type {IRValue[]}
@@ -41134,21 +41144,21 @@ export class IREvaluator {
                     let args = [];
 
                     for (let i = 0; i < expr.args.length; i++) {
-                        args.push(assertDefined(this.#reductionStack.pop()))
+                        args.push(assertDefined(this.#reduce.pop()))
                     }
 
                     if (this.isRecursing(expr, v, args)) {
                         // we are recursing too deep, simply return Any
                         this.pushReductionValue(expr, new IRAnyValue());
                     } else {
-                        if (v instanceof IRAnyValue || v instanceof IRDataValue) {
+                        if (v instanceof IRAnyValue) {// || v instanceof IRDataValue) {
                             this.callAnyFunc(expr, v, args);
                         } else if (v instanceof IRErrorValue || args.some(a => a instanceof IRErrorValue)) {
                             this.pushReductionValue(expr, new IRErrorValue());
                         } else if (v instanceof IRFuncValue) {
-                                this.callFunc(expr, v, args);
+                            this.callFunc(expr, v, args);
                         } else if (v instanceof IRMultiValue) {
-                            this.#computeStack.push({multi: v.values.length, owner: expr});
+                            this.#compute.push({multi: v.values.length, owner: expr});
 
                             for (let subValue of v.values) {
                                 if (subValue instanceof IRErrorValue) {
@@ -41172,8 +41182,9 @@ export class IREvaluator {
                 } else if (expr instanceof IRErrorExpr) {
                     this.pushReductionValue(expr, new IRErrorValue());
                 } else if (expr instanceof IRNameExpr) {
-                    
-                    if (expr.isCore()) {
+                    if (expr.isParam()) {
+                        this.pushReductionValue(expr, new IRDataValue());
+                    } else if (expr.isCore()) {
                         this.pushReductionValue(expr, new IRFuncValue(head.stack, expr));
                     } else {
                         this.pushReductionValue(expr, this.getValue(head.stack, expr));
@@ -41183,14 +41194,14 @@ export class IREvaluator {
                     this.pushReductionValue(expr, new IRLiteralValue(expr.value));
                 } else if (expr instanceof IRFuncExpr) {
                     // don't set owner because it is confusing wrt. return value type
-                    this.#reductionStack.push(new IRFuncValue(head.stack, expr));
+                    this.#reduce.push(new IRFuncValue(head.stack, expr));
                 } else {
                     throw new Error("unexpected expr type");
                 }
 			} else if ("fn" in head && head.fn instanceof IRFuncExpr) {
                 // track the owner
                 const owner = head.owner;
-                const last = assertDefined(this.#reductionStack.pop());
+                const last = assertDefined(this.#reduce.pop());
 
                 this.setExprValue(head.fn, last);
                 this.pushReductionValue(owner, last);
@@ -41203,7 +41214,7 @@ export class IREvaluator {
 				const values = [];
 
 				for (let i = 0; i < head.multi; i++) {
-					values.push(assertDefined(this.#reductionStack.pop()));
+					values.push(assertDefined(this.#reduce.pop()));
 				}
 
                 this.pushReductionValue(head.owner, IRMultiValue.flatten(values));
@@ -41212,7 +41223,7 @@ export class IREvaluator {
             } else if ("ignore" in head) {
                 const vs = [new IRAnyValue()];
                 for (let i = 0; i < head.ignore; i++) {
-                    if (assertDefined(this.#reductionStack.pop()) instanceof IRErrorValue) {
+                    if (assertDefined(this.#reduce.pop()) instanceof IRErrorValue) {
                         vs.push(new IRErrorValue());
                     }
                 }
@@ -41224,7 +41235,7 @@ export class IREvaluator {
 				throw new Error("unexpected term");
 			}
 
-            head = this.#computeStack.pop();
+            head = this.#compute.pop();
 		}
     }
 
@@ -41237,9 +41248,9 @@ export class IREvaluator {
 
         this.evalInternal();
 
-        const res = assertDefined(this.#reductionStack.pop());
+        const res = assertDefined(this.#reduce.pop());
 
-        assert(this.#reductionStack.length == 0, "expected a single reduction value in first phase [" + this.#reductionStack.map(v => v.toString()).join(", ") + "]");
+        assert(this.#reduce.length == 0, "expected a single reduction value in first phase [" + this.#reduce.map(v => v.toString()).join(", ") + "]");
 
         if (res instanceof IRFuncValue) {
             return res;
@@ -41261,9 +41272,9 @@ export class IREvaluator {
 
         this.evalInternal();
 
-        const res = assertDefined(this.#reductionStack.pop());
+        const res = assertDefined(this.#reduce.pop());
 
-        assert(this.#reductionStack.length == 0, "expected a single reduction value in second phase [" + res.toString() + ", " + this.#reductionStack.map(v => v.toString()).join(", ") + "]");
+        assert(this.#reduce.length == 0, "expected a single reduction value in second phase [" + res.toString() + ", " + this.#reduce.map(v => v.toString()).join(", ") + "]");
 
         const finalValues = (res instanceof IRMultiValue) ? res.values : [res];
 
@@ -41279,7 +41290,7 @@ export class IREvaluator {
             } else if (v instanceof IRDataValue) {
                 // ok
             } else {
-                throw new Error("unexpected return value " + v.toString());
+                // ok, (could be a literal UplcUnit, which is treated as Any because in other contexts it could be a function)
             }
         }
 
@@ -41414,8 +41425,6 @@ export function annotateIR(evaluation, expr) {
 //////////////////////////////
 // Section 31: IR optimization
 //////////////////////////////
-
-
 
 /**
  * Recursive algorithm that performs the following optimizations.
@@ -41568,6 +41577,7 @@ export class IROptimizer {
         this.#evaluator.eval(this.#root);
 
         this.flattenNestedFuncExprs();
+        //console.log(annotateIR(this.#evaluator, this.#root))
     }
 
     /**

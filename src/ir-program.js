@@ -67,10 +67,6 @@ import {
     buildIRExpr
 } from "./ir-build.js";
 
-import { 
-	IREvaluator
-} from "./ir-evaluate.js";
-
 import {
 	IROptimizer
 } from "./ir-optimize.js";
