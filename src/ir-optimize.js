@@ -190,6 +190,8 @@ export class IROptimizer {
             return;
         }
 
+        //console.log(annotateIR(this.#evaluator, this.#root))
+
         this.removeUnusedArgs();
 
         this.replaceUncalledArgsWithUnit();

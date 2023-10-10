@@ -63,6 +63,40 @@ import {
  */
 
 /**
+ * @internal
+ * @param {number} start
+ * @param {number} x
+ * @returns {number}
+ */
+function hashNumber(start, x) {
+	return (start*31 + x)%4294967296;
+}
+
+/**
+ * @internal
+ * @param {number | string | boolean} x 
+ * @param {number} start
+ * @returns {number}
+ */
+export function hashCode(x, start = 0) {
+    let c = start;
+
+    if (typeof x == "boolean") {
+        c = hashNumber(c, x ? 1 : 0);
+    } else if (typeof x == "number") {
+        c = hashNumber(c, x);
+    } else if (typeof x == "string") {
+        for (let i = 0; i < x.length; i++) {
+            c = hashNumber(c, x.charCodeAt(i));
+        }
+    } else {
+        throw new Error("unexpected type");
+    }
+
+    return c;
+}
+
+/**
  * Intermediate Representation variable reference expression
  * @internal
  * @implements {IRExpr}

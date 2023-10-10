@@ -40,4 +40,4 @@ If the function is an `IRFuncExpr`, first each possible permutation is created f
 
 The difficult part of this CEK machine is handling recursion because termination conditions will never be met. We also don't want to detect recursion prematurely because then some execution-paths might not be taken.
 
-We can't use the `IRStack` to detect recursion because it acts like a list of scopes.
+We can't use the `IRStack` to detect recursion because it acts like a list of scopes. Instead we keep track of all active `IRCallExpr`s and their arguments (`IRFuncExpr` can't be used because they can be called within eachother without recursion (eg. multiple boolean `&&` expressions)).

@@ -4568,6 +4568,18 @@ export type TransferUplcAst = {
  * EvalEntities assert themselves
  */
 /**
+ * Interface for:
+ *   * IRErrorExpr
+ *   * IRCallExpr
+ *   * IRFuncExpr
+ *   * IRNameExpr
+ *   * IRLiteralExpr
+ *
+ * The copy() method is needed because inlining can't use the same IRNameExpr twice,
+ *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+ *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
+ */
+/**
  * The inner 'any' is also Metadata, but jsdoc doesn't allow declaring recursive types
  * Metadata is essentially a JSON schema object
  */
@@ -4691,18 +4703,6 @@ export type Profile = {
     result?: RuntimeError | UplcValue | undefined;
     messages?: string[] | undefined;
 };
-/**
- * Interface for:
- *   * IRErrorExpr
- *   * IRCallExpr
- *   * IRFuncExpr
- *   * IRNameExpr
- *   * IRLiteralExpr
- *
- * The copy() method is needed because inlining can't use the same IRNameExpr twice,
- *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
- *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
- */
 export type UserTypes = {
     [name: string]: any;
 };
