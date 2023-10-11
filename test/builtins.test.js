@@ -25,6 +25,22 @@ import {
     setRawUsageNotifier
 } from "helios"
 
+import {
+    asBool,
+    asBytes,
+    asBytesList,
+    asData,
+    asInt,
+    asIntList,
+    asNestedIntList,
+    asReal,
+    asString,
+    asStringList,
+    isValidString,
+    isError,
+    equalsList
+} from "./assert.js"
+
 /**
  * @typedef {import("helios").PropertyTest} PropertyTest
  */
@@ -33,234 +49,8 @@ const REAL_ONE = BigInt(Math.pow(10, REAL_PRECISION));
 
 config.set({CHECK_CASTS: true});
 
-// helper functions for script property tests
-function asBool(value) {
-    if (value instanceof UplcBool) {
-        return value.bool;
-    } else if (value instanceof ConstrData) {
-        if (value.fields.length == 0) {
-            if (value.index == 0) {
-                return false;
-            } else if (value.index == 1) {
-                return true;
-            } else {
-                throw new Error(`unexpected ConstrData index ${value.index} (expected 0 or 1 for Bool)`);
-            }
-        } else {
-            throw new Error(`expected ConstrData with 0 fields (Bool)`);
-        }
-    } else if (value instanceof UplcDataValue) {
-        return asBool(value.data);
-    } else {
-        throw value;
-    }
-
-    throw new Error(`expected UplcBool, got ${value.toString()}`);
-}
-
-function asInt(value) {
-    if (value instanceof IntData) {
-        return value.value;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof IntData) {
-            return data.value;
-        }
-    }
-
-    throw new Error(`expected IntData, got ${value.toString()}`);
-}
-
-function asReal(value) {
-    return Number(asInt(value))/1000000;
-}
-
-function asBytes(value) {
-    if (value instanceof ByteArrayData) {
-        return value.bytes;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof ByteArrayData) {
-            return data.bytes;
-        }
-    }
-
-    throw new Error(`expected ByteArrayData, got ${value.toString()}`);
-}
-
-function equalsList(a, b) {
-    let n = a.length;
-    return n == b.length && a.every((v, i) => b[i] === v);
-}
-
 function decodeCbor(bs) {
     return UplcData.fromCbor(bs);
-}
-
-function isValidString(value) {
-    if (value instanceof ByteArrayData) {
-        try {
-            void bytesToText(value.bytes);
-
-            return true;
-        } catch(_) {
-            return false;
-        }
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof ByteArrayData) {
-            return isValidString(data);
-        }
-    }
-
-    throw new Error(`expected ByteArrayData, got ${value.toString()}`);
-}
-
-/**
- * @param {any} value 
- * @returns {string}
- */
-function asString(value) {
-    if (value instanceof ByteArrayData) {
-        return bytesToText(value.bytes);
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof ByteArrayData) {
-            return bytesToText(data.bytes);
-        }
-    }
-
-    throw new Error(`expected ByteArrayData, got ${value.toString()}`);
-}
-
-/**
- * 
- * @param {any} value 
- * @returns {bigint[]}
- */
-function asIntList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            if (item instanceof IntData) {
-                items.push(item.value);
-            } else {
-                throw new Error(`expected ListData of IntData, got ${value.toString()}`);
-            }
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        
-        return asIntList(data);
-    }
-
-    throw new Error(`expected ListData, got ${value.toString()}`);
-}
-
-/**
- * 
- * @param {any} value 
- * @returns {bigint[][]}
- */
-function asNestedIntList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            items.push(asIntList(item));
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        
-        return asNestedIntList(data);
-    }
-
-    throw new Error(`expected ListData of ListData, got ${value.toString()}`);
-}
-
-/**
- * 
- * @param {any} value 
- * @returns {string[]}
- */
-function asStringList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            items.push(asString(item));
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        
-        return asStringList(data);
-    }
-
-    throw new Error(`expected ListData, got ${value.toString()}`);
-}
-
-/**
- * @param {any} value 
- * @returns {number[][]}
- */
-function asBytesList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            items.push(asBytes(item));
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        
-        return asBytesList(data);
-    }
-
-    throw new Error(`expected ListData, got ${value.toString()}`);
-}
-
-function asBoolList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            if (item instanceof ConstrData && item.fields.length == 0 && (item.index == 0 || item.index == 1)) {
-                items.push(item.index == 1);
-            } else {
-                throw new Error(`expected ListData of bool-like ConstrData, got ${value.toString()}`);
-            }
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof ListData) {
-           return asBoolList(data);
-        }
-    }
-
-    throw new Error(`expected ListData, got ${value.toString()}`);
-}
-
-function asData(value) {
-    if (value instanceof UplcData) {
-        return value;
-    } else if (value instanceof UplcDataValue) {
-        return value.data;
-    } else if (value instanceof UserError) {
-        throw value;
-    } else {
-        throw new Error("expected UplcDataValue or UplcData");
-    }
 }
 
 function constrIndex(value) {
@@ -274,17 +64,6 @@ function constrIndex(value) {
     }
 
     throw new Error(`expected ConstrIndex, got ${value.toString()}`);
-}
-
-
-/**
- * Throws an error if 'err' isn't en Error
- * @param {any} err 
- * @param {string} info 
- * @returns {boolean}
- */
-function isError(err, info) {
-    return err instanceof RuntimeError;
 }
 
 /**
@@ -1550,7 +1329,7 @@ async function testBuiltins() {
 			const ai = asInt(a);
 
 			if (ai < 0n || ai >= 256n) {
-				return isError(res);
+				return res instanceof Error;
 			} else {
 				const bi = asBytes(b);
 				bi.unshift(Number(ai));

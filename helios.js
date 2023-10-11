@@ -251,9 +251,9 @@
 //
 //     Section 29: IR AST build functions    buildIRExpr, buildIRFuncExpr
 //
-//     Section 30: IR pseudo evaluation      IRStack, IRLiteralValue, IRDataValue, 
-//                                           collectIRVariables, IRBuiltinValue, IRFuncValue, 
-//                                           IRErrorValue, IRAnyValue, IRMultiValue, 
+//     Section 30: IR pseudo evaluation      HASH_DEPTH, HASH_CODES, IRStack, IRLiteralValue, 
+//                                           IRDataValue, collectIRVariables, IRBuiltinValue, 
+//                                           IRFuncValue, IRErrorValue, IRAnyValue, IRMultiValue, 
 //                                           IR_BUILTIN_CALLBACKS, IREvaluator, annotateIR
 //
 //     Section 31: IR optimization           IROptimizer
@@ -39716,6 +39716,7 @@ function buildIRFuncExpr(ts) {
  * @internal
  * @typedef {{
  *   code: number
+ *   hash(depth?: number): number[]
  *   toString(): string
  *   eq(other: IRValue, permissive?: boolean): boolean
  *   isLiteral(): boolean
@@ -39723,35 +39724,48 @@ function buildIRFuncExpr(ts) {
  * }} IRValue
  */
 
+const HASH_DEPTH = 3
+
+const HASH_CODES = {
+    Data: hashCode("Data"),
+    Error: hashCode("Error"),
+    Any: hashCode("Any")
+}
 
 /**
  * @internal
  */
 class IRStack {
     /**
-     * @type {{fn: IRFuncExpr, args: [IRVariable, IRValue][]}[]}
+     * @type {[IRVariable, IRValue][]}
      */
     #values;
 
     #isLiteral;
 
-    #code;
+    /**
+     * First code is the shallowest (no nested stacks)
+     * Second code includes up to one nested stack
+     * @type {number[]}
+     */
+    #codes;
 
     /**
-     * @param {{fn: IRFuncExpr, args: [IRVariable, IRValue][]}[]} values 
+     * @param {[IRVariable, IRValue][]} values 
      */
     constructor(values) {
         this.#values = values;
         this.#isLiteral = false;
-        this.#code = -1;
+        this.#codes = []; 
     }
 
     dump(depth = 0) {
         return {
-            code: this.code,
+            hash: this.code,
+            hashes: this.hash(HASH_DEPTH),
             isLiteral: this.#isLiteral,
-            ...(depth > 0 ? {values: this.#values.map(({args}) => {
-                return args.map(([_, val]) => val.dump(depth - 1))
+            ...(depth > 0 ? {values: this.#values.map(([_, arg]) => {
+                return arg.dump(depth - 1)
             })} : {})
         }
     }
@@ -39760,22 +39774,46 @@ class IRStack {
      * @type {number}
      */
     get code() {
-        if (this.#code != -1) {
-            return this.#code;
+        if (this.#codes.length == HASH_DEPTH + 1) {
+            return this.#codes[HASH_DEPTH];
         }
 
-        let c = 0;
+        const codes = this.hash(HASH_DEPTH);
 
-        for (let v of this.#values) {
-            c = hashCode(v.fn.toString(), c);
+        return codes[HASH_DEPTH];
+    }
 
-            for (let a of v.args) {
-                c = hashCode(a[1].code, c)
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        if (depth < this.#codes.length) {
+            return this.#codes.slice(0, depth+1);
+        }
+
+        const valueCodes = this.#values.map(v => v[1].hash(HASH_DEPTH));
+
+        /**
+         * @type {number[]}
+         */
+        const lst = [];
+
+        for (let i = 0; i < HASH_DEPTH + 1; i++) {
+            const codes = valueCodes.map(vc => vc[i]);
+
+            let c = 0;
+
+            for (let co of codes) {
+                c = hashCode(co, c);
             }
+
+            lst.push(c);
         }
 
-        this.#code = c;
-        return c;
+        this.#codes = lst;
+
+        return this.#codes.slice(0, depth + 1);
     }
 
     /**
@@ -39790,26 +39828,22 @@ class IRStack {
      * @returns {IRValue}
      */
     getValue(v) {
-        for (let i = this.#values.length - 1; i >= 0; i--) {
-            const args = this.#values[i].args;
-            const j = args.findIndex(arg => arg[0] == v);
+        const j = this.#values.findIndex(([va]) => va == v)
 
-            if (j != -1) {
-                return args[j][1];
-            }
+        if (j != -1) {
+            return this.#values[j][1];
         }
 
         throw new Error(`${v.name} not found in IRStack`);
     }
 
     /**
-     * @param {IRFuncExpr} fn 
      * @param {[IRVariable, IRValue][]} args 
      * @returns {IRStack}
      */
-    extend(fn, args) {
+    extend(args) {
         return new IRStack(
-            this.#values.concat([{fn: fn, args: args}])
+            this.#values.concat(args)
         )
     }
 
@@ -39818,9 +39852,61 @@ class IRStack {
      * @returns {IRStack}
      */
     filter(irVars) {
-        return new IRStack(
-            this.#values.map(({fn, args}) => ({fn: fn, args: args.filter(([v]) => irVars.has(v))})).filter(({args}) => args.length > 0)
-        )
+        return new IRStack(this.#values.filter(([v]) => irVars.has(v)))
+    }
+
+    /**
+     * @param {IRFuncExpr} def 
+     * @returns {IRFuncValue | null}
+     */
+    findFuncValue(def) {
+        const n = this.#values.length;
+
+        const DEBUG = def.toString() == "(h) -> {\n  build_head(__core__mkCons(__core__headList(lst), h))\n}"
+
+        if (DEBUG) {
+            console.log("LOOKING FOR STACK RECURSIVE FUNC VAL WITH STACK", this.dump(1))
+        }
+
+        for (let i = 0; i < n; i++) {
+            const v = this.#values[i][1];
+
+            if (v instanceof IRFuncValue && v.definition == def && v.stack.#values.length == n) {
+                console.log("MAYBE SINGLE", i)
+
+                if (this.#values.every((a, j) => {
+                    const other = v.stack.#values[j][1];
+
+                    return (other instanceof IRFuncValue && other.definition == def) || (other instanceof IRMultiValue && other.values.some(other_ => other_ instanceof IRFuncValue && other_.definition == def)) || (other.code == a[1].code);
+                })) {
+                    return v;
+                }
+            } else if (v instanceof IRMultiValue) {
+                const vv = v.values.find(vv => vv instanceof IRFuncValue && vv.definition == def && vv.stack.#values.length == n);
+
+                console.log("MAYBE MULTI", i)
+
+                if (vv instanceof IRFuncValue) {
+                    if (this.#values.every((a, j) => {
+                        const other = vv.stack.#values[j][1];
+
+                        console.log("checking", other.dump())
+    
+                        return (other instanceof IRFuncValue && other.definition == def) || (other instanceof IRMultiValue && other.values.some(other_ => other_ instanceof IRFuncValue && other_.definition == def)) || (other.code == a[1].code);
+                    })) {
+                        return vv;
+                    }
+                }
+            } else if (DEBUG) {
+                console.log(JSON.stringify(v.dump(3), undefined, 4));
+            }
+        }
+
+        if (DEBUG) {
+            console.log("STACK RECURSIVE FUNC VAL NOT FOUND IN", JSON.stringify(this.dump(2), undefined, 4))
+        }
+
+        return null;
     }
 
     /**
@@ -39847,21 +39933,9 @@ class IRStack {
             const b = other.#values[i];
 
             if (a == b) {
-                stack = stack.extend(a.fn, a.args);
+                stack = stack.extend([a]);
             } else {
-                assert(a.fn == b.fn);
-                assert(a.args.length == b.args.length);
-
-                stack = stack.extend(
-                    a.fn,
-                    a.args.map((arga, i) => {
-                        const argb = b.args[i];
-
-                        assert(arga[0] == argb[0]);
-
-                        return [arga[0], IRMultiValue.flatten([arga[1], argb[1]])];
-                    })
-                )
+                stack = stack.extend([[a[0], IRMultiValue.flatten([a[1], b[1]])]]);
             }
         }
 
@@ -39902,10 +39976,18 @@ export class IRLiteralValue {
 
     dump(depth = 0) {
         return {
-            "type": "Literal",
-            "value": this.toString(),
-            "code": this.code
+            type: "Literal",
+            value: this.toString(),
+            hash: this.code
         }
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth+1)).fill(hashCode(this.toString()));
     }
 
     /**
@@ -39913,7 +39995,7 @@ export class IRLiteralValue {
      * @type {number}
      */
     get code() {
-        return hashCode(`Data`);
+        return this.hash(0)[0];
     }
 
     /**
@@ -39965,6 +40047,15 @@ export class IRDataValue {
     }
 
     /**
+     * 
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth + 1)).fill(HASH_CODES.Data);
+    }
+
+    /**
      * @returns {string}
      */
     toString() {
@@ -39974,7 +40065,7 @@ export class IRDataValue {
     dump(depth = 0) {
         return {
             type: "Data",
-            code: this.code
+            hash: this.code
         }
     }
 }
@@ -40041,11 +40132,19 @@ export class IRBuiltinValue {
         return hashCode(this.builtin.toString());
     }
 
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth + 1)).fill(hashCode(this.builtin.toString()));
+    }
+
     dump(depth = 0) {
         return {
             type: "Builtin",
             name: this.builtin.name,
-            code: this.code
+            hash: this.code
         }
     }
 
@@ -40087,10 +40186,48 @@ export class IRFuncValue {
 	}
 
     /**
+     * @param {IRFuncExpr} definition 
+     * @param {IRStack} stack 
+     * @returns {IRFuncValue}
+     */
+    static new(definition, stack) {
+        return new IRFuncValue(definition, stack);
+
+        /*const fv = stack.findFuncValue(definition);
+
+        if (fv) {
+            return fv;
+        } else {
+            return new IRFuncValue(definition, stack);
+        }*/
+    }
+
+    /**
      * @type {number}
      */
     get code() {
         return hashCode(this.stack.code, hashCode(this.definition.toString()))
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        const c = hashCode(this.definition.toString());
+
+        const codes = [];
+        const stackCodes = depth > 0 ? this.stack.hash(depth - 1) : [];
+
+        for (let i = 0; i < depth + 1; i++) {
+            if (i == 0) {
+                codes.push(c);
+            } else {
+                codes.push(hashCode(stackCodes[i-1], c))
+            }
+        }
+
+        return codes;
     }
 
     /**
@@ -40104,7 +40241,8 @@ export class IRFuncValue {
         return {
             type: "Fn",
             definition: this.definition.toString(),
-            code: this.code,
+            hash: this.code,
+            hashes: this.hash(HASH_DEPTH),
             stack: this.stack.dump(depth)
         }
     }
@@ -40179,7 +40317,7 @@ export class IRErrorValue {
     dump(depth = 0) {
         return {
             type: "Error",
-            code: this.code
+            hash: this.code
         }
     }
 
@@ -40188,6 +40326,14 @@ export class IRErrorValue {
      */
     get code() {
         return hashCode(this.toString());
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth + 1)).fill(HASH_CODES.Error);
     }
 }
 
@@ -40224,8 +40370,16 @@ export class IRAnyValue {
     dump(depth = 0) {
         return {
             type: "Any",
-            code: this.code
+            hash: this.code
         }
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth + 1)).fill(HASH_CODES.Any);
     }
 
     /**
@@ -40285,7 +40439,7 @@ export class IRMultiValue {
     dump(depth = 0) {
         return {
             type: "Multi",
-            code: this.code,
+            hash: this.code,
             values: this.values.slice().sort((a, b) => a.code - b.code).map(v => v.dump(depth))
         }
     }
@@ -40306,6 +40460,10 @@ export class IRMultiValue {
 
         if (this.values.some(v => v instanceof IRFuncValue)) {
             parts.push(`Fn`);
+        }
+
+        if (this.values.some(v => v instanceof IRBuiltinValue)) {
+            parts.push(`Builtin`)
         }
 
         this.values.forEach(v => {
@@ -40336,6 +40494,33 @@ export class IRMultiValue {
         }
 
         return c;
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        const valueCodes = this.values.map(v => v.hash(depth));
+
+        /**
+         * @type {number[]}
+         */
+        const lst = [];
+
+        for (let i = 0; i < depth + 1; i++) {
+            const codes = valueCodes.map(vc => vc[i]).sort();
+
+            let c = 0;
+
+            for (let co of codes) {
+                c = hashCode(co, c);
+            }
+
+            lst.push(c);
+        }
+
+        return lst;
     }
 
     /**
@@ -40407,6 +40592,8 @@ export class IRMultiValue {
 
         if (values.length == 1) {
             return values[0];
+        } else if (values.every((v, i) => v instanceof IRLiteralValue && ((i == 0) || (v.code == values[0].code)))) {
+            return values[0];
         }
         
         const hasError = values.some(v => v instanceof IRErrorValue);
@@ -40418,9 +40605,9 @@ export class IRMultiValue {
 		 */
 		let flattened = [];
 
-		if (values.some(v => v instanceof IRFuncValue)) {
+		if (values.some(v => v instanceof IRFuncValue || v instanceof IRBuiltinValue)) {
 			/**
-			 * @type {Map<IRExpr, IRFuncValue>}
+			 * @type {Map<IRExpr, IRFuncValue | IRBuiltinValue>}
 			 */
 			const s = new Map();
 
@@ -40428,11 +40615,13 @@ export class IRMultiValue {
 				if (v instanceof IRFuncValue) {
                     const prev = s.get(v.definition);
 
-                    if (prev) {
-                        s.set(v.definition, new IRFuncValue(v.definition, prev.stack.merge(v.stack)));
+                    if (prev instanceof IRFuncValue) {
+                        s.set(v.definition, IRFuncValue.new(v.definition, prev.stack.merge(v.stack)));
                     } else {
                         s.set(v.definition, v);
                     }
+                } else if (v instanceof IRBuiltinValue) {
+                    s.set(v.builtin, v)
                 }
 			});
 
@@ -40902,7 +41091,7 @@ export class IREvaluator {
         this.#variableReferences = new Map();
         this.#activeCalls = new Map();
         this.#maxLiteralRecursion = 80;
-        this.#maxRecursion = 10;
+        this.#maxRecursion = 20;
         this.#evalLiterals = evalLiterals;
 	}
 
@@ -40914,12 +41103,21 @@ export class IREvaluator {
     }
 
     /**
-     * 
      * @param {IRExpr} expr 
      * @returns {undefined | IRValue}
      */
     getExprValue(expr) {
-        return this.#exprValues.get(expr);
+        const v = this.#exprValues.get(expr);
+
+        if (expr instanceof IRNameExpr && !expr.isCore() && !expr.isParam()) {
+            if (v && v?.toString() != this.#variableValues.get(expr.variable)?.toString()) {
+                console.log("A:", v?.toString())
+                console.log("B:", this.#variableValues.get(expr.variable)?.toString())
+                console.log("Warning: inconsistent value caching for " + expr.name);
+            }
+        }
+
+        return v;
     }
 
     /**
@@ -40970,7 +41168,8 @@ export class IREvaluator {
                 return false;
             }
         } else {
-            return false;
+            // the expression might be recently formed, so if not found, better be on the safe side
+            return true;
         }
     }
 
@@ -41227,8 +41426,7 @@ export class IREvaluator {
         if (!prev) {
             return false;
         }  else if (prev.length > this.#maxRecursion) {
-            console.log("MAX RECURSION DEPTH REACHED")
-
+            /*console.log("MAX RECURSION DEPTH REACHED")
             console.log("CURR FN:", JSON.stringify(fn.dump(3), undefined, 4))
             args.forEach((arg, i) => {
                 console.log(`CURR ARG${i}:`, JSON.stringify(arg.dump(3), undefined, 4))
@@ -41237,54 +41435,29 @@ export class IREvaluator {
             console.log("PREV FN:", JSON.stringify(prev[prev.length-1].fn.dump(3), undefined, 4))
             prev[prev.length-1].args.forEach((arg, i) => {
                 console.log(`PREV ARG${i}:`, JSON.stringify(arg.dump(3), undefined, 4))
-            })
+            })*/
             return true;
         }
 
         // TODO: no more literals
-
-        if (expr.func.toString() == "build_head" && prev.length > 1) {
-            console.log("BUILD_HEAD detected")
-
-            console.log("CURR FN:", JSON.stringify(fn.dump(3), undefined, 4))
-            args.forEach((arg, i) => {
-                console.log(`CURR ARG${i}:`, JSON.stringify(arg.dump(3), undefined, 4))
-            })
-
-            console.log("PREV FN:", JSON.stringify(prev[prev.length-1].fn.dump(3), undefined, 4))
-            prev[prev.length-1].args.forEach((arg, i) => {
-                console.log(`PREV ARG${i}:`, JSON.stringify(arg.dump(3), undefined, 4))
-            })
-        }
         
-        for (let i = prev.length - 1; i >= 0; i--) {
+        /*for (let i = prev.length - 1; i >= 0; i--) {
             const prevArgs = prev[i]
 
-            // fn code equality is too aggressive because it includes stack changes
 			if (prevArgs.fn.code == fn.code && prevArgs.args.every((prevArg, j) => prevArg.code == args[j].code)) {
-                /*if (fn instanceof IRFuncValue) {
-                    console.log("curr", fn.code, fn.definition.toString())
-                } else if (fn instanceof IRBuiltinValue) {
-                    console.log("curr", fn.code, fn.builtin.name)
-                }
-                
-                if (prevArgs.fn instanceof IRFuncValue) {
-                    console.log("vs prev", prevArgs.fn.code, prevArgs.fn.definition.toString())
-                } else if (prevArgs.fn instanceof IRBuiltinValue) {
-                    console.log("vs prev", prevArgs.fn.code, prevArgs.fn.builtin.name)
-                } else if (prevArgs.fn instanceof IRMultiValue) {
-                    prevArgs.fn.values.forEach(v => {
-                        if (v instanceof IRFuncValue) {
-                            console.log("vs prev", prevArgs.fn.code, v.definition.toString())
-                        } else if (v instanceof IRBuiltinValue) {
-                            console.log("vs prev", prevArgs.fn.code, v.builtin.name)
-                        }
-                    })
-                }*/
+                console.log("DETECTED RECURSION CURR FN:", JSON.stringify(fn.dump(3), undefined, 4))
+                args.forEach((arg, i) => {
+                    console.log(`DETECTED RECURSION CURR ARG${i}:`, JSON.stringify(arg.dump(3), undefined, 4))
+                })
+
+                console.log("DETECTED RECURSION PREV FN:", JSON.stringify(prevArgs.fn.dump(3), undefined, 4))
+                prevArgs.args.forEach((arg, i) => {
+                    console.log(`DETECTED RECURSION PREV ARG${i}:`, JSON.stringify(arg.dump(3), undefined, 4))
+                })
 
 				return true;
 			}
-        }
+        }*/
         
         return false;
     }
@@ -41343,7 +41516,19 @@ export class IREvaluator {
      * @param {IRValue[]} args
      */
     pushFuncCall(stack, owner, fn, args) {
-        const permutations = IRMultiValue.allPermutations(args);
+        /*if (args.some(a => a instanceof IRLiteralValue)) {
+            console.log("calling with some literal args");
+            args.forEach(a => console.log(a.toString()));
+        }*/
+
+        const varsToValues = this.mapVarsToValues(fn.args, args);
+        const stack_ = stack.extend(varsToValues);
+
+        this.incrCallCount(fn);
+        this.#compute.push({fn: fn, owner: owner, stack: stack_});
+        this.pushExpr(stack_, fn.body);
+
+        /*const permutations = IRMultiValue.allPermutations(args);
 
         if (permutations.length > 1) {
             this.#compute.push({multi: permutations.length, owner: owner});
@@ -41353,14 +41538,17 @@ export class IREvaluator {
             if (args.some(a => a instanceof IRErrorValue)) {
                 this.#compute.push({value: new IRErrorValue(), owner: owner});
             } else {
+                if (fn.args.length == 1 && fn.args[0].name == "i" && owner instanceof IRCallExpr) {
+                    console.log("PASSED TO i:", args[0].toString(), origArgs[0].toString(), permutations.length, owner.toString())
+                }
                 const varsToValues = this.mapVarsToValues(fn.args, args);
-                const stack_ = stack.extend(fn, varsToValues);
+                const stack_ = stack.extend(varsToValues);
 
                 this.incrCallCount(fn);
                 this.#compute.push({fn: fn, owner: owner, stack: stack_});
                 this.pushExpr(stack_, fn.body);
-            }
-        });
+            //}
+        });*/
     }
 
     /**
@@ -41491,11 +41679,17 @@ export class IREvaluator {
                     } else if (expr.isCore()) {
                         this.pushReductionValue(expr, new IRBuiltinValue(expr));
                     } else {
+                        const v = this.getValue(head.stack, expr);
+
                         this.pushReductionValue(expr, this.getValue(head.stack, expr));
+
+                        /*if (expr.name == "pow" || expr.name == "i") {
+                            console.log("CACHING:", expr.name, v.toString(), this.getExprValue(expr)?.toString());
+                        }*/
                     }
                 } else if (expr instanceof IRLiteralExpr) {
                     if (this.#evalLiterals ) {
-                        throw new Error("not yet implemented");
+                        this.pushReductionValue(expr, new IRLiteralValue(expr.value));
                     } else {
                         if (expr.value instanceof UplcUnit) {
                             this.pushReductionValue(expr, new IRAnyValue());
@@ -41503,11 +41697,9 @@ export class IREvaluator {
                             this.pushReductionValue(expr, new IRDataValue());
                         }
                     }
-                    // TODO: evaluation of literals
-                    //this.pushReductionValue(expr, new IRLiteralValue(expr.value));
                 } else if (expr instanceof IRFuncExpr) {
                     // don't set owner because it is confusing wrt. return value type
-                    this.#reduce.push(new IRFuncValue(expr, head.stack));
+                    this.#reduce.push(IRFuncValue.new(expr, head.stack));
                 } else {
                     throw new Error("unexpected expr type");
                 }
@@ -41761,6 +41953,7 @@ export function annotateIR(evaluation, expr) {
  *   * replace `__core__ifThenElse(true, <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
  *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
  *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
+ *   * replace `__core__ifThenElse(<cond-expr>, <expr-a>, <expr_a>)` by `<expr-a>` if `<cond-expr>` doesn't expect IRErrorValue
  *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
  *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
@@ -41866,8 +42059,6 @@ export class IROptimizer {
         return funcExpr;
     }
 
-   
-
     /**
      * Apply optimizations that require access to the root:
      *   * flatten nested IRFuncExpr where possible
@@ -41877,11 +42068,13 @@ export class IROptimizer {
     init() {
         this.#evaluator.eval(this.#root);
 
+        if (config.DEBUG) {
+            console.log(annotateIR(this.#evaluator, this.#root));
+        }
+
         if (!this.#aggressive) {
             return;
         }
-
-        //console.log(annotateIR(this.#evaluator, this.#root))
 
         this.removeUnusedArgs();
 
@@ -41892,8 +42085,11 @@ export class IROptimizer {
 
         this.#evaluator.eval(this.#root);
 
+        if (config.DEBUG) {
+            console.log(annotateIR(this.#evaluator, this.#root));
+        }
+
         this.flattenNestedFuncExprs();
-        //console.log(annotateIR(this.#evaluator, this.#root))
     }
 
     /**
@@ -42197,6 +42393,8 @@ export class IROptimizer {
                     } else if (!cond.value.bool && !this.expectsError(a)) {
                         return b;
                     }
+                } else if (!this.expectsError(cond) && a.toString() == b.toString()) {
+                    return a;
                 } else if (cond instanceof IRCallExpr && cond.func instanceof IRNameExpr && cond.builtinName == "nullList") {
                     return new IRCallExpr(
                         expr.site,
@@ -42380,7 +42578,6 @@ export class IROptimizer {
             return this.optimizeInternal(func.body);
         }
 
-        const old  = expr;
         expr = new IRCallExpr(
             expr.site, 
             this.optimizeInternal(func),
@@ -42555,6 +42752,17 @@ export class IRProgram {
 		});
 
 		return program;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	annotate() {
+		const evaluator = new IREvaluator();
+
+		evaluator.eval(this.#expr);
+
+		return annotateIR(evaluator, this.#expr);
 	}
 
 	/**
@@ -43989,6 +44197,18 @@ const DEFAULT_PROGRAM_CONFIG = {
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
 		return new Source(irProgram.toString(), this.name).pretty();
+	}
+
+	/**
+	 * @param {boolean} simplify 
+	 * @returns {string}
+	 */
+	annotateIR(simplify = false) {
+		const ir = this.toIR(new ToIRContext(simplify));
+
+		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
+
+		return new Source(irProgram.annotate(), this.name).pretty();
 	}
 
 	/**
@@ -53751,9 +53971,10 @@ export class FuzzyTest {
 		if (purposeName === null) {
 			throw new Error("failed to get script purpose and name");
 		} else {
-			let [_, testName] = purposeName;
+			const [_, testName] = purposeName;
 
-			let program = Program.new(src).compile(simplify);
+			const program = Program.new(src);
+			const uplcProgram = program.compile(simplify);
 
 			/**
 			 * @type {Cost}
@@ -53776,38 +53997,47 @@ export class FuzzyTest {
 					cpu: 0n
 				};
 
-				let result = await program.run(
-					args, {
-						...DEFAULT_UPLC_RTE_CALLBACKS,
-						onPrint: async (msg) => {return},
-						onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
-					},
-					this.#dummyNetworkParams
-				);
+				try {
+					let result = await uplcProgram.run(
+						args, {
+							...DEFAULT_UPLC_RTE_CALLBACKS,
+							onPrint: async (msg) => {return},
+							onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
+						},
+						this.#dummyNetworkParams
+					);
+				
+					let obj = propTest(args, result, simplify);
 
-				let obj = propTest(args, result, simplify);
-
-				if (result instanceof UplcValue) {
-					totalCost.mem += cost.mem;
-					totalCost.cpu += cost.cpu;
-					nonErrorRuns += 1;
-				}
-
-				if (typeof obj == "boolean") {
-					if (!obj) {
-						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+					if (result instanceof UplcValue) {
+						totalCost.mem += cost.mem;
+						totalCost.cpu += cost.cpu;
+						nonErrorRuns += 1;
 					}
-				} else {
-					// check for failures
-					for (let key in obj) {
-						if (!obj[key]) {
-							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+
+					if (typeof obj == "boolean") {
+						if (!obj) {
+							console.log(program.annotateIR(simplify));
+							throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+						}
+					} else {
+						// check for failures
+						for (let key in obj) {
+							if (!obj[key]) {
+								console.log(program.annotateIR(simplify));
+								throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+							}
 						}
 					}
+				} catch (e) {
+					console.log("UNSIMPLIFIED:", program.annotateIR(false));
+					console.log("SIMPLIFIED:", program.annotateIR(true));
+					
+					throw e;
 				}
 			}
 
-			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes, ${nonErrorRuns > 0 ? totalCost.mem/BigInt(nonErrorRuns): "N/A"} mem, ${nonErrorRuns > 0 ? totalCost.cpu/BigInt(nonErrorRuns): "N/A"} cpu)`);
+			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${uplcProgram.calcSize()} bytes, ${nonErrorRuns > 0 ? totalCost.mem/BigInt(nonErrorRuns): "N/A"} mem, ${nonErrorRuns > 0 ? totalCost.cpu/BigInt(nonErrorRuns): "N/A"} cpu)`);
 		}
 
 		if (!simplify && this.#simplify) {
@@ -53842,7 +54072,9 @@ export class FuzzyTest {
 
 				let args = paramArgs.map(paramArg => program.evalParam(paramArg));
 			
-				let coreProgram = Program.new(src).compile(simplify);
+				program = Program.new(src);
+
+				let coreProgram = program.compile(simplify);
 
 				let result = await coreProgram.run(args);
 
@@ -53850,12 +54082,16 @@ export class FuzzyTest {
 
 				if (typeof obj == "boolean") {
 					if (!obj) {
+						console.log(program.annotateIR(simplify));
+
 						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 					}
 				} else {
 					// check for failures
 					for (let key in obj) {
 						if (!obj[key]) {
+							console.log(program.annotateIR(simplify));
+
 							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 						}
 					}

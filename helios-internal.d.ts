@@ -8680,8 +8680,13 @@ declare module "helios" {
         dump(depth?: number): {
             type: string;
             value: string;
-            code: number;
+            hash: number;
         };
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
         /**
          * TODO: code that takes Literal value into account (eg. `get codeWithLiterals()`)
          * @type {number}
@@ -8714,12 +8719,18 @@ declare module "helios" {
          */
         get code(): number;
         /**
+         *
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+        /**
          * @returns {string}
          */
         toString(): string;
         dump(depth?: number): {
             type: string;
-            code: number;
+            hash: number;
         };
     }
     /**
@@ -8748,10 +8759,15 @@ declare module "helios" {
          * @type {number}
          */
         get code(): number;
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
         dump(depth?: number): {
             type: string;
             name: string;
-            code: number;
+            hash: number;
         };
         /**
          * @param {IRValue} other
@@ -8765,6 +8781,12 @@ declare module "helios" {
      * @implements {IRValue}
      */
     export class IRFuncValue implements IRValue {
+        /**
+         * @param {IRFuncExpr} definition
+         * @param {IRStack} stack
+         * @returns {IRFuncValue}
+         */
+        static new(definition: IRFuncExpr, stack: IRStack): IRFuncValue;
         /**
          * @param {IRFuncExpr} definition
          * @param {IRStack} stack
@@ -8785,16 +8807,23 @@ declare module "helios" {
          */
         get code(): number;
         /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+        /**
          * @returns {boolean}
          */
         isLiteral(): boolean;
         dump(depth?: number): {
             type: string;
             definition: string;
-            code: number;
+            hash: number;
+            hashes: number[];
             stack: {
-                values?: any[][] | undefined;
-                code: number;
+                values?: any[] | undefined;
+                hash: number;
+                hashes: number[];
                 isLiteral: boolean;
             };
         };
@@ -8830,12 +8859,17 @@ declare module "helios" {
         toString(): string;
         dump(depth?: number): {
             type: string;
-            code: number;
+            hash: number;
         };
         /**
          * @type {number}
          */
         get code(): number;
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
     }
     /**
      * Can be Data of any function
@@ -8860,8 +8894,13 @@ declare module "helios" {
         toString(): string;
         dump(depth?: number): {
             type: string;
-            code: number;
+            hash: number;
         };
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
         /**
          * @type {number}
          */
@@ -8908,7 +8947,7 @@ declare module "helios" {
         hasLiteral(): boolean;
         dump(depth?: number): {
             type: string;
-            code: number;
+            hash: number;
             values: any[];
         };
         toString(): string;
@@ -8916,6 +8955,11 @@ declare module "helios" {
          * @type {number}
          */
         get code(): number;
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
         /**
          * Order can be different
          * @param {IRValue} other
@@ -8941,7 +8985,6 @@ declare module "helios" {
          */
         get funcExprs(): IRFuncExpr[];
         /**
-         *
          * @param {IRExpr} expr
          * @returns {undefined | IRValue}
          */
@@ -9125,6 +9168,7 @@ declare module "helios" {
      *   * replace `__core__ifThenElse(true, <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
      *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
      *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
+     *   * replace `__core__ifThenElse(<cond-expr>, <expr-a>, <expr_a>)` by `<expr-a>` if `<cond-expr>` doesn't expect IRErrorValue
      *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
      *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
      *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
@@ -9291,6 +9335,10 @@ declare module "helios" {
          * @param {ProgramProperties} properties
          */
         constructor(expr: IRFuncExpr | IRCallExpr | IRLiteralExpr, properties: ProgramProperties);
+        /**
+         * @returns {string}
+         */
+        annotate(): string;
         /**
          * @internal
          * @type {IRFuncExpr | IRCallExpr | IRLiteralExpr}
@@ -9651,6 +9699,11 @@ declare module "helios" {
          * @returns {string}
          */
         prettyIR(simplify?: boolean): string;
+        /**
+         * @param {boolean} simplify
+         * @returns {string}
+         */
+        annotateIR(simplify?: boolean): string;
         /**
          * @param {boolean} simplify
          * @returns {UplcProgram}
@@ -13263,6 +13316,7 @@ declare module "helios" {
     };
     export type IRValue = {
         code: number;
+        hash(depth?: number): number[];
         toString(): string;
         eq(other: IRValue, permissive?: boolean): boolean;
         isLiteral(): boolean;
@@ -13624,16 +13678,6 @@ declare module "helios" {
     }
     /**
      * @internal
-     * @typedef {{
-     *   code: number
-     *   toString(): string
-     *   eq(other: IRValue, permissive?: boolean): boolean
-     *   isLiteral(): boolean
-     *   dump(depth?: number): any
-     * }} IRValue
-     */
-    /**
-     * @internal
      */
     class IRStack {
         /**
@@ -13641,21 +13685,24 @@ declare module "helios" {
          */
         static empty(): IRStack;
         /**
-         * @param {{fn: IRFuncExpr, args: [IRVariable, IRValue][]}[]} values
+         * @param {[IRVariable, IRValue][]} values
          */
-        constructor(values: {
-            fn: IRFuncExpr;
-            args: [IRVariable, IRValue][];
-        }[]);
+        constructor(values: [IRVariable, IRValue][]);
         dump(depth?: number): {
-            values?: any[][] | undefined;
-            code: number;
+            values?: any[] | undefined;
+            hash: number;
+            hashes: number[];
             isLiteral: boolean;
         };
         /**
          * @type {number}
          */
         get code(): number;
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
         /**
          * @returns {boolean}
          */
@@ -13666,16 +13713,20 @@ declare module "helios" {
          */
         getValue(v: IRVariable): IRValue;
         /**
-         * @param {IRFuncExpr} fn
          * @param {[IRVariable, IRValue][]} args
          * @returns {IRStack}
          */
-        extend(fn: IRFuncExpr, args: [IRVariable, IRValue][]): IRStack;
+        extend(args: [IRVariable, IRValue][]): IRStack;
         /**
          * @param {Set<IRVariable>} irVars
          * @returns {IRStack}
          */
         filter(irVars: Set<IRVariable>): IRStack;
+        /**
+         * @param {IRFuncExpr} def
+         * @returns {IRFuncValue | null}
+         */
+        findFuncValue(def: IRFuncExpr): IRFuncValue | null;
         /**
          * Both stack are expected to have the same shape
          * @param {IRStack} other

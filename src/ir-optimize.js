@@ -2,6 +2,10 @@
 // IR optimization
 
 import {
+    config
+} from "./config.js";
+
+import {
     assert,
     assertClass,
     assertDefined
@@ -70,6 +74,7 @@ import { IRVariable } from "./ir-context.js";
  *   * replace `__core__ifThenElse(true, <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
  *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
  *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
+ *   * replace `__core__ifThenElse(<cond-expr>, <expr-a>, <expr_a>)` by `<expr-a>` if `<cond-expr>` doesn't expect IRErrorValue
  *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
  *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
@@ -175,8 +180,6 @@ export class IROptimizer {
         return funcExpr;
     }
 
-   
-
     /**
      * Apply optimizations that require access to the root:
      *   * flatten nested IRFuncExpr where possible
@@ -186,11 +189,13 @@ export class IROptimizer {
     init() {
         this.#evaluator.eval(this.#root);
 
+        if (config.DEBUG) {
+            console.log(annotateIR(this.#evaluator, this.#root));
+        }
+
         if (!this.#aggressive) {
             return;
         }
-
-        //console.log(annotateIR(this.#evaluator, this.#root))
 
         this.removeUnusedArgs();
 
@@ -201,8 +206,11 @@ export class IROptimizer {
 
         this.#evaluator.eval(this.#root);
 
+        if (config.DEBUG) {
+            console.log(annotateIR(this.#evaluator, this.#root));
+        }
+
         this.flattenNestedFuncExprs();
-        //console.log(annotateIR(this.#evaluator, this.#root))
     }
 
     /**
@@ -506,6 +514,8 @@ export class IROptimizer {
                     } else if (!cond.value.bool && !this.expectsError(a)) {
                         return b;
                     }
+                } else if (!this.expectsError(cond) && a.toString() == b.toString()) {
+                    return a;
                 } else if (cond instanceof IRCallExpr && cond.func instanceof IRNameExpr && cond.builtinName == "nullList") {
                     return new IRCallExpr(
                         expr.site,
@@ -689,7 +699,6 @@ export class IROptimizer {
             return this.optimizeInternal(func.body);
         }
 
-        const old  = expr;
         expr = new IRCallExpr(
             expr.site, 
             this.optimizeInternal(func),

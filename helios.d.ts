@@ -2591,6 +2591,11 @@ export class Program {
     prettyIR(simplify?: boolean): string;
     /**
      * @param {boolean} simplify
+     * @returns {string}
+     */
+    annotateIR(simplify?: boolean): string;
+    /**
+     * @param {boolean} simplify
      * @returns {UplcProgram}
      */
     compile(simplify?: boolean): UplcProgram;

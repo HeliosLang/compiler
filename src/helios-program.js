@@ -117,7 +117,8 @@ import {
 } from "./ir-build.js";
 
 import { 
-	IREvaluator
+	IREvaluator,
+	annotateIR
 } from "./ir-evaluate.js";
 
 import {
@@ -1380,6 +1381,18 @@ const DEFAULT_PROGRAM_CONFIG = {
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
 		return new Source(irProgram.toString(), this.name).pretty();
+	}
+
+	/**
+	 * @param {boolean} simplify 
+	 * @returns {string}
+	 */
+	annotateIR(simplify = false) {
+		const ir = this.toIR(new ToIRContext(simplify));
+
+		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
+
+		return new Source(irProgram.annotate(), this.name).pretty();
 	}
 
 	/**

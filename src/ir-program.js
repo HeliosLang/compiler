@@ -70,6 +70,7 @@ import {
 import {
 	IROptimizer
 } from "./ir-optimize.js";
+import { IREvaluator, annotateIR } from "./ir-evaluate.js";
 
 
 /**
@@ -140,6 +141,17 @@ export class IRProgram {
 		});
 
 		return program;
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	annotate() {
+		const evaluator = new IREvaluator();
+
+		evaluator.eval(this.#expr);
+
+		return annotateIR(evaluator, this.#expr);
 	}
 
 	/**
