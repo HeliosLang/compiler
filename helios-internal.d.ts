@@ -3252,6 +3252,10 @@ declare module "helios" {
          */
         get maxTxSize(): number;
         /**
+         * @type {bigint}
+         */
+        get stakeAddressDeposit(): bigint;
+        /**
          * Tx balancing picks additional inputs by starting from maxTxFee.
          * This is done because the order of the inputs can have a huge impact on the tx fee, so the order must be known before balancing.
          * If there aren't enough inputs to cover the maxTxFee and the min deposits of newly created UTxOs, the balancing will fail.
@@ -9589,8 +9593,8 @@ declare module "helios" {
          * TODO: implement all DCert (de)serialization methods.
          *
          * Returns the transaction instance so build methods can be chained.
-         * @internal
          * @param {DCert} dcert
+         * @returns {Tx}
          */
         addDCert(dcert: DCert): Tx;
         /**
@@ -9701,8 +9705,9 @@ declare module "helios" {
         correctChangeOutput(networkParams: NetworkParams, changeOutput: TxOutput): void;
         /**
          * @internal
+         * @param {NetworkParams} networkParams
          */
-        checkBalanced(): void;
+        checkBalanced(networkParams: NetworkParams): void;
         /**
          * Shouldn't be used directly
          * @internal
@@ -9839,6 +9844,10 @@ declare module "helios" {
          * @type {PubKeyHash[]}
          */
         get signers(): PubKeyHash[];
+        /**
+         * @type {DCert[]}
+         */
+        get dcerts(): DCert[];
         /**
          * @returns {Object}
          */
@@ -10419,38 +10428,123 @@ declare module "helios" {
     }
     /**
      * A `DCert` represents a staking action (eg. withdrawing rewards, delegating to another pool).
-     * @internal
      */
     export class DCert extends CborData {
         /**
-         * @param {number[]} bytes
+         * @param {string | number[]} raw
          * @returns {DCert}
          */
-        static fromCbor(bytes: number[]): DCert;
+        static fromCbor(raw: string | number[]): DCert;
+        /**
+         * `DCertProps.type` can be:
+         *     `0` for stake registration
+         *     `1` for stake de-registration
+         *     `2` for stake delegation
+         *     `3` for stake pool registration (not yet implemented)
+         *     `4` for stake pool retirement (not yet implemented)
+         *     `5` for genesis key delegation (not yet implemented)
+         *     `6` for moving instantaneous rewards (not yet implemented)
+         *
+         * `DCertProps.credential.type` can be:
+         *     `0` for staking address key hash
+         *     `1` for staking validator key hash (script hash)
+         *
+         * `DCertProps.poolHash` is needed only for stake delegation.
+         * @typedef {{
+         *   type: 0 | 1 | 2,
+         *   credential: {
+         *     type: 0 | 1,
+         *     hash: string
+         *   },
+         *   poolHash?: string
+         * }} DCertProps
+         */
+        /**
+         * Create a DCert from a given json parameter.
+         * @param {string | DCertProps} json
+         * @returns {DCert}
+         */
+        static fromJson(json: string | {
+            type: 0 | 1 | 2;
+            credential: {
+                type: 0 | 1;
+                hash: string;
+            };
+            poolHash?: string | undefined;
+        }): DCert;
         /**
          * @param {UplcData} data
          * @returns {DCert}
          */
         static fromUplcData(data: UplcData): DCert;
         /**
+         * @param {number} certType
+         */
+        constructor(certType: number);
+        /**
+         * Get certificate type.
+         * @type {number}
+         */
+        get certType(): number;
+        /**
+         * Get stake hash.
+         * @type {PubKeyHash | StakingValidatorHash}
+         */
+        get stakeHash(): PubKeyHash | StakingValidatorHash;
+        /**
+         * Get stake credential type.
+         * @type {number}
+         */
+        get credentialType(): number;
+        /**
+         * @returns {number[]}
+         */
+        typeToCbor(): number[];
+        /**
          * @returns {ConstrData}
          */
         toData(): ConstrData;
-    }
-    /**
-     * @internal
-     */
-    export class DCertDelegate extends DCert {
-    }
-    /**
-     * @internal
-     */
-    export class DCertDeregister extends DCert {
+        /**
+         * @returns {Object}
+         */
+        dump(): any;
+        #private;
     }
     /**
      * @internal
      */
     export class DCertRegister extends DCert {
+        /**
+         * @param {PubKeyHash | StakingValidatorHash} stakeHash
+         */
+        constructor(stakeHash: PubKeyHash | StakingValidatorHash);
+        #private;
+    }
+    /**
+     * @internal
+     */
+    export class DCertDeregister extends DCert {
+        /**
+         * @param {PubKeyHash | StakingValidatorHash} stakeHash
+         */
+        constructor(stakeHash: PubKeyHash | StakingValidatorHash);
+        #private;
+    }
+    /**
+     * @internal
+     */
+    export class DCertDelegate extends DCert {
+        /**
+         * @param {PubKeyHash | StakingValidatorHash} stakeHash
+         * @param {PubKeyHash} poolHash
+         */
+        constructor(stakeHash: PubKeyHash | StakingValidatorHash, poolHash: PubKeyHash);
+        /**
+         * Get stake pool hash.
+         * @type {PubKeyHash}
+         */
+        get poolHash(): PubKeyHash;
+        #private;
     }
     /**
      * @internal
@@ -10460,7 +10554,7 @@ declare module "helios" {
     /**
      * @internal
      */
-    export class DCertRetire extends DCert {
+    export class DCertRetirePool extends DCert {
     }
     /**
      * Wrapper for Cardano stake address bytes. An StakeAddress consists of two parts internally:

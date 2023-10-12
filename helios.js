@@ -266,8 +266,8 @@
 //                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
 //
 //     Section 33: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
-//                                           TxOutput, DCert, DCertDelegate, DCertDeregister, 
-//                                           DCertRegister, DCertRegisterPool, DCertRetire, 
+//                                           TxOutput, DCert, DCertRegister, DCertDeregister, 
+//                                           DCertDelegate, DCertRegisterPool, DCertRetirePool, 
 //                                           StakeAddress, Signature, Ed25519PrivateKey, 
 //                                           BIP32_HARDEN, Bip32PrivateKey, RootPrivateKey, 
 //                                           Redeemer, SpendingRedeemer, MintingRedeemer, Datum, 
@@ -10035,6 +10035,13 @@ export class NetworkParams {
 	 */
 	get maxTxSize() {
 		return assertNumber(this.#raw?.latestParams?.maxTxSize);
+	}
+
+	/**
+	 * @type {bigint}
+	 */
+	get stakeAddressDeposit() {
+		return BigInt(assertNumber(this.#raw?.latestParams?.stakeAddressDeposit));
 	}
 
 	/**
@@ -44638,8 +44645,8 @@ export class Tx extends CborData {
 	 * TODO: implement all DCert (de)serialization methods.
 	 * 
 	 * Returns the transaction instance so build methods can be chained.
-	 * @internal
-	 * @param {DCert} dcert 
+	 * @param {DCert} dcert
+	 * @returns {Tx}
 	 */
 	addDCert(dcert) {
 		this.#body.addDCert(dcert);
@@ -44993,7 +45000,7 @@ export class Tx extends CborData {
 
 		// assume a change output is always needed
 		const changeOutput = new TxOutput(changeAddress, new Value(0n));
-
+		
 		changeOutput.correctLovelace(networkParams);
 
 		this.#body.addOutput(changeOutput);
@@ -45010,12 +45017,20 @@ export class Tx extends CborData {
 
 		nonChangeOutputValue = feeValue.add(nonChangeOutputValue);
 
+		// stake certificates
+		const stakeAddrDeposit = new Value(networkParams.stakeAddressDeposit);
+		this.#body.dcerts.forEach(dcert => {
+			// in case of stake registrations, count stake key deposits as additional output ADA
+			if (dcert.certType == 0) nonChangeOutputValue = nonChangeOutputValue.add(stakeAddrDeposit);
+			// in case of stake de-registrations, count stake key deposits as additional input ADA
+			if (dcert.certType == 1) inputValue = inputValue.add(stakeAddrDeposit);
+		});
+
 		// this is quite restrictive, but we really don't want to touch UTxOs containing assets just for balancing purposes
 		const spareAssetUTxOs = spareUtxos.some(utxo => !utxo.value.assets.isZero());
 		spareUtxos = spareUtxos.filter(utxo => utxo.value.assets.isZero());
 		
 		// use some spareUtxos if the inputValue doesn't cover the outputs and fees
-
 		const totalOutputValue = nonChangeOutputValue.add(changeOutput.value);
 		while (!inputValue.ge(totalOutputValue)) {
 			let spare = spareUtxos.pop();
@@ -45065,16 +45080,24 @@ export class Tx extends CborData {
 
 	/**
 	 * @internal
+	 * @param {NetworkParams} networkParams
 	 */
-	checkBalanced() {
+	checkBalanced(networkParams) {
+		const stakeAddrDeposit = new Value(networkParams.stakeAddressDeposit);
 		let v = new Value(0n);
 
 		v = this.#body.inputs.reduce((prev, inp) => inp.value.add(prev), v);
+		v = this.#body.dcerts.reduce((prev, dcert) => { // add released stakeAddrDeposit
+            return dcert.certType === 1 ? prev.add(stakeAddrDeposit) : prev
+        }, v);
 		v = v.sub(new Value(this.#body.fee));
 		v = v.add(new Value(0, this.#body.minted));
 		v = this.#body.outputs.reduce((prev, out) => {
 			return prev.sub(out.value)
 		}, v);
+		v = this.#body.dcerts.reduce((prev, dcert) => { // deduct locked stakeAddrDeposit
+            return dcert.certType === 0 ? prev.sub(stakeAddrDeposit) : prev
+        }, v);
 
 		assert(v.lovelace == 0n, `tx not balanced, net lovelace not zero (${v.lovelace})`);
 		assert(v.assets.isZero(), "tx not balanced, net assets not zero");
@@ -45261,7 +45284,7 @@ export class Tx extends CborData {
 
 		this.checkFee(networkParams);
 
-		this.checkBalanced();
+		this.checkBalanced(networkParams);
 
 		this.#valid = true;
 
@@ -45490,6 +45513,13 @@ export class TxBody extends CborData {
 	}
 
 	/**
+	 * @type {DCert[]}
+	 */
+	get dcerts() {
+		return this.#dcerts.slice();
+	}
+
+	/**
 	 * @returns {number[]}
 	 */
 	toCbor() {
@@ -45654,6 +45684,7 @@ export class TxBody extends CborData {
 			minted: this.#minted.isZero() ? null : this.#minted.dump(),
 			metadataHash: this.#metadataHash === null ? null : this.#metadataHash.dump(),
 			scriptDataHash: this.#scriptDataHash === null ? null : this.#scriptDataHash.dump(),
+			certificates: this.#dcerts.length == 0 ? null : this.#dcerts.map(dc => dc.dump()),
 			collateral: this.#collateral.length == 0 ? null : this.#collateral.map(c => c.dump()),
 			signers: this.#signers.length == 0 ? null : this.#signers.map(rs => rs.dump()),
 			collateralReturn: this.#collateralReturn === null ? null : this.#collateralReturn.dump(),
@@ -45984,6 +46015,13 @@ export class TxBody extends CborData {
 	 */
 	addDCert(dcert) {
 		this.#dcerts.push(dcert);
+
+		const reqSigTypes = [1,2]; // stake de-reg, stake deleg
+		if (reqSigTypes.includes(dcert.certType)){
+			if (dcert.credentialType === 0) { // for address key hash only
+				this.addSigner(dcert.stakeHash);
+			}
+		}
 	}
 
 	/**
@@ -47505,19 +47543,190 @@ export class TxOutput extends CborData {
 
 /**
  * A `DCert` represents a staking action (eg. withdrawing rewards, delegating to another pool).
- * @internal
  */
 export class DCert extends CborData {
-	constructor() {
+	#certType;
+
+	#stakeHash;
+
+	#credentialType;
+
+	/**
+     * @param {number} certType
+     */
+	constructor(certType) {
 		super();
+		this.#certType = certType;
 	}
 
 	/**
-	 * @param {number[]} bytes 
+	 * Get certificate type.
+	 * @type {number}
+	 */
+	get certType() {
+		return this.#certType;
+	}
+
+	/**
+	 * Get stake hash.
+	 * @type {PubKeyHash | StakingValidatorHash}
+	 */
+	get stakeHash() {
+		return this.#stakeHash;
+	}
+
+	/**
+	 * Get stake credential type.
+	 * @type {number}
+	 */
+	get credentialType() {
+		return this.#credentialType;
+	}
+
+
+	/**
+     * @returns {number[]}
+     */
+    typeToCbor() {
+        return Cbor.encodeInteger(BigInt(this.#certType));
+    }
+
+	/**
+	 * @param {string | number[]} raw
 	 * @returns {DCert}
 	 */
-	static fromCbor(bytes) {
-		throw new Error("not yet implemented");
+	static fromCbor(raw) {
+		const bytes = (typeof raw == "string") ? hexToBytes(raw) : raw;
+
+		if (bytes[0] == 0) {
+            bytes.shift();
+        }
+
+		let certType = -1;
+		let stakeHash, stakeHashType, poolHash;
+
+		/**
+         * @type {DCert | null}
+         */
+        let cert = null;
+
+		Cbor.decodeTuple(bytes, (i, fieldBytes) => {
+			if (i == 0) {
+                certType = Number(Cbor.decodeInteger(fieldBytes))
+            } else {
+				switch(certType) {
+					case 0: // fall through to case 1
+					case 1: // fall through to case 2
+					case 2:
+						if (i == 1)	{
+							Cbor.decodeList(fieldBytes, (i, itemBytes) => {
+								if (i == 0){
+									stakeHashType = Number(Cbor.decodeInteger(itemBytes));
+								} else {
+									if (stakeHashType == 0) { stakeHash = PubKeyHash.fromCbor(itemBytes) }
+									else if (stakeHashType == 1) { stakeHash = StakingValidatorHash.fromCbor(itemBytes) }
+									else { throw new Error("invalid stake credential") }
+								}
+							});
+							if (certType == 0) cert = new DCertRegister(stakeHash);
+							if (certType == 1) cert = new DCertDeregister(stakeHash);
+						} else if (i == 2){
+							poolHash = PubKeyHash.fromCbor(Cbor.decodeBytes(fieldBytes));
+							if (certType == 2) cert = new DCertDelegate(stakeHash, poolHash);
+						}
+						break;
+					case 3: // fall through
+					case 4: // fall through
+					case 5: // fall through
+					case 6:
+						throw new Error("DCert type not yet implemented");
+					default:
+						throw new Error("invalid DCert type");
+				}
+			}
+		});
+
+		if (!cert) {
+            throw new Error("unable to deserialize certificate");
+        } else {
+            return cert;
+        }
+	}
+
+	/**
+	 * `DCertProps.type` can be:
+	 *     `0` for stake registration
+	 *     `1` for stake de-registration
+	 *     `2` for stake delegation
+	 *     `3` for stake pool registration (not yet implemented)
+	 *     `4` for stake pool retirement (not yet implemented)
+	 *     `5` for genesis key delegation (not yet implemented)
+	 *     `6` for moving instantaneous rewards (not yet implemented)
+	 *
+	 * `DCertProps.credential.type` can be:
+	 *     `0` for staking address key hash
+	 *     `1` for staking validator key hash (script hash)
+	 *
+	 * `DCertProps.poolHash` is needed only for stake delegation.
+	 * @typedef {{
+	 *   type: 0 | 1 | 2,
+	 *   credential: {
+	 *     type: 0 | 1,
+	 *     hash: string
+	 *   },
+	 *   poolHash?: string
+	 * }} DCertProps
+	 */
+
+	/**
+	 * Create a DCert from a given json parameter.
+     * @param {string | DCertProps} json
+     * @returns {DCert}
+     */
+    static fromJson(json) {
+		const obj = (typeof json == "string") ? JSON.parse(json) : json;
+        const certType = obj?.type;
+		const stakeHashType = obj.credential.type;
+
+		if (typeof certType !== "number") {
+            throw new Error("invalid or no certificate type specified");
+        }
+
+		let stakeHash, poolHash;
+
+		/**
+         * @type {DCert | null}
+         */
+        let cert = null;
+
+		switch (certType) {
+			case 0: // fall through to case 1
+			case 1: // fall through to case 2
+			case 2:
+				stakeHash = stakeHashType === 0
+				          ? PubKeyHash.fromHex(obj.credential.hash)
+						  : StakingValidatorHash.fromHex(obj.credential.hash);
+				if (certType == 0) cert = new DCertRegister(stakeHash);
+				if (certType == 1) cert = new DCertDeregister(stakeHash);
+				if (certType == 2){
+					poolHash = PubKeyHash.fromHex(obj.poolHash)
+					cert = new DCertDelegate(stakeHash, poolHash);
+				}
+				break;
+			case 3: // fall through
+			case 4: // fall through
+			case 5: // fall through
+			case 6:
+				throw new Error("DCert type not yet implemented");
+			default:
+				throw new Error("invalid DCert type");
+		}
+
+		if (!cert) {
+            throw new Error("unable to deserialize certificate");
+        } else {
+            return cert;
+        }
 	}
 
 	/**
@@ -47534,27 +47743,232 @@ export class DCert extends CborData {
 	toData() {
 		throw new Error("not yet implemented");
 	}
-}
 
-/**
- * @internal
- */
-export class DCertDelegate extends DCert {
-
-}
-
-/**
- * @internal
- */
-export class DCertDeregister extends DCert {
-
+	/**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {}; // placeholder here only, to satisfy call from TxBody.dump (type checking); overwritten by child classes
+	}
 }
 
 /**
  * @internal
  */
 export class DCertRegister extends DCert {
+	/**
+	 * @type {PubKeyHash | StakingValidatorHash}
+	 */
+	#stakeHash;
 
+	/**
+	 * @type {number}
+	 */
+	#credentialType;
+
+	/**
+     * @param {PubKeyHash | StakingValidatorHash} stakeHash
+     */
+    constructor(stakeHash) {
+        super(0);
+        assert(stakeHash instanceof PubKeyHash || stakeHash instanceof StakingValidatorHash);
+        this.#stakeHash = stakeHash;
+		this.#credentialType = stakeHash instanceof PubKeyHash ? 0 : 1;
+    }
+
+	/**
+	 * Get stake hash.
+	 * @type {PubKeyHash | StakingValidatorHash}
+	 */
+	get stakeHash() {
+		return this.#stakeHash;
+	}
+	
+	/**
+	 * Get stake credential type.
+	 * @type {number}
+	 */
+	get credentialType() {
+		return this.#credentialType;
+	}
+
+	/**
+     * @returns {number[]}
+     */
+    toCbor() {
+        return Cbor.encodeTuple([
+            this.typeToCbor(),
+            Cbor.encodeDefList([
+				Cbor.encodeInteger(BigInt(this.#credentialType)),
+				this.#stakeHash.toCbor()
+			])
+        ]);
+    }
+
+    /**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			certType: "stake_registration",
+			stakeCredential: {
+				type: this.#credentialType,
+				hash: this.#stakeHash.dump()
+			}
+		};
+	}
+}
+
+/**
+ * @internal
+ */
+export class DCertDeregister extends DCert {
+	/**
+	 * @type {PubKeyHash | StakingValidatorHash}
+	 */
+	#stakeHash;
+
+	/**
+	 * @type {number}
+	 */
+	#credentialType;
+
+	/**
+     * @param {PubKeyHash | StakingValidatorHash} stakeHash
+     */
+    constructor(stakeHash) {
+        super(1);
+        assert(stakeHash instanceof PubKeyHash || stakeHash instanceof StakingValidatorHash);
+        this.#stakeHash = stakeHash;
+		this.#credentialType = stakeHash instanceof PubKeyHash ? 0 : 1;
+    }
+
+	/**
+	 * Get stake hash.
+	 * @type {PubKeyHash | StakingValidatorHash}
+	 */
+	get stakeHash() {
+		return this.#stakeHash;
+	}
+	
+	/**
+	 * Get stake credential type.
+	 * @type {number}
+	 */
+	get credentialType() {
+		return this.#credentialType;
+	}
+
+	/**
+     * @returns {number[]}
+     */
+    toCbor() {
+        return Cbor.encodeTuple([
+            this.typeToCbor(),
+            Cbor.encodeDefList([
+				Cbor.encodeInteger(BigInt(this.#credentialType)),
+				this.#stakeHash.toCbor()
+			])
+        ]);
+    }
+
+    /**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			certType: "stake_deregistration",
+			stakeCredential: {
+				type: this.#credentialType,
+				hash: this.#stakeHash.dump()
+			}
+		};
+	}
+}
+
+/**
+ * @internal
+ */
+export class DCertDelegate extends DCert {
+	/**
+	 * @type {PubKeyHash | StakingValidatorHash}
+	 */
+	#stakeHash;
+
+	/**
+	 * @type {number}
+	 */
+	#credentialType;
+
+	/**
+	 * @type {PubKeyHash}
+	 */
+	#poolHash;
+
+	/**
+     * @param {PubKeyHash | StakingValidatorHash} stakeHash
+	 * @param {PubKeyHash} poolHash
+     */
+    constructor(stakeHash, poolHash) {
+        super(2);
+        assert(stakeHash instanceof PubKeyHash || stakeHash instanceof StakingValidatorHash);
+		assert(poolHash instanceof PubKeyHash);
+        this.#stakeHash = stakeHash;
+		this.#credentialType = stakeHash instanceof PubKeyHash ? 0 : 1;
+		this.#poolHash = poolHash;
+    }
+
+	/**
+	 * Get stake hash.
+	 * @type {PubKeyHash | StakingValidatorHash}
+	 */
+	get stakeHash() {
+		return this.#stakeHash;
+	}
+
+	/**
+	 * Get stake credential type.
+	 * @type {number}
+	 */
+	get credentialType() {
+		return this.#credentialType;
+	}
+
+	/**
+	 * Get stake pool hash.
+	 * @type {PubKeyHash}
+	 */
+	get poolHash() {
+		return this.#poolHash;
+	}
+
+	/**
+     * @returns {number[]}
+     */
+    toCbor() {
+        return Cbor.encodeTuple([
+            this.typeToCbor(),
+            Cbor.encodeDefList([
+				Cbor.encodeInteger(BigInt(this.#credentialType)),
+				this.#stakeHash.toCbor()
+			]),
+			this.#poolHash.toCbor()
+        ]);
+    }
+
+    /**
+	 * @returns {Object}
+	 */
+	dump() {
+		return {
+			certType: "stake_delegation",
+			stakeCredential: {
+				type: this.#credentialType,
+				hash: this.#stakeHash.dump()
+			},
+			poolHash: this.#poolHash.dump()
+		};
+	}
 }
 
 /**
@@ -47567,7 +47981,7 @@ export class DCertRegisterPool extends DCert {
 /**
  * @internal
  */
-export class DCertRetire extends DCert {
+export class DCertRetirePool extends DCert {
 
 }
 
