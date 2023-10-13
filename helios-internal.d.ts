@@ -827,10 +827,11 @@ declare module "helios" {
     /**
      * Build an Intermediate Representation expression
      * @param {Token[]} ts
+     * @param {IRExprTagger | null} funcTagger // each IRFuncExpr needs a unique tag, so that hashing different IRFuncExprs with the same args and bodies leads to a different hash
      * @returns {IRExpr}
      * @internal
      */
-    export function buildIRExpr(ts: Token[]): IRExpr;
+    export function buildIRExpr(ts: Token[], funcTagger?: IRExprTagger | null): IRExpr;
     /**
      * Used to debug the result of IREvalation
      * @internal
@@ -8504,8 +8505,9 @@ declare module "helios" {
          * @param {Site} site
          * @param {IRVariable[]} args
          * @param {IRExpr} body
+         * @param {number} tag
          */
-        constructor(site: Site, args: IRVariable[], body: IRExpr);
+        constructor(site: Site, args: IRVariable[], body: IRExpr, tag: number);
         /**
          * @readonly
          * @type {Site}
@@ -8523,6 +8525,12 @@ declare module "helios" {
          * @type {IRExpr}
          */
         body: IRExpr;
+        /**
+         * A unique tag, that distinguishes each IRFuncExpr from each other IRFuncExpr (used for hashing)
+         * @readonly
+         * @type {number}
+         */
+        readonly tag: number;
         /**
          * @returns {boolean}
          */
@@ -8677,6 +8685,10 @@ declare module "helios" {
          * @returns {boolean}
          */
         isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
         dump(depth?: number): {
             type: string;
             value: string;
@@ -8692,12 +8704,6 @@ declare module "helios" {
          * @type {number}
          */
         get code(): number;
-        /**
-         * @param {IRValue} other
-         * @param {boolean} permissive
-         * @returns {boolean}
-         */
-        eq(other: IRValue, permissive?: boolean): boolean;
     }
     /**
      * @internal
@@ -8705,15 +8711,13 @@ declare module "helios" {
      */
     export class IRDataValue implements IRValue {
         /**
-         * @param {IRValue} other
-         * @param {boolean} permissive
-         * @returns {boolean}
-         */
-        eq(other: IRValue, permissive?: boolean): boolean;
-        /**
          * @returns {boolean}
          */
         isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
         /**
          * @type {number}
          */
@@ -8756,6 +8760,10 @@ declare module "helios" {
          */
         isLiteral(): boolean;
         /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
+        /**
          * @type {number}
          */
         get code(): number;
@@ -8769,12 +8777,6 @@ declare module "helios" {
             name: string;
             hash: number;
         };
-        /**
-         * @param {IRValue} other
-         * @param {boolean} permissive
-         * @returns {boolean}
-         */
-        eq(other: IRValue, permissive?: boolean): boolean;
     }
     /**
      * @internal
@@ -8803,6 +8805,11 @@ declare module "helios" {
          */
         readonly definition: IRFuncExpr;
         /**
+         * @private
+         * @type {number}
+         */
+        private get internalCode();
+        /**
          * @type {number}
          */
         get code(): number;
@@ -8815,6 +8822,10 @@ declare module "helios" {
          * @returns {boolean}
          */
         isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
         dump(depth?: number): {
             type: string;
             definition: string;
@@ -8828,12 +8839,6 @@ declare module "helios" {
             };
         };
         /**
-         * @param {IRValue} other
-         * @param {boolean} permissive
-         * @returns {boolean}
-         */
-        eq(other: IRValue, permissive?: boolean): boolean;
-        /**
          * @returns {string}
          */
         toString(): string;
@@ -8844,15 +8849,13 @@ declare module "helios" {
      */
     export class IRErrorValue implements IRValue {
         /**
-         * @param {IRValue} other
-         * @param {boolean} permissive
-         * @returns {boolean}
-         */
-        eq(other: IRValue, permissive?: boolean): boolean;
-        /**
          * @returns {boolean}
          */
         isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
         /**
          * @returns {string}
          */
@@ -8879,15 +8882,13 @@ declare module "helios" {
      */
     export class IRAnyValue implements IRValue {
         /**
-         * @param {IRValue} other
-         * @param {boolean} permissive
-         * @returns {boolean}
-         */
-        eq(other: IRValue, permissive?: boolean): boolean;
-        /**
          * @returns {boolean}
          */
         isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
         /**
          * @returns {string}
          */
@@ -8938,6 +8939,10 @@ declare module "helios" {
          */
         isLiteral(): boolean;
         /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
+        /**
          * @returns {boolean}
          */
         hasData(): boolean;
@@ -8960,13 +8965,6 @@ declare module "helios" {
          * @returns {number[]}
          */
         hash(depth?: number): number[];
-        /**
-         * Order can be different
-         * @param {IRValue} other
-         * @param {boolean} permissive
-         * @returns {boolean}
-         */
-        eq(other: IRValue, permissive?: boolean): boolean;
         /**
          * @returns {IRValue}
          */
@@ -9076,26 +9074,11 @@ declare module "helios" {
          */
         incrCallCount(fn: IRFuncExpr): void;
         /**
-         * @private
-         * @param {IRCallExpr} expr
-         * @param {IRValue} fn
-         * @param {IRValue[]} args
-         * @returns {boolean}
-         */
-        private isRecursing;
-        /**
          * @param {IRVariable[]} variables
          * @param {IRValue[]} values
          * @returns {[IRVariable, IRValue][]}
          */
         mapVarsToValues(variables: IRVariable[], values: IRValue[]): [IRVariable, IRValue][];
-        /**
-         * We it be better to detect recursion using the IRFuncExpr as a key instead?
-         * @param {IRCallExpr} expr
-         * @param {IRValue} fn
-         * @param {IRValue[]} args
-         */
-        pushActiveCall(expr: IRCallExpr, fn: IRValue, args: IRValue[]): void;
         /**
          * @private
          * @param {IRStack} stack
@@ -9122,9 +9105,16 @@ declare module "helios" {
          */
         private callAnyFunc;
         /**
-         * @internal
+         * @private
+         * @param {IRCallExpr} expr
+         * @param {number} code
+         * @param {IRValue} value
          */
-        evalInternal(): void;
+        private cacheValue;
+        /**
+         * @private
+         */
+        private evalInternal;
         /**
          * @param {IRExpr} expr entry point
          * @returns {IRValue}
@@ -9247,6 +9237,7 @@ declare module "helios" {
          */
         private removeUnusedArgs;
         /**
+         * TODO: improve IREvaluator to make sure all possible IRFuncExpr calls are evaluated
          * @private
          */
         private replaceUncalledArgsWithUnit;
@@ -13122,25 +13113,6 @@ declare module "helios" {
         [name: string]: Type;
     };
     /**
-     * Interface for:
-     *   * IRErrorExpr
-     *   * IRCallExpr
-     *   * IRFuncExpr
-     *   * IRNameExpr
-     *   * IRLiteralExpr
-     *
-     * The copy() method is needed because inlining can't use the same IRNameExpr twice,
-     *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
-     *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
-     */
-    export type IRExpr = {
-        site: Site;
-        resolveNames(scope: IRScope): void;
-        toString(indent?: string): string;
-        copy(): IRExpr;
-        toUplc(): UplcTerm;
-    };
-    /**
      * The inner 'any' is also Metadata, but jsdoc doesn't allow declaring recursive types
      * Metadata is essentially a JSON schema object
      */
@@ -13314,12 +13286,31 @@ declare module "helios" {
     export type ScriptTypes = {
         [name: string]: ScriptHashType;
     };
+    /**
+     * Interface for:
+     *   * IRErrorExpr
+     *   * IRCallExpr
+     *   * IRFuncExpr
+     *   * IRNameExpr
+     *   * IRLiteralExpr
+     *
+     * The copy() method is needed because inlining can't use the same IRNameExpr twice,
+     *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+     *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
+     */
+    export type IRExpr = {
+        site: Site;
+        resolveNames(scope: IRScope): void;
+        toString(indent?: string): string;
+        copy(): IRExpr;
+        toUplc(): UplcTerm;
+    };
     export type IRValue = {
         code: number;
         hash(depth?: number): number[];
         toString(): string;
-        eq(other: IRValue, permissive?: boolean): boolean;
         isLiteral(): boolean;
+        withoutLiterals(): IRValue;
         dump(depth?: number): any;
     };
     export type UserTypes = {
@@ -13447,6 +13438,13 @@ declare module "helios" {
     export type PropertyTest = (args: UplcValue[], res: (UplcValue | RuntimeError), isSimplfied?: boolean) => (boolean | {
         [x: string]: boolean;
     });
+    /**
+     * @internal
+     */
+    class IRExprTagger {
+        genTag(): number;
+        #private;
+    }
     /**
      * UplcStack contains a value that can be retrieved using a Debruijn index.
      */
@@ -13686,8 +13684,9 @@ declare module "helios" {
         static empty(): IRStack;
         /**
          * @param {[IRVariable, IRValue][]} values
+         * @param {boolean} isLiteral
          */
-        constructor(values: [IRVariable, IRValue][]);
+        constructor(values: [IRVariable, IRValue][], isLiteral: boolean);
         dump(depth?: number): {
             values?: any[] | undefined;
             hash: number;
@@ -13708,6 +13707,10 @@ declare module "helios" {
          */
         isLiteral(): boolean;
         /**
+         * @return {IRStack}
+         */
+        withoutLiterals(): IRStack;
+        /**
          * @param {IRVariable} v
          * @returns {IRValue}
          */
@@ -13723,12 +13726,8 @@ declare module "helios" {
          */
         filter(irVars: Set<IRVariable>): IRStack;
         /**
-         * @param {IRFuncExpr} def
-         * @returns {IRFuncValue | null}
-         */
-        findFuncValue(def: IRFuncExpr): IRFuncValue | null;
-        /**
          * Both stack are expected to have the same shape
+         * TODO: get rid of this
          * @param {IRStack} other
          * @returns {IRStack}
          */

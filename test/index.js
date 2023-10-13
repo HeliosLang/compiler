@@ -77,6 +77,8 @@ async function listFiles(dir) {
 async function main() {
 	const dir = process.cwd()
 
+	console.log(process.argv)
+	
 	const testName = process.argv[2]
 
 	if (testName) {

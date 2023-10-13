@@ -172,7 +172,8 @@ export class IROptimizer {
         const funcExpr = new IRFuncExpr(
             old.site,
             args,
-            body
+            body,
+            old.tag
         );
 
         this.#callCount.set(funcExpr, n);
@@ -239,6 +240,7 @@ export class IROptimizer {
     }
 
     /**
+     * TODO: improve IREvaluator to make sure all possible IRFuncExpr calls are evaluated
      * @private
      */
     replaceUncalledArgsWithUnit() {

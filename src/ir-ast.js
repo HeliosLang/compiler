@@ -62,6 +62,9 @@ import {
  * }} IRExpr
  */
 
+const HASH_PRIME = 97;
+
+const MAX_HASH_NUMBER = 91910196476941; // prime closest to Math.floor(Number.MAX_SAFE_INTEGER/(HASH_PRIME + 1));
 /**
  * @internal
  * @param {number} start
@@ -69,7 +72,13 @@ import {
  * @returns {number}
  */
 function hashNumber(start, x) {
-	return (start*31 + x)%4294967296;
+	const res = (start*HASH_PRIME ^ x)%MAX_HASH_NUMBER;
+
+	if (Number.isNaN(res) || !Number.isFinite(res)) {
+		throw new Error("MAX_HASH_NUMBER too large");
+	}
+
+	return res;
 }
 
 /**
@@ -322,14 +331,23 @@ export class IRFuncExpr {
 	body;
 
 	/**
+	 * A unique tag, that distinguishes each IRFuncExpr from each other IRFuncExpr (used for hashing)
+	 * @readonly
+	 * @type {number}
+	 */
+	tag;
+
+	/**
 	 * @param {Site} site 
 	 * @param {IRVariable[]} args 
 	 * @param {IRExpr} body 
+	 * @param {number} tag
 	 */
-	constructor(site, args, body) {
+	constructor(site, args, body, tag) {
 		this.site = site;
 		this.args = args;
 		this.body = assertDefined(body);
+		this.tag = tag;
 	}
 
 	/**
@@ -380,7 +398,7 @@ export class IRFuncExpr {
 	 * @returns {IRExpr}
 	 */
 	copy() {
-		return new IRFuncExpr(this.site, this.args, this.body.copy());
+		return new IRFuncExpr(this.site, this.args, this.body.copy(), this.tag);
 	}
 
 	/** 

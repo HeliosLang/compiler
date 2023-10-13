@@ -46,14 +46,36 @@ import {
 } from "./ir-ast.js";
 
 /**
+ * @internal
+ */
+class IRExprTagger {
+	#tag;
+
+	constructor() {
+		this.#tag = 0;
+	}
+
+	genTag() {
+		this.#tag += 1;
+
+		return this.#tag;
+	}
+}
+
+/**
  * Build an Intermediate Representation expression
  * @param {Token[]} ts 
+ * @param {IRExprTagger | null} funcTagger // each IRFuncExpr needs a unique tag, so that hashing different IRFuncExprs with the same args and bodies leads to a different hash
  * @returns {IRExpr}
  * @internal
  */
-export function buildIRExpr(ts) {
+export function buildIRExpr(ts, funcTagger = null) {
 	/** @type {null | IRExpr} */
 	let expr = null;
+
+	if (funcTagger === null) {
+		funcTagger = new IRExprTagger();
+	}
 
 	while (ts.length > 0) {
 		let t = ts.shift();
@@ -66,13 +88,13 @@ export function buildIRExpr(ts) {
 
 				ts.unshift(t);
 
-				expr = buildIRFuncExpr(ts);
+				expr = buildIRFuncExpr(ts, funcTagger);
 			} else if (t.isGroup("(")) {
 				let group = assertDefined(t.assertGroup(), "should be a group");
 
 				if (expr === null) {
 					if (group.fields.length == 1) {
-						expr = buildIRExpr(group.fields[0])
+						expr = buildIRExpr(group.fields[0], funcTagger)
 					} else if (group.fields.length == 0) {
 						expr = new IRLiteralExpr(new UplcUnit(t.site));
 					} else {
@@ -81,7 +103,7 @@ export function buildIRExpr(ts) {
 				} else {
 					let args = [];
 					for (let f of group.fields) {
-						args.push(buildIRExpr(f));
+						args.push(buildIRExpr(f, funcTagger));
 					}
 
 					expr = new IRCallExpr(t.site, expr, args);
@@ -152,9 +174,10 @@ export function buildIRExpr(ts) {
 /**
  * Build an IR function expression
  * @param {Token[]} ts 
+ * @param {IRExprTagger} funcTagger
  * @returns {IRFuncExpr}
  */
-function buildIRFuncExpr(ts) {
+function buildIRFuncExpr(ts, funcTagger) {
 	let maybeParens = ts.shift();
 	if (maybeParens === undefined) {
 		throw new Error("empty func expr");
@@ -180,8 +203,8 @@ function buildIRFuncExpr(ts) {
 			throw braces.syntaxError("empty function body")
 		}
 
-		let bodyExpr = buildIRExpr(braces.fields[0]);
+		let bodyExpr = buildIRExpr(braces.fields[0], funcTagger);
 
-		return new IRFuncExpr(parens.site, argNames.map(a => new IRVariable(a)), bodyExpr)
+		return new IRFuncExpr(parens.site, argNames.map(a => new IRVariable(a)), bodyExpr, funcTagger.genTag());
 	}
 }

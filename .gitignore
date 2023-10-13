@@ -2,3 +2,4 @@ log.*
 *.swp
 node_modules
 helios.d.ts.map
+*.log
