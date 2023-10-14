@@ -18725,7 +18725,8 @@ export const ByteArrayType = new GenericType({
         __geq: new FuncType([self, self], BoolType),
         __gt: new FuncType([self, self], BoolType),
         __leq: new FuncType([self, self], BoolType),
-        __lt: new FuncType([self, self], BoolType)
+        __lt: new FuncType([self, self], BoolType),
+        parse: new FuncType([StringType], self)
     })
 });
 
@@ -20872,12 +20873,16 @@ export const AddressType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: CredentialType,
-        staking_credential: OptionType$(StakingCredentialType)
+        staking_credential: OptionType$(StakingCredentialType),
+        to_bytes: new FuncType([], ByteArrayType),
+        to_hex: new FuncType([], StringType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
         new: new FuncType([CredentialType, OptionType$(StakingCredentialType)], self),
-        new_empty: new FuncType([], self)
+        new_empty: new FuncType([], self),
+        from_bytes: new FuncType([ByteArrayType], self),
+        from_hex: new FuncType([StringType], self)
     })
 });
 
@@ -22423,10 +22428,11 @@ class RawFunc {
 /**
  * Initializes the db containing all the builtin functions
  * @param {boolean} simplify
+ * @param {boolean} isTestnet // needed for Address.to_bytes() and Address.to_hex()
  * @returns {Map<string, RawFunc>}
  */
 // only need to wrap these source in IR right at the very end
-function makeRawFunctions(simplify) {
+function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	/** @type {Map<string, RawFunc>} */
 	let db = new Map();
 
@@ -23474,6 +23480,58 @@ function makeRawFunctions(simplify) {
 			}
 		)()
 	}`));
+	add(new RawFunc("__helios__int__parse_hex_digit",
+	`(hex) -> {
+		__core__ifThenElse(
+			__core__lessThanEqualsInteger(hex, 57),
+			() -> {
+				__core__ifThenElse(
+					__core__lessThanEqualsInteger(48, hex),
+					() -> {
+						__core__subtractInteger(hex, 48)
+					},
+					() -> {
+						__helios__error("not a hex digit")
+					}
+				)()
+			},
+			() -> {
+				__core__ifThenElse(
+					__core__lessThanEqualsInteger(hex, 70),
+					() -> {
+						__core__ifThenElse(
+							__core__lessThanEqualsInteger(65, hex),
+							() -> {
+								__core__subtractInteger(hex, 55)
+							}, 
+							() -> {
+								__helios__error("not a hex digit")
+							}
+						)()
+					},
+					() -> {
+						__core__ifThenElse(
+							__core__lessThanEqualsInteger(hex, 102),
+							() -> {
+								__core__ifThenElse(
+									__core__lessThanEqualsInteger(97, hex),
+									() -> {
+										__core__subtractInteger(hex, 87)
+									},
+									() -> {
+										__helios__error("not a hex digit")
+									}
+								)()
+							},
+							() -> {
+								__helios__error("not a hex digit")
+							}
+						)()
+					}
+				)()
+			}
+		)()
+	}`));
 	add(new RawFunc("__helios__int__parse",
 	`(string) -> {
 		(bytes) -> {
@@ -24005,6 +24063,42 @@ function makeRawFunctions(simplify) {
 	// ByteArray builtins
 	addSerializeFunc("__helios__bytearray");
 	addNeqFunc("__helios__bytearray");
+	add(new RawFunc("__helios__bytearray__parse",
+	`(string) -> {
+		(hex) -> {
+			(i) -> {
+				(recurse) -> {
+					recurse(recurse, #, i)
+				}(
+					(recurse, tail, i) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(i, -1),
+							() -> {
+								tail
+							},
+							() -> {
+								(byte) -> {
+									recurse(
+										recurse, 
+										__core__consByteString(byte, tail), 
+										__core__subtractInteger(i, 2)
+									)
+								}(
+									__core__addInteger(
+										__helios__int__parse_hex_digit(__core__indexByteString(hex, i)),
+										__core__multiplyInteger(
+											16,
+											__helios__int__parse_hex_digit(__core__indexByteString(hex, __core__subtractInteger(i, 1)))
+										)
+									)	
+								)
+							}
+						)()
+					}
+				)
+			}(__core__subtractInteger(__core__lengthOfByteString(hex), 1))
+		}(__core__encodeUtf8(string))
+	}`));
 	add(new RawFunc("__helios__bytearray____eq", "__core__equalsByteString"));
 	add(new RawFunc("__helios__bytearray__from_data", "__core__unBData"));
 	add(new RawFunc("__helios__bytearray____to_data", "__core__bData"));
@@ -27307,6 +27401,279 @@ function makeRawFunctions(simplify) {
 
 	// Address
 	addDataFuncs("__helios__address");
+	add(new RawFunc("__helios__address__to_hex", 
+	`(self) -> {
+		__helios__bytearray__show(__helios__address__to_bytes(self)())
+	}`));
+	add(new RawFunc("__helios__address__header",
+	`(self) -> {
+		() -> {
+			(credential, staking_credential) -> {
+				__core__ifThenElse(
+					__helios__credential__is_pubkey(credential),
+					() -> {
+						(staking_option_pair) -> {
+							__core__ifThenElse(
+								__core__equalsInteger(__core__fstPair(staking_option_pair), 0),
+								() -> {
+									(staking_credential) -> {
+										__core__ifThenElse(
+											__helios__credential__is_pubkey(staking_credential),
+											() -> {
+												${isTestnet ? "0x00" : "0x01"}
+											},
+											() -> {
+												${isTestnet ? "0x20" : "0x21"}
+											}
+										)()
+									}(__core__headList(__core__sndPair(__core__unConstrData(__helios__stakingcredential__hash__cast(__core__headList(__core__sndPair(staking_option_pair)))))))
+								},
+								() -> {
+									${isTestnet ? "0x60" : "0x61"}
+								}
+							)()
+						}(__core__unConstrData(staking_credential))
+					},
+					() -> {
+						(staking_option_pair) -> {
+							__core__ifThenElse(
+								__core__equalsInteger(__core__fstPair(staking_option_pair), 0)
+								() -> {
+									(staking_credential) -> {
+										__core__ifThenElse(
+											__helios__credential__is_pubkey(staking_credential),
+											() -> {
+												${isTestnet ? "0x10" : "0x11"}
+											},
+											() -> {
+												${isTestnet ? "0x30" : "0x31"}
+											}
+										)()
+									}(__core__headList(__core__sndPair(__core__unConstrData(__helios__stakingcredential__hash__cast(__core__headList(__core__sndPair(staking_option_pair)))))))
+								},
+								() -> {
+									${isTestnet ? "0x70" : "0x71"}
+								}
+							)()
+						}(__core__unConstrData(staking_credential))
+					}
+				)()
+			}(
+				__helios__address__credential(self),
+				__helios__address__staking_credential(self)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__address__to_bytes",
+	`(self) -> {
+		() -> {
+			(credential, staking_credential) -> {
+				__core__ifThenElse(
+					__helios__credential__is_pubkey(credential),
+					() -> {
+						(staking_option_pair) -> {
+							__core__ifThenElse(
+								__core__equalsInteger(__core__fstPair(staking_option_pair), 0),
+								() -> {
+									(staking_credential) -> {
+										__core__ifThenElse(
+											__helios__credential__is_pubkey(staking_credential),
+											() -> {
+												__core__consByteString(
+													${isTestnet ? "0x00" : "0x01"},
+													__core__appendByteString(
+														__helios__credential__pubkey__hash(credential),
+														__helios__credential__pubkey__hash(staking_credential)
+													)
+												)
+											},
+											() -> {
+												__core__consByteString(
+													${isTestnet ? "0x20" : "0x21"},
+													__core__appendByteString(
+														__helios__credential__pubkey__hash(credential),
+														__helios__credential__validator__hash(staking_credential)
+													)
+												)
+											}
+										)()
+									}(__core__headList(__core__sndPair(__core__unConstrData(__helios__stakingcredential__hash__cast(__core__headList(__core__sndPair(staking_option_pair)))))))
+								},
+								() -> {
+									__core__consByteString(
+										${isTestnet ? "0x60" : "0x61"},
+										__helios__credential__pubkey__hash(credential)
+									)
+								}
+							)()
+						}(__core__unConstrData(staking_credential))
+					},
+					() -> {
+						(staking_option_pair) -> {
+							__core__ifThenElse(
+								__core__equalsInteger(__core__fstPair(staking_option_pair), 0),
+								() -> {
+									(staking_credential) -> {
+										__core__ifThenElse(
+											__helios__credential__is_pubkey(staking_credential),
+											() -> {
+												__core__consByteString(
+													${isTestnet ? "0x10" : "0x11"},
+													__core__appendByteString(
+														__helios__credential__validator__hash(credential),
+														__helios__credential__pubkey__hash(staking_credential)
+													)
+												)
+											},
+											() -> {
+												__core__consByteString(
+													${isTestnet ? "0x30" : "0x31"},
+													__core__appendByteString(
+														__helios__credential__validator__hash(credential),
+														__helios__credential__validator__hash(staking_credential)
+													)
+												)
+											}
+										)()
+									}(__core__headList(__core__sndPair(__core__unConstrData(__helios__stakingcredential__hash__cast(__core__headList(__core__sndPair(staking_option_pair)))))))
+								},
+								() -> {
+									__core__consByteString(
+										${isTestnet ? "0x70" : "0x71"},
+										__helios__credential__validator__hash(credential)
+									)
+								}
+							)()
+						}(__core__unConstrData(staking_credential))
+					}
+				)()
+			}(
+				__helios__address__credential(self),
+				__helios__address__staking_credential(self)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__address__from_bytes",
+	`(bytes) -> {
+		(header) -> {
+			__core__ifThenElse(
+				__core__equalsInteger(__core__modInteger(header, 2), ${isTestnet ? "0" : "1"}),
+				() -> {
+					(is_pubkey_spending, staking_type) -> {
+						__core__ifThenElse(
+							is_pubkey_spending,
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(staking_type, 0),
+									() -> {
+										__helios__address__new(
+											__helios__credential__new_pubkey(__core__sliceByteString(1, 28, bytes)),
+											__core__constrData(0, __helios__common__list_1(
+												__helios__stakingcredential__new_hash(
+													__helios__credential__new_pubkey(__core__sliceByteString(29, 28, bytes))
+												)
+											))
+										)
+									},
+									() -> {
+										__core__ifThenElse(
+											__core__equalsInteger(staking_type, 1),
+											() -> {
+												__helios__address__new(
+													__helios__credential__new_pubkey(__core__sliceByteString(1, 28, bytes)),
+													__core__constrData(0, __helios__common__list_1(
+														__helios__stakingcredential__new_hash(
+															__helios__credential__new_validator(__core__sliceByteString(29, 28, bytes))
+														)
+													))
+												)
+											},
+											() -> {
+												__core__ifThenElse(
+													__core__equalsInteger(staking_type, 3),
+													() -> {
+														__helios__address__new(
+															__helios__credential__new_pubkey(__core__sliceByteString(1, 28, bytes)),
+															__helios__option__NONE
+														)
+													},
+													() -> {
+														__helios__error("unhandled staking type")
+													}
+												)()
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(staking_type, 0),
+									() -> {
+										__helios__address__new(
+											__helios__credential__new_validator(__core__sliceByteString(1, 28, bytes)),
+											__core__constrData(0, __helios__common__list_1(
+												__helios__stakingcredential__new_hash(
+													__helios__credential__new_pubkey(__core__sliceByteString(29, 28, bytes))
+												)
+											))
+										)
+									},
+									() -> {
+										__core__ifThenElse(
+											__core__equalsInteger(staking_type, 1),
+											() -> {
+												__helios__address__new(
+													__helios__credential__new_validator(__core__sliceByteString(1, 28, bytes)),
+													__core__constrData(0, __helios__common__list_1(
+														__helios__stakingcredential__new_hash(
+															__helios__credential__new_validator(__core__sliceByteString(29, 28, bytes))
+														)
+													))
+												)
+											},
+											() -> {
+												__core__ifThenElse(
+													__core__equalsInteger(staking_type, 3),
+													() -> {
+														__helios__address__new(
+															__helios__credential__new_validator(__core__sliceByteString(1, 28, bytes)),
+															__helios__option__NONE
+														)
+													},
+													() -> {
+														__helios__error("unhandled staking type")
+													}
+												)()
+											}
+										)()
+									}
+								)()
+							}
+						)()
+					}(
+						__core__equalsInteger(__core__modInteger(__core__divideInteger(header, 16), 2), 0),
+						__core__divideInteger(header, 32)
+					)
+				},
+				() -> {
+					__helios__error(
+						__core__appendString(
+							"not a ${isTestnet ? "testnet" : "mainnet"} address (header: ",
+							__core__appendString(
+								__helios__int__show(header)(),
+								")"
+							)
+						)
+					)
+				}
+			)()
+		}(__core__indexByteString(bytes, 0))
+	}`));
+	add(new RawFunc("__helios__address__from_hex",
+	`(hex) -> {
+		__helios__address__from_bytes(__helios__bytearray__parse(hex))
+	}`));
 	add(new RawFunc("__helios__address__new", 
 	`(cred, staking_cred) -> {
 		__core__constrData(0, __helios__common__list_2(cred, staking_cred))
@@ -27396,6 +27763,10 @@ function makeRawFunctions(simplify) {
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
 	}`));
+	add(new RawFunc("__helios__stakingcredential__hash__cast",
+	`(data) -> {
+		__helios__common__assert_constr_index(data, 0)
+	}`));
 	add(new RawFunc("__helios__stakingcredential__new_ptr", 
 	`(i, j, k) -> {
 		__core__constrData(1, __helios__common__list_3(
@@ -27403,6 +27774,10 @@ function makeRawFunctions(simplify) {
 			__helios__int____to_data(j), 
 			__helios__int____to_data(k)
 		))
+	}`));
+	add(new RawFunc("__helios__stakingcredential__ptr__cast",
+	`(data) -> {
+		__helios__common__assert_constr_index(data, 1)
 	}`));
 
 	
@@ -41245,7 +41620,7 @@ export class IRErrorCallExpr extends IRExpr {
  * @internal
  */
 export function buildIRExpr(ts) {
-	/** @type {?IRExpr} */
+	/** @type {null | IRExpr} */
 	let expr = null;
 
 	while (ts.length > 0) {
@@ -41255,7 +41630,7 @@ export function buildIRExpr(ts) {
 			throw new Error("unexpected: no tokens");
 		} else {
 			if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
-				assert(expr === null, "should be preceded by expr");
+				assert(expr === null, "should be preceded by expr (" + expr?.toString() + ")");
 
 				ts.unshift(t);
 
@@ -42933,7 +43308,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 		} else {
 			const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 			
-			//console.log(new Source(irProgram.toString()).pretty());
+			//console.log(new Source(ir.generateSource()[0], "main").pretty());
 			
 			return irProgram.toUplc();
 		}

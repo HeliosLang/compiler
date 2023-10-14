@@ -1373,7 +1373,7 @@ const DEFAULT_PROGRAM_CONFIG = {
 		} else {
 			const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 			
-			//console.log(new Source(irProgram.toString()).pretty());
+			//console.log(new Source(ir.generateSource()[0], "main").pretty());
 			
 			return irProgram.toUplc();
 		}

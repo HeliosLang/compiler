@@ -4547,6 +4547,134 @@ async function testBuiltins() {
         }
     }`, ([], res) => asBool(res), 1);
 
+    await ft.test([ft.int(0, 5), ft.bytes(28, 28), ft.bytes(28, 28)], `
+    testing address_to_from_bytes
+
+    func main(type: Int, spending: ByteArray, staking: ByteArray) -> Bool {
+        address: Address = if (type == 0) {
+            // pkh/none
+            Address::new(
+                Credential::new_pubkey(PubKeyHash::new(spending)),
+                Option[StakingCredential]::None
+            )
+        } else if (type == 1) {
+            // pkh/pkh
+            Address::new(
+                Credential::new_pubkey(PubKeyHash::new(spending)),
+                Option[StakingCredential]::Some{
+                    StakingCredential::new_hash(
+                        StakingHash::new_stakekey(PubKeyHash::new(staking))
+                    )
+                }
+            )
+        } else if (type == 2) {
+            // pkh/vh
+            Address::new(
+                Credential::new_pubkey(PubKeyHash::new(spending)),
+                Option[StakingCredential]::Some{
+                    StakingCredential::new_hash(
+                        StakingHash::new_validator(StakingValidatorHash::new(staking))
+                    )
+                }
+            )
+        } else if (type == 3) {
+            // vh/none
+            Address::new(
+                Credential::new_validator(ValidatorHash::new(spending)),
+                Option[StakingCredential]::None
+            )
+        } else if (type == 4) {
+            // vh/pkh
+            Address::new(
+                Credential::new_validator(ValidatorHash::new(spending)),
+                Option[StakingCredential]::Some{
+                    StakingCredential::new_hash(
+                        StakingHash::new_stakekey(PubKeyHash::new(staking))
+                    )
+                }
+            )
+        } else if (type == 5) {
+            // vh/ vh
+            Address::new(
+                Credential::new_validator(ValidatorHash::new(spending)),
+                Option[StakingCredential]::Some{
+                    StakingCredential::new_hash(
+                        StakingHash::new_validator(StakingValidatorHash::new(staking))
+                    )
+                }
+            )
+        } else {
+            error("unexpected type")
+        };
+
+        bytes: ByteArray = address.to_bytes();
+        address == Address::from_bytes(bytes)
+    }`, ([_], res) => asBool(res), 30);
+
+    await ft.test([ft.int(0, 5), ft.bytes(28, 28), ft.bytes(28, 28)], `
+    testing address_to_from_hex
+
+    func main(type: Int, spending: ByteArray, staking: ByteArray) -> Bool {
+        address: Address = if (type == 0) {
+            // pkh/none
+            Address::new(
+                Credential::new_pubkey(PubKeyHash::new(spending)),
+                Option[StakingCredential]::None
+            )
+        } else if (type == 1) {
+            // pkh/pkh
+            Address::new(
+                Credential::new_pubkey(PubKeyHash::new(spending)),
+                Option[StakingCredential]::Some{
+                    StakingCredential::new_hash(
+                        StakingHash::new_stakekey(PubKeyHash::new(staking))
+                    )
+                }
+            )
+        } else if (type == 2) {
+            // pkh/vh
+            Address::new(
+                Credential::new_pubkey(PubKeyHash::new(spending)),
+                Option[StakingCredential]::Some{
+                    StakingCredential::new_hash(
+                        StakingHash::new_validator(StakingValidatorHash::new(staking))
+                    )
+                }
+            )
+        } else if (type == 3) {
+            // vh/none
+            Address::new(
+                Credential::new_validator(ValidatorHash::new(spending)),
+                Option[StakingCredential]::None
+            )
+        } else if (type == 4) {
+            // vh/pkh
+            Address::new(
+                Credential::new_validator(ValidatorHash::new(spending)),
+                Option[StakingCredential]::Some{
+                    StakingCredential::new_hash(
+                        StakingHash::new_stakekey(PubKeyHash::new(staking))
+                    )
+                }
+            )
+        } else if (type == 5) {
+            // vh/ vh
+            Address::new(
+                Credential::new_validator(ValidatorHash::new(spending)),
+                Option[StakingCredential]::Some{
+                    StakingCredential::new_hash(
+                        StakingHash::new_validator(StakingValidatorHash::new(staking))
+                    )
+                }
+            )
+        } else {
+            error("unexpected type")
+        };
+
+        str: String = address.to_hex();
+        address == Address::from_hex(str)
+    }`, ([_], res) => asBool(res), 30);
+
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing address_eq
     func main(ctx: ScriptContext) -> Bool {
@@ -4554,7 +4682,7 @@ async function testBuiltins() {
     }
     ${spendingScriptContextParam(false)}
     `, ([_], res) => asBool(res), 5);
-
+    
     await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
     testing address_neq
     func main(ctx: ScriptContext) -> Bool {

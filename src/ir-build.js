@@ -41,7 +41,6 @@ import {
     IRFuncExpr,
     IRLiteralExpr,
     IRNameExpr,
-    IRSimplifyAsExpr,
     IRUserCallExpr
 } from "./ir-ast.js";
 
@@ -52,7 +51,7 @@ import {
  * @internal
  */
 export function buildIRExpr(ts) {
-	/** @type {?IRExpr} */
+	/** @type {null | IRExpr} */
 	let expr = null;
 
 	while (ts.length > 0) {
@@ -62,7 +61,7 @@ export function buildIRExpr(ts) {
 			throw new Error("unexpected: no tokens");
 		} else {
 			if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
-				assert(expr === null, "should be preceded by expr");
+				assert(expr === null, "should be preceded by expr (" + expr?.toString() + ")");
 
 				ts.unshift(t);
 

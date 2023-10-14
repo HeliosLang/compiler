@@ -164,7 +164,8 @@ export const ByteArrayType = new GenericType({
         __geq: new FuncType([self, self], BoolType),
         __gt: new FuncType([self, self], BoolType),
         __leq: new FuncType([self, self], BoolType),
-        __lt: new FuncType([self, self], BoolType)
+        __lt: new FuncType([self, self], BoolType),
+        parse: new FuncType([StringType], self)
     })
 });
 
