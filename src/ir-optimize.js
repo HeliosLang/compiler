@@ -93,10 +93,11 @@ import { IRVariable } from "./ir-context.js";
  *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
  *   * replace IRCallExpr args that are uncalled IRFuncExprs with `()`
  *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
- *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each is only referenced once (i.e. only referenced in the call)
- *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each is only referenced once (i.e. only referenced in the call)
+ *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each var is only referenced once (i.e. only referenced in the call)
+ *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each var is only referenced once (i.e. only referenced in the call)
  *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
  *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
+ *   * inline `<call-expr>` in `(<vars>) -> {...}(<call-expr>, ...)` if the corresponding var is only referenced once and if all the nested IRFuncExprs are only evaluated once and if the IRCallExpr doesn't expect an error
  *   * replace `() -> {<expr>}()` by `<expr>`
  * 
  * Optimizations that we have considered, but are NOT performed:
@@ -674,7 +675,7 @@ export class IROptimizer {
                     // inline IRFuncExpr if it is only reference once
                     unused.add(i);
                     this.inline(v, a);
-                } else if (a instanceof IRCallExpr && this.#evaluator.countVariableReferences(v) == 1) {
+                } else if (a instanceof IRCallExpr && this.#evaluator.countVariableReferences(v) == 1 && !this.expectsError(a)) {
                     const nameExpr = this.#evaluator.getVariableReferences(v)[0];
 
                     if (!this.isEvaluatedMoreThanOnce(funcExpr, nameExpr)) {

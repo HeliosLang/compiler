@@ -8686,9 +8686,18 @@ declare module "helios" {
          */
         isLiteral(): boolean;
         /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
          * @returns {IRValue}
          */
         withoutLiterals(): IRValue;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
         dump(depth?: number): {
             type: string;
             value: string;
@@ -8718,6 +8727,15 @@ declare module "helios" {
          * @returns {IRValue}
          */
         withoutLiterals(): IRValue;
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
         /**
          * @type {number}
          */
@@ -8763,6 +8781,15 @@ declare module "helios" {
          * @returns {IRValue}
          */
         withoutLiterals(): IRValue;
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
         /**
          * @type {number}
          */
@@ -8826,6 +8853,15 @@ declare module "helios" {
          * @returns {IRValue}
          */
         withoutLiterals(): IRValue;
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
         dump(depth?: number): {
             type: string;
             definition: string;
@@ -8856,6 +8892,15 @@ declare module "helios" {
          * @returns {IRValue}
          */
         withoutLiterals(): IRValue;
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
         /**
          * @returns {string}
          */
@@ -8889,6 +8934,16 @@ declare module "helios" {
          * @returns {IRValue}
          */
         withoutLiterals(): IRValue;
+        /**
+         * Maybe this IRAnyValue instance represents an Error, we can't know for sure.
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
         /**
          * @returns {string}
          */
@@ -8931,9 +8986,10 @@ declare module "helios" {
          */
         readonly values: IRValue[];
         /**
+         * @param {boolean} maybe
          * @returns {boolean}
          */
-        hasError(): boolean;
+        hasError(maybe?: boolean): boolean;
         /**
          * @returns {boolean}
          */
@@ -8968,7 +9024,7 @@ declare module "helios" {
         /**
          * @returns {IRValue}
          */
-        withoutError(): IRValue;
+        withoutErrors(): IRValue;
     }
     /**
      * @internal
@@ -9096,7 +9152,7 @@ declare module "helios" {
         private callFunc;
         /**
          * Call an unknown function (eg. returned at the deepest point of recursion)
-         * Make sure any arguments that are functions are also called so that all possible execution paths are touched
+         * Make sure any arguments that are functions are also called so that all possible execution paths are touched (TODO: should we also called function values returned by those calls etc.?)
          * Absorb the return values of these functions
          * @private
          * @param {IRExpr} owner
@@ -9177,10 +9233,11 @@ declare module "helios" {
      *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
      *   * replace IRCallExpr args that are uncalled IRFuncExprs with `()`
      *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
-     *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each is only referenced once (i.e. only referenced in the call)
-     *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each is only referenced once (i.e. only referenced in the call)
+     *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each var is only referenced once (i.e. only referenced in the call)
+     *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each var is only referenced once (i.e. only referenced in the call)
      *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
      *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
+     *   * inline `<call-expr>` in `(<vars>) -> {...}(<call-expr>, ...)` if the corresponding var is only referenced once and if all the nested IRFuncExprs are only evaluated once and if the IRCallExpr doesn't expect an error
      *   * replace `() -> {<expr>}()` by `<expr>`
      *
      * Optimizations that we have considered, but are NOT performed:
@@ -13310,7 +13367,9 @@ declare module "helios" {
         hash(depth?: number): number[];
         toString(): string;
         isLiteral(): boolean;
+        hasError(maybe: boolean): boolean;
         withoutLiterals(): IRValue;
+        withoutErrors(): IRValue;
         dump(depth?: number): any;
     };
     export type UserTypes = {
