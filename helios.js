@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.15.14
+// Version:       0.16.0
 // Last update:   October 2023
 // License type:  BSD-3-Clause
 //
@@ -269,7 +269,7 @@
 //     Section 34: Native scripts            NativeContext, NativeScript, NativeSig, NativeAll, 
 //                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
 //
-//     Section 33: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
+//     Section 35: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
 //                                           TxOutput, DCert, DCertRegister, DCertDeregister, 
 //                                           DCertDelegate, DCertRegisterPool, DCertRetirePool, 
 //                                           StakeAddress, Signature, Ed25519PrivateKey, 
@@ -305,7 +305,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.15.14";
+export const VERSION = "0.16.0";
 
 /**
  * A tab used for indenting of the IR.
@@ -36890,6 +36890,7 @@ const AUTOMATIC_METHODS = [
 	"__neq",
 	"copy",
 	"from_data",
+	"test_data",
 	"serialize"
 ];
 
