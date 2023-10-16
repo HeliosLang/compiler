@@ -88,6 +88,7 @@ const AUTOMATIC_METHODS = [
 	"__neq",
 	"copy",
 	"from_data",
+	"test_data",
 	"serialize"
 ];
 

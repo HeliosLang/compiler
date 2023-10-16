@@ -177,22 +177,9 @@ async function testBuiltins() {
     // Data tests
     /////////////
 
-    /*await ft.test([ft.constr(ft.newRand())], `
-    testing data_tag
-    func main(a: Data) -> Int {
-        a.tag
-    }`, ([a], res) => BigInt(a.data.index) == asInt(res));*/
-    
-
     ////////////
     // Int tests
     ////////////
-
-    /*await ft.test([], `
-    testing int_eq_1
-    func main() -> Bool {
-        0 == 0
-    }`, ([_], res) => asBool(res));*/
 
     await ft.test([ft.int(), ft.int()], `
     testing int_eq_2

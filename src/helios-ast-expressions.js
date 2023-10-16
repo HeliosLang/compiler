@@ -2340,7 +2340,7 @@ export class ParametricExpr extends Expr {
 		if (this.#baseExpr instanceof MemberExpr) {
 			return this.#baseExpr.toIR(ctx, params);
 		} else {
-			return new IR(`${this.#baseExpr.toIR(ctx).toString()}${params}`, this.site);
+			return IR.new`${this.#baseExpr.toIR(ctx).toString()}${params}${this.site}`;
 		}
 	}
 
@@ -2426,11 +2426,7 @@ export class UnaryExpr extends Expr {
 	toIR(ctx) {
 		const path = assertDefined(this.cache?.asTyped?.type?.asNamed).path;
 
-		return new IR([
-			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
-			this.#a.toIR(ctx),
-			new IR(")")
-		]);
+		return IR.new`${path}__${this.translateOp().value}${this.site}(${this.#a.toIR(ctx)})`;
 	}
 
 	/**

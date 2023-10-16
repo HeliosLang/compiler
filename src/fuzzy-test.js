@@ -75,6 +75,8 @@ export class FuzzyTest {
 
 	#simplify;
 
+	#printMessages;
+
 	/**
 	 * @type {NetworkParams}
 	 */
@@ -86,7 +88,7 @@ export class FuzzyTest {
 	 * @param {number} runsPerTest
 	 * @param {boolean} simplify If true then also test the simplified program
 	 */
-	constructor(seed = 0, runsPerTest = 100, simplify = false) {
+	constructor(seed = 0, runsPerTest = 100, simplify = false, printMessages = false) {
 		console.log("starting fuzzy testing  with seed", seed);
 
 		this.#seed = seed;
@@ -94,6 +96,7 @@ export class FuzzyTest {
 		this.#runsPerTest = runsPerTest;
 		this.#simplify = simplify;
 		this.#dummyNetworkParams = new NetworkParams(rawNetworkEmulatorParams);
+		this.#printMessages = printMessages;
 	}
 
 	reset() {
@@ -473,7 +476,7 @@ export class FuzzyTest {
 					let result = await uplcProgram.run(
 						args, {
 							...DEFAULT_UPLC_RTE_CALLBACKS,
-							onPrint: async (msg) => {return},
+							onPrint: this.#printMessages ? async (msg) => {console.log(msg)} : async (msg) => {return},
 							onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
 						},
 						this.#dummyNetworkParams
@@ -548,7 +551,13 @@ export class FuzzyTest {
 
 				let coreProgram = program.compile(simplify);
 
-				let result = await coreProgram.run(args);
+				let result = await coreProgram.run(
+					args,
+					{
+						...DEFAULT_UPLC_RTE_CALLBACKS,
+						onPrint: this.#printMessages ? async (msg) => {console.log(msg)} : async (msg) => {return}
+					}
+				);
 
 				let obj = propTest(args, result, simplify);
 

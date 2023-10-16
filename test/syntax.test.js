@@ -64,18 +64,27 @@ function isError(err, info, simplified = false) {
 
 async function testTrue(src, simplify = false) {
   // also test the transfer() function
-  let program = Program.new(src).compile(simplify).transfer(UplcProgram);
+  const program = Program.new(src);
 
-  let result = await program.run([]);
+  let uplcProgram = program.compile(simplify).transfer(UplcProgram);
 
-  const [_, name] = extractScriptPurposeAndName(src) ?? ["", ""];
+  try {
+    let result = await uplcProgram.run([]);
 
-  assert(asBool(result), `test ${name} failed`);
+    const [_, name] = extractScriptPurposeAndName(src) ?? ["", ""];
 
-  console.log(`test ${name} succeeded${simplify ? " (simplified)" : ""}`);
+    assert(asBool(result), `test ${name} failed`);
 
-  if (!simplify) {
-      await testTrue(src, true);
+    console.log(`test ${name} succeeded${simplify ? " (simplified)" : ""}`);
+
+    if (!simplify) {
+        await testTrue(src, true);
+    }
+  } catch (e) {
+    console.log(program.prettyIR(simplify));
+    console.log(program.annotateIR(simplify));
+
+    throw e;
   }
 }
 
@@ -596,12 +605,22 @@ async function test18() {
   }`;
 
   for (const simplify of [true, false]) {
-    console.log(simplify)
-    const program = Program.new(src).compile(simplify);
+    console.log("simplified:", simplify);
 
-    const [result, messages] = await program.runWithPrint([]);
+    const program = Program.new(src);
 
-    console.log(result.toString(), messages);
+    const uplcProgram = program.compile(simplify);
+
+    try {
+      const [result, messages] = await uplcProgram.runWithPrint([]);
+
+      console.log(result.toString(), messages);
+    } catch (e) {
+      console.log(program.prettyIR(simplify));
+      console.log(program.annotateIR(simplify));
+
+      throw e;
+    }
   }
 }
 

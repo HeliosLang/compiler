@@ -1901,8 +1901,10 @@ export class IREvaluator {
                         args.push(assertDefined(this.#reduce.pop()))
                     }
 
+                    // don't allow partial literal args (could lead to infinite recursion where the partial literal keeps updating)
+                    //  except when calling builtins (partial literals are important: eg. in divideInteger(<data>, 10) we know that the callExpr doesn't return an error)
                     const allLiteral = fn.isLiteral() && args.every(a => a.isLiteral());
-                    if (!allLiteral) {
+                    if (!allLiteral && !(fn instanceof IRBuiltinValue)) {
                         fn = fn.withoutLiterals();
                         args = args.map(a => a.withoutLiterals());
                     } 
@@ -1941,7 +1943,8 @@ export class IREvaluator {
                             } else if (fn instanceof IRBuiltinValue) {
                                 this.callBuiltin(expr, fn.builtin, args);
                             } else {
-                                throw new Error("unable to call " + fn.toString())
+                                console.log(expr.toString());
+                                throw expr.site.typeError("unable to call " + fn.toString());
                             }
                         }
                     }

@@ -2472,6 +2472,115 @@ export class StringLiteral extends PrimitiveLiteral {
 	}
 
 	/**
+	 * Can be used as a template literal tag function
+	 * @param {string | TemplateStringsArray | IR[]} content 
+	 * @param  {...(Site | string | IR | IR[] | null | number)} args 
+	 * @returns {IR}
+	 */
+	static new(content, ...args) {
+		if (typeof content == "string") {
+			if (args.length == 0) {
+				return new IR(content);
+			} else if (args.length == 1 && args[0] instanceof Site) {
+				const site = args[0];
+
+				if (site instanceof Site) {
+					return new IR(content, site);
+				} else {
+					throw new Error("unexpected second argument");
+				}
+			} else {
+				throw new Error("unexpected second argument");
+			}
+		} else if ("raw" in content) {
+			const raw = content.raw.slice();
+
+			/**
+			 * @type {IR[]}
+			 */
+			let items = [];
+			
+			/**
+			 * @type {Site | null}
+			 */
+			let lastSite = null;
+			
+			if (raw.length > 0 && raw[raw.length - 1] == "" && args.length > 0 && args[args.length -1 ] instanceof Site) {
+				raw.pop();
+				lastSite = assertClass(args.pop(), Site);
+			}
+
+			let s = "";
+
+			for (let c of raw) {
+				s += c;
+
+				const a = args.shift();
+
+				if (a instanceof Site) {
+					items.push(new IR(s, a));
+					s = "";
+				} else if (a instanceof IR) {
+					if (s != "") {
+						items.push(new IR(s));
+						s = "";
+					}
+
+					items.push(a);
+				} else if (Array.isArray(a)) {
+					if (s != "") {
+						items.push(new IR(s));
+						s = "";
+					}
+
+					a.forEach(ir => items.push(ir));
+				} else if (typeof a == "string" || typeof a == "number") {
+					s += a.toString();
+				} else if (a === undefined || a === null) {
+					if (s != "") {
+						items.push(new IR(s));
+						s = "";
+					}
+				} else {
+					throw new Error("unexpected second argument");
+				}
+			}
+
+			assert(args.length == 0);
+
+			if (s != "") {
+				items.push(new IR(s));
+			}
+
+			return new IR(items, lastSite);
+		} else if (Array.isArray(content)) {
+			/**
+			 * @type {IR[]}
+			 */
+			let items = [];
+
+			for (let c of content) {
+				items.push(c);
+			}
+
+			if (args.length == 0) {
+				return new IR(items);
+			} else if (args.length == 1) {
+				const arg = args[0];
+				if (arg instanceof Site) {
+					return new IR(items, arg);
+				} else {
+					throw new Error("unexpected second argument");
+				}
+			} else {
+				throw new Error("unexpected second argument");
+			}
+		} else {
+			throw new Error("unexpected first argument");
+		}
+	}
+
+	/**
 	 * @returns {any}
 	 */
 	dump() {
@@ -16451,6 +16560,7 @@ export function tokenizeIR(rawSrc, codeMap = []) {
 	const ts = tokenizer.tokenize();
 
 	if (src.errors.length > 0) {
+		console.log(src.pretty());
 		throw src.errors[0];
 	} else if (ts === null) {
 		throw new Error("should've been thrown above");
@@ -22424,7 +22534,7 @@ class RawFunc {
 		} else {
 			for (let dep of this.#dependencies) {
 				if (!db.has(dep)) {
-					throw new Error(`InternalError: dependency ${dep} is not a builtin`);
+					throw new Error(`InternalError: dependency ${dep} not found`);
 				} else {
 					assertDefined(db.get(dep)).load(db, dst);
 				}
@@ -22520,13 +22630,14 @@ function makeRawFunctions(simplify) {
 	/**
 	 * Adds basic auto members to a fully named type
 	 * @param {string} ns 
+	 * @param {{eq?: string, neq?: string, serialize?: string, from_data?: string, to_data?: string}} custom
 	 */
-	function addDataFuncs(ns) {
-		add(new RawFunc(`${ns}____eq`, "__helios__common____eq"));
-		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
-		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
-		add(new RawFunc(`${ns}__from_data`, "__helios__common__identity"));
-		add(new RawFunc(`${ns}____to_data`, "__helios__common__identity"));
+	function addDataFuncs(ns, custom = {}) {
+		add(new RawFunc(`${ns}____eq`, custom?.eq ?? "__helios__common____eq"));
+		add(new RawFunc(`${ns}____neq`, custom?.neq ?? "__helios__common____neq"));
+		add(new RawFunc(`${ns}__serialize`, custom?.serialize ?? "__helios__common__serialize"));
+		add(new RawFunc(`${ns}__from_data`, custom?.from_data ?? "__helios__common__identity"));
+		add(new RawFunc(`${ns}____to_data`, custom?.to_data ?? "__helios__common__identity"));
 	}
 
 	/**
@@ -22980,6 +23091,64 @@ function makeRawFunctions(simplify) {
 			)
 		}(__core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(self)))))
 	}`));
+	add(new RawFunc("__helios__common__test_cip68_field",
+	`(self, name, inner_test) -> {
+		__core__chooseData(
+			self,
+			() -> {
+				(fields) -> {
+					__core__chooseList(
+						fields,
+						() -> {false},
+						() -> {
+							(head) -> { 
+								__core__chooseData(
+									head,
+									() -> {false},
+									() -> {
+										(map) -> {
+											(recurse) -> {
+												recurse(recurse, map)
+											}(
+												(recurse, map) -> {
+													__core__chooseList(
+														map,
+														() -> {false},
+														() -> {
+															(head) -> {
+																(key, value) -> {
+																	__core__ifThenElse(
+																		__core__equalsData(key, name),
+																		() -> {
+																			inner_test(value)
+																		},
+																		() -> {
+																			recurse(recurse, __core__tailList__safe(map))
+																		}
+																	)()
+																}(__core__fstPair(head), __core__sndPair(head))
+															}(__core__headList__safe(map))
+														}
+													)()
+												}
+											)
+										}(__core__unMapData__safe(head))
+									},
+									() -> {false},
+									() -> {false},
+									() -> {false}
+								)()
+							}(__core__headList__safe(fields))
+						}
+					)()
+				}(__core__sndPair(__core__unConstrData__safe(self)))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__common__fields", 
 	`(self) -> {
 		__core__sndPair(__core__unConstrData(self))
@@ -23041,6 +23210,73 @@ function makeRawFunctions(simplify) {
 	`(data) -> {
 		__core__blake2b_256(${FTPP}0__serialize(data)())
 	}`));
+	add(new RawFunc(`__helios__common__test_constr_data_2`,
+	`(data, index, test_a, test_b) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(__core__fstPair(pair), index),
+						() -> {
+							(fields) -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__ifThenElse(
+											test_a(__core__headList__safe(fields)),
+											() -> {
+												(tail) -> {
+													__core__chooseList(
+														tail,
+														() -> {
+															false
+														},
+														() -> {
+															__core__ifThenElse(
+																test_b(__core__headList__safe(tail)),
+																() -> {
+																	__core__chooseList(
+																		__core__tailList__safe(tail), 
+																		() -> {
+																			true
+																		},
+																		() -> {
+																			false
+																		}
+																	)()
+																},
+																() -> {
+																	false
+																}
+															)()
+														}
+													)()
+												}(__core__tailList__safe(fields))
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							}(__core__sndPair(pair))
+						},
+						() -> {
+							false
+						}
+					)()
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 
 
 	// Global builtin functions
@@ -23079,6 +23315,9 @@ function makeRawFunctions(simplify) {
 	// Int builtins
 	add(new RawFunc("__helios__int____eq", "__core__equalsInteger"));
 	add(new RawFunc("__helios__int__from_data", "__core__unIData"));
+	add(new RawFunc("__helios__int__test_data", `(data) -> {
+		__core__chooseData(data, false, false, false, true, false)
+	}`));
 	add(new RawFunc("__helios__int____to_data", "__core__iData"));
 	addNeqFunc("__helios__int");
 	addSerializeFunc("__helios__int");
@@ -23736,6 +23975,7 @@ function makeRawFunctions(simplify) {
 
 	// Real builtins
 	addIntLikeFuncs("__helios__real");
+	add(new RawFunc("__helios__real__test_data", "__helios__int__test_data"));
 	add(new RawFunc("__helios__real__PRECISION", REAL_PRECISION.toString()));
 	add(new RawFunc("__helios__real__ONE", '1' + new Array(REAL_PRECISION).fill('0').join('')));
 	add(new RawFunc("__helios__real__HALF", '5' + new Array(REAL_PRECISION-1).fill('0').join('')));
@@ -23894,6 +24134,48 @@ function makeRawFunctions(simplify) {
 
 	// Bool builtins
 	addSerializeFunc("__helios__bool");
+	add(new RawFunc("__helios__bool__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__chooseList(
+							fields,
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(0, index),
+									() -> {
+										true
+									},
+									() -> {
+										__core__ifThenElse(
+											__core__equalsInteger(1, index),
+											() -> {
+												true
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								false
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+					
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__bool____eq", 
 	`(a, b) -> {
 		__core__ifThenElse(a, b, __helios__bool____not(b))
@@ -23996,6 +24278,18 @@ function makeRawFunctions(simplify) {
 	`(d) -> {
 		__core__decodeUtf8(__core__unBData(d))
 	}`));
+	// TODO: compete valid UTF-8 check
+	add(new RawFunc("__helios__string__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data, 
+			() -> {false}, 
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {true}
+		)()
+	}`));
 	add(new RawFunc("__helios__string____to_data", 
 	`(s) -> {
 		__core__bData(__core__encodeUtf8(s))
@@ -24030,6 +24324,33 @@ function makeRawFunctions(simplify) {
 	addNeqFunc("__helios__bytearray");
 	add(new RawFunc("__helios__bytearray____eq", "__core__equalsByteString"));
 	add(new RawFunc("__helios__bytearray__from_data", "__core__unBData"));
+	add(new RawFunc("__helios__bytearray__test_data",
+	`(data) -> {
+		__core__chooseData(data, false, false, false, false, true)
+	}`));
+	add(new RawFunc(`__helios__bytearray__test_data_fixed_length`,
+	`(data, n) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {
+				(bytes) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(__core__lengthOfByteString(bytes), n),
+						() -> {
+							true
+						},
+						() -> {
+							false
+						}
+					)()
+				}(__core__unBData__safe(data))
+			}
+		)()
+	}`));
 	add(new RawFunc("__helios__bytearray____to_data", "__core__bData"));
 	add(new RawFunc("__helios__bytearray____add", "__core__appendByteString"));
 	add(new RawFunc("__helios__bytearray____geq",
@@ -24590,29 +24911,63 @@ function makeRawFunctions(simplify) {
 	addSerializeFunc(`__helios__list[${TTPP}0]`);
 	addNeqFunc(`__helios__list[${TTPP}0]`);
 	addDataLikeEqFunc(`__helios__list[${TTPP}0]`);
-	add(new RawFunc(`__helios__list[${TTPP}0]__from_data`, (config.CHECK_CASTS && !simplify) ? `(data) -> {
-			(lst) -> {
-				(recurse) -> {
-					recurse(recurse, lst)
-				}(
-					(recurse, lst) -> {
-						__core__chooseList(
-							lst,
+	add(new RawFunc(`__helios__list[${TTPP}0]__test_data_internal`,
+	`(lst) -> {
+		(recurse) -> {
+			recurse(recurse, lst)
+		}(
+			(recurse, lst) -> {
+				__core__chooseList(
+					lst,
+					() -> {
+						true
+					},
+					() -> {
+						__core__ifThenElse(
+							${TTPP}0__test_data(__core__headList__safe(lst)),
 							() -> {
-								__core__mkNilData(())
+								recurse(recurse, __core__tailList__safe(lst))
 							},
 							() -> {
-								__core__mkCons(
-									${TTPP}0____to_data(${TTPP}0__from_data(__core__headList__safe(lst))),
-									recurse(recurse, __core__tailList__safe(lst))
-								)
+								false
 							}
 						)()
-						
 					}
-				)
-			}(__core__unListData(data))
-		}` : "__core__unListData"));
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__from_data`, 
+	`(data) -> {
+		(lst) -> {
+			(ignore) -> {
+				lst
+			}(
+				__core__ifThenElse(
+					__helios__list[${TTPP}0]__test_data_internal(lst),
+					() -> {
+						()
+					},
+					() -> {
+						__core__trace("Warning: invalid list data", ())
+					}
+				)()
+			)
+		}(__core__unListData(data))
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__test_data`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {false},
+			() -> {
+				__helios__list[${TTPP}0]__test_data_internal(__core__unListData__safe(data))
+			},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]____to_data`, "__core__listData"));
 	add(new RawFunc(`__helios__list[${TTPP}0]__new`,
 	`(n, fn) -> {
@@ -25466,35 +25821,74 @@ function makeRawFunctions(simplify) {
 	addSerializeFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addNeqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addDataLikeEqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
-	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data`, (config.CHECK_CASTS && !simplify) ? `(data) -> {
-			(map) -> {
-				(recurse) -> {
-					recurse(recurse, map)
-				}(
-					(recurse, map) -> {
-						__core__chooseList(
-							map,
-							() -> {
-								__core__mkNilPairData(())
-							},
-							() -> {
-								__core__mkCons(
-									(head) -> {
-										__core__mkPairData(
-											${TTPP}0____to_data(${TTPP}0__from_data(__core__fstPair(head))),
-											${TTPP}1____to_data(${TTPP}1__from_data(__core__sndPair(head)))
-										)
-									}(__core__headList__safe(map)),
-									recurse(recurse, __core__tailList__safe(map))
-								)
-							}
-						)()
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__test_data_internal`,
+	`(map) -> {
+		(recurse) -> {
+			recurse(recurse, map)
+		}(
+			(recurse, map) -> {
+				__core__chooseList(
+					map,
+					() -> {
+						true
+					},
+					() -> {
+						(head) -> {
+							__core__ifThenElse(
+								${TTPP}0__test_data(__core__fstPair(head)),
+								() -> {
+									__core__ifThenElse(
+										${TTPP}1__test_data(__core__sndPair(head)),
+										() -> {
+											recurse(recurse, __core__tailList__safe(map))
+										},
+										() -> {
+											false
+										}
+									)()
+								},
+								() -> {
+									false
+								}
+							)()
+						}(__core__headList__safe(map))
 					}
-				)
-			}(__core__unMapData(data))
-		}` :
-		"__core__unMapData"
-	));
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data`, 
+	`(data) -> {
+		(map) -> {
+			(ignore) -> {
+				map
+			}(
+				__core__ifThenElse(
+					__helios__map[${TTPP}0@${TTPP}1]__test_data_internal(map),
+					() -> {
+						()
+					},
+					() -> {
+						__core__trace("Warning: invalid map data", ())
+					}
+				)()
+				
+			)
+		}(__core__unMapData(data))
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__test_data`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {
+				__helios__map[${TTPP}0@${TTPP}1]__test_data_internal(__core__unMapData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____to_data`, "__core__mapData"));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____add`, "__helios__common__concat"));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__prepend`,
@@ -26017,7 +26411,76 @@ function makeRawFunctions(simplify) {
 
 
 	// Option[T] builtins
-	addDataFuncs(`__helios__option[${TTPP}0]`);
+	add(new RawFunc(`__helios__option[${TTPP}0]__test_data`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(index, 0),
+							() -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__chooseList(
+											__core__tailList__safe(fields),
+											() -> {
+												${TTPP}0__test_data(__core__headList__safe(fields))
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(index, 1),
+									() -> {
+										__core__chooseList(
+											fields,
+											true,
+											false
+										)
+									},
+									() -> {
+										false
+									}
+								)()
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`))
+	addDataFuncs(`__helios__option[${TTPP}0]`, {
+		from_data: `(data) -> {
+			(ignore) -> {
+				data
+			}(
+				__core__ifThenElse(
+					__helios__option[${TTPP}0]__test_data(data),
+					() -> {
+						()
+					},
+					() -> {
+						__core__trace("Warning: invalid option data", ())
+					}
+				)()
+			)
+		}`
+	});
 	add(new RawFunc(`__helios__option[${TTPP}0]__map[${FTPP}0]`, 
 	`(self) -> {
 		(fn) -> {
@@ -26082,20 +26545,26 @@ function makeRawFunctions(simplify) {
 		__helios__common__assert_constr_index(data, 1)
 	}`));
 
+
+	// ScriptHash builtin
+	addByteArrayLikeFuncs("__helios__scripthash");
+	add(new RawFunc("__helios__scripthash__test_data", `(data) -> {__helios__bytearray__test_data_fixed_length(data, 28)}`));
+
 	
 	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash", "datumhash"]) {
 	// Hash builtins
 		addByteArrayLikeFuncs(`__helios__${hash}`);
+		add(new RawFunc(`__helios__${hash}__test_data`,
+		`(data) -> {
+			__helios__bytearray__test_data_fixed_length(data, ${hash == "datumhash" ? 32 : 28})
+		}`));
 		add(new RawFunc(`__helios__${hash}__from_script_hash`, "__helios__common__identity"));
 	}
 
 	
-	// ScriptHash builtin
-	addByteArrayLikeFuncs("__helios__scripthash");
-
-
 	// PubKey builtin
 	addByteArrayLikeFuncs("__helios__pubkey");
+	add(new RawFunc("__helios__pubkey__test_data", `(data) -> {__helios__bytearray__test_data_fixed_length(data, 32)}`));
 	add(new RawFunc("__helios__pubkey__verify", 
 	`(self) -> {
 		(message, signature) -> {
@@ -26106,6 +26575,20 @@ function makeRawFunctions(simplify) {
 
 	// ScriptContext builtins
 	addDataFuncs("__helios__scriptcontext");
+	// TODO: test fields
+	add(new RawFunc("__helios__scriptcontext__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__scriptcontext__new_spending",
 	`(tx, output_id) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -26295,6 +26778,19 @@ function makeRawFunctions(simplify) {
 
 	// StakingPurpose builtins
 	addDataFuncs("__helios__stakingpurpose");
+	add(new RawFunc("__helios__stakingpurpose__testdata", 
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 
 
 	// StakingPurpose::Rewarding builtins
@@ -26309,6 +26805,20 @@ function makeRawFunctions(simplify) {
 
 	// ScriptPurpose builtins
 	addDataFuncs("__helios__scriptpurpose");
+	// TODO: test fields
+	add(new RawFunc("__helios__scriptpurpose__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__scriptpurpose__new_minting",
 	`(mph) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__mintingpolicyhash____to_data(mph)))
@@ -26352,6 +26862,20 @@ function makeRawFunctions(simplify) {
 
 	// DCert builtins
 	addDataFuncs("__helios__dcert");
+	// TODO: test each enum variant
+	add(new RawFunc("__helios__dcert__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__dcert__new_register",
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
@@ -26769,6 +27293,20 @@ function makeRawFunctions(simplify) {
 
 	// Tx builtins
 	addDataFuncs("__helios__tx");
+	// TODO: test fields
+	add(new RawFunc("__helios__tx__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc(`__helios__tx__new[${FTPP}0@${FTPP}1]`,
 	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums, txId) -> {
 		__core__constrData(0, __helios__common__list_12(
@@ -27080,6 +27618,47 @@ function makeRawFunctions(simplify) {
 	`(bytes) -> {
 		__core__constrData(0, __helios__common__list_1(__core__bData(bytes))) 
 	}`));
+	add(new RawFunc("__helios__txid__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(0, index),
+							() -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__chooseList(
+											__core__tailList__safe(fields),
+											() -> {
+												__helios__bytearray__test_data_fixed_length(__core__headList__safe(fields), 32)
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								false
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__txid__show",
 	`(self) -> {
 		__helios__bytearray__show(__helios__txid__bytes(self))
@@ -27088,6 +27667,10 @@ function makeRawFunctions(simplify) {
 
 	// TxInput builtins
 	addDataFuncs("__helios__txinput");
+	add(new RawFunc("__helios__txinput__test_data", 
+	`(data) -> {
+		__helios__common__test_constr_data_2(data 0, __helios__txoutputid__test_data, __helios__txoutput__test_data)
+	}`));
 	add(new RawFunc("__helios__txinput__new",
 	`(output_id, output) -> {
 		__core__constrData(0, __helios__common__list_2(output_id, output))
@@ -27110,6 +27693,20 @@ function makeRawFunctions(simplify) {
 
 	// TxOutput builtins
 	addDataFuncs("__helios__txoutput");
+	// TODO: test fields
+	add(new RawFunc("__helios__txoutput__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__txoutput__new", 
 	`(address, value, datum) -> {
 		__core__constrData(0, __helios__common__list_4(address, __core__mapData(value), datum, __helios__option__NONE))
@@ -27210,6 +27807,20 @@ function makeRawFunctions(simplify) {
 
 	// OutputDatum
 	addDataFuncs("__helios__outputdatum");
+	// TODO: test each enum variant
+	add(new RawFunc("__helios__outputdatum__test_data", 
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__outputdatum__new_none",
 	`() -> {
 		__core__constrData(0, __helios__common__list_0)
@@ -27265,6 +27876,7 @@ function makeRawFunctions(simplify) {
 
 	// RawData
 	addDataFuncs("__helios__data");
+	add(new RawFunc("__helios__data__test_data", `(data) -> {true}`));
 	add(new RawFunc("__helios__data__tag", 
 	`(self) -> {
 		__core__fstPair(__core__unConstrData(self))
@@ -27273,6 +27885,10 @@ function makeRawFunctions(simplify) {
 
 	// TxOutputId
 	addDataFuncs("__helios__txoutputid");
+	add(new RawFunc("__helios__txoutputid__test_data",
+	`(data) -> {
+		__helios__common__test_constr_data_2(data, 0, __helios__txid__test_data, __helios__int__test_data)
+	}`));
 	add(new RawFunc("__helios__txoutputid__tx_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutputid__index", 
 	`(self) -> {
@@ -27330,6 +27946,10 @@ function makeRawFunctions(simplify) {
 
 	// Address
 	addDataFuncs("__helios__address");
+	add(new RawFunc("__helios__address__test_data", 
+	`(data) -> {
+		__helios__common__test_constr_data_2(data, 0, __helios__credential__test_data, __helios__option[__helios__stakingcredential]__test_data)
+	}`));
 	add(new RawFunc("__helios__address__new", 
 	`(cred, staking_cred) -> {
 		__core__constrData(0, __helios__common__list_2(cred, staking_cred))
@@ -27350,6 +27970,71 @@ function makeRawFunctions(simplify) {
 
 	// Credential builtins
 	addDataFuncs("__helios__credential");
+	add(new RawFunc("__helios__credential__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(index, 0),
+							() -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__chooseList(
+											__core__tailList__safe(fields),
+											() -> {
+												__helios__validatorhash__test_data(__core__headList__safe(fields))
+											}, 
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(index, 1),
+									() -> {
+										__core__chooseList(
+											fields,
+											() -> {
+												false
+											},
+											() -> {
+												__core__chooseList(
+													__core__tailList__safe(fields),
+													() -> {
+														__helios__pubkeyhash__test_data(__core__headList__safe(fields))
+													}, 
+													() -> {
+														false
+													}
+												)()
+											}
+										)()
+									},
+									() -> {
+										false
+									}
+								)()
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__credential__new_pubkey",
 	`(hash) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__pubkeyhash____to_data(hash)))
@@ -27395,6 +28080,7 @@ function makeRawFunctions(simplify) {
 
 	// StakingHash builtins
 	addDataFuncs("__helios__stakinghash");
+	add(new RawFunc("__helios__stakinghash__test_data", "__helios__credential__test_data"));
 	add(new RawFunc("__helios__stakinghash__new_stakekey", "__helios__credential__new_pubkey"));
 	add(new RawFunc("__helios__stakinghash__new_validator", "__helios__credential__new_validator"));
 	add(new RawFunc("__helios__stakinghash__is_stakekey", "__helios__credential__is_stakekey"));
@@ -27403,18 +28089,34 @@ function makeRawFunctions(simplify) {
 
 	// StakingHash::StakeKey builtins
 	addEnumDataFuncs("__helios__stakinghash__stakekey", 0);
+	add(new RawFunc("__helios__stakinghash__stakekey__test_data", "__helios__credential__pubkey__test_data"));
 	add(new RawFunc("__helios__stakinghash__stakekey__cast", "__helios__credential__pubkey__cast"));
 	add(new RawFunc("__helios__stakinghash__stakekey__hash", "__helios__credential__pubkey__hash"));
 
 
 	// StakingHash::Validator builtins
 	addEnumDataFuncs("__helios__stakinghash__validator", 1);
+	add(new RawFunc("__helios__stakinghash__validator__test_data", "__helios__credential__validator__test_data"));
 	add(new RawFunc("__helios__stakinghash__validator__cast", "__helios__credential__validator__cast"));
 	add(new RawFunc("__helios__stakinghash__validator__hash", "__helios__credential__validator__hash"));
 
 
 	// StakingCredential builtins
 	addDataFuncs("__helios__stakingcredential");
+	// TODO: test fields
+	add(new RawFunc("__helios__stakingcredential__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__stakingcredential__new_hash", 
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
@@ -27440,6 +28142,7 @@ function makeRawFunctions(simplify) {
 
 	// Time builtins
 	addIntLikeFuncs("__helios__time");
+	add(new RawFunc("__helios__time__test_data", `__helios__int__test_data`));
 	add(new RawFunc("__helios__time__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__time____add", `__helios__int____add`));
 	add(new RawFunc("__helios__time____sub", `__helios__int____sub`));
@@ -27453,6 +28156,7 @@ function makeRawFunctions(simplify) {
 
 	// Duratin builtins
 	addIntLikeFuncs("__helios__duration");
+	add(new RawFunc("__helios__duration__test_data", `__helios__int__test_data`));
 	add(new RawFunc("__helios__duration__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__duration____add", `__helios__int____add`));
 	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
@@ -27473,6 +28177,20 @@ function makeRawFunctions(simplify) {
 
 	// TimeRange builtins
 	addDataFuncs("__helios__timerange");
+	// TODO: test fields
+	add(new RawFunc("__helios__timerange__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__timerange__new", `
 	(a, b) -> {
 		(a, b) -> {
@@ -27718,6 +28436,10 @@ function makeRawFunctions(simplify) {
 
 	// AssetClass builtins
 	addDataFuncs("__helios__assetclass");
+	add(new RawFunc("__helios__assetclass__test_data",
+	`(data) -> {
+		__helios__common__test_constr_data_2(data, 0, __helios__mintingpolicyhash__test_data, __helios__bytearray__test_data)
+	}`));
 	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(#, #)`));
 	add(new RawFunc("__helios__assetclass__new",
 	`(mph, token_name) -> {
@@ -27818,6 +28540,101 @@ function makeRawFunctions(simplify) {
 
 	// Value builtins
 	addSerializeFunc("__helios__value");
+	// TODO: test each entry in the map
+	add(new RawFunc("__helios__value__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {
+				(map) -> {
+					(recurse) -> {
+						recurse(recurse, map)
+					}(
+						(recurse, map) -> {
+							__core__chooseList(
+								map,
+								() -> {
+									true
+								},
+								() -> {
+									(head) -> {
+										(key, value) -> {
+											__core__ifThenElse(
+												__helios__mintingpolicyhash__test_data(key),
+												() -> {
+													__core__chooseData(
+														value,
+														() -> {false},
+														() -> {
+															(inner) -> {
+																__core__chooseList(
+																	inner,
+																	() -> {
+																		false
+																	},
+																	() -> {
+																		(recurse_inner) -> {
+																			recurse_inner(recurse_inner, inner)
+																		}(
+																			(recurse_inner, inner) -> {
+																				__core__chooseList(
+																					inner,
+																					() -> {
+																						true
+																					},
+																					() -> {
+																						(head) -> {
+																							(key, value) -> {
+																								__core__ifThenElse(
+																									__helios__bytearray__test_data(key),
+																									() -> {
+																										__core__ifThenElse(
+																											__helios__int__test_data(value),
+																											() -> {
+																												true
+																											},
+																											() -> {
+																												false
+																											}
+																										)()
+																									},
+																									() -> {
+																										false
+																									}
+																								)()
+																							}(__core__fstPair(head), __core__sndPair(head))
+																						}(__core__headList__safe(inner))
+																					}
+																				)()
+																			}
+																		)
+																	}
+																)()
+															}(__core__unMapData__safe(value))
+														},
+														() -> {false},
+														() -> {false},
+														() -> {false}
+													)()
+												},
+												() -> {
+													false
+												}
+											)()
+										}(__core__fstPair(head), __core__sndPair(head))
+									}(__core__headList__safe(map))
+								}
+							)()
+						}
+					)
+				}(__core__unMapData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__value__from_data", "__core__unMapData"));
 	add(new RawFunc("__helios__value____to_data", "__core__mapData"));
 	add(new RawFunc("__helios__value__value", "__helios__common__identity"));
@@ -30833,7 +31650,7 @@ export class ParametricExpr extends Expr {
 		if (this.#baseExpr instanceof MemberExpr) {
 			return this.#baseExpr.toIR(ctx, params);
 		} else {
-			return new IR(`${this.#baseExpr.toIR(ctx).toString()}${params}`, this.site);
+			return IR.new`${this.#baseExpr.toIR(ctx).toString()}${params}${this.site}`;
 		}
 	}
 
@@ -30919,11 +31736,7 @@ export class UnaryExpr extends Expr {
 	toIR(ctx) {
 		const path = assertDefined(this.cache?.asTyped?.type?.asNamed).path;
 
-		return new IR([
-			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
-			this.#a.toIR(ctx),
-			new IR(")")
-		]);
+		return IR.new`${path}__${this.translateOp().value}${this.site}(${this.#a.toIR(ctx)})`;
 	}
 
 	/**
@@ -33338,12 +34151,14 @@ export class ConstStatement extends Statement {
 		let ir = assertDefined(this.#valueExpr).toIR(ctx);
 
 		if (this.#valueExpr instanceof LiteralDataExpr) {
-			ir = new IR([
+			/*ir = new IR([
 				new IR(`${this.#valueExpr.type.path}__from_data`),
 				new IR("(", this.site),
 				ir,
 				new IR(")")
-			]);
+			]);*/
+
+			ir = IR.new`${this.#valueExpr.type.path}__from_data${null}(${this.site}${ir})`;
 		}
 
 		return ir;
@@ -34035,92 +34850,55 @@ export class DataDefinition {
 		let ir;
 
 		if (this.hasTags()) {
-			ir = new IR([
-				new IR("__core__mkNilPairData"),
-				new IR("(())")
-			])
+			ir = IR.new`__core__mkNilPairData(())`;
 
 			for (let i = this.nFields - 1; i >= 0; i--) {
 				const f = this.#fields[i];
 
-				ir = new IR([
-					new IR("__core__mkCons"), new IR("("),
-					new IR("__core__mkPairData"), new IR("("), 
-					new IR(`__core__bData`), new IR("("), new IR(`#${bytesToHex(textToBytes(f.tag))}`), new IR(")"), new IR(", "),
-					new IR(`${f.type.path}____to_data`), new IR("("), new IR(f.name.value), new IR(")"), 
-					new IR("), "),
-					ir,
-					new IR(")")
-				]);
+				ir = IR.new`__core__mkCons(
+					__core__mkPairData(
+						__core__bData(#${bytesToHex(textToBytes(f.tag))}),
+						${f.type.path}____to_data(${f.name.value})
+					),
+					${ir}
+				)`;
 			}
 
-			ir = new IR([
-				new IR("__core__constrData"),
-				new IR("("),
-				new IR("0"),
-				new IR(", "),
-				new IR("__core__mkCons"), new IR("("),
-				new IR("__core__mapData"), new IR("("), ir, new IR(")"), new IR(", "),
-				new IR("__core__mkCons"), new IR("("),
-				new IR("__core__iData"), new IR("("), new IR("1"), new IR(")"), new IR(", "), // version
-				new IR("__core__mkNilData(())"), // TODO: according to https://cips.cardano.org/cips/cip68/#metadata an additional 'extra' (which can be unit)  should be added. Is that really necessary?
-				new IR(")"),
-				new IR(")"),
-				new IR(")")
-			])
+			// TODO: according to https://cips.cardano.org/cips/cip68/#metadata an additional 'extra' (which can be unit)  should be added. Is that really necessary?
+			ir = IR.new`__core__constrData(
+				0,
+				__core__mkCons(
+					__core__mapData(${ir}),
+					__core__mkCons(
+						__core__iData(1),
+						__core__mkNilData(())
+					)
+				)
+			)`;
 
-			// wrap as function
-			ir = new IR([
-				new IR("("),
-				new IR(this.#fields.map(f => new IR(f.name.value))).join(", "),
-				new IR(") -> {"),
-				ir,
-				new IR("}")
-			]);
+			ir = IR.new`(${new IR(this.#fields.map(f => new IR(f.name.value))).join(", ")}) -> {${ir}}`;
 		} else if (this.nFields == 1) {
 			if (isConstr) {
-				ir = new IR(`(self) -> {
+				ir = IR.new`(self) -> {
 					__core__constrData(${constrIndex}, __helios__common__list_1(${this.getFieldType(0).path}____to_data(self)))
-				}`, this.site);
+				}${this.site}`;
 			} else {
-				ir = new IR("__helios__common__identity");
+				ir = IR.new`__helios__common__identity`;
 		}
 		} else {
-			ir = new IR([
-				new IR("__core__mkNilData"),
-				new IR("(())")
-			]);
+			ir = IR.new`__core__mkNilData(())`;
 
 			for (let i = this.nFields - 1; i >= 0; i--) {
 				const f = this.#fields[i];
 
-				ir = new IR([
-					new IR("__core__mkCons"),
-					new IR("("), new IR(`${f.type.path}____to_data`), new IR("("), new IR(f.name.value), new IR("), "),
-					ir,
-					new IR(")")
-				]);
+				ir = IR.new`__core__mkCons(${f.type.path}____to_data(${f.name.value}), ${ir})`;
 			}
 
 			if (isConstr) {
-				ir = new IR([
-					new IR("__core__constrData"),
-					new IR("("),
-					new IR(constrIndex.toString()),
-					new IR(", "),
-					ir,
-					new IR(")")
-				]);
+				ir =  IR.new`__core__constrData(${constrIndex}, ${ir})`;
 			}
 
-			// wrap as function
-			ir = new IR([
-				new IR("("),
-				new IR(this.#fields.map(f => new IR(f.name.value))).join(", "),
-				new IR(") -> {"),
-				ir,
-				new IR("}")
-			]);
+			ir = IR.new`(${new IR(this.#fields.map(f => new IR(f.name.value))).join(", ")}) -> {${ir}}`;
 		}
 
 		const key = `${path}____new`;
@@ -34146,25 +34924,20 @@ export class DataDefinition {
 		for (let i = getterNames.length - 1; i >= 0; i--) {
 			const fieldName = this.#fields[i].name.toString();
 
-			ir = FuncArg.wrapWithDefaultInternal(ir, fieldName, new IR([
-				new IR(getterNames[i]),
-				new IR("(self)")
-			]))
+			ir = FuncArg.wrapWithDefaultInternal(ir, fieldName, IR.new`${getterNames[i]}(self)`);
 		}
 
-		ir = new IR([
-			new IR("("), new IR("self"), new IR(") -> {"),
-			new IR("("),
-			new IR(this.#fields.map(f => new IR([
-				new IR(`__useopt__${f.name.toString()}`),
-				new IR(", "),
-				new IR(`${f.name.toString()}`)
-			]))).join(", "),
-			new IR(") -> {"),
-			ir,
-			new IR("}"),
-			new IR("}")
-		]);
+		const args = new IR(this.#fields.map(f => new IR([
+			new IR(`__useopt__${f.name.toString()}`),
+			new IR(", "),
+			new IR(`${f.name.toString()}`)
+		]))).join(", ")
+
+		ir = IR.new`(self) -> {
+			(${args}) -> {
+				${ir}
+			}
+		}`;
 
 		map.set(key, ir);
 	}
@@ -34173,51 +34946,185 @@ export class DataDefinition {
 	 * @internal
 	 * @returns {IR}
 	 */
-	fromDataFieldsCheckToIR() {
+	testDataToIR() {
 		if (this.hasTags()) {
-			let ir = new IR(`(data) -> {__core__mkNilPairData(())}`)
+			const fields = this.#fields;
 
-			for (let i = this.nFields - 1; i >= 0; i--) {
+			let ir = IR.new``;
+
+			fields.forEach((f, i) => {
+				if (i == 0) {
+					ir = IR.new`__helios__common__test_cip68_field(
+						data,
+						__core__bData(#${bytesToHex(textToBytes(f.tag))}),
+						${f.type.path}__test_data	
+					)`;
+				} else {
+					ir = IR.new`__core__ifThenElse(
+						__helios__common__test_cip68_field(
+							data,
+							__core__bData(#${bytesToHex(textToBytes(f.tag))}),
+							${f.type.path}__test_data	
+						),
+						() -> {
+							${ir}
+						},
+						() -> {
+							false
+						}
+					)()`;
+				}
+			});
+
+			return IR.new`(data) -> {
+				${ir}
+			}`;
+		} else if (this.nFields == 1) {
+			return IR.new`${this.#fields[0].type.path}__test_data`;
+		} else {
+			const reversedFields = this.#fields.slice().reverse();
+
+			let ir = IR.new`(fields) -> {
+				__core__chooseList(
+					fields,
+					true,
+					false
+				)
+			}`;
+
+			reversedFields.forEach(f => {
+				ir = IR.new`(fields) -> {
+					__core__chooseList(
+						fields,
+						() -> {
+							false
+						},
+						() -> {
+							(head) -> {
+								__core__ifThenElse(
+									${f.type.path}__test_data(head),
+									() -> {${ir}(__core__tailList__safe(fields))},
+									() -> {false}
+								)()
+							}(__core__headList__safe(fields))
+						}
+					)()
+				}`;
+			});
+
+			return IR.new`(data) -> {
+				__core__chooseData(
+					data,
+					() -> {false},
+					() -> {false},
+					() -> {
+						${ir}(__core__unListData__safe(data))
+					},
+					() -> {false},
+					() -> {false}
+				)()
+			}`;
+		}
+	}
+
+	/**
+	 * @internal
+	 * @param {string} path
+	 * @returns {IR}
+	 */
+	fromDataFieldsCheckToIR(path) {
+		if (this.hasTags()) {
+
+			//let ir = IR.new`(data) -> {__core__mkNilPairData(())}`;
+
+			let ir = IR.new(`(data) -> {
+				(ignore) -> {
+					data
+				}(
+					__core__ifThenElse(
+						${path}__test_data(data),
+						() -> {
+							()
+						},
+						() -> {
+							__core__trace("Warning: invalid ${this.name.toString()} data", ())
+						}
+					)()
+				)
+			}`);
+			/*for (let i = this.nFields - 1; i >= 0; i--) {
 				const f = this.#fields[i]
 				const ftPath = f.type.path;
 
-				ir = new IR([
-					new IR(`(data) -> {__core__mkCons(
+				ir = IR.new`(data) -> {
+					__core__mkCons(
 						__core__mkPairData(
 							__core__bData(#${bytesToHex(textToBytes(f.tag))}),
-							${ftPath}____to_data(${ftPath}__from_data(__helios__common__cip68_field(data, __core__bData(#${bytesToHex(textToBytes(f.tag))}))))
-						), `),
-					ir,
-					new IR(`(data)`),
-					new IR(`)}`)
-				]);
+							${ftPath}____to_data(
+								${ftPath}__from_data(
+									__helios__common__cip68_field(
+										data, 
+										__core__bData(#${bytesToHex(textToBytes(f.tag))})
+									)
+								)
+							)
+						),
+						${ir}(data)
+					)
+				}`;
 			}
 
-			ir = new IR([
-				new IR(`(data) -> {__core__constrData(`), 
-				new IR(`0, `),
-				new IR(`__core__mkCons(`), 
-				new IR(`__core__mapData(`), ir, new IR(`(data)), `), 
-				new IR(`__core__mkCons(__core__iData(1), __core__mkNilData(()))`), 
-				new IR(`)`),
-				new IR(`)}`)
-			]);
+			ir = IR.new`(data) -> {
+				__core__constrData(
+					0, 
+					__core__mkCons(
+						__core__mapData(${ir}(data)),
+						__core__mkCons(
+							__core__iData(1),
+							__core__mkNilData(())
+						)
+					)
+				)
+			}`;*/
 
 			return ir;
 		} else {
-			let ir = new IR(`(fields) -> {__core__mkNilData(())}`)
+			let ir = IR.new(`(fields) -> {
+				(ignore) -> {
+					fields
+				}(
+					__core__ifThenElse(
+						${path}__test_data(__core__listData(fields)),
+						() -> {
+							()
+						},
+						() -> {
+							__core__trace("Warning: invalid ${this.name.toString()} data", ())
+						}
+					)()
+				)
+			}`)
+
+			return ir;
+
+			/*let ir = IR.new`(fields) -> {__core__mkNilData(())}`;
 
 			for (let i = this.nFields - 1; i >= 0; i--) {
 				const ftPath = this.getFieldType(i).path;
 
-				ir = new IR([
-					new IR(`(fields) -> {__core__mkCons(${ftPath}____to_data(${ftPath}__from_data(__core__headList(fields))), `),
-					ir,
-					new IR(`(__core__tailList(fields)))}`)
-				]);
+				ir = IR.new`(fields) -> {
+					__core__mkCons(
+						${ftPath}____to_data(
+							${ftPath}__from_data(
+								__core__headList(fields)
+							)
+						), 
+						${ir}(__core__tailList(fields))
+					)
+				}`;
 			}
 
-			return ir;
+			return ir;*/
 		}
 	}
 
@@ -34240,7 +35147,7 @@ export class DataDefinition {
 				const key = `${path}__${f.name.value}`;
 
 				// equalsData is much more efficient than first converting to byteArray
-				const getter = new IR(`(self) -> {${f.type.path}__from_data(__helios__common__cip68_field(self, __core__bData(#${bytesToHex(textToBytes(f.tag))})))}`);
+				const getter = IR.new`(self) -> {${f.type.path}__from_data(__helios__common__cip68_field(self, __core__bData(#${bytesToHex(textToBytes(f.tag))})))}`;
 
 				map.set(key, getter);
 				getterNames.push(key);
@@ -34254,7 +35161,7 @@ export class DataDefinition {
 				const f = this.fields[0];
 				const key = `${path}__${f.name.value}`;
 
-				const getter =  new IR("__helios__common__identity", f.site);
+				const getter =  IR.new`__helios__common__identity${f.site}`;
 				
 				map.set(key, getter);
 
@@ -34272,50 +35179,23 @@ export class DataDefinition {
 					let getter;
 
 					if (i < 20) {
-						getter = new IR(`${getterBaseName}_${i}`, f.site);
-
-						getter = new IR([
-							new IR("("), new IR("self"), new IR(") "), 
-							new IR("->", f.site), 
-							new IR(" {"), 
-							new IR(`${f.type.path}__from_data`), new IR("("),
-							new IR(`${getterBaseName}_${i}`), new IR("("), new IR("self"), new IR(")"),
-							new IR(")"),
-							new IR("}"),
-						]);
+						getter = IR.new`(self) ${null}->${f.site} {
+							${f.type.path}__from_data(${getterBaseName}_${i}(self))
+						}`
 					} else {
 						let inner = new IR("self");
 
 						if (isConstr) {
-							inner = new IR([
-								new IR("__core__sndPair"),
-								new IR("("),
-								new IR("__core__unConstrData"), new IR("("), inner, new IR(")"),
-								new IR(")")
-							]);
+							inner = IR.new`__core__sndPair(__core__unConstrData(${inner}))`;
 						}
 
 						for (let j = 0; j < i; j++) {
-							inner = new IR([
-								new IR("__core__tailList"), new IR("("), inner, new IR(")")
-							]);
+							inner = IR.new`__core__tailList(${inner})`;
 						}
 
-						inner = new IR([
-							new IR("__core__headList"), new IR("("), inner, new IR(")")
-						]);
+						inner = IR.new`${f.type.path}__from_data(__core__headList(${inner}))`
 
-						inner = new IR([
-							new IR(`${f.type.path}__from_data`), new IR("("), inner, new IR(")")
-						]);
-
-						getter = new IR([
-							new IR("("), new IR("self"), new IR(") "), 
-							new IR("->", f.site), 
-							new IR(" {"),
-							inner,
-							new IR("}"),
-						]);
+						getter = IR.new`(self) ${null}->${f.site} {${inner}}`;
 					}
 
 					map.set(key, getter)
@@ -34599,39 +35479,59 @@ export class StructStatement extends Statement {
 	 * @param {IRDefinitions} map
 	 */
 	toIR(ctx, map) {
+		map.set(`${this.path}__test_data`, this.#dataDef.testDataToIR());
+
 		if (this.#dataDef.hasTags()) {
-			map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
-			map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
-			map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
-			map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+			map.set(`${this.path}____eq`, IR.new`__helios__common____eq${this.site}`);
+			map.set(`${this.path}____neq`, IR.new`__helios__common____neq${this.site}`);
+			map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.site}`);
+			map.set(`${this.path}____to_data`, IR.new`__helios__common__identity${this.site}`);
 
 			if (config.CHECK_CASTS && !ctx.simplify) {
-				map.set(`${this.path}__from_data`, new IR([
-					new IR(`(data) -> {`),
-					this.#dataDef.fromDataFieldsCheckToIR(),
-					new IR(`(data)`),
-					new IR(`}`)
-				], this.site));
+				map.set(`${this.path}__from_data`, IR.new`(data) -> {
+					(ignore) -> {
+						data
+					}(
+						__core__ifThenElse(
+							${this.path}__test_data(data),
+							() -> {
+								()
+							},
+							() -> {
+								__core__trace("Warning: invalid ${this.name.toString()} data", ())
+							}
+						)()
+					)
+				}${this.site}`);
 			} else {
-				map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
+				map.set(`${this.path}__from_data`, IR.new`__helios__common__identity${this.site}`);
 			}
 		} else {
 			const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
 
-			map.set(`${this.path}____eq`, new IR(`${implPath}____eq`, this.site));
-			map.set(`${this.path}____neq`, new IR(`${implPath}____neq`, this.site));
-			map.set(`${this.path}__serialize`, new IR(`${implPath}__serialize`, this.site));
+			map.set(`${this.path}____eq`, IR.new`${implPath}____eq${this.site}`);
+			map.set(`${this.path}____neq`, IR.new`${implPath}____neq${this.site}`);
+			map.set(`${this.path}__serialize`, IR.new`${implPath}__serialize${this.site}`);
 
 			// the from_data method can include field checks
 			if (this.#dataDef.fieldNames.length == 1 || (!(config.CHECK_CASTS && !ctx.simplify))) {
-				map.set(`${this.path}__from_data`, new IR(`${implPath}__from_data`, this.site));
+				map.set(`${this.path}__from_data`, IR.new`${implPath}__from_data${this.site}`);
 			} else {
-				map.set(`${this.path}__from_data`, new IR([
-					new IR(`(data) -> {`),
-					this.#dataDef.fromDataFieldsCheckToIR(),
-					new IR(`(__core__unListData(data))`),
-					new IR(`}`)
-				], this.site));
+				map.set(`${this.path}__from_data`, IR.new`(data) -> {
+					(ignore) -> {
+						__core__unListData(data)
+					}(
+						__core__ifThenElse(
+							${this.path}__test_data(data),
+							() -> {
+								()
+							},
+							() -> {
+								__core__trace("Warning: invalid ${this.name.toString()} data", ())
+							}
+						)()
+					)
+				}${this.site}`);
 			}
 
 			map.set(`${this.path}____to_data`, new IR(`${implPath}____to_data`, this.site));
@@ -35060,22 +35960,49 @@ export class EnumMember {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(ctx, map) {
-		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.#dataDef.site));
-		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.#dataDef.site));
-		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.#dataDef.site));
+		map.set(`${this.path}____eq`, IR.new`__helios__common____eq${this.#dataDef.site}`);
+		map.set(`${this.path}____neq`, IR.new`__helios__common____neq${this.#dataDef.site}`);
+		map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.#dataDef.site}`);
+
+		map.set(`${this.path}__test_data`, IR.new`(data) -> {
+			__core__chooseData(
+				data,
+				() -> {
+					(pair) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(__core__fstPair(pair), ${this.#constrIndex}),
+							() -> {
+								${this.#dataDef.testDataToIR()}(__core__listData(__core__sndPair(pair)))
+							},
+							() -> {
+								false
+							}
+						)()
+					}(__core__unConstrData__safe(data))
+				},
+				() -> {false},
+				() -> {false},
+				() -> {false},
+				() -> {false}
+			)()
+		}`);
 
 		if (config.CHECK_CASTS && !ctx.simplify) {
-			map.set(`${this.path}__from_data`, new IR([
-				new IR(`(data) -> {`),
-				new IR(`(pair) -> {`),
-				new IR(`__core__chooseUnit(`),
-				new IR(`__helios__assert(__core__equalsInteger(__core__fstPair(pair), ${this.constrIndex}), "unexpected constructor index"), `),
-				new IR(`__core__constrData(${this.constrIndex}, `),
-				this.#dataDef.fromDataFieldsCheckToIR(),
-				new IR(`(__core__sndPair(pair))))`),
-				new IR(`}(__core__unConstrData(data))`),
-				new IR(`}`)
-			]));
+			map.set(`${this.path}__from_data`, IR.new`(data) -> {
+				(ignore) -> {
+					data
+				}(
+					__core__ifThenElse(
+						${this.path}__test_data(data),
+						() -> {
+							()
+						},
+						() -> {
+							__core__trace("Warning: invalid ${this.name.toString()} data", ())
+						}
+					)()
+				)
+			}`);
 		} else {
 			map.set(`${this.path}__from_data`, new IR(`(data) -> {
 				__helios__common__assert_constr_index(data, ${this.constrIndex})
@@ -35375,43 +36302,59 @@ export class EnumStatement extends Statement {
 	}
 
 	/**
+	 * @returns {IR}
+	 */
+	testDataToIR() {
+		let ir = IR.new`false`;
+
+		this.#members.forEach(m => {
+			ir = IR.new`__core__ifThenElse(
+				${m.path}__test_data(data),
+				() -> {
+					true
+				},
+				() -> {
+					${ir}
+				}
+			)()`;
+		});
+
+		return IR.new`(data) -> {
+			${ir}
+		}`;
+	}
+
+	/**
 	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(ctx, map) {
-		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
-		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
-		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
-		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+		map.set(`${this.path}____eq`, IR.new`__helios__common____eq${this.site}`);
+		map.set(`${this.path}____neq`, IR.new`__helios__common____neq${this.site}`);
+		map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.site}`);
+		map.set(`${this.path}____to_data`, IR.new`__helios__common__identity${this.site}`);
+
+		map.set(`${this.path}__test_data`, this.testDataToIR());
 
 		// there could be circular dependencies here, which is ok
 		if (config.CHECK_CASTS && !ctx.simplify) {
-			let ir = new IR(`__helios__error("invalid enum index for ${this.name}")`);
-
-			for (let i = this.nEnumMembers - 1; i >= 0; i--) {
-				const emPath = this.#members[i].path;
-				ir = new IR([
-					new IR(`__core__ifThenElse(`),
-					new IR(`__core__equalsInteger(index, ${i}), `),
-					new IR(`() -> {`),
-					new IR(`${emPath}__from_data(data)`),
-					new IR(`}, `),
-					new IR(`() -> {`),
-					ir,
-					new IR(`}`),
-					new IR(`)()`)
-				]);
-			}
-
-			map.set(`${this.path}__from_data`, new IR([
-				new IR(`(data) -> {`),
-				new IR(`(index) -> {`),
-				ir,
-				new IR(`}(__core__fstPair(__core__unConstrData(data)))`),
-				new IR(`}`, this.site)
-			]));
+			map.set(`${this.path}__from_data`, IR.new`(data) -> {
+				(ignore) -> {
+					data
+				}(
+					__core__ifThenElse(
+						${this.path}__test_data(data),
+						() -> {
+							()
+						},
+						() -> {
+							__core__trace("Warning: invalid ${this.name.toString()} data", ())
+						}
+					)()
+				)
+			}${this.site}`);
 		} else {
-			map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
+			map.set(`${this.path}__from_data`, IR.new`__helios__common__identity${this.site}`);
 		}
 
 		// member __new and copy methods might depend on __to_data, so must be added after
@@ -41591,8 +42534,10 @@ export class IREvaluator {
                         args.push(assertDefined(this.#reduce.pop()))
                     }
 
+                    // don't allow partial literal args (could lead to infinite recursion where the partial literal keeps updating)
+                    //  except when calling builtins (partial literals are important: eg. in divideInteger(<data>, 10) we know that the callExpr doesn't return an error)
                     const allLiteral = fn.isLiteral() && args.every(a => a.isLiteral());
-                    if (!allLiteral) {
+                    if (!allLiteral && !(fn instanceof IRBuiltinValue)) {
                         fn = fn.withoutLiterals();
                         args = args.map(a => a.withoutLiterals());
                     } 
@@ -41631,7 +42576,8 @@ export class IREvaluator {
                             } else if (fn instanceof IRBuiltinValue) {
                                 this.callBuiltin(expr, fn.builtin, args);
                             } else {
-                                throw new Error("unable to call " + fn.toString())
+                                console.log(expr.toString());
+                                throw expr.site.typeError("unable to call " + fn.toString());
                             }
                         }
                     }
@@ -41919,11 +42865,16 @@ export function annotateIR(evaluation, expr) {
  *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([...], <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
- *   * replace `__core__chooseData(ConstrData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(ConstrData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expressions expect IRErrorValue
+ *   * replace `__core__chooseData(__core__constrData(<index-expr>, <fields-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expressions expect IRErrorValue
  *   * replace `__core__chooseData(MapData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__mapData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
  *   * replace `__core__chooseData(ListData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__listData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
  *   * replace `__core__chooseData(IntData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__iData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
  *   * replace `__core__chooseData(ByteArrayData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__bData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
  *   * replace `__core__unMapData(__core__mapData(<expr>))` by `<expr>`
  *   * replace `__core__unListData(__core__listData(<expr>))` by `<expr>`
  *   * replace `__core__unIData(__core__iData(<expr>))` by `<expr>`
@@ -41933,7 +42884,8 @@ export function annotateIR(evaluation, expr) {
  *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
  *   * replace IRCallExpr args that are uncalled IRFuncExprs with `()`
  *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
- *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each var is only referenced once (i.e. only referenced in the call)
+ *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<name-expr>` if each var is only referenced once (i.e. only referenced in the call)
+ *   * replace `(<var>) -> {<var>}(<arg-expr>)` by `<arg-expr>`
  *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each var is only referenced once (i.e. only referenced in the call)
  *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
  *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
@@ -42415,6 +43367,18 @@ export class IROptimizer {
                     } else if (cond.value.data instanceof ByteArrayData && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I)) {
                         return B;
                     }
+                } else if (cond instanceof IRCallExpr && cond.func instanceof IRNameExpr && !this.expectsError(cond)) {
+                    if (cond.builtinName == "constrData" && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return C;
+                    } else if (cond.builtinName == "mapData" && !this.expectsError(C) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return M;
+                    } else if (cond.builtinName == "listData" && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return L;
+                    } else if (cond.builtinName == "iData" && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(B)) {
+                        return I;
+                    } else if (cond.builtinName == "bData" && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I)) {
+                        return B;
+                    }
                 }
 
                 break;
@@ -42496,6 +43460,12 @@ export class IROptimizer {
         let func = expr.func;
         
         let args = expr.args.map(a => this.optimizeInternal(a));
+
+        if (func instanceof IRFuncExpr && func.args.length == 1 && func.body instanceof IRNameExpr && func.body.isVariable(func.args[0])) {
+            assert(args.length == 1);
+
+            return args[0];
+        }
 
         // see if any arguments can be inlined
         if (func instanceof IRFuncExpr) {
@@ -53567,6 +54537,8 @@ export class FuzzyTest {
 
 	#simplify;
 
+	#printMessages;
+
 	/**
 	 * @type {NetworkParams}
 	 */
@@ -53578,7 +54550,7 @@ export class FuzzyTest {
 	 * @param {number} runsPerTest
 	 * @param {boolean} simplify If true then also test the simplified program
 	 */
-	constructor(seed = 0, runsPerTest = 100, simplify = false) {
+	constructor(seed = 0, runsPerTest = 100, simplify = false, printMessages = false) {
 		console.log("starting fuzzy testing  with seed", seed);
 
 		this.#seed = seed;
@@ -53586,6 +54558,7 @@ export class FuzzyTest {
 		this.#runsPerTest = runsPerTest;
 		this.#simplify = simplify;
 		this.#dummyNetworkParams = new NetworkParams(rawNetworkEmulatorParams);
+		this.#printMessages = printMessages;
 	}
 
 	reset() {
@@ -53965,7 +54938,7 @@ export class FuzzyTest {
 					let result = await uplcProgram.run(
 						args, {
 							...DEFAULT_UPLC_RTE_CALLBACKS,
-							onPrint: async (msg) => {return},
+							onPrint: this.#printMessages ? async (msg) => {console.log(msg)} : async (msg) => {return},
 							onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
 						},
 						this.#dummyNetworkParams
@@ -54040,7 +55013,13 @@ export class FuzzyTest {
 
 				let coreProgram = program.compile(simplify);
 
-				let result = await coreProgram.run(args);
+				let result = await coreProgram.run(
+					args,
+					{
+						...DEFAULT_UPLC_RTE_CALLBACKS,
+						onPrint: this.#printMessages ? async (msg) => {console.log(msg)} : async (msg) => {return}
+					}
+				);
 
 				let obj = propTest(args, result, simplify);
 

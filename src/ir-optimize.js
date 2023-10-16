@@ -7,8 +7,7 @@ import {
 
 import {
     assert,
-    assertClass,
-    assertDefined
+    assertClass
 } from "./utils.js";
 
 import {
@@ -79,11 +78,16 @@ import { IRVariable } from "./ir-context.js";
  *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([...], <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
- *   * replace `__core__chooseData(ConstrData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(ConstrData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expressions expect IRErrorValue
+ *   * replace `__core__chooseData(__core__constrData(<index-expr>, <fields-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expressions expect IRErrorValue
  *   * replace `__core__chooseData(MapData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__mapData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
  *   * replace `__core__chooseData(ListData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__listData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
  *   * replace `__core__chooseData(IntData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__iData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
  *   * replace `__core__chooseData(ByteArrayData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__bData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
  *   * replace `__core__unMapData(__core__mapData(<expr>))` by `<expr>`
  *   * replace `__core__unListData(__core__listData(<expr>))` by `<expr>`
  *   * replace `__core__unIData(__core__iData(<expr>))` by `<expr>`
@@ -93,7 +97,8 @@ import { IRVariable } from "./ir-context.js";
  *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
  *   * replace IRCallExpr args that are uncalled IRFuncExprs with `()`
  *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
- *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<names-expr>` if each var is only referenced once (i.e. only referenced in the call)
+ *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<name-expr>` if each var is only referenced once (i.e. only referenced in the call)
+ *   * replace `(<var>) -> {<var>}(<arg-expr>)` by `<arg-expr>`
  *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each var is only referenced once (i.e. only referenced in the call)
  *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
  *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
@@ -575,6 +580,18 @@ export class IROptimizer {
                     } else if (cond.value.data instanceof ByteArrayData && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I)) {
                         return B;
                     }
+                } else if (cond instanceof IRCallExpr && cond.func instanceof IRNameExpr && !this.expectsError(cond)) {
+                    if (cond.builtinName == "constrData" && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return C;
+                    } else if (cond.builtinName == "mapData" && !this.expectsError(C) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return M;
+                    } else if (cond.builtinName == "listData" && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return L;
+                    } else if (cond.builtinName == "iData" && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(B)) {
+                        return I;
+                    } else if (cond.builtinName == "bData" && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I)) {
+                        return B;
+                    }
                 }
 
                 break;
@@ -656,6 +673,12 @@ export class IROptimizer {
         let func = expr.func;
         
         let args = expr.args.map(a => this.optimizeInternal(a));
+
+        if (func instanceof IRFuncExpr && func.args.length == 1 && func.body instanceof IRNameExpr && func.body.isVariable(func.args[0])) {
+            assert(args.length == 1);
+
+            return args[0];
+        }
 
         // see if any arguments can be inlined
         if (func instanceof IRFuncExpr) {

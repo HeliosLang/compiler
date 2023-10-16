@@ -4393,7 +4393,7 @@ export class FuzzyTest {
      * @param {number} runsPerTest
      * @param {boolean} simplify If true then also test the simplified program
      */
-    constructor(seed?: number, runsPerTest?: number, simplify?: boolean);
+    constructor(seed?: number, runsPerTest?: number, simplify?: boolean, printMessages?: boolean);
     reset(): void;
     /**
      * @returns {NumberGenerator}

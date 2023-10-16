@@ -888,6 +888,7 @@ export function tokenizeIR(rawSrc, codeMap = []) {
 	const ts = tokenizer.tokenize();
 
 	if (src.errors.length > 0) {
+		console.log(src.pretty());
 		throw src.errors[0];
 	} else if (ts === null) {
 		throw new Error("should've been thrown above");

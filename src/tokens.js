@@ -8,6 +8,7 @@ import {
 import {
     Source,
     assert,
+	assertClass,
     assertDefined,
     bytesToHex,
 	replaceTabs
@@ -1084,6 +1085,115 @@ export class StringLiteral extends PrimitiveLiteral {
      */
 	get site() {
 		return this.#site;
+	}
+
+	/**
+	 * Can be used as a template literal tag function
+	 * @param {string | TemplateStringsArray | IR[]} content 
+	 * @param  {...(Site | string | IR | IR[] | null | number)} args 
+	 * @returns {IR}
+	 */
+	static new(content, ...args) {
+		if (typeof content == "string") {
+			if (args.length == 0) {
+				return new IR(content);
+			} else if (args.length == 1 && args[0] instanceof Site) {
+				const site = args[0];
+
+				if (site instanceof Site) {
+					return new IR(content, site);
+				} else {
+					throw new Error("unexpected second argument");
+				}
+			} else {
+				throw new Error("unexpected second argument");
+			}
+		} else if ("raw" in content) {
+			const raw = content.raw.slice();
+
+			/**
+			 * @type {IR[]}
+			 */
+			let items = [];
+			
+			/**
+			 * @type {Site | null}
+			 */
+			let lastSite = null;
+			
+			if (raw.length > 0 && raw[raw.length - 1] == "" && args.length > 0 && args[args.length -1 ] instanceof Site) {
+				raw.pop();
+				lastSite = assertClass(args.pop(), Site);
+			}
+
+			let s = "";
+
+			for (let c of raw) {
+				s += c;
+
+				const a = args.shift();
+
+				if (a instanceof Site) {
+					items.push(new IR(s, a));
+					s = "";
+				} else if (a instanceof IR) {
+					if (s != "") {
+						items.push(new IR(s));
+						s = "";
+					}
+
+					items.push(a);
+				} else if (Array.isArray(a)) {
+					if (s != "") {
+						items.push(new IR(s));
+						s = "";
+					}
+
+					a.forEach(ir => items.push(ir));
+				} else if (typeof a == "string" || typeof a == "number") {
+					s += a.toString();
+				} else if (a === undefined || a === null) {
+					if (s != "") {
+						items.push(new IR(s));
+						s = "";
+					}
+				} else {
+					throw new Error("unexpected second argument");
+				}
+			}
+
+			assert(args.length == 0);
+
+			if (s != "") {
+				items.push(new IR(s));
+			}
+
+			return new IR(items, lastSite);
+		} else if (Array.isArray(content)) {
+			/**
+			 * @type {IR[]}
+			 */
+			let items = [];
+
+			for (let c of content) {
+				items.push(c);
+			}
+
+			if (args.length == 0) {
+				return new IR(items);
+			} else if (args.length == 1) {
+				const arg = args[0];
+				if (arg instanceof Site) {
+					return new IR(items, arg);
+				} else {
+					throw new Error("unexpected second argument");
+				}
+			} else {
+				throw new Error("unexpected second argument");
+			}
+		} else {
+			throw new Error("unexpected first argument");
+		}
 	}
 
 	/**
