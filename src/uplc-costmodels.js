@@ -241,6 +241,13 @@ export class NetworkParams {
 	}
 
 	/**
+	 * @type {bigint}
+	 */
+	get stakeAddressDeposit() {
+		return BigInt(assertNumber(this.#raw?.latestParams?.stakeAddressDeposit));
+	}
+
+	/**
 	 * Tx balancing picks additional inputs by starting from maxTxFee. 
 	 * This is done because the order of the inputs can have a huge impact on the tx fee, so the order must be known before balancing.
 	 * If there aren't enough inputs to cover the maxTxFee and the min deposits of newly created UTxOs, the balancing will fail.
