@@ -3575,10 +3575,6 @@ export class TxOutput extends CborData {
 export class DCert extends CborData {
 	#certType;
 
-	#stakeHash;
-
-	#credentialType;
-
 	/**
      * @param {number} certType
      */
@@ -3600,7 +3596,7 @@ export class DCert extends CborData {
 	 * @type {PubKeyHash | StakingValidatorHash}
 	 */
 	get stakeHash() {
-		return this.#stakeHash;
+		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -3608,7 +3604,7 @@ export class DCert extends CborData {
 	 * @type {number}
 	 */
 	get credentialType() {
-		return this.#credentialType;
+		throw new Error("not yet implemented");
 	}
 
 
