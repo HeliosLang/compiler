@@ -112,8 +112,9 @@
 //                                           SumArgSizesCost, ArgSizeDiffCost, ArgSizeProdCost, 
 //                                           ArgSizeDiagCost
 //
-//     Section 9: Uplc built-in functions    UPLC_BUILTINS, UPLC_MACROS_OFFSET, UPLC_MACROS, 
-//                                           dumpCostModels, findUplcBuiltin, isUplcBuiltin
+//     Section 9: Uplc built-in functions    BUILTIN_PREFIX, SAFE_BUILTIN_SUFFIX, UPLC_BUILTINS, 
+//                                           UPLC_MACROS_OFFSET, UPLC_MACROS, dumpCostModels, 
+//                                           findUplcBuiltin, isUplcBuiltin
 //
 //     Section 10: Uplc AST                  UplcValue, UplcType, DEFAULT_UPLC_RTE_CALLBACKS, 
 //                                           UplcRte, UplcStack, UplcAny, UplcDelayedValue, 
@@ -243,26 +244,29 @@
 //                                           buildStructLiteralNamedField, 
 //                                           buildStructLiteralUnnamedField, buildValuePathExpr
 //
-//     Section 27: IR Context objects        IRScope, ALWAYS_INLINEABLE, IRVariable, IRValue, 
-//                                           IRFuncValue, IRLiteralValue, IRDeferredValue, 
-//                                           IRCallStack
+//     Section 27: IR Context objects        IRScope, ALWAYS_INLINEABLE, IRVariable
 //
-//     Section 28: IR AST objects            IRNameExprRegistry, IRExprRegistry, IRExpr, 
-//                                           IRNameExpr, IRLiteralExpr, IRConstExpr, IRFuncExpr, 
-//                                           IRCallExpr, IRCoreCallExpr, IRUserCallExpr, 
-//                                           IRAnonCallExpr, IRNestedAnonCallExpr, IRFuncDefExpr, 
-//                                           IRErrorCallExpr
+//     Section 28: IR AST objects            HASH_PRIME, MAX_HASH_NUMBER, hashNumber, hashCode, 
+//                                           IRNameExpr, IRLiteralExpr, IRFuncExpr, IRCallExpr, 
+//                                           IRErrorExpr, loopIRExprs
 //
-//     Section 29: IR AST build functions    buildIRExpr, buildIRFuncExpr
+//     Section 29: IR AST build functions    IRExprTagger, buildIRExpr, buildIRFuncExpr
 //
-//     Section 30: IR Program                IRProgram, IRParametricProgram
+//     Section 30: IR pseudo evaluation      HASH_DEPTH, HASH_CODES, IRStack, IRLiteralValue, 
+//                                           IRDataValue, collectIRVariables, IRBuiltinValue, 
+//                                           IRFuncValue, IRErrorValue, IRAnyValue, IRMultiValue, 
+//                                           IR_BUILTIN_CALLBACKS, IREvaluator, annotateIR
 //
-//     Section 31: Helios program            Module, MainModule, DEFAULT_PROGRAM_CONFIG, 
+//     Section 31: IR optimization           IROptimizer
+//
+//     Section 32: IR Program                IRProgram, IRParametricProgram
+//
+//     Section 33: Helios program            Module, MainModule, DEFAULT_PROGRAM_CONFIG, 
 //                                           RedeemerProgram, DatumRedeemerProgram, 
 //                                           GenericProgram, TestingProgram, SpendingProgram, 
 //                                           MintingProgram, StakingProgram, EndpointProgram
 //
-//     Section 32: Native scripts            NativeContext, NativeScript, NativeSig, NativeAll, 
+//     Section 34: Native scripts            NativeContext, NativeScript, NativeSig, NativeAll, 
 //                                           NativeAny, NativeAtLeast, NativeAfter, NativeBefore
 //
 //     Section 33: Tx types                  Tx, TxBody, TxWitnesses, TxInput, UTxO, TxRefInput, 
@@ -274,21 +278,21 @@
 //                                           HashedDatum, InlineDatum, encodeMetadata, 
 //                                           decodeMetadata, TxMetadata
 //
-//     Section 34: Highlighting function     SyntaxCategory, highlight
+//     Section 36: Highlighting function     SyntaxCategory, highlight
 //
-//     Section 35: CoinSelection             CoinSelection
+//     Section 37: CoinSelection             CoinSelection
 //
-//     Section 36: Wallets                   Cip30Wallet, WalletHelper, RemoteWallet
+//     Section 38: Wallets                   Cip30Wallet, WalletHelper, RemoteWallet
 //
-//     Section 37: Network                   BlockfrostV0, KoiosV0
+//     Section 39: Network                   BlockfrostV0, KoiosV0
 //
-//     Section 38: Emulator                  rawNetworkEmulatorParams, SimpleWallet, GenesisTx, 
+//     Section 40: Emulator                  rawNetworkEmulatorParams, SimpleWallet, GenesisTx, 
 //                                           RegularTx, NetworkEmulator, TxChainWallet, TxChain, 
 //                                           NetworkSlice
 //
-//     Section 39: Fuzzy testing framework   FuzzyTest
+//     Section 41: Fuzzy testing framework   FuzzyTest
 //
-//     Section 40: Bundling specific functionsjsToUplc, uplcToJs
+//     Section 42: Bundling specific functionsjsToUplc, uplcToJs
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2465,6 +2469,115 @@ export class StringLiteral extends PrimitiveLiteral {
      */
 	get site() {
 		return this.#site;
+	}
+
+	/**
+	 * Can be used as a template literal tag function
+	 * @param {string | TemplateStringsArray | IR[]} content 
+	 * @param  {...(Site | string | IR | IR[] | null | number)} args 
+	 * @returns {IR}
+	 */
+	static new(content, ...args) {
+		if (typeof content == "string") {
+			if (args.length == 0) {
+				return new IR(content);
+			} else if (args.length == 1 && args[0] instanceof Site) {
+				const site = args[0];
+
+				if (site instanceof Site) {
+					return new IR(content, site);
+				} else {
+					throw new Error("unexpected second argument");
+				}
+			} else {
+				throw new Error("unexpected second argument");
+			}
+		} else if ("raw" in content) {
+			const raw = content.raw.slice();
+
+			/**
+			 * @type {IR[]}
+			 */
+			let items = [];
+			
+			/**
+			 * @type {Site | null}
+			 */
+			let lastSite = null;
+			
+			if (raw.length > 0 && raw[raw.length - 1] == "" && args.length > 0 && args[args.length -1 ] instanceof Site) {
+				raw.pop();
+				lastSite = assertClass(args.pop(), Site);
+			}
+
+			let s = "";
+
+			for (let c of raw) {
+				s += c;
+
+				const a = args.shift();
+
+				if (a instanceof Site) {
+					items.push(new IR(s, a));
+					s = "";
+				} else if (a instanceof IR) {
+					if (s != "") {
+						items.push(new IR(s));
+						s = "";
+					}
+
+					items.push(a);
+				} else if (Array.isArray(a)) {
+					if (s != "") {
+						items.push(new IR(s));
+						s = "";
+					}
+
+					a.forEach(ir => items.push(ir));
+				} else if (typeof a == "string" || typeof a == "number") {
+					s += a.toString();
+				} else if (a === undefined || a === null) {
+					if (s != "") {
+						items.push(new IR(s));
+						s = "";
+					}
+				} else {
+					throw new Error("unexpected second argument");
+				}
+			}
+
+			assert(args.length == 0);
+
+			if (s != "") {
+				items.push(new IR(s));
+			}
+
+			return new IR(items, lastSite);
+		} else if (Array.isArray(content)) {
+			/**
+			 * @type {IR[]}
+			 */
+			let items = [];
+
+			for (let c of content) {
+				items.push(c);
+			}
+
+			if (args.length == 0) {
+				return new IR(items);
+			} else if (args.length == 1) {
+				const arg = args[0];
+				if (arg instanceof Site) {
+					return new IR(items, arg);
+				} else {
+					throw new Error("unexpected second argument");
+				}
+			} else {
+				throw new Error("unexpected second argument");
+			}
+		} else {
+			throw new Error("unexpected first argument");
+		}
 	}
 
 	/**
@@ -10586,6 +10699,16 @@ export class ArgSizeDiagCost extends LinearCost {
 /////////////////////////////////////
 
 /**
+ * @internal
+ */
+export const BUILTIN_PREFIX = "__core__";
+
+/**
+ * @internal
+ */
+export const SAFE_BUILTIN_SUFFIX = "__safe"; // calls to builtins that are known not to throw errors (eg. tailList inside last branch of chooseList)
+
+/**
  * Cost-model configuration of UplcBuiltin.
  * Also specifies the number of times a builtin must be 'forced' before being callable.
  * @internal
@@ -10792,7 +10915,7 @@ export function dumpCostModels(networkParams) {
  * @returns 
  */
 export function findUplcBuiltin(name) {
-	let i = UPLC_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
+	let i = UPLC_BUILTINS.findIndex(info => { return BUILTIN_PREFIX + info.name == name });
 	assert(i != -1, `${name} is not a real builtin`);
 	return i;
 }
@@ -10805,7 +10928,7 @@ export function findUplcBuiltin(name) {
  * @returns {boolean}
  */
 export function isUplcBuiltin(name, strict = false) {
-	if (name.startsWith("__core")) {
+	if (name.startsWith(BUILTIN_PREFIX)) {
 		if (strict) {
 			void this.findBuiltin(name); // assert that builtin exists
 		}
@@ -13323,7 +13446,7 @@ export class UplcBuiltin extends UplcTerm {
 	constructor(site, name) {
 		super(site, 7);
 		this.#name = assertDefined(name);
-		this.#forceCount = (typeof this.#name === "string" && !this.#name.startsWith("macro__")) ? UPLC_BUILTINS[findUplcBuiltin("__core__" + this.#name)].forceCount : 0;
+		this.#forceCount = (typeof this.#name === "string" && !this.#name.startsWith("macro__")) ? UPLC_BUILTINS[findUplcBuiltin(BUILTIN_PREFIX + this.#name)].forceCount : 0;
 		
 		if (this.isMacro()) {
 			this.#nArgs = -1;
@@ -13461,7 +13584,7 @@ export class UplcBuiltin extends UplcTerm {
 	}
 
 	/**
-	 * Used by IRCoreCallExpr
+	 * Used by IREvaluator
 	 * @internal
 	 * @param {Word} name
 	 * @param {UplcValue[]} args
@@ -13472,7 +13595,7 @@ export class UplcBuiltin extends UplcTerm {
 
 		let rte = new UplcRte();
 
-		let res = builtin.evalBuiltin(rte, name.site, args);
+		let res = builtin.evalBuiltin(rte, name.site, args, true);
 
 		rte.throwError()
 
@@ -13517,9 +13640,10 @@ export class UplcBuiltin extends UplcTerm {
 	 * @param {UplcRte} rte 
 	 * @param {Site} site
 	 * @param {UplcValue[]} args
+	 * @param {boolean} syncTrace if true => don't call rte.print method (used by IREvaluator)
 	 * @returns {UplcValue | Promise<UplcValue>} // trace returns a Promise (async print), all the other builtins return a synchronous value
 	 */
-	evalBuiltin(rte, site, args) {
+	evalBuiltin(rte, site, args, syncTrace = false) {
 		if (!this.allowAny() && args.some(a => a.isAny())) {
 			return new UplcAny(site);
 		} 
@@ -13681,7 +13805,7 @@ export class UplcBuiltin extends UplcTerm {
 				return b;
 			},
 			trace: (a, b) => {
-				if (a.isAny()) {
+				if (a.isAny() || syncTrace) {
 					return b;
 				} else {
 					return rte.print(a.string.split("\n").map(l => `INFO  (${site.toString()}) ${l}`)).then(() => {
@@ -13739,7 +13863,7 @@ export class UplcBuiltin extends UplcTerm {
 
 					return lst[0];
 				} else {
-					throw site.typeError(`__core__head expects list or map, got '${a.toString()}'`);
+					throw site.typeError(`__core__headList expects list or map, got '${a.toString()}'`);
 				}
 			},
 			tailList: (a) => {
@@ -13751,7 +13875,7 @@ export class UplcBuiltin extends UplcTerm {
 
 					return new UplcList(site, a.itemType, lst.slice(1));
 				} else {
-					throw site.typeError(`__core__tail expects list or map, got '${a.toString()}'`);
+					throw site.typeError(`__core__tailList expects list or map, got '${a.toString()}'`);
 				}
 			},
 			nullList: (a) => {
@@ -16434,7 +16558,7 @@ export function tokenize(src) {
  * @param {CodeMap} codeMap 
  * @returns {Token[]}
  */
-export function tokenizeIR(rawSrc, codeMap) {
+export function tokenizeIR(rawSrc, codeMap = []) {
 	let src = new Source(rawSrc, "<ir>");
 
 	// the Tokenizer for Helios can simply be reused for the IR
@@ -16443,6 +16567,7 @@ export function tokenizeIR(rawSrc, codeMap) {
 	const ts = tokenizer.tokenize();
 
 	if (src.errors.length > 0) {
+		console.log(src.pretty());
 		throw src.errors[0];
 	} else if (ts === null) {
 		throw new Error("should've been thrown above");
@@ -22421,7 +22546,7 @@ class RawFunc {
 		} else {
 			for (let dep of this.#dependencies) {
 				if (!db.has(dep)) {
-					throw new Error(`InternalError: dependency ${dep} is not a builtin`);
+					throw new Error(`InternalError: dependency ${dep} not found`);
 				} else {
 					assertDefined(db.get(dep)).load(db, dst);
 				}
@@ -22518,13 +22643,14 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	/**
 	 * Adds basic auto members to a fully named type
 	 * @param {string} ns 
+	 * @param {{eq?: string, neq?: string, serialize?: string, from_data?: string, to_data?: string}} custom
 	 */
-	function addDataFuncs(ns) {
-		add(new RawFunc(`${ns}____eq`, "__helios__common____eq"));
-		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
-		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
-		add(new RawFunc(`${ns}__from_data`, "__helios__common__identity"));
-		add(new RawFunc(`${ns}____to_data`, "__helios__common__identity"));
+	function addDataFuncs(ns, custom = {}) {
+		add(new RawFunc(`${ns}____eq`, custom?.eq ?? "__helios__common____eq"));
+		add(new RawFunc(`${ns}____neq`, custom?.neq ?? "__helios__common____neq"));
+		add(new RawFunc(`${ns}__serialize`, custom?.serialize ?? "__helios__common__serialize"));
+		add(new RawFunc(`${ns}__from_data`, custom?.from_data ?? "__helios__common__identity"));
+		add(new RawFunc(`${ns}____to_data`, custom?.to_data ?? "__helios__common__identity"));
 	}
 
 	/**
@@ -22634,9 +22760,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {false}, 
 					() -> {
 						__core__ifThenElse(
-							fn(__core__headList(self)),
+							fn(__core__headList__safe(self)),
 							() -> {true}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
+							() -> {recurse(recurse, __core__tailList__safe(self), fn)}
 						)()
 					}
 				)()
@@ -22654,8 +22780,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {true},
 					() -> {
 						__core__ifThenElse(
-							fn(__core__headList(self)),
-							() -> {recurse(recurse, __core__tailList(self), fn)},
+							fn(__core__headList__safe(self)),
+							() -> {recurse(recurse, __core__tailList__safe(self), fn)},
 							() -> {false}
 						)()
 					}
@@ -22674,8 +22800,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {lst},
 					() -> {
 						__core__mkCons(
-							fn(__core__headList(rem)), 
-							recurse(recurse, __core__tailList(rem), lst)
+							fn(__core__headList__safe(rem)), 
+							recurse(recurse, __core__tailList__safe(rem), lst)
 						)
 					}
 				)()
@@ -22692,11 +22818,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					self, 
 					() -> {nil}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)),
-							() -> {__core__mkCons(__core__headList(self), recurse(recurse, __core__tailList(self), fn))}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head),
+								() -> {__core__mkCons(head, recurse(recurse, __core__tailList__safe(self), fn))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -22720,11 +22848,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					self, 
 					() -> {__helios__error("not found")}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)), 
-							() -> {__core__headList(self)}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head), 
+								() -> {head}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -22740,11 +22870,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					self, 
 					() -> {__core__constrData(1, __helios__common__list_0)}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)), 
-							() -> {__core__constrData(0, __helios__common__list_1(callback(__core__headList(self))))}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head), 
+								() -> {__core__constrData(0, __helios__common__list_1(callback(head)))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -22753,13 +22885,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc("__helios__common__fold",
 	`(self, fn, z) -> {
 		(recurse) -> {
-			recurse(recurse, self, fn, z)
+			recurse(recurse, self, z)
 		}(
-			(recurse, self, fn, z) -> {
+			(recurse, self, z) -> {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
+					() -> {recurse(recurse, __core__tailList__safe(self), fn(z, __core__headList__safe(self)))}
 				)()
 			}
 		)
@@ -22767,13 +22899,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc("__helios__common__fold_lazy",
 	`(self, fn, z) -> {
 		(recurse) -> {
-			recurse(recurse, self, fn, z)
+			recurse(recurse, self)
 		}(
-			(recurse, self, fn, z) -> {
+			(recurse, self) -> {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {fn(__core__headList(self), () -> {recurse(recurse, __core__tailList(self), fn, z)})}
+					() -> {fn(__core__headList__safe(self), () -> {recurse(recurse, __core__tailList__safe(self))})}
 				)()
 			}
 		)
@@ -22792,9 +22924,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__ifThenElse(
 								comp(x, head),
 								() -> {__core__mkCons(x, lst)},
-								() -> {__core__mkCons(head, recurse(recurse, __core__tailList(lst)))}
+								() -> {__core__mkCons(head, recurse(recurse, __core__tailList__safe(lst)))}
 							)()
-						}(__core__headList(lst))
+						}(__core__headList__safe(lst))
 					}
 				)()
 			}
@@ -22812,7 +22944,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {
 						(head, tail) -> {
 							__helios__common__insert_in_sorted(head, tail, comp)
-						}(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+						}(__core__headList__safe(lst), recurse(recurse, __core__tailList__safe(lst)))
 					}
 				)()
 			}
@@ -22828,11 +22960,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					self, 
 					fnNotFound, 
 					() -> {
-						__core__ifThenElse(
-							__core__equalsData(key, __core__fstPair(__core__headList(self))), 
-							() -> {fnFound(__core__sndPair(__core__headList(self)))}, 
-							() -> {recurse(recurse, __core__tailList(self), key)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								__core__equalsData(key, __core__fstPair(head)), 
+								() -> {fnFound(__core__sndPair(head))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), key)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -22851,7 +22985,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				__core__chooseList(
 					lst, 
 					() -> {0}, 
-					() -> {__core__addInteger(recurse(recurse, __core__tailList(lst)), 1)}
+					() -> {__core__addInteger(recurse(recurse, __core__tailList__safe(lst)), 1)}
 				)()
 			}
 		)
@@ -22865,7 +22999,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				__core__chooseList(
 					rem,
 					() -> {lst},
-					() -> {__core__mkCons(__core__headList(rem), recurse(recurse, lst, __core__tailList(rem)))}
+					() -> {__core__mkCons(__core__headList__safe(rem), recurse(recurse, lst, __core__tailList__safe(rem)))}
 				)()
 			}
 		)
@@ -22959,16 +23093,74 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											value
 										},
 										() -> {
-											recurse(recurse, __core__tailList(map))
+											recurse(recurse, __core__tailList__safe(map))
 										}
 									)()
 								}(__core__fstPair(head), __core__sndPair(head))
-							}(__core__headList(map))
+							}(__core__headList__safe(map))
 						}
 					)()
 				}
 			)
 		}(__core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(self)))))
+	}`));
+	add(new RawFunc("__helios__common__test_cip68_field",
+	`(self, name, inner_test) -> {
+		__core__chooseData(
+			self,
+			() -> {
+				(fields) -> {
+					__core__chooseList(
+						fields,
+						() -> {false},
+						() -> {
+							(head) -> { 
+								__core__chooseData(
+									head,
+									() -> {false},
+									() -> {
+										(map) -> {
+											(recurse) -> {
+												recurse(recurse, map)
+											}(
+												(recurse, map) -> {
+													__core__chooseList(
+														map,
+														() -> {false},
+														() -> {
+															(head) -> {
+																(key, value) -> {
+																	__core__ifThenElse(
+																		__core__equalsData(key, name),
+																		() -> {
+																			inner_test(value)
+																		},
+																		() -> {
+																			recurse(recurse, __core__tailList__safe(map))
+																		}
+																	)()
+																}(__core__fstPair(head), __core__sndPair(head))
+															}(__core__headList__safe(map))
+														}
+													)()
+												}
+											)
+										}(__core__unMapData__safe(head))
+									},
+									() -> {false},
+									() -> {false},
+									() -> {false}
+								)()
+							}(__core__headList__safe(fields))
+						}
+					)()
+				}(__core__sndPair(__core__unConstrData__safe(self)))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
 	}`));
 	add(new RawFunc("__helios__common__fields", 
 	`(self) -> {
@@ -23031,6 +23223,73 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(data) -> {
 		__core__blake2b_256(${FTPP}0__serialize(data)())
 	}`));
+	add(new RawFunc(`__helios__common__test_constr_data_2`,
+	`(data, index, test_a, test_b) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(__core__fstPair(pair), index),
+						() -> {
+							(fields) -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__ifThenElse(
+											test_a(__core__headList__safe(fields)),
+											() -> {
+												(tail) -> {
+													__core__chooseList(
+														tail,
+														() -> {
+															false
+														},
+														() -> {
+															__core__ifThenElse(
+																test_b(__core__headList__safe(tail)),
+																() -> {
+																	__core__chooseList(
+																		__core__tailList__safe(tail), 
+																		() -> {
+																			true
+																		},
+																		() -> {
+																			false
+																		}
+																	)()
+																},
+																() -> {
+																	false
+																}
+															)()
+														}
+													)()
+												}(__core__tailList__safe(fields))
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							}(__core__sndPair(pair))
+						},
+						() -> {
+							false
+						}
+					)()
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 
 
 	// Global builtin functions
@@ -23069,6 +23328,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// Int builtins
 	add(new RawFunc("__helios__int____eq", "__core__equalsInteger"));
 	add(new RawFunc("__helios__int__from_data", "__core__unIData"));
+	add(new RawFunc("__helios__int__test_data", `(data) -> {
+		__core__chooseData(data, false, false, false, true, false)
+	}`));
 	add(new RawFunc("__helios__int____to_data", "__core__iData"));
 	addNeqFunc("__helios__int");
 	addSerializeFunc("__helios__int");
@@ -23404,7 +23666,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc("__helios__int__show",
 	`(self) -> {
 		() -> {
-			__core__decodeUtf8(
+			__core__decodeUtf8__safe(
 				(recurse) -> {
 					__core__ifThenElse(
 						__core__lessThanInteger(self, 0),
@@ -23778,6 +24040,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Real builtins
 	addIntLikeFuncs("__helios__real");
+	add(new RawFunc("__helios__real__test_data", "__helios__int__test_data"));
 	add(new RawFunc("__helios__real__PRECISION", REAL_PRECISION.toString()));
 	add(new RawFunc("__helios__real__ONE", '1' + new Array(REAL_PRECISION).fill('0').join('')));
 	add(new RawFunc("__helios__real__HALF", '5' + new Array(REAL_PRECISION-1).fill('0').join('')));
@@ -23936,6 +24199,48 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Bool builtins
 	addSerializeFunc("__helios__bool");
+	add(new RawFunc("__helios__bool__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__chooseList(
+							fields,
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(0, index),
+									() -> {
+										true
+									},
+									() -> {
+										__core__ifThenElse(
+											__core__equalsInteger(1, index),
+											() -> {
+												true
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								false
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+					
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__bool____eq", 
 	`(a, b) -> {
 		__core__ifThenElse(a, b, __helios__bool____not(b))
@@ -24038,6 +24343,18 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(d) -> {
 		__core__decodeUtf8(__core__unBData(d))
 	}`));
+	// TODO: compete valid UTF-8 check
+	add(new RawFunc("__helios__string__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data, 
+			() -> {false}, 
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {true}
+		)()
+	}`));
 	add(new RawFunc("__helios__string____to_data", 
 	`(s) -> {
 		__core__bData(__core__encodeUtf8(s))
@@ -24108,6 +24425,33 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	}`));
 	add(new RawFunc("__helios__bytearray____eq", "__core__equalsByteString"));
 	add(new RawFunc("__helios__bytearray__from_data", "__core__unBData"));
+	add(new RawFunc("__helios__bytearray__test_data",
+	`(data) -> {
+		__core__chooseData(data, false, false, false, false, true)
+	}`));
+	add(new RawFunc(`__helios__bytearray__test_data_fixed_length`,
+	`(data, n) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {
+				(bytes) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(__core__lengthOfByteString(bytes), n),
+						() -> {
+							true
+						},
+						() -> {
+							false
+						}
+					)()
+				}(__core__unBData__safe(data))
+			}
+		)()
+	}`));
 	add(new RawFunc("__helios__bytearray____to_data", "__core__bData"));
 	add(new RawFunc("__helios__bytearray____add", "__core__appendByteString"));
 	add(new RawFunc("__helios__bytearray____geq",
@@ -24175,7 +24519,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__lessThanInteger(0, n),
 							() -> {
 								__core__appendString(
-									__core__decodeUtf8(
+									__core__decodeUtf8__safe(
 										(hexBytes) -> {
 											__core__ifThenElse(
 												__core__equalsInteger(__core__lengthOfByteString(hexBytes), 1),
@@ -24639,8 +24983,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											callback(
 												false,
 												${head},
-												${FTPP}0__from_data(__core__headList(lst)),
-												recurse(recurse, next_iterator, __core__tailList(lst))
+												${FTPP}0__from_data(__core__headList__safe(lst)),
+												recurse(recurse, next_iterator, __core__tailList__safe(lst))
 											)
 										}
 									)()
@@ -24668,29 +25012,63 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addSerializeFunc(`__helios__list[${TTPP}0]`);
 	addNeqFunc(`__helios__list[${TTPP}0]`);
 	addDataLikeEqFunc(`__helios__list[${TTPP}0]`);
-	add(new RawFunc(`__helios__list[${TTPP}0]__from_data`, (config.CHECK_CASTS && !simplify) ? `(data) -> {
-			(lst) -> {
-				(recurse) -> {
-					recurse(recurse, lst)
-				}(
-					(recurse, lst) -> {
-						__core__chooseList(
-							lst,
+	add(new RawFunc(`__helios__list[${TTPP}0]__test_data_internal`,
+	`(lst) -> {
+		(recurse) -> {
+			recurse(recurse, lst)
+		}(
+			(recurse, lst) -> {
+				__core__chooseList(
+					lst,
+					() -> {
+						true
+					},
+					() -> {
+						__core__ifThenElse(
+							${TTPP}0__test_data(__core__headList__safe(lst)),
 							() -> {
-								__core__mkNilData(())
+								recurse(recurse, __core__tailList__safe(lst))
 							},
 							() -> {
-								__core__mkCons(
-									${TTPP}0____to_data(${TTPP}0__from_data(__core__headList(lst))),
-									recurse(recurse, __core__tailList(lst))
-								)
+								false
 							}
 						)()
-						
 					}
-				)
-			}(__core__unListData(data))
-		}` : "__core__unListData"));
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__from_data`, 
+	`(data) -> {
+		(lst) -> {
+			(ignore) -> {
+				lst
+			}(
+				__core__ifThenElse(
+					__helios__list[${TTPP}0]__test_data_internal(lst),
+					() -> {
+						()
+					},
+					() -> {
+						__core__trace("Warning: invalid list data", ())
+					}
+				)()
+			)
+		}(__core__unListData(data))
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__test_data`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {false},
+			() -> {
+				__helios__list[${TTPP}0]__test_data_internal(__core__unListData__safe(data))
+			},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]____to_data`, "__core__listData"));
 	add(new RawFunc(`__helios__list[${TTPP}0]__new`,
 	`(n, fn) -> {
@@ -24739,8 +25117,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {
 								callback(
 									false, 
-									__core__headList(lst),
-									recurse(recurse, __core__tailList(lst))
+									__core__headList__safe(lst),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -24765,8 +25143,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {
 								callback(
 									false, 
-									${TTPP}0__from_data(__core__headList(lst)),
-									recurse(recurse, __core__tailList(lst))
+									${TTPP}0__from_data(__core__headList__safe(lst)),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -24821,9 +25199,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								() -> {
 									callback(
 										false,
-										${TTPP}0__from_data(__core__headList(lst1)),
-										${FTPP}0__from_data(__core__headList(lst2)),
-										recurse(recurse, __core__tailList(lst1), __core__tailList(lst2))
+										${TTPP}0__from_data(__core__headList__safe(lst1)),
+										${FTPP}0__from_data(__core__headList__safe(lst2)),
+										recurse(recurse, __core__tailList__safe(lst1), __core__tailList__safe(lst2))
 									)
 								}
 							)()
@@ -24855,10 +25233,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__ifThenElse(
 								__core__equalsInteger(index, i), 
 								() -> {
-									__core__headList(self)
+									__core__headList__safe(self)
 								}, 
 								() -> {
-									recurse(recurse, __core__tailList(self), __core__addInteger(i, 1))
+									recurse(recurse, __core__tailList__safe(self), __core__addInteger(i, 1))
 								}
 							)()
 						}
@@ -24909,12 +25287,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__ifThenElse(
 								__core__equalsInteger(i, index),
 								() -> {
-									__core__mkCons(item, __core__tailList(lst))
+									__core__mkCons(item, __core__tailList__safe(lst))
 								},
 								() -> {
 									__core__mkCons(
-										__core__headList(lst),
-										recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))
+										__core__headList__safe(lst),
+										recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1))
 									)
 								}
 							)()
@@ -24946,8 +25324,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									}
 								},
 								() -> {
-									recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1), (h) -> {
-										build_head(__core__mkCons(__core__headList(lst), h))
+									recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1), (h) -> {
+										build_head(__core__mkCons(__core__headList__safe(lst), h))
 									})
 								}
 							)()
@@ -25024,7 +25402,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							(callback) -> {callback(0, lst)}
 						},
 						() -> {
-							recurse(recurse, __core__tailList(lst))(
+							recurse(recurse, __core__tailList__safe(lst))(
 								(count, result) -> {
 									__core__ifThenElse(
 										__core__equalsInteger(count, n),
@@ -25033,7 +25411,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 												callback(
 													count,
 													__core__mkCons(
-														__core__headList(lst), 
+														__core__headList__safe(lst), 
 														result
 													)
 												)
@@ -25126,7 +25504,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							(callback) -> {callback(0, lst)}
 						},
 						() -> {
-							recurse(recurse, __core__tailList(lst))(
+							recurse(recurse, __core__tailList__safe(lst))(
 								(count, tail) -> {
 									__core__ifThenElse(
 										__core__equalsInteger(count, n),
@@ -25185,7 +25563,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__mkCons(item, lst)
 						},
 						() -> {
-							__core__mkCons(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+							__core__mkCons(__core__headList__safe(lst), recurse(recurse, __core__tailList__safe(lst)))
 						}
 					)()
 				}
@@ -25219,9 +25597,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(lst))}
+									() -> {recurse(recurse, __core__tailList__safe(lst))}
 								)()
-							}(${TTPP}0__from_data(__core__headList(lst)))
+							}(${TTPP}0__from_data(__core__headList__safe(lst)))
 						}
 					)()
 				}
@@ -25243,9 +25621,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__ifThenElse(
 									fn(item),
 									() -> {i},
-									() -> {recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))}
+									() -> {recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1))}
 								)()
-							}(${TTPP}0__from_data(__core__headList(lst)))
+							}(${TTPP}0__from_data(__core__headList__safe(lst)))
 						}
 					)()
 				}
@@ -25289,8 +25667,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						},
 						() -> {
 							__core__chooseUnit(
-								fn(${TTPP}0__from_data(__core__headList(lst))),
-								recurse(recurse, __core__tailList(lst))
+								fn(${TTPP}0__from_data(__core__headList__safe(lst))),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -25413,8 +25791,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									)()
 								}(__core__unConstrData(fn(head)))
 							}(
-								${TTPP}0__from_data(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								${TTPP}0__from_data(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -25450,8 +25828,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						},
 						() -> {
 							${TTPP}0____add(
-								${TTPP}0__from_data(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								${TTPP}0__from_data(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -25476,9 +25854,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__helios__string____add(
 									__helios__string____add(
 										sep,
-										__helios__string__from_data(__core__headList(lst))
+										__helios__string__from_data(__core__headList__safe(lst))
 									),
-									recurse(recurse, __core__tailList(lst), separator)
+									recurse(recurse, __core__tailList__safe(lst), separator)
 								)
 							}
 						)()
@@ -25504,9 +25882,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__helios__bytearray____add(
 									__helios__bytearray____add(
 										sep,
-										__core__unBData(__core__headList(lst))
+										__core__unBData(__core__headList__safe(lst))
 									),
-									recurse(recurse, __core__tailList(lst), separator)
+									recurse(recurse, __core__tailList__safe(lst), separator)
 								)
 							}
 						)()
@@ -25529,8 +25907,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						},
 						() -> {
 							__helios__list[${TTPP}0]____add(
-								__core__unListData(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								__core__unListData(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -25544,35 +25922,74 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addSerializeFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addNeqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addDataLikeEqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
-	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data`, (config.CHECK_CASTS && !simplify) ? `(data) -> {
-			(map) -> {
-				(recurse) -> {
-					recurse(recurse, map)
-				}(
-					(recurse, map) -> {
-						__core__chooseList(
-							map,
-							() -> {
-								__core__mkNilPairData(())
-							},
-							() -> {
-								__core__mkCons(
-									(head) -> {
-										__core__mkPairData(
-											${TTPP}0____to_data(${TTPP}0__from_data(__core__fstPair(head))),
-											${TTPP}1____to_data(${TTPP}1__from_data(__core__sndPair(head)))
-										)
-									}(__core__headList(map)),
-									recurse(recurse, __core__tailList(map))
-								)
-							}
-						)()
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__test_data_internal`,
+	`(map) -> {
+		(recurse) -> {
+			recurse(recurse, map)
+		}(
+			(recurse, map) -> {
+				__core__chooseList(
+					map,
+					() -> {
+						true
+					},
+					() -> {
+						(head) -> {
+							__core__ifThenElse(
+								${TTPP}0__test_data(__core__fstPair(head)),
+								() -> {
+									__core__ifThenElse(
+										${TTPP}1__test_data(__core__sndPair(head)),
+										() -> {
+											recurse(recurse, __core__tailList__safe(map))
+										},
+										() -> {
+											false
+										}
+									)()
+								},
+								() -> {
+									false
+								}
+							)()
+						}(__core__headList__safe(map))
 					}
-				)
-			}(__core__unMapData(data))
-		}` :
-		"__core__unMapData"
-	));
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data`, 
+	`(data) -> {
+		(map) -> {
+			(ignore) -> {
+				map
+			}(
+				__core__ifThenElse(
+					__helios__map[${TTPP}0@${TTPP}1]__test_data_internal(map),
+					() -> {
+						()
+					},
+					() -> {
+						__core__trace("Warning: invalid map data", ())
+					}
+				)()
+				
+			)
+		}(__core__unMapData(data))
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__test_data`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {
+				__helios__map[${TTPP}0@${TTPP}1]__test_data_internal(__core__unMapData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____to_data`, "__core__mapData"));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____add`, "__helios__common__concat"));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__prepend`,
@@ -25690,7 +26107,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										() -> {recurse(recurse, tail)},
 										() -> {__core__mkCons(head, recurse(recurse, tail))}
 									)()
-								}(__core__headList(self), __core__tailList(self))
+								}(__core__headList__safe(self), __core__tailList__safe(self))
 							}
 						)()
 					}
@@ -25730,14 +26147,14 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											}
 										}, 
 										() -> {
-											recurse(recurse, __core__tailList(self))
+											recurse(recurse, __core__tailList__safe(self))
 										}
 									)()
 								}(
 									${TTPP}0__from_data(__core__fstPair(head)), 
 									${TTPP}1__from_data(__core__sndPair(head))
 								)
-							}(__core__headList(self))
+							}(__core__headList__safe(self))
 						}
 					)()
 				}
@@ -25776,11 +26193,11 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											}
 										}, 
 										() -> {
-											recurse(recurse, __core__tailList(self), fn)
+											recurse(recurse, __core__tailList__safe(self), fn)
 										}
 									)()
 								}(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head)))
-							}(__core__headList(self))
+							}(__core__headList__safe(self))
 						}
 					)()
 				}
@@ -25802,9 +26219,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
-							}(${TTPP}0__from_data(__core__fstPair(__core__headList(map))))
+							}(${TTPP}0__from_data(__core__fstPair(__core__headList__safe(map))))
 						}
 					)()
 				}
@@ -25838,9 +26255,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
-							}(${TTPP}1__from_data(__core__sndPair(__core__headList(map))))
+							}(${TTPP}1__from_data(__core__sndPair(__core__headList__safe(map))))
 						}
 					)()
 				}
@@ -25915,9 +26332,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							(head) -> {
 								__core__chooseUnit(
 									fn(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head))),
-									recurse(recurse, __core__tailList(map))
+									recurse(recurse, __core__tailList__safe(map))
 								)
-							}(__core__headList(map))
+							}(__core__headList__safe(map))
 						}
 					)()
 				}
@@ -25948,7 +26365,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											__core__mkCons(head, recurse(recurse, tail))
 										}
 									)()
-								}(__core__headList(self), __core__tailList(self))
+								}(__core__headList__safe(self), __core__tailList__safe(self))
 							}
 						)()
 					}
@@ -25975,9 +26392,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										false, 
 										${TTPP}0__from_data(__core__fstPair(head)),
 										${TTPP}1__from_data(__core__sndPair(head)),
-										recurse(recurse, __core__tailList(map))
+										recurse(recurse, __core__tailList__safe(map))
 									)
-								}(__core__headList(map))	
+								}(__core__headList__safe(map))	
 							}
 						)()
 					}
@@ -26037,10 +26454,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											)
 										},
 										() -> {
-											__core__mkCons(pair, recurse(recurse, __core__tailList(map)))
+											__core__mkCons(pair, recurse(recurse, __core__tailList__safe(map)))
 										}
 									)()
-								}(__core__headList(map))
+								}(__core__headList__safe(map))
 							}
 						)()
 					}
@@ -26095,7 +26512,76 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 
 	// Option[T] builtins
-	addDataFuncs(`__helios__option[${TTPP}0]`);
+	add(new RawFunc(`__helios__option[${TTPP}0]__test_data`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(index, 0),
+							() -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__chooseList(
+											__core__tailList__safe(fields),
+											() -> {
+												${TTPP}0__test_data(__core__headList__safe(fields))
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(index, 1),
+									() -> {
+										__core__chooseList(
+											fields,
+											true,
+											false
+										)
+									},
+									() -> {
+										false
+									}
+								)()
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`))
+	addDataFuncs(`__helios__option[${TTPP}0]`, {
+		from_data: `(data) -> {
+			(ignore) -> {
+				data
+			}(
+				__core__ifThenElse(
+					__helios__option[${TTPP}0]__test_data(data),
+					() -> {
+						()
+					},
+					() -> {
+						__core__trace("Warning: invalid option data", ())
+					}
+				)()
+			)
+		}`
+	});
 	add(new RawFunc(`__helios__option[${TTPP}0]__map[${FTPP}0]`, 
 	`(self) -> {
 		(fn) -> {
@@ -26160,20 +26646,26 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		__helios__common__assert_constr_index(data, 1)
 	}`));
 
+
+	// ScriptHash builtin
+	addByteArrayLikeFuncs("__helios__scripthash");
+	add(new RawFunc("__helios__scripthash__test_data", `(data) -> {__helios__bytearray__test_data_fixed_length(data, 28)}`));
+
 	
 	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash", "datumhash"]) {
 	// Hash builtins
 		addByteArrayLikeFuncs(`__helios__${hash}`);
+		add(new RawFunc(`__helios__${hash}__test_data`,
+		`(data) -> {
+			__helios__bytearray__test_data_fixed_length(data, ${hash == "datumhash" ? 32 : 28})
+		}`));
 		add(new RawFunc(`__helios__${hash}__from_script_hash`, "__helios__common__identity"));
 	}
 
 	
-	// ScriptHash builtin
-	addByteArrayLikeFuncs("__helios__scripthash");
-
-
 	// PubKey builtin
 	addByteArrayLikeFuncs("__helios__pubkey");
+	add(new RawFunc("__helios__pubkey__test_data", `(data) -> {__helios__bytearray__test_data_fixed_length(data, 32)}`));
 	add(new RawFunc("__helios__pubkey__verify", 
 	`(self) -> {
 		(message, signature) -> {
@@ -26184,6 +26676,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// ScriptContext builtins
 	addDataFuncs("__helios__scriptcontext");
+	// TODO: test fields
+	add(new RawFunc("__helios__scriptcontext__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__scriptcontext__new_spending",
 	`(tx, output_id) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -26235,9 +26741,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									__core__ifThenElse(
 										__core__equalsData(__helios__txinput__output_id(item), id), 
 										() -> {item}, 
-										() -> {recurse(recurse, __core__tailList(lst))}
+										() -> {recurse(recurse, __core__tailList__safe(lst))}
 									)()
-								}(__core__headList(lst))
+								}(__core__headList__safe(lst))
 							}
 						)()
 					}
@@ -26373,6 +26879,19 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// StakingPurpose builtins
 	addDataFuncs("__helios__stakingpurpose");
+	add(new RawFunc("__helios__stakingpurpose__testdata", 
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 
 
 	// StakingPurpose::Rewarding builtins
@@ -26387,6 +26906,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// ScriptPurpose builtins
 	addDataFuncs("__helios__scriptpurpose");
+	// TODO: test fields
+	add(new RawFunc("__helios__scriptpurpose__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__scriptpurpose__new_minting",
 	`(mph) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__mintingpolicyhash____to_data(mph)))
@@ -26430,6 +26963,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// DCert builtins
 	addDataFuncs("__helios__dcert");
+	// TODO: test each enum variant
+	add(new RawFunc("__helios__dcert__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__dcert__new_register",
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
@@ -26637,9 +27184,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						},
 						() -> {
 							__helios__txbuilder__redeem[${FTPP}0](
-								recurse(recurse, __core__tailList(inputs))
+								recurse(recurse, __core__tailList__safe(inputs))
 							)(
-								__core__headList(inputs),
+								__core__headList__safe(inputs),
 								redeemer
 							)
 						}
@@ -26847,6 +27394,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Tx builtins
 	addDataFuncs("__helios__tx");
+	// TODO: test fields
+	add(new RawFunc("__helios__tx__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc(`__helios__tx__new[${FTPP}0@${FTPP}1]`,
 	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums, txId) -> {
 		__core__constrData(0, __helios__common__list_12(
@@ -27158,6 +27719,47 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(bytes) -> {
 		__core__constrData(0, __helios__common__list_1(__core__bData(bytes))) 
 	}`));
+	add(new RawFunc("__helios__txid__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(0, index),
+							() -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__chooseList(
+											__core__tailList__safe(fields),
+											() -> {
+												__helios__bytearray__test_data_fixed_length(__core__headList__safe(fields), 32)
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								false
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__txid__show",
 	`(self) -> {
 		__helios__bytearray__show(__helios__txid__bytes(self))
@@ -27166,6 +27768,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TxInput builtins
 	addDataFuncs("__helios__txinput");
+	add(new RawFunc("__helios__txinput__test_data", 
+	`(data) -> {
+		__helios__common__test_constr_data_2(data 0, __helios__txoutputid__test_data, __helios__txoutput__test_data)
+	}`));
 	add(new RawFunc("__helios__txinput__new",
 	`(output_id, output) -> {
 		__core__constrData(0, __helios__common__list_2(output_id, output))
@@ -27188,6 +27794,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TxOutput builtins
 	addDataFuncs("__helios__txoutput");
+	// TODO: test fields
+	add(new RawFunc("__helios__txoutput__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__txoutput__new", 
 	`(address, value, datum) -> {
 		__core__constrData(0, __helios__common__list_4(address, __core__mapData(value), datum, __helios__option__NONE))
@@ -27288,6 +27908,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// OutputDatum
 	addDataFuncs("__helios__outputdatum");
+	// TODO: test each enum variant
+	add(new RawFunc("__helios__outputdatum__test_data", 
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__outputdatum__new_none",
 	`() -> {
 		__core__constrData(0, __helios__common__list_0)
@@ -27343,6 +27977,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// RawData
 	addDataFuncs("__helios__data");
+	add(new RawFunc("__helios__data__test_data", `(data) -> {true}`));
 	add(new RawFunc("__helios__data__tag", 
 	`(self) -> {
 		__core__fstPair(__core__unConstrData(self))
@@ -27351,6 +27986,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TxOutputId
 	addDataFuncs("__helios__txoutputid");
+	add(new RawFunc("__helios__txoutputid__test_data",
+	`(data) -> {
+		__helios__common__test_constr_data_2(data, 0, __helios__txid__test_data, __helios__int__test_data)
+	}`));
 	add(new RawFunc("__helios__txoutputid__tx_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutputid__index", 
 	`(self) -> {
@@ -27681,6 +28320,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(hex) -> {
 		__helios__address__from_bytes(__helios__bytearray__parse(hex))
 	}`));
+	add(new RawFunc("__helios__address__test_data", 
+	`(data) -> {
+		__helios__common__test_constr_data_2(data, 0, __helios__credential__test_data, __helios__option[__helios__stakingcredential]__test_data)
+	}`));
 	add(new RawFunc("__helios__address__new", 
 	`(cred, staking_cred) -> {
 		__core__constrData(0, __helios__common__list_2(cred, staking_cred))
@@ -27701,6 +28344,71 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Credential builtins
 	addDataFuncs("__helios__credential");
+	add(new RawFunc("__helios__credential__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(index, 0),
+							() -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__chooseList(
+											__core__tailList__safe(fields),
+											() -> {
+												__helios__validatorhash__test_data(__core__headList__safe(fields))
+											}, 
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(index, 1),
+									() -> {
+										__core__chooseList(
+											fields,
+											() -> {
+												false
+											},
+											() -> {
+												__core__chooseList(
+													__core__tailList__safe(fields),
+													() -> {
+														__helios__pubkeyhash__test_data(__core__headList__safe(fields))
+													}, 
+													() -> {
+														false
+													}
+												)()
+											}
+										)()
+									},
+									() -> {
+										false
+									}
+								)()
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__credential__new_pubkey",
 	`(hash) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__pubkeyhash____to_data(hash)))
@@ -27746,6 +28454,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// StakingHash builtins
 	addDataFuncs("__helios__stakinghash");
+	add(new RawFunc("__helios__stakinghash__test_data", "__helios__credential__test_data"));
 	add(new RawFunc("__helios__stakinghash__new_stakekey", "__helios__credential__new_pubkey"));
 	add(new RawFunc("__helios__stakinghash__new_validator", "__helios__credential__new_validator"));
 	add(new RawFunc("__helios__stakinghash__is_stakekey", "__helios__credential__is_stakekey"));
@@ -27754,18 +28463,34 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// StakingHash::StakeKey builtins
 	addEnumDataFuncs("__helios__stakinghash__stakekey", 0);
+	add(new RawFunc("__helios__stakinghash__stakekey__test_data", "__helios__credential__pubkey__test_data"));
 	add(new RawFunc("__helios__stakinghash__stakekey__cast", "__helios__credential__pubkey__cast"));
 	add(new RawFunc("__helios__stakinghash__stakekey__hash", "__helios__credential__pubkey__hash"));
 
 
 	// StakingHash::Validator builtins
 	addEnumDataFuncs("__helios__stakinghash__validator", 1);
+	add(new RawFunc("__helios__stakinghash__validator__test_data", "__helios__credential__validator__test_data"));
 	add(new RawFunc("__helios__stakinghash__validator__cast", "__helios__credential__validator__cast"));
 	add(new RawFunc("__helios__stakinghash__validator__hash", "__helios__credential__validator__hash"));
 
 
 	// StakingCredential builtins
 	addDataFuncs("__helios__stakingcredential");
+	// TODO: test fields
+	add(new RawFunc("__helios__stakingcredential__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__stakingcredential__new_hash", 
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
@@ -27799,6 +28524,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Time builtins
 	addIntLikeFuncs("__helios__time");
+	add(new RawFunc("__helios__time__test_data", `__helios__int__test_data`));
 	add(new RawFunc("__helios__time__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__time____add", `__helios__int____add`));
 	add(new RawFunc("__helios__time____sub", `__helios__int____sub`));
@@ -27812,6 +28538,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Duratin builtins
 	addIntLikeFuncs("__helios__duration");
+	add(new RawFunc("__helios__duration__test_data", `__helios__int__test_data`));
 	add(new RawFunc("__helios__duration__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__duration____add", `__helios__int____add`));
 	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
@@ -27832,6 +28559,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TimeRange builtins
 	addDataFuncs("__helios__timerange");
+	// TODO: test fields
+	add(new RawFunc("__helios__timerange__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__timerange__new", `
 	(a, b) -> {
 		(a, b) -> {
@@ -28077,6 +28818,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// AssetClass builtins
 	addDataFuncs("__helios__assetclass");
+	add(new RawFunc("__helios__assetclass__test_data",
+	`(data) -> {
+		__helios__common__test_constr_data_2(data, 0, __helios__mintingpolicyhash__test_data, __helios__bytearray__test_data)
+	}`));
 	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(#, #)`));
 	add(new RawFunc("__helios__assetclass__new",
 	`(mph, token_name) -> {
@@ -28177,6 +28922,101 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Value builtins
 	addSerializeFunc("__helios__value");
+	// TODO: test each entry in the map
+	add(new RawFunc("__helios__value__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {
+				(map) -> {
+					(recurse) -> {
+						recurse(recurse, map)
+					}(
+						(recurse, map) -> {
+							__core__chooseList(
+								map,
+								() -> {
+									true
+								},
+								() -> {
+									(head) -> {
+										(key, value) -> {
+											__core__ifThenElse(
+												__helios__mintingpolicyhash__test_data(key),
+												() -> {
+													__core__chooseData(
+														value,
+														() -> {false},
+														() -> {
+															(inner) -> {
+																__core__chooseList(
+																	inner,
+																	() -> {
+																		false
+																	},
+																	() -> {
+																		(recurse_inner) -> {
+																			recurse_inner(recurse_inner, inner)
+																		}(
+																			(recurse_inner, inner) -> {
+																				__core__chooseList(
+																					inner,
+																					() -> {
+																						true
+																					},
+																					() -> {
+																						(head) -> {
+																							(key, value) -> {
+																								__core__ifThenElse(
+																									__helios__bytearray__test_data(key),
+																									() -> {
+																										__core__ifThenElse(
+																											__helios__int__test_data(value),
+																											() -> {
+																												true
+																											},
+																											() -> {
+																												false
+																											}
+																										)()
+																									},
+																									() -> {
+																										false
+																									}
+																								)()
+																							}(__core__fstPair(head), __core__sndPair(head))
+																						}(__core__headList__safe(inner))
+																					}
+																				)()
+																			}
+																		)
+																	}
+																)()
+															}(__core__unMapData__safe(value))
+														},
+														() -> {false},
+														() -> {false},
+														() -> {false}
+													)()
+												},
+												() -> {
+													false
+												}
+											)()
+										}(__core__fstPair(head), __core__sndPair(head))
+									}(__core__headList__safe(map))
+								}
+							)()
+						}
+					)
+				}(__core__unMapData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__value__from_data", "__core__unMapData"));
 	add(new RawFunc("__helios__value____to_data", "__core__mapData"));
 	add(new RawFunc("__helios__value__value", "__helios__common__identity"));
@@ -28226,7 +29066,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				__core__chooseList(
 					map, 
 					() -> {__helios__common__list_0}, 
-					() -> {__core__mkCons(__core__fstPair(__core__headList(map)), recurse(recurse, __core__tailList(map)))}
+					() -> {__core__mkCons(__core__fstPair(__core__headList__safe(map)), recurse(recurse, __core__tailList__safe(map)))}
 				)()
 			}
 		)
@@ -28247,10 +29087,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							(key) -> {
 								__core__ifThenElse(
 									__helios__common__is_in_bytearray_list(aKeys, key), 
-									() -> {recurse(recurse, keys, __core__tailList(map))},
-									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList(map)))}
+									() -> {recurse(recurse, keys, __core__tailList__safe(map))},
+									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList__safe(map)))}
 								)()
-							}(__core__fstPair(__core__headList(map)))
+							}(__core__fstPair(__core__headList__safe(map)))
 						}
 					)()
 				}
@@ -28269,9 +29109,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {__core__mkNilPairData(())},
 					() -> {
 						__core__ifThenElse(
-							__core__equalsData(__core__fstPair(__core__headList(map)), mph), 
-							() -> {__core__unMapData(__core__sndPair(__core__headList(map)))},
-							() -> {recurse(recurse, __core__tailList(map))}
+							__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph), 
+							() -> {__core__unMapData(__core__sndPair(__core__headList__safe(map)))},
+							() -> {recurse(recurse, __core__tailList__safe(map))}
 						)()
 					}
 				)()
@@ -28289,9 +29129,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {0}, 
 					() -> {
 						__core__ifThenElse(
-							__core__equalsData(__core__fstPair(__core__headList(map)), key), 
-							() -> {__core__unIData(__core__sndPair(__core__headList(map)))}, 
-							() -> {recurse(recurse, __core__tailList(map), key)}
+							__core__equalsData(__core__fstPair(__core__headList__safe(map)), key), 
+							() -> {__core__unIData(__core__sndPair(__core__headList__safe(map)))}, 
+							() -> {recurse(recurse, __core__tailList__safe(map), key)}
 						)()
 					}
 				)()
@@ -28317,7 +29157,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										() -> {__core__mkCons(__core__mkPairData(key, __core__iData(sum)), tail)}
 									)()
 								}(op(__helios__value__get_inner_map_int(a, key), __helios__value__get_inner_map_int(b, key)))
-							}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
+							}(__core__headList__safe(keys), recurse(recurse, __core__tailList__safe(keys), result))
 						}
 					)()
 				}
@@ -28342,7 +29182,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									() -> {__core__mkCons(__core__mkPairData(key, __core__mapData(item)), tail)}
 								)()
 							}(__helios__value__add_or_subtract_inner(op)(__helios__value__get_inner_map(a, key), __helios__value__get_inner_map(b, key)))
-						}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
+						}(__core__headList__safe(keys), recurse(recurse, __core__tailList__safe(keys), result))
 					}
 				)()
 			}
@@ -28365,9 +29205,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										__core__fstPair(head), 
 										__core__mapData(recurseInner(recurseInner, __core__unMapData(__core__sndPair(head))))
 									),  
-									recurseOuter(recurseOuter, __core__tailList(outer))
+									recurseOuter(recurseOuter, __core__tailList__safe(outer))
 								)
-							}(__core__headList(outer))
+							}(__core__headList__safe(outer))
 						}
 					)()
 				}
@@ -28384,9 +29224,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									__core__fstPair(head),
 									__core__iData(op(__core__unIData(__core__sndPair(head))))
 								),
-								recurseInner(recurseInner, __core__tailList(inner))
+								recurseInner(recurseInner, __core__tailList__safe(inner))
 							)
-						}(__core__headList(inner))
+						}(__core__headList__safe(inner))
 					}
 				)()
 			}
@@ -28411,9 +29251,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									)
 								), 
 								() -> {false}, 
-								() -> {recurse(recurse, __core__tailList(keys))}
+								() -> {recurse(recurse, __core__tailList__safe(keys))}
 							)()
-						}(__core__headList(keys))
+						}(__core__headList__safe(keys))
 					}
 				)()
 			}
@@ -28439,9 +29279,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									)
 								), 
 								() -> {false}, 
-								() -> {recurse(recurse, __core__tailList(keys))}
+								() -> {recurse(recurse, __core__tailList__safe(keys))}
 							)()
-						}(__core__headList(keys))
+						}(__core__headList__safe(keys))
 					}
 				)()
 			}
@@ -28551,10 +29391,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {
 						__helios__bool__and(
 							() -> {
-								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList(tokens))), 0)
+								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList__safe(tokens))), 0)
 							},
 							() -> {
-								recurse(recurse, __core__tailList(tokens))
+								recurse(recurse, __core__tailList__safe(tokens))
 							}
 						)
 					}
@@ -28577,10 +29417,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						() -> {
 							__helios__bool__and(
 								() -> {
-									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList(map))))
+									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList__safe(map))))
 								},
 								() -> {
-									recurse(recurse, __core__tailList(map))
+									recurse(recurse, __core__tailList__safe(map))
 								}
 							)
 						}
@@ -28612,9 +29452,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph), 
-									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
-									() -> {outer(outer, inner, __core__tailList(map))}
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList__safe(map))))}, 
+									() -> {outer(outer, inner, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -28624,12 +29464,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {__helios__error("tokenName not found")}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), tokenName),
 									() -> {
-										__core__unIData(__core__sndPair(__core__headList(map)))
+										__core__unIData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										inner(inner, __core__tailList(map))
+										inner(inner, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -28652,9 +29492,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {0}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mintingPolicyHash), 
-									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
-									() -> {outer(outer, inner, __core__tailList(map))}
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mintingPolicyHash), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList__safe(map))))}, 
+									() -> {outer(outer, inner, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -28664,12 +29504,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {0}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), tokenName),
 									() -> {
-										__core__unIData(__core__sndPair(__core__headList(map)))
+										__core__unIData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										inner(inner, __core__tailList(map))
+										inner(inner, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -28709,12 +29549,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {__helios__error("policy not found")},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph),
 									() -> {
-										__core__unMapData(__core__sndPair(__core__headList(map)))
+										__core__unMapData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										recurse(recurse, __core__tailList(map))
+										recurse(recurse, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -28737,9 +29577,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {false},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph),
 									() -> {true},
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -28815,8 +29655,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					},
 					() -> {
 						__helios__value____add(
-							${FTPP}0__value(${FTPP}0__from_data(__core__headList(lst))),
-							recurse(recurse, __core__tailList(lst))
+							${FTPP}0__value(${FTPP}0__from_data(__core__headList__safe(lst))),
+							recurse(recurse, __core__tailList__safe(lst))
 						)
 					}
 				)()
@@ -31192,7 +32032,7 @@ export class ParametricExpr extends Expr {
 		if (this.#baseExpr instanceof MemberExpr) {
 			return this.#baseExpr.toIR(ctx, params);
 		} else {
-			return new IR(`${this.#baseExpr.toIR(ctx).toString()}${params}`, this.site);
+			return IR.new`${this.#baseExpr.toIR(ctx).toString()}${params}${this.site}`;
 		}
 	}
 
@@ -31278,11 +32118,7 @@ export class UnaryExpr extends Expr {
 	toIR(ctx) {
 		const path = assertDefined(this.cache?.asTyped?.type?.asNamed).path;
 
-		return new IR([
-			new IR(`${path}__${this.translateOp().value}`, this.site), new IR("("),
-			this.#a.toIR(ctx),
-			new IR(")")
-		]);
+		return IR.new`${path}__${this.translateOp().value}${this.site}(${this.#a.toIR(ctx)})`;
 	}
 
 	/**
@@ -33697,19 +34533,17 @@ export class ConstStatement extends Statement {
 		let ir = assertDefined(this.#valueExpr).toIR(ctx);
 
 		if (this.#valueExpr instanceof LiteralDataExpr) {
-			ir = new IR([
+			/*ir = new IR([
 				new IR(`${this.#valueExpr.type.path}__from_data`),
-				new IR("("),
+				new IR("(", this.site),
 				ir,
 				new IR(")")
-			]);
+			]);*/
+
+			ir = IR.new`${this.#valueExpr.type.path}__from_data${null}(${this.site}${ir})`;
 		}
 
-		return new IR([
-			new IR("const(", this.site),
-			ir,
-			new IR(")")
-		]);
+		return ir;
 	}
 
 	/**
@@ -34398,92 +35232,55 @@ export class DataDefinition {
 		let ir;
 
 		if (this.hasTags()) {
-			ir = new IR([
-				new IR("__core__mkNilPairData"),
-				new IR("(())")
-			])
+			ir = IR.new`__core__mkNilPairData(())`;
 
 			for (let i = this.nFields - 1; i >= 0; i--) {
 				const f = this.#fields[i];
 
-				ir = new IR([
-					new IR("__core__mkCons"), new IR("("),
-					new IR("__core__mkPairData"), new IR("("), 
-					new IR(`__core__bData`), new IR("("), new IR(`#${bytesToHex(textToBytes(f.tag))}`), new IR(")"), new IR(", "),
-					new IR(`${f.type.path}____to_data`), new IR("("), new IR(f.name.value), new IR(")"), 
-					new IR("), "),
-					ir,
-					new IR(")")
-				]);
+				ir = IR.new`__core__mkCons(
+					__core__mkPairData(
+						__core__bData(#${bytesToHex(textToBytes(f.tag))}),
+						${f.type.path}____to_data(${f.name.value})
+					),
+					${ir}
+				)`;
 			}
 
-			ir = new IR([
-				new IR("__core__constrData"),
-				new IR("("),
-				new IR("0"),
-				new IR(", "),
-				new IR("__core__mkCons"), new IR("("),
-				new IR("__core__mapData"), new IR("("), ir, new IR(")"), new IR(", "),
-				new IR("__core__mkCons"), new IR("("),
-				new IR("__core__iData"), new IR("("), new IR("1"), new IR(")"), new IR(", "), // version
-				new IR("__core__mkNilData(())"), // TODO: according to https://cips.cardano.org/cips/cip68/#metadata an additional 'extra' (which can be unit)  should be added. Is that really necessary?
-				new IR(")"),
-				new IR(")"),
-				new IR(")")
-			])
+			// TODO: according to https://cips.cardano.org/cips/cip68/#metadata an additional 'extra' (which can be unit)  should be added. Is that really necessary?
+			ir = IR.new`__core__constrData(
+				0,
+				__core__mkCons(
+					__core__mapData(${ir}),
+					__core__mkCons(
+						__core__iData(1),
+						__core__mkNilData(())
+					)
+				)
+			)`;
 
-			// wrap as function
-			ir = new IR([
-				new IR("("),
-				new IR(this.#fields.map(f => new IR(f.name.value))).join(", "),
-				new IR(") -> {"),
-				ir,
-				new IR("}")
-			]);
+			ir = IR.new`(${new IR(this.#fields.map(f => new IR(f.name.value))).join(", ")}) -> {${ir}}`;
 		} else if (this.nFields == 1) {
 			if (isConstr) {
-				ir = new IR(`(self) -> {
+				ir = IR.new`(self) -> {
 					__core__constrData(${constrIndex}, __helios__common__list_1(${this.getFieldType(0).path}____to_data(self)))
-				}`, this.site);
+				}${this.site}`;
 			} else {
-				ir = new IR("__helios__common__identity");
+				ir = IR.new`__helios__common__identity`;
 		}
 		} else {
-			ir = new IR([
-				new IR("__core__mkNilData"),
-				new IR("(())")
-			]);
+			ir = IR.new`__core__mkNilData(())`;
 
 			for (let i = this.nFields - 1; i >= 0; i--) {
 				const f = this.#fields[i];
 
-				ir = new IR([
-					new IR("__core__mkCons"),
-					new IR("("), new IR(`${f.type.path}____to_data`), new IR("("), new IR(f.name.value), new IR("), "),
-					ir,
-					new IR(")")
-				]);
+				ir = IR.new`__core__mkCons(${f.type.path}____to_data(${f.name.value}), ${ir})`;
 			}
 
 			if (isConstr) {
-				ir = new IR([
-					new IR("__core__constrData"),
-					new IR("("),
-					new IR(constrIndex.toString()),
-					new IR(", "),
-					ir,
-					new IR(")")
-				]);
+				ir =  IR.new`__core__constrData(${constrIndex}, ${ir})`;
 			}
 
-			// wrap as function
-			ir = new IR([
-				new IR("("),
-				new IR(this.#fields.map(f => new IR(f.name.value))).join(", "),
-				new IR(") -> {"),
-				ir,
-				new IR("}")
-			]);
+			ir = IR.new`(${new IR(this.#fields.map(f => new IR(f.name.value))).join(", ")}) -> {${ir}}`;
 		}
 
 		const key = `${path}____new`;
@@ -34509,25 +35306,20 @@ export class DataDefinition {
 		for (let i = getterNames.length - 1; i >= 0; i--) {
 			const fieldName = this.#fields[i].name.toString();
 
-			ir = FuncArg.wrapWithDefaultInternal(ir, fieldName, new IR([
-				new IR(getterNames[i]),
-				new IR("(self)")
-			]))
+			ir = FuncArg.wrapWithDefaultInternal(ir, fieldName, IR.new`${getterNames[i]}(self)`);
 		}
 
-		ir = new IR([
-			new IR("("), new IR("self"), new IR(") -> {"),
-			new IR("("),
-			new IR(this.#fields.map(f => new IR([
-				new IR(`__useopt__${f.name.toString()}`),
-				new IR(", "),
-				new IR(`${f.name.toString()}`)
-			]))).join(", "),
-			new IR(") -> {"),
-			ir,
-			new IR("}"),
-			new IR("}")
-		]);
+		const args = new IR(this.#fields.map(f => new IR([
+			new IR(`__useopt__${f.name.toString()}`),
+			new IR(", "),
+			new IR(`${f.name.toString()}`)
+		]))).join(", ")
+
+		ir = IR.new`(self) -> {
+			(${args}) -> {
+				${ir}
+			}
+		}`;
 
 		map.set(key, ir);
 	}
@@ -34536,51 +35328,185 @@ export class DataDefinition {
 	 * @internal
 	 * @returns {IR}
 	 */
-	fromDataFieldsCheckToIR() {
+	testDataToIR() {
 		if (this.hasTags()) {
-			let ir = new IR(`(data) -> {__core__mkNilPairData(())}`)
+			const fields = this.#fields;
 
-			for (let i = this.nFields - 1; i >= 0; i--) {
+			let ir = IR.new``;
+
+			fields.forEach((f, i) => {
+				if (i == 0) {
+					ir = IR.new`__helios__common__test_cip68_field(
+						data,
+						__core__bData(#${bytesToHex(textToBytes(f.tag))}),
+						${f.type.path}__test_data	
+					)`;
+				} else {
+					ir = IR.new`__core__ifThenElse(
+						__helios__common__test_cip68_field(
+							data,
+							__core__bData(#${bytesToHex(textToBytes(f.tag))}),
+							${f.type.path}__test_data	
+						),
+						() -> {
+							${ir}
+						},
+						() -> {
+							false
+						}
+					)()`;
+				}
+			});
+
+			return IR.new`(data) -> {
+				${ir}
+			}`;
+		} else if (this.nFields == 1) {
+			return IR.new`${this.#fields[0].type.path}__test_data`;
+		} else {
+			const reversedFields = this.#fields.slice().reverse();
+
+			let ir = IR.new`(fields) -> {
+				__core__chooseList(
+					fields,
+					true,
+					false
+				)
+			}`;
+
+			reversedFields.forEach(f => {
+				ir = IR.new`(fields) -> {
+					__core__chooseList(
+						fields,
+						() -> {
+							false
+						},
+						() -> {
+							(head) -> {
+								__core__ifThenElse(
+									${f.type.path}__test_data(head),
+									() -> {${ir}(__core__tailList__safe(fields))},
+									() -> {false}
+								)()
+							}(__core__headList__safe(fields))
+						}
+					)()
+				}`;
+			});
+
+			return IR.new`(data) -> {
+				__core__chooseData(
+					data,
+					() -> {false},
+					() -> {false},
+					() -> {
+						${ir}(__core__unListData__safe(data))
+					},
+					() -> {false},
+					() -> {false}
+				)()
+			}`;
+		}
+	}
+
+	/**
+	 * @internal
+	 * @param {string} path
+	 * @returns {IR}
+	 */
+	fromDataFieldsCheckToIR(path) {
+		if (this.hasTags()) {
+
+			//let ir = IR.new`(data) -> {__core__mkNilPairData(())}`;
+
+			let ir = IR.new(`(data) -> {
+				(ignore) -> {
+					data
+				}(
+					__core__ifThenElse(
+						${path}__test_data(data),
+						() -> {
+							()
+						},
+						() -> {
+							__core__trace("Warning: invalid ${this.name.toString()} data", ())
+						}
+					)()
+				)
+			}`);
+			/*for (let i = this.nFields - 1; i >= 0; i--) {
 				const f = this.#fields[i]
 				const ftPath = f.type.path;
 
-				ir = new IR([
-					new IR(`(data) -> {__core__mkCons(
+				ir = IR.new`(data) -> {
+					__core__mkCons(
 						__core__mkPairData(
 							__core__bData(#${bytesToHex(textToBytes(f.tag))}),
-							${ftPath}____to_data(${ftPath}__from_data(__helios__common__cip68_field(data, __core__bData(#${bytesToHex(textToBytes(f.tag))}))))
-						), `),
-					ir,
-					new IR(`(data)`),
-					new IR(`)}`)
-				]);
+							${ftPath}____to_data(
+								${ftPath}__from_data(
+									__helios__common__cip68_field(
+										data, 
+										__core__bData(#${bytesToHex(textToBytes(f.tag))})
+									)
+								)
+							)
+						),
+						${ir}(data)
+					)
+				}`;
 			}
 
-			ir = new IR([
-				new IR(`(data) -> {__core__constrData(`), 
-				new IR(`0, `),
-				new IR(`__core__mkCons(`), 
-				new IR(`__core__mapData(`), ir, new IR(`(data)), `), 
-				new IR(`__core__mkCons(__core__iData(1), __core__mkNilData(()))`), 
-				new IR(`)`),
-				new IR(`)}`)
-			]);
+			ir = IR.new`(data) -> {
+				__core__constrData(
+					0, 
+					__core__mkCons(
+						__core__mapData(${ir}(data)),
+						__core__mkCons(
+							__core__iData(1),
+							__core__mkNilData(())
+						)
+					)
+				)
+			}`;*/
 
 			return ir;
 		} else {
-			let ir = new IR(`(fields) -> {__core__mkNilData(())}`)
+			let ir = IR.new(`(fields) -> {
+				(ignore) -> {
+					fields
+				}(
+					__core__ifThenElse(
+						${path}__test_data(__core__listData(fields)),
+						() -> {
+							()
+						},
+						() -> {
+							__core__trace("Warning: invalid ${this.name.toString()} data", ())
+						}
+					)()
+				)
+			}`)
+
+			return ir;
+
+			/*let ir = IR.new`(fields) -> {__core__mkNilData(())}`;
 
 			for (let i = this.nFields - 1; i >= 0; i--) {
 				const ftPath = this.getFieldType(i).path;
 
-				ir = new IR([
-					new IR(`(fields) -> {__core__mkCons(${ftPath}____to_data(${ftPath}__from_data(__core__headList(fields))), `),
-					ir,
-					new IR(`(__core__tailList(fields)))}`)
-				]);
+				ir = IR.new`(fields) -> {
+					__core__mkCons(
+						${ftPath}____to_data(
+							${ftPath}__from_data(
+								__core__headList(fields)
+							)
+						), 
+						${ir}(__core__tailList(fields))
+					)
+				}`;
 			}
 
-			return ir;
+			return ir;*/
 		}
 	}
 
@@ -34603,7 +35529,7 @@ export class DataDefinition {
 				const key = `${path}__${f.name.value}`;
 
 				// equalsData is much more efficient than first converting to byteArray
-				const getter = new IR(`(self) -> {${f.type.path}__from_data(__helios__common__cip68_field(self, __core__bData(#${bytesToHex(textToBytes(f.tag))})))}`);
+				const getter = IR.new`(self) -> {${f.type.path}__from_data(__helios__common__cip68_field(self, __core__bData(#${bytesToHex(textToBytes(f.tag))})))}`;
 
 				map.set(key, getter);
 				getterNames.push(key);
@@ -34617,7 +35543,7 @@ export class DataDefinition {
 				const f = this.fields[0];
 				const key = `${path}__${f.name.value}`;
 
-				const getter =  new IR("__helios__common__identity", f.site);
+				const getter =  IR.new`__helios__common__identity${f.site}`;
 				
 				map.set(key, getter);
 
@@ -34635,50 +35561,23 @@ export class DataDefinition {
 					let getter;
 
 					if (i < 20) {
-						getter = new IR(`${getterBaseName}_${i}`, f.site);
-
-						getter = new IR([
-							new IR("("), new IR("self"), new IR(") "), 
-							new IR("->", f.site), 
-							new IR(" {"), 
-							new IR(`${f.type.path}__from_data`), new IR("("),
-							new IR(`${getterBaseName}_${i}`), new IR("("), new IR("self"), new IR(")"),
-							new IR(")"),
-							new IR("}"),
-						]);
+						getter = IR.new`(self) ${null}->${f.site} {
+							${f.type.path}__from_data(${getterBaseName}_${i}(self))
+						}`
 					} else {
 						let inner = new IR("self");
 
 						if (isConstr) {
-							inner = new IR([
-								new IR("__core__sndPair"),
-								new IR("("),
-								new IR("__core__unConstrData"), new IR("("), inner, new IR(")"),
-								new IR(")")
-							]);
+							inner = IR.new`__core__sndPair(__core__unConstrData(${inner}))`;
 						}
 
 						for (let j = 0; j < i; j++) {
-							inner = new IR([
-								new IR("__core__tailList"), new IR("("), inner, new IR(")")
-							]);
+							inner = IR.new`__core__tailList(${inner})`;
 						}
 
-						inner = new IR([
-							new IR("__core__headList"), new IR("("), inner, new IR(")")
-						]);
+						inner = IR.new`${f.type.path}__from_data(__core__headList(${inner}))`
 
-						inner = new IR([
-							new IR(`${f.type.path}__from_data`), new IR("("), inner, new IR(")")
-						]);
-
-						getter = new IR([
-							new IR("("), new IR("self"), new IR(") "), 
-							new IR("->", f.site), 
-							new IR(" {"),
-							inner,
-							new IR("}"),
-						]);
+						getter = IR.new`(self) ${null}->${f.site} {${inner}}`;
 					}
 
 					map.set(key, getter)
@@ -34962,39 +35861,59 @@ export class StructStatement extends Statement {
 	 * @param {IRDefinitions} map
 	 */
 	toIR(ctx, map) {
+		map.set(`${this.path}__test_data`, this.#dataDef.testDataToIR());
+
 		if (this.#dataDef.hasTags()) {
-			map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
-			map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
-			map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
-			map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+			map.set(`${this.path}____eq`, IR.new`__helios__common____eq${this.site}`);
+			map.set(`${this.path}____neq`, IR.new`__helios__common____neq${this.site}`);
+			map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.site}`);
+			map.set(`${this.path}____to_data`, IR.new`__helios__common__identity${this.site}`);
 
 			if (config.CHECK_CASTS && !ctx.simplify) {
-				map.set(`${this.path}__from_data`, new IR([
-					new IR(`(data) -> {`),
-					this.#dataDef.fromDataFieldsCheckToIR(),
-					new IR(`(data)`),
-					new IR(`}`)
-				], this.site));
+				map.set(`${this.path}__from_data`, IR.new`(data) -> {
+					(ignore) -> {
+						data
+					}(
+						__core__ifThenElse(
+							${this.path}__test_data(data),
+							() -> {
+								()
+							},
+							() -> {
+								__core__trace("Warning: invalid ${this.name.toString()} data", ())
+							}
+						)()
+					)
+				}${this.site}`);
 			} else {
-				map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
+				map.set(`${this.path}__from_data`, IR.new`__helios__common__identity${this.site}`);
 			}
 		} else {
 			const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
 
-			map.set(`${this.path}____eq`, new IR(`${implPath}____eq`, this.site));
-			map.set(`${this.path}____neq`, new IR(`${implPath}____neq`, this.site));
-			map.set(`${this.path}__serialize`, new IR(`${implPath}__serialize`, this.site));
+			map.set(`${this.path}____eq`, IR.new`${implPath}____eq${this.site}`);
+			map.set(`${this.path}____neq`, IR.new`${implPath}____neq${this.site}`);
+			map.set(`${this.path}__serialize`, IR.new`${implPath}__serialize${this.site}`);
 
 			// the from_data method can include field checks
 			if (this.#dataDef.fieldNames.length == 1 || (!(config.CHECK_CASTS && !ctx.simplify))) {
-				map.set(`${this.path}__from_data`, new IR(`${implPath}__from_data`, this.site));
+				map.set(`${this.path}__from_data`, IR.new`${implPath}__from_data${this.site}`);
 			} else {
-				map.set(`${this.path}__from_data`, new IR([
-					new IR(`(data) -> {`),
-					this.#dataDef.fromDataFieldsCheckToIR(),
-					new IR(`(__core__unListData(data))`),
-					new IR(`}`)
-				], this.site));
+				map.set(`${this.path}__from_data`, IR.new`(data) -> {
+					(ignore) -> {
+						__core__unListData(data)
+					}(
+						__core__ifThenElse(
+							${this.path}__test_data(data),
+							() -> {
+								()
+							},
+							() -> {
+								__core__trace("Warning: invalid ${this.name.toString()} data", ())
+							}
+						)()
+					)
+				}${this.site}`);
 			}
 
 			map.set(`${this.path}____to_data`, new IR(`${implPath}____to_data`, this.site));
@@ -35423,22 +36342,49 @@ export class EnumMember {
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(ctx, map) {
-		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.#dataDef.site));
-		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.#dataDef.site));
-		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.#dataDef.site));
+		map.set(`${this.path}____eq`, IR.new`__helios__common____eq${this.#dataDef.site}`);
+		map.set(`${this.path}____neq`, IR.new`__helios__common____neq${this.#dataDef.site}`);
+		map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.#dataDef.site}`);
+
+		map.set(`${this.path}__test_data`, IR.new`(data) -> {
+			__core__chooseData(
+				data,
+				() -> {
+					(pair) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(__core__fstPair(pair), ${this.#constrIndex}),
+							() -> {
+								${this.#dataDef.testDataToIR()}(__core__listData(__core__sndPair(pair)))
+							},
+							() -> {
+								false
+							}
+						)()
+					}(__core__unConstrData__safe(data))
+				},
+				() -> {false},
+				() -> {false},
+				() -> {false},
+				() -> {false}
+			)()
+		}`);
 
 		if (config.CHECK_CASTS && !ctx.simplify) {
-			map.set(`${this.path}__from_data`, new IR([
-				new IR(`(data) -> {`),
-				new IR(`(pair) -> {`),
-				new IR(`__core__chooseUnit(`),
-				new IR(`__helios__assert(__core__equalsInteger(__core__fstPair(pair), ${this.constrIndex}), "unexpected constructor index"), `),
-				new IR(`__core__constrData(${this.constrIndex}, `),
-				this.#dataDef.fromDataFieldsCheckToIR(),
-				new IR(`(__core__sndPair(pair))))`),
-				new IR(`}(__core__unConstrData(data))`),
-				new IR(`}`)
-			]));
+			map.set(`${this.path}__from_data`, IR.new`(data) -> {
+				(ignore) -> {
+					data
+				}(
+					__core__ifThenElse(
+						${this.path}__test_data(data),
+						() -> {
+							()
+						},
+						() -> {
+							__core__trace("Warning: invalid ${this.name.toString()} data", ())
+						}
+					)()
+				)
+			}`);
 		} else {
 			map.set(`${this.path}__from_data`, new IR(`(data) -> {
 				__helios__common__assert_constr_index(data, ${this.constrIndex})
@@ -35738,43 +36684,59 @@ export class EnumStatement extends Statement {
 	}
 
 	/**
+	 * @returns {IR}
+	 */
+	testDataToIR() {
+		let ir = IR.new`false`;
+
+		this.#members.forEach(m => {
+			ir = IR.new`__core__ifThenElse(
+				${m.path}__test_data(data),
+				() -> {
+					true
+				},
+				() -> {
+					${ir}
+				}
+			)()`;
+		});
+
+		return IR.new`(data) -> {
+			${ir}
+		}`;
+	}
+
+	/**
 	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
 	toIR(ctx, map) {
-		map.set(`${this.path}____eq`, new IR("__helios__common____eq", this.site));
-		map.set(`${this.path}____neq`, new IR("__helios__common____neq", this.site));
-		map.set(`${this.path}__serialize`, new IR("__helios__common__serialize", this.site));
-		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.site));
+		map.set(`${this.path}____eq`, IR.new`__helios__common____eq${this.site}`);
+		map.set(`${this.path}____neq`, IR.new`__helios__common____neq${this.site}`);
+		map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.site}`);
+		map.set(`${this.path}____to_data`, IR.new`__helios__common__identity${this.site}`);
+
+		map.set(`${this.path}__test_data`, this.testDataToIR());
 
 		// there could be circular dependencies here, which is ok
 		if (config.CHECK_CASTS && !ctx.simplify) {
-			let ir = new IR(`__helios__error("invalid enum index for ${this.name}")`);
-
-			for (let i = this.nEnumMembers - 1; i >= 0; i--) {
-				const emPath = this.#members[i].path;
-				ir = new IR([
-					new IR(`__core__ifThenElse(`),
-					new IR(`__core__equalsInteger(index, ${i}), `),
-					new IR(`() -> {`),
-					new IR(`${emPath}__from_data(data)`),
-					new IR(`}, `),
-					new IR(`() -> {`),
-					ir,
-					new IR(`}`),
-					new IR(`)()`)
-				]);
-			}
-
-			map.set(`${this.path}__from_data`, new IR([
-				new IR(`(data) -> {`),
-				new IR(`(index) -> {`),
-				ir,
-				new IR(`}(__core__fstPair(__core__unConstrData(data)))`),
-				new IR(`}`, this.site)
-			]));
+			map.set(`${this.path}__from_data`, IR.new`(data) -> {
+				(ignore) -> {
+					data
+				}(
+					__core__ifThenElse(
+						${this.path}__test_data(data),
+						() -> {
+							()
+						},
+						() -> {
+							__core__trace("Warning: invalid ${this.name.toString()} data", ())
+						}
+					)()
+				)
+			}${this.site}`);
 		} else {
-			map.set(`${this.path}__from_data`, new IR("__helios__common__identity", this.site));
+			map.set(`${this.path}__from_data`, IR.new`__helios__common__identity${this.site}`);
 		}
 
 		// member __new and copy methods might depend on __to_data, so must be added after
@@ -39173,7 +40135,7 @@ export class IRScope {
 	 * @returns {boolean}
 	 */
 	static isBuiltin(name, strict = false) {
-		if (name.startsWith("__core")) {
+		if (name.startsWith(BUILTIN_PREFIX)) {
 			if (strict) {
 				void this.findBuiltin(name); // assert that builtin exists
 			}
@@ -39190,7 +40152,7 @@ export class IRScope {
 	 * @returns {number}
 	 */
 	static findBuiltin(name) {
-		let i = UPLC_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
+		let i = UPLC_BUILTINS.findIndex(info => { return BUILTIN_PREFIX + info.name == name });
 		assert(i != -1, `${name} is not a real builtin`);
 		return i;
 	}
@@ -39241,6 +40203,9 @@ export class IRVariable extends Token {
 		return this.#name.toString();
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return this.name;
 	}
@@ -39265,483 +40230,111 @@ export class IRVariable extends Token {
 	}
 }
 
-/**
- * @internal
- */
-export class IRValue {
-	constructor() {
-	}
-
-	/**
-	 * @param {IRValue[]} args 
-	 * @returns {?IRValue}
-	 */
-	call(args) {
-		throw new Error("not a function");
-	}
-
-	/**
-	 * @type {null | UplcValue}
-	 */
-	get value() {
-		throw new Error("not a literal value");
-	}
-}
-
-/**
- * @internal
- */
-export class IRFuncValue extends IRValue {
-	#callback;
-
-	/**
-	 * @param {(args: IRValue[]) => ?IRValue} callback
-	 */
-	constructor(callback) {
-		super();
-		this.#callback = callback;
-	}
-
-	/**
-	 * @param {IRValue[]} args 
-	 * @returns {?IRValue}
-	 */
-	call(args) {
-		return this.#callback(args);
-	}
-}
-
-/**
- * @internal
- */
-export class IRLiteralValue extends IRValue {
-	#value;
-
-	/**
-	 * @param {UplcValue} value 
-	 */
-	constructor(value) {
-		super();
-		this.#value = value;
-	}
-
-	/**
-	 * @type {UplcValue}
-	 */
-	get value() {
-		return this.#value;
-	}
-}
-
-/**
- * @internal
- */
-export class IRDeferredValue extends IRValue {
-    #deferred;
-
-    /**
-     * @type {undefined | null | IRValue}
-     */
-    #cache;
-
-    /**
-     * @param {() => ?IRValue} deferred
-     */
-    constructor(deferred) {
-        super();
-        this.#deferred = deferred;
-        this.#cache = undefined;
-    }
-    /**
-     * @param {IRValue[]} args 
-     * @returns {null | IRValue}
-     */
-    call(args) {
-        if (this.#cache === undefined) {
-            this.#cache = this.#deferred();
-        }
-        
-        if (this.#cache != null) {
-            return this.#cache.call(args);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * @type {null | UplcValue}
-     */
-    get value() {
-        if (this.#cache === undefined) {
-            this.#cache = this.#deferred();
-        }
-        
-        if (this.#cache !== undefined) {
-            return this.#cache?.value ?? null;
-        } else {
-            throw new Error("not a value");
-        }
-    }
-
-}
-
-/**
- * @internal
- */
-export class IRCallStack {
-	#throwRTErrors;
-	#parent;
-	#variable;
-	#value;
-
-	/**
-	 * @param {boolean} throwRTErrors
-	 * @param {?IRCallStack} parent 
-	 * @param {?IRVariable} variable 
-	 * @param {?IRValue} value 
-	 */
-	constructor(throwRTErrors, parent = null, variable = null, value = null) {
-		this.#throwRTErrors = throwRTErrors;
-		this.#parent = parent;
-		this.#variable = variable;
-		this.#value = value;
-	}
-
-	get throwRTErrors() {
-		return this.#throwRTErrors;
-	}
-
-	/**
-	 * @param {IRVariable} variable 
-	 * @returns {?IRValue}
-	 */
-	get(variable) {
-		if (this.#variable !== null && this.#variable === variable) {
-			return this.#value;
-		} else if (this.#parent !== null) {
-			return this.#parent.get(variable);
-		} else {
-			return new IRValue()
-			return null;
-		}
-	}
-
-	/**
-	 * @param {IRVariable} variable 
-	 * @param {IRValue} value 
-	 * @returns {IRCallStack}
-	 */
-	set(variable, value) {
-		return new IRCallStack(this.#throwRTErrors, this, variable, value);
-	}
-
-	/**
-	 * @returns {string[]}
-	 */
-	dump() {
-		return (this.#parent?.dump() ?? []).concat([this.#variable?.name ?? ""])
-	}
-}
-
 
 /////////////////////////////
 // Section 28: IR AST objects
 /////////////////////////////
 
-/**
- * @internal
- * @typedef {Map<IRVariable, IRLiteralExpr>} IRLiteralRegistry
- */
 
 /**
- * A map from variables to variable references
- * Scope-based
+ * Interface for:
+ *   * IRErrorExpr
+ *   * IRCallExpr
+ *   * IRFuncExpr
+ *   * IRNameExpr
+ *   * IRLiteralExpr
+ * 
+ * The copy() method is needed because inlining can't use the same IRNameExpr twice, 
+ *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+ *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
  * @internal
+ * @typedef {{
+ *   site: Site,
+ *   resolveNames(scope: IRScope): void,
+ *   toString(indent?: string): string,
+ *   copy(): IRExpr,
+ *   toUplc(): UplcTerm
+ * }} IRExpr
  */
-export class IRNameExprRegistry {
-	/**
-	 * @type {Map<IRVariable, Set<IRNameExpr>>}
-	 */
-	#map;
 
-	/**
-	 * @type {Set<IRVariable>}
-	 */
-	#maybeInsideLoop;
+const HASH_PRIME = 97;
 
-	/**
-	 * Reset whenever recursion is detected.
-	 * @type {Set<IRVariable>}
-	 */
-	#variables;
+const MAX_HASH_NUMBER = 91910196476941; // prime closest to Math.floor(Number.MAX_SAFE_INTEGER/(HASH_PRIME + 1));
+/**
+ * @internal
+ * @param {number} start
+ * @param {number} x
+ * @returns {number}
+ */
+function hashNumber(start, x) {
+	const res = (start*HASH_PRIME ^ x)%MAX_HASH_NUMBER;
 
-	/**
-	 * @param {Map<IRVariable, Set<IRNameExpr>>} map
-	 */
-	constructor(map = new Map(), maybeInsideLoop = new Set()) {
-		this.#map = map;
-		this.#maybeInsideLoop = maybeInsideLoop;
-		this.#variables = new Set();
+	if (Number.isNaN(res) || !Number.isFinite(res)) {
+		throw new Error("MAX_HASH_NUMBER too large");
 	}
 
-	/**
-	 * @param {IRNameExpr} nameExpr 
-	 */
-	register(nameExpr) {
-		if (!nameExpr.isCore()) {
-			const variable = nameExpr.variable;
-
-			const entry = this.#map.get(variable)
-
-			if (!entry) {
-				this.#map.set(variable, new Set([nameExpr]));
-			} else {
-				entry.add(nameExpr);
-			}
-
-			// add another reference in case of recursion
-			if (!this.#variables.has(variable)) {
-				// i.e. if the variable wasn't declared in the same non-recursive block, it might be referenced inside a recursive call
-				// variables that are added to the #maybeInsideLoop set can never be inlined 
-				this.#maybeInsideLoop.add(variable);
-			}
-		}
-	}
-
-	/**
-	 * Used to prevent inlining upon recursion
-	 * @param {IRVariable} variable
-	 */
-	registerVariable(variable) {
-		this.#variables.add(variable)
-	}
-
-	/**
-	 * @param {IRVariable} variable 
-	 * @returns {number}
-	 */
-	countReferences(variable) {
-		const set = this.#map.get(variable);
-
-		if (set == undefined) {
-			return 0;
-		} else {
-			return set.size;
-		}
-	}
-
-	/**
-	 * @param {IRVariable} variable 
-	 * @returns {boolean}
-	 */
-	maybeInsideLoop(variable) {
-		return this.#maybeInsideLoop.has(variable);
-	}
-
-	/**
-	 * Called whenever recursion is detected
-	 * @returns {IRNameExprRegistry}
-	 */
-	resetVariables() {
-		return new IRNameExprRegistry(this.#map, this.#maybeInsideLoop);
-	}
+	return res;
 }
 
 /**
  * @internal
+ * @param {number | string | boolean} x 
+ * @param {number} start
+ * @returns {number}
  */
-export class IRExprRegistry {
-	#nameExprs;
+export function hashCode(x, start = 0) {
+    let c = start;
 
-	/**
-	 * @type {Map<IRVariable, IRExpr>}
-	 */
-	#inline;
+    if (typeof x == "boolean") {
+        c = hashNumber(c, x ? 1 : 0);
+    } else if (typeof x == "number") {
+        c = hashNumber(c, x);
+    } else if (typeof x == "string") {
+        for (let i = 0; i < x.length; i++) {
+            c = hashNumber(c, x.charCodeAt(i));
+        }
+    } else {
+        throw new Error("unexpected type");
+    }
 
-	/**
-	 * @param {IRNameExprRegistry} nameExprs 
-	 */
-	constructor(nameExprs) {
-		this.#nameExprs = nameExprs;
-		this.#inline = new Map();
-	}
-
-	/**
-	 * @param {IRVariable} variable 
-	 * @returns {number}
-	 */
-	countReferences(variable) {
-		return this.#nameExprs.countReferences(variable);
-	}
-
-	/**
-	 * @param {IRVariable} variable 
-	 * @returns {boolean}
-	 */
-	maybeInsideLoop(variable) {
-		return this.#nameExprs.maybeInsideLoop(variable);
-	}
-
-	/**
-	 * @param {IRVariable} variable
-	 * @returns {boolean}
-	 */
-	isInlineable(variable) {
-		return this.#inline.has(variable);
-	}
-
-	/**
-	 * @param {IRVariable} variable
-	 * @returns {IRExpr}
-	 */
-	getInlineable(variable) {
-		return assertDefined(this.#inline.get(variable), `${this.isInlineable(variable)} ????`).copy(new Map());
-	}
-
-	/**
-	 * @param {IRVariable} variable 
-	 * @param {IRExpr} expr 
-	 */
-	addInlineable(variable, expr) {
-		this.#inline.set(variable, assertDefined(expr));
-	}
-}
-
-/**
- * Base class of all Intermediate Representation expressions
- * @internal
- */
-export class IRExpr extends Token {
-	/**
-	 * @param {Site} site 
-	 */
-	constructor(site) {
-		super(site);
-	}
-
-	/**
-	 * For pretty printing the IR
-	 * @param {string} indent 
-	 * @returns {string}
-	 */
-	toString(indent = "") {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Link IRNameExprs to variables
-	 * @param {IRScope} scope 
-	 */
-	resolveNames(scope) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Turns all IRConstExpr instances into IRLiteralExpr instances
-	 * @param {IRCallStack} stack 
-	 * @returns {IRExpr}
-	 */
-	evalConstants(stack) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Evaluates an expression to something (hopefully) literal
-	 * Returns null if it the result would be worse than the current expression
-	 * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
-	 * @param {IRCallStack} stack
-	 * @returns {null | IRValue}
-	 */
-	eval(stack) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Used to inline literals and to evaluate IRCoreCallExpr instances with only literal args.
-	 * @param {IRLiteralRegistry} literals
-	 * @returns {IRExpr}
-	 */
-	simplifyLiterals(literals) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Used before simplifyTopology
-	 * @param {IRNameExprRegistry} nameExprs
-	 */
-	registerNameExprs(nameExprs) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the Debruijn index
-	 * @param {Map<IRVariable, IRVariable>} newVars
-	 * @returns {IRExpr}
-	 */
-	copy(newVars) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @param {IRVariable} fnVar
-	 * @param {number[]} remaining
-	 * @returns {IRExpr}
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * @returns {UplcTerm}
-	 */
-	toUplc() {
-		throw new Error("not yet implemented");
-	}
+    return c;
 }
 
 /**
  * Intermediate Representation variable reference expression
  * @internal
+ * @implements {IRExpr}
  */
-export class IRNameExpr extends IRExpr {
+export class IRNameExpr {
+	/**
+	 * @readonly
+	 * @type {Site}
+	 */
+	site;
+
 	#name;
 
 	/**
-	 * @type {?number} - cached debruijn index 
+	 * @type {null | number} - cached debruijn index 
 	 */
 	#index;
 
 	/**
-	 * @type {?IRVariable} - cached variable
+	 * @type {null | IRVariable} - cached variable
 	 */
 	#variable;
 
 	/**
-	 * @type {?IRValue} - cached eval result (reused when eval is called within simplifyLiterals)
-	 */
-	#value;
-
-	/**
 	 * @param {Word} name 
-	 * @param {?IRVariable} variable
-	 * @param {?IRValue} value
+	 * @param {null | IRVariable} variable
 	 */
-	constructor(name, variable = null, value = null) {
-		super(name.site);
+	constructor(name, variable = null) {
+		this.site = name.site;
 		assert(name.toString() != "_");
 		assert(!name.toString().startsWith("undefined"));
 		this.#name = name;
 		this.#index = null;
 		this.#variable = variable;
-		this.#value = value;
 	}
 
 	/**
@@ -39764,13 +40357,29 @@ export class IRNameExpr extends IRExpr {
 	}
 
 	/**
+	 * Used when inlining
+	 * @returns {IRNameExpr}
+	 */
+	copy() {
+		return new IRNameExpr(this.#name, this.#variable);
+	}
+
+	/**
 	 * @internal
 	 * @returns {boolean}
 	 */
 	isCore() {
 		const name = this.name;
 
-		return name.startsWith("__core");
+		return name.startsWith(BUILTIN_PREFIX);
+	}
+
+	/**
+	 * @internal
+	 * @returns {boolean}
+	 */
+	isParam() {
+		return this.name.startsWith("__PARAM")
 	}
 
 	/**
@@ -39797,8 +40406,8 @@ export class IRNameExpr extends IRExpr {
 	 * @param {IRScope} scope
 	 */
 	resolveNames(scope) {
-		if (!this.name.startsWith("__core")) {
-			if (this.#variable == null || this.name.startsWith("__PARAM")) {
+		if (!this.isCore()) {
+			if (this.#variable == null || this.isParam()) {
 				[this.#index, this.#variable] = scope.get(this.#name);
 			} else {
 				[this.#index, this.#variable] = scope.get(this.#variable);
@@ -39807,115 +40416,11 @@ export class IRNameExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRCallStack} stack 
-	 * @returns {IRExpr}
-	 */
-	evalConstants(stack) {
-		if (this.#variable != null) {
-			this.#value = stack.get(this.#variable);
-		}
-
-		return this;
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
-	 */
-	eval(stack) {
-		if (this.isCore()) {
-			return new IRFuncValue((args) => {
-				return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.#name.value.slice("__core__".length), args);
-			});
-		} else if (this.#variable === null) {
-			throw new Error("variable should be set");
-		} else {
-			// prefer result from stack, and use cached result as backup
-			const result = stack.get(this.#variable);
-
-			if (result == null) {
-				return this.#value;
-			} else {
-				return result;
-			}
-		}
-	}
-
-	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining 
-	 * @returns {IRExpr}
-	 */
-	removeUnusedCallArgs(fnVar, remaining) {
-		return this;
-	}
-	
-	/**
-	 * @param {IRLiteralRegistry} literals
-	 * @returns {IRExpr}
-	 */
-	simplifyLiterals(literals) {
-		if (this.#variable !== null && literals.has(this.#variable)) {
-			return assertDefined(literals.get(this.#variable));
-		} else if (this.#value instanceof IRLiteralExpr) {
-			return this.#value;
-		} else {
-			return this;
-		}
-	}
-
-	/**
-	 * @param {IRNameExprRegistry} nameExprs
-	 */
-	registerNameExprs(nameExprs) {
-		nameExprs.register(this);
-	}
-
-	/**
-	 * @param {Map<IRVariable, IRVariable>} newVars
-	 * @returns {IRExpr}
-	 */
-	copy(newVars) {
-		let v = this.#variable;
-
-		if (v != null) {
-			const maybeNewVar = newVars.get(v);
-
-			if (maybeNewVar != undefined) {
-				v = maybeNewVar;
-			}
-		}
-
-		return new IRNameExpr(this.#name, v, this.#value);
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		if (!this.isCore() && registry.isInlineable(this.variable)) {
-			return registry.getInlineable(this.variable);
-		} else {
-			return this;
-		}
-	}
-
-	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		return this;
-	}
-
-	/**
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
-		if (this.name.startsWith("__core")) {
-			return IRCoreCallExpr.newUplcBuiltin(this.site, this.name);
+		if (this.isCore()) {
+			return IRCallExpr.newUplcBuiltin(this.site, this.name);
 		} else if (this.#index === null) {
 			// use a dummy index (for size calculation)
 			return new UplcVariable(
@@ -39934,8 +40439,15 @@ export class IRNameExpr extends IRExpr {
 /**
  * IR wrapper for UplcValues, representing literals
  * @internal
+ * @implements {IRExpr}
  */
-export class IRLiteralExpr extends IRExpr {
+export class IRLiteralExpr {
+	/**
+	 * @readonly
+	 * @type {Site}
+	 */
+	site;
+
 	/**
 	 * @type {UplcValue}
 	 */
@@ -39945,7 +40457,7 @@ export class IRLiteralExpr extends IRExpr {
 	 * @param {UplcValue} value 
 	 */
 	constructor(value) {
-		super(value.site);
+		this.site = value.site;
 
 		this.#value = value;
 	}
@@ -39966,73 +40478,17 @@ export class IRLiteralExpr extends IRExpr {
 	}
 
 	/**
+	 * @returns {IRExpr}
+	 */
+	copy() {
+		return this;
+	}
+
+	/**
 	 * Linking doesn't do anything for literals
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 */
-	evalConstants(stack) {
-		return this;
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
-	 */
-	eval(stack) {
-		return new IRLiteralValue(this.value);
-	}
-
-	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining 
-	 * @returns {IRExpr}
-	 */
-	removeUnusedCallArgs(fnVar, remaining) {
-		return this;
-	}
-
-	/**
-	 * @param {IRLiteralRegistry} literals
-	 * @returns {IRExpr}
-	 */
-	simplifyLiterals(literals) {
-		return this;
-	}
-
-	/**
-	 * @param {IRNameExprRegistry} nameExprs
-	 */
-	registerNameExprs(nameExprs) {
-	}
-
-	/**
-	 * @param {Map<IRVariable, IRVariable>} newVars
-	 * @returns {IRExpr}
-	 */
-	copy(newVars) {
-		return new IRLiteralExpr(this.#value);
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		return this;
-	}
-
-	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		return this;
 	}
 
 	/**
@@ -40044,117 +40500,63 @@ export class IRLiteralExpr extends IRExpr {
 }
 
 /**
- * The IRExpr simplify methods aren't implemented because any IRConstExpr instances should've been eliminated during evalConstants.
- * @internal
- */
-export class IRConstExpr extends IRExpr {
-	#expr;
-
-	/**
-	 * @param {Site} site 
-	 * @param {IRExpr} expr 
-	 */
-	constructor(site, expr) {
-		super(site);
-		this.#expr = expr;
-	}
-
-	/**
-	 * @param {string} indent 
-	 * @returns {string}
-	 */
-	toString(indent = "") {
-		return `const(${this.#expr.toString(indent)})`;
-	}
-
-	/**
-	 * @param {IRNameExprRegistry} nameExprs
-	 */
-	registerNameExprs(nameExprs) {
-		this.#expr.registerNameExprs(nameExprs);
-	}
-
-	/**
-	 * @param {IRScope} scope 
-	 */
-	resolveNames(scope) {
-		this.#expr.resolveNames(scope);
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRExpr}
-	 */
-	evalConstants(stack) {
-		const result = this.#expr.eval(stack);
-
-		if (result != null && result.value != null) {
-			return new IRLiteralExpr(result.value);
-		} else {
-			if (!config.IGNORE_UNEVALUATED_CONSTANTS) {
-				console.error("failed to evaluate:", this.toString());
-			}
-			
-			return this.#expr;
-		}
-	}
-
-	/**
-	 * @param {IRCallStack} stack 
-	 * @returns {?IRValue}
-	 */
-	eval(stack) {
-		return this.#expr.eval(stack);
-	}
-
-	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining 
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		return new IRConstExpr(this.site, this.#expr.simplifyUnusedRecursionArgs(fnVar, remaining));
-	}
-}
-
-/**
  * IR function expression with some args, that act as the header, and a body expression
  * @internal
+ * @implements {IRExpr}
  */
-export class IRFuncExpr extends IRExpr {
-	#args;
-	#body;
+export class IRFuncExpr {
+	/**
+	 * @readonly
+	 * @type {Site}
+	 */
+	site;
+
+	/**
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
+	 * @type {IRVariable[]}
+	 */
+	args;
+
+	/**
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
+	 * @type {IRExpr}
+	 */
+	body;
+
+	/**
+	 * A unique tag, that distinguishes each IRFuncExpr from each other IRFuncExpr (used for hashing)
+	 * @readonly
+	 * @type {number}
+	 */
+	tag;
 
 	/**
 	 * @param {Site} site 
 	 * @param {IRVariable[]} args 
 	 * @param {IRExpr} body 
+	 * @param {number} tag
 	 */
-	constructor(site, args, body) {
-		super(site);
-		this.#args = args;
-		this.#body = assertDefined(body);
-	}
-
-	get args() {
-		return this.#args.slice();
-	}
-
-	get body() {
-		return this.#body;
+	constructor(site, args, body, tag) {
+		this.site = site;
+		this.args = args;
+		this.body = assertDefined(body);
+		this.tag = tag;
 	}
 
 	/**
 	 * @returns {boolean}
 	 */
 	hasOptArgs() {
-		const b = this.#args.some(a => a.name.startsWith("__useopt__"));
+		const b = this.args.some(a => a.name.startsWith("__useopt__"));
 
 		if (b) {
 			return b;
 		}
 
-		if (this.#body instanceof IRFuncExpr) {
-			return this.#body.hasOptArgs();
+		if (this.body instanceof IRFuncExpr) {
+			return this.body.hasOptArgs();
 		} else {
 			return false;
 		}
@@ -40165,10 +40567,10 @@ export class IRFuncExpr extends IRExpr {
 	 * @returns {string}
 	 */
 	toString(indent = "") {
-		let innerIndent = (this.#body instanceof IRUserCallExpr && this.#body.argExprs.length == 1 && this.#body.fnExpr instanceof IRFuncExpr && this.#body.fnExpr.args[0].name.startsWith("__")) ? indent : indent + TAB;
+		let innerIndent = (this.body instanceof IRCallExpr && this.body.func instanceof IRFuncExpr && this.body.args.length == 1 && this.body.func instanceof IRFuncExpr && this.body.func.args[0].name.startsWith("__")) ? indent : indent + TAB;
 
-		let s = "(" + this.#args.map(n => n.toString()).join(", ") + ") -> {\n" + innerIndent;
-		s += this.#body.toString(innerIndent);
+		let s = "(" + this.args.map(n => n.toString()).join(", ") + ") -> {\n" + innerIndent;
+		s += this.body.toString(innerIndent);
 		s += "\n" + indent + "}";
 
 		return s;
@@ -40180,92 +40582,32 @@ export class IRFuncExpr extends IRExpr {
 	resolveNames(scope) {
 		// in the zero-arg case no Debruijn indices need to be added because we use Delay/Force
 
-		for (let arg of this.#args) {
+		for (let arg of this.args) {
 			scope = new IRScope(scope, arg);
 		}
 
-		this.#body.resolveNames(scope);
+		this.body.resolveNames(scope);
 	}
 
 	/**
-	 * @param {IRCallStack} stack 
-	 */
-	evalConstants(stack) {
-		return new IRFuncExpr(this.site, this.args, this.#body.evalConstants(stack));
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {?IRValue}
-	 */
-	eval(stack) {
-		return new IRFuncValue((args) => {
-			if (args.length != this.#args.length) {
-				throw this.site.syntaxError(`expected ${this.#args.length} arg(s), got ${args.length} arg(s)`);
-			}
-
-			for (let i = 0; i < args.length; i++) {
-				stack = stack.set(this.#args[i], args[i]);
-			}
-
-			return this.#body.eval(stack);
-		});
-	}
-	
-	/**
-	 * @param {IRNameExprRegistry} nameExprs
-	 */
-	registerNameExprs(nameExprs) {
-		this.#args.forEach(a => nameExprs.registerVariable(a));
-
-		this.#body.registerNameExprs(nameExprs);
-	}
-
-	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining
-	 * @returns {IRExpr} 
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		return new IRFuncExpr(this.site, this.args, this.#body.simplifyUnusedRecursionArgs(fnVar, remaining));
-	}
-
-	/**
-	 * @param {IRLiteralRegistry} literals 
 	 * @returns {IRExpr}
 	 */
-	simplifyLiterals(literals) {
-		return new IRFuncExpr(this.site, this.args, this.#body.simplifyLiterals(literals));
-	}
-
-	/**
-	 * @param {Map<IRVariable, IRVariable>} newVars
-	 * @returns {IRExpr}
-	 */
-	copy(newVars) {
-		return new IRFuncExpr(this.site, this.args.map(oldArg => oldArg.copy(newVars)), this.#body.copy(newVars));
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		return new IRFuncExpr(this.site, this.args, this.#body.simplifyTopology(registry));
+	copy() {
+		return new IRFuncExpr(this.site, this.args, this.body.copy(), this.tag);
 	}
 
 	/** 
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
-		let term = this.#body.toUplc();
+		let term = this.body.toUplc();
 
-		if (this.#args.length == 0) {
+		if (this.args.length == 0) {
 			// a zero-arg func is turned into a UplcDelay term
 			term = new UplcDelay(this.site, term);
 		} else {
-			for (let i = this.#args.length - 1; i >= 0; i--) {
-				term = new UplcLambda(this.site, term, this.#args[i].toString());
+			for (let i = this.args.length - 1; i >= 0; i--) {
+				term = new UplcLambda(this.site, term, this.args[i].toString());
 			}
 		}
 
@@ -40276,28 +40618,67 @@ export class IRFuncExpr extends IRExpr {
 /**
  * Base class of IRUserCallExpr and IRCoreCallExpr
  * @internal
+ * @implements {IRExpr}
  */
-export class IRCallExpr extends IRExpr {
-	#argExprs;
-	#parensSite;
+export class IRCallExpr {
+	/**
+	 * @readonly
+	 * @type {Site}
+	 */
+	site;
+
+	/**
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
+	 * @type {IRExpr}
+	 */
+	func;
+
+	/**
+	 * Mutation is more convenient and much faster when applying some optimizations.
+	 * @readwrite
+	 * @type {IRExpr[]}
+	 */
+	args;
 
 	/**
 	 * @param {Site} site
-	 * @param {IRExpr[]} argExprs 
-	 * @param {Site} parensSite 
+	 * @param {IRExpr} func
+	 * @param {IRExpr[]} args
 	 */
-	constructor(site, argExprs, parensSite) {
-		super(parensSite);
-		this.#argExprs = assertDefined(argExprs);
-		this.#parensSite = parensSite;
+	constructor(site, func, args) {
+		this.site = site;
+		this.func = func;
+		this.args = args;
 	}
 
-	get argExprs() {
-		return this.#argExprs.slice();
+	/**
+	 * @returns {boolean}
+	 */
+	isSafeBuiltin() {
+		if (this.func instanceof IRNameExpr && this.func.isCore()) {
+			return this.func.name.endsWith(SAFE_BUILTIN_SUFFIX);
+		} else {
+			return false;
+		}
 	}
 
-	get parensSite() {
-		return this.#parensSite;
+	/**
+	 * Returns an empty string this isn't a builtin
+	 * @type {string}
+	 */
+	get builtinName() {
+		if (this.func instanceof IRNameExpr && this.func.isCore()) {
+			let name = this.func.name.toString().slice(BUILTIN_PREFIX.length);
+
+			if (name.endsWith(SAFE_BUILTIN_SUFFIX)) {
+				name = name.slice(0, name.length - SAFE_BUILTIN_SUFFIX.length);
+			}
+
+			return name;
+		} else {
+			return "";
+		}
 	}
 
 	/**
@@ -40305,121 +40686,7 @@ export class IRCallExpr extends IRExpr {
 	 * @returns {string}
 	 */
 	argsToString(indent = "") {
-		return this.#argExprs.map(argExpr => argExpr.toString(indent)).join(", ")
-	}
-
-	/**
-	 * @param {IRScope} scope 
-	 */
-	resolveNamesInArgs(scope) {
-		for (let argExpr of this.#argExprs) {
-			argExpr.resolveNames(scope);
-		}
-	}
-
-	/**
-	 * @param {IRCallStack} stack 
-	 * @returns {IRExpr[]}
-	 */
-	evalConstantsInArgs(stack) {
-		return this.#argExprs.map(a => a.evalConstants(stack));
-	}
-
-	/** 
-	 * @param {IRCallStack} stack
-	 * @returns {?IRValue[]} 
-	 */
-	evalArgs(stack) {
-		/**
-		 * @type {IRValue[]}
-		 */
-		let args = [];
-
-		for (let argExpr of this.argExprs) {
-			let argVal = argExpr.eval(stack);
-			if (argVal !== null) {
-				args.push(argVal);
-			} else {
-				return null;
-			}
-		}
-
-		return args;
-	}
-
-	/**
-	 * @param {IRLiteralRegistry} literals
-	 * @returns {IRExpr[]}
-	 */
-	simplifyLiteralsInArgs(literals) {
-		return this.#argExprs.map(a => a.simplifyLiterals(literals));
-	}
-
-	/**
-	 * @param {IRNameExprRegistry} nameExprs 
-	 */
-	registerNameExprsInArgs(nameExprs) {
-		this.#argExprs.forEach(a => a.registerNameExprs(nameExprs));
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr[]}
-	 */
-	simplifyTopologyInArgs(registry) {
-		return this.#argExprs.map(a => assertDefined(a.simplifyTopology(registry)));
-	}
-
-	/**
-	 * @param {UplcTerm} term
-	 * @returns {UplcTerm}
-	 */
-	toUplcCall(term) {
-		if (this.#argExprs.length == 0) {
-			// assuming underlying zero-arg function has been converted into a UplcDelay term
-			term = new UplcForce(this.site, term);
-		} else {
-			for (let argExpr of this.#argExprs) {
-				
-				term = new UplcCall(this.site, term, argExpr.toUplc());
-			}
-		}
-
-		return term;
-	}
-}
-
-/**
- * IR function call of core functions
- * @internal
- */
-export class IRCoreCallExpr extends IRCallExpr {
-	#name;
-
-	/**
-	 * @param {Word} name 
-	 * @param {IRExpr[]} argExprs 
-	 * @param {Site} parensSite 
-	 */
-	constructor(name, argExprs, parensSite) {
-		super(name.site, argExprs, parensSite);
-		assert(name.value !== "" && name.value !== "error");
-		this.#name = name;
-
-		assert(this.builtinName !== "", name.value);
-	}
-
-	get builtinName() {
-		return this.#name.toString().slice(8);
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isCast() {
-		let name = this.builtinName;
-
-		return name == "iData" || name == "bData" || name == "unIData" || name == "unBData" || name == "mapData" || name == "unMapData" || name == "listData" || name == "unListData";
+		return this.args.map(argExpr => argExpr.toString(indent)).join(", ")
 	}
 
 	/**
@@ -40428,9 +40695,22 @@ export class IRCoreCallExpr extends IRCallExpr {
 	 */
 	toString(indent = "") {
 		if (this.builtinName == "ifThenElse") {
-			return `${this.#name.toString()}(\n${indent}${TAB}${this.argExprs[0].toString(indent + TAB)},\n${indent}${TAB}${this.argExprs[1].toString(indent + TAB)},\n${indent}${TAB}${this.argExprs[2].toString(indent+TAB)}\n${indent})`;
+			return `${BUILTIN_PREFIX}${this.builtinName}(\n${indent}${TAB}${this.args[0].toString(indent + TAB)},\n${indent}${TAB}${this.args[1].toString(indent + TAB)},\n${indent}${TAB}${this.args[2].toString(indent+TAB)}\n${indent})`;
+		} else if (this.builtinName != "") {
+			return `${BUILTIN_PREFIX}${this.builtinName}(${this.argsToString(indent)})`;
 		} else {
-			return `${this.#name.toString()}(${this.argsToString(indent)})`;
+			let comment = (this.func instanceof IRFuncExpr && this.func.args.length == 1 && this.func.args[0].name.startsWith("__")) ? `/*${this.func.args[0].name}*/` : "";
+
+			return `${this.func.toString(indent)}(${comment}${this.argsToString(indent)})`;
+		}
+	}
+
+	/**
+	 * @param {IRScope} scope 
+	 */
+	resolveNamesInArgs(scope) {
+		for (let argExpr of this.args) {
+			argExpr.resolveNames(scope);
 		}
 	}
 
@@ -40438,396 +40718,37 @@ export class IRCoreCallExpr extends IRCallExpr {
 	 * @param {IRScope} scope 
 	 */
 	resolveNames(scope) {
-		this.resolveNamesInArgs(scope);
-	}
-
-	/**
-	 * @param {Site} site
-	 * @param {boolean} throwRTErrors
-	 * @param {string} builtinName
-	 * @param {IRValue[]} args 
-	 * @returns {?IRValue}
-	 */
-	static evalValues(site, throwRTErrors, builtinName, args) {
-		if (builtinName == "ifThenElse") {
-			let cond = args[0].value;
-			if (cond !== null && cond instanceof UplcBool) {
-				if (cond.bool) {
-					return args[1];
-				} else {
-					return args[2];
-				}
-			} else {
-				return null;
-			}
-		} else if (builtinName == "chooseList") {
-			const lst = args[0].value;
-
-			if (lst !== null && lst instanceof UplcList) {
-				if (lst.length == 0) {
-					return args[1];
-				} else {
-					return args[2];
-				}
-			} else {
-				return null;
-			}
-		} else if (builtinName == "chooseUnit") {
-			return args[1];
-		} else if (builtinName == "trace") {
-			return args[1];
+		if (this.func instanceof IRNameExpr && this.func.isCore()) {
+			this.resolveNamesInArgs(scope);
 		} else {
-			try {
-				/**
-				 * @type {UplcValue[]}
-				 */
-				let argValues = [];
-
-				for (let arg of args) {
-					if (arg.value !== null) {
-						argValues.push(arg.value);
-					} else {
-						return null;
-					}
-				}
-			
-				let result = UplcBuiltin.evalStatic(new Word(Site.dummy(), builtinName), argValues);
-
-				return new IRLiteralValue(result);
-			} catch(e) {
-				// runtime errors like division by zero are allowed if throwRTErrors is false
-				if (e instanceof RuntimeError) {
-					if (!throwRTErrors) {
-						return null;
-					} else {
-						throw e;
-					}
-				} else {
-					throw e;
-				}
-			}
+			this.func.resolveNames(scope);
+			this.resolveNamesInArgs(scope);
 		}
 	}
 
 	/**
-	 * @param {IRCallStack} stack 
 	 * @returns {IRExpr}
 	 */
-	evalConstants(stack) {
-		return new IRCoreCallExpr(this.#name, this.evalConstantsInArgs(stack), this.parensSite);
-	}
-	
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {null | IRValue}
-	 */
-	eval(stack) {
-		let args = this.evalArgs(stack);
-
-		if (args !== null) {
-			return IRCoreCallExpr.evalValues(this.site, stack.throwRTErrors, this.builtinName, args);
-		}
-		
-		return null;
+	copy() {
+		return new IRCallExpr(this.site, this.func.copy(), this.args.map(a => a.copy()));
 	}
 
 	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining 
+	 * @param {UplcTerm} term
+	 * @returns {UplcTerm}
 	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining));
-
-		return new IRCoreCallExpr(this.#name, argExprs, this.parensSite);
-	}
-
-	/**
-	 * @param {IRLiteralRegistry} literals
-	 * @returns {IRExpr}
-	 */
-	simplifyLiterals(literals) {
-		const args = this.simplifyLiteralsInArgs(literals);
-
-		if (args.length > 0 && args.every(a => a instanceof IRLiteralExpr)) {
-			try {
-				const res = IRCoreCallExpr.evalValues(
-					this.site,
-					false,
-					this.builtinName,
-					args.map(a => new IRLiteralValue(assertClass(a, IRLiteralExpr).value))
-				);
-
-				if (res != null && res.value != null) {
-					return new IRLiteralExpr(res.value);
-				}
-			} catch (e) {
-			}
-		}
-
-		switch(this.builtinName) {
-			case "addInteger": {
-					// check if first or second arg evaluates to 0
-					const [a, b] = args;
-
-					if (a instanceof IRLiteralExpr && a.value instanceof UplcInt && a.value.int == 0n) {
-						return b;
-					} else if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 0n) {
-						return a;
-					}
-				}
-				break;
-			case "appendByteString": {
-					// check if either 1st or 2nd arg is the empty bytearray
-					const [a, b] = args;
-					if (a instanceof IRLiteralExpr && a.value instanceof UplcByteArray && a.value.bytes.length == 0) {
-						return b;
-					} else if (b instanceof IRLiteralExpr && b.value instanceof UplcByteArray && b.value.bytes.length == 0) {
-						return a;
-					}
-				}
-				break;
-			case "appendString": {
-					// check if either 1st or 2nd arg is the empty string
-					const [a, b] = args;
-					if (a instanceof IRLiteralExpr && a.value instanceof UplcString && a.value.string.length == 0) {
-						return b;
-					} else if (b instanceof IRLiteralExpr && b.value instanceof UplcString && b.value.string.length == 0) {
-						return a;
-					}
-				}
-				break;
-			case "divideInteger": {
-					// check if second arg is 1
-					const [a, b] = args;
-					if (b instanceof IRLiteralExpr && b.value instanceof UplcInt) {
-						if (b.value.int == 1n) {
-							return a;
-						} else if (b.value.int == 0n) {
-							return new IRCoreCallExpr(this.#name, args, this.parensSite);
-						}
-					}
-				}
-				break;
-			case "ifThenElse": {
-					const [cond, a, b] = args;
-
-					if (cond instanceof IRLiteralExpr && cond.value instanceof UplcBool) {
-						// if the condition is a literal, one the branches can be returned
-						if (cond.value.bool) {
-							return a;
-						} else {
-							return b;
-						}
-					} else if (a instanceof IRLiteralExpr && a.value instanceof UplcBool && b instanceof IRLiteralExpr && b.value instanceof UplcBool) {
-						if (a.value.bool && !b.value.bool) {
-							return cond;
-						} else if (
-							!a.value.bool && 
-							b.value.bool && 
-							cond instanceof IRUserCallExpr && 
-							cond.fnExpr instanceof IRNameExpr && 
-							cond.fnExpr.name === "__helios__bool____not"
-						) {
-							return cond.argExprs[0];
-						}	
-					}
-				}
-				break;
-			case "modInteger": {
-					// check if second arg is 1
-					const [a, b] = args;
-					if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 1n) {
-						return new IRLiteralExpr(new UplcInt(this.site, 0n));
-					}
-				}
-				break;
-			case "multiplyInteger": {
-					// check if first arg is 0 or 1
-					const [a, b] = args;
-					if (a instanceof IRLiteralExpr && a.value instanceof UplcInt) {
-						if (a.value.int == 0n) {
-							return a;
-						} else if (a.value.int == 1n) {
-							return b;
-						}
-					} else if (b instanceof IRLiteralExpr && b.value instanceof UplcInt) {
-						if (b.value.int == 0n) {
-							return b;
-						} else if (b.value.int == 1n) {
-							return a;
-						}
-					}
-				}
-				break;
-			case "subtractInteger": {
-					// check if second arg evaluates to 0
-					const [a, b] = args;
-					if (b instanceof IRLiteralExpr && b.value instanceof UplcInt && b.value.int == 0n) {
-						return a;
-					}
-				}
-				break;
-		}
-
-		if (args.every(a => a instanceof IRLiteralExpr)) {
-			return new IRLiteralExpr(
-				UplcBuiltin.evalStatic(
-					new Word(this.#name.site, this.builtinName),
-					args.map(a => assertClass(a, IRLiteralExpr).value)
-				)
-			);
+	toUplcCall(term) {
+		if (this.args.length == 0) {
+			// assuming underlying zero-arg function has been converted into a UplcDelay term
+			term = new UplcForce(this.site, term);
 		} else {
-			return new IRCoreCallExpr(this.#name, args, this.parensSite);
-		}
-	}
-
-	/**
-	 * @param {IRNameExprRegistry} nameExprs
-	 */
-	registerNameExprs(nameExprs) {
-		this.registerNameExprsInArgs(nameExprs);
-	}
-
-	/**
-	 * @param {Map<IRVariable, IRVariable>} newVars
-	 * @returns {IRExpr}
-	 */
-	copy(newVars) {
-		return new IRCoreCallExpr(this.#name, this.argExprs.map(a => a.copy(newVars)), this.parensSite);
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		const args = this.simplifyTopologyInArgs(registry);
-
-		switch(this.builtinName) {
-			case "encodeUtf8":
-				// we can't eliminate a call to decodeUtf8, as it might throw some errors
-				break;
-			case "decodeUtf8": {
-				// check if arg is a call to encodeUtf8
-				const [arg] = args;
-				if (arg instanceof IRCoreCallExpr && arg.builtinName == "encodeUtf8") {
-					return arg.argExprs[0];
-				}
+			for (let argExpr of this.args) {
 				
-				break;
-			}		
-			case "equalsData": {
-				const [a, b] = args;
-
-				if (a instanceof IRCoreCallExpr && b instanceof IRCoreCallExpr) {
-					if (a.builtinName === "iData" && b.builtinName === "iData") {
-						return new IRCoreCallExpr(new Word(this.site, "__core__equalsInteger"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
-					} else if (a.builtinName === "bData" && b.builtinName === "bData") {
-						return new IRCoreCallExpr(new Word(this.site, "__core__equalsByteString"), [a.argExprs[0], b.argExprs[0]], this.parensSite);	
-					} else if (a.builtinName === "decodeUtf8" && b.builtinName === "decodeUtf8") {
-						return new IRCoreCallExpr(new Word(this.site, "__core__equalsString"), [a.argExprs[0], b.argExprs[0]], this.parensSite);
-					}
-				}
-
-				break;
+				term = new UplcCall(this.site, term, argExpr.toUplc());
 			}
-			case "ifThenElse": {
-				const [cond, a, b] = args;
-
-				if (cond instanceof IRCoreCallExpr && cond.builtinName === "nullList") {
-					return new IRCoreCallExpr(new Word(this.site, "__core__chooseList"), [cond.argExprs[0], a, b], this.parensSite);
-				}
-
-				break;
-			}
-			case "chooseUnit": {
-				const [a, b] = args;
-
-				if (a instanceof IRLiteralExpr && a.value instanceof UplcUnit) {
-					return b;
-				} /*else if (b instanceof IRLiteralExpr && b.value instanceof UplcUnit) {
-					return a;
-				}*/
-
-				break;
-			}
-			case "trace":
-				return args[1];
-			case "unIData": {
-				// check if arg is a call to iData
-				const a = args[0];
-				if (a instanceof IRCoreCallExpr && a.builtinName == "iData") {
-					return a.argExprs[0];
-				}
-
-				break;
-			}
-			case "iData": {
-				// check if arg is a call to unIData
-				const a = args[0];
-				if (a instanceof IRCoreCallExpr && a.builtinName == "unIData") {
-					return a.argExprs[0];
-				}
-
-				break;
-			}
-			case "unBData": {
-				// check if arg is a call to bData
-				const a = args[0];
-				if (a instanceof IRCoreCallExpr && a.builtinName == "bData") {
-					return a.argExprs[0];
-				}
-
-				break;
-			}
-			case "bData": {
-				// check if arg is a call to unBData
-				const a = args[0];
-				if (a instanceof IRCoreCallExpr && a.builtinName == "unBData") {
-					return a.argExprs[0];
-				}
-
-				break;
-			}
-			case "unMapData": {
-				// check if arg is call to mapData
-				const a = args[0];
-				if (a instanceof IRCoreCallExpr && a.builtinName == "mapData") {
-					return a.argExprs[0];
-				}
-				
-				break;
-			}
-			case "mapData": {
-				// check if arg is call to unMapData
-				const a = args[0];
-				if (a instanceof IRCoreCallExpr && a.builtinName == "unMapData") {
-					return a.argExprs[0];
-				}
-
-				break;
-			}
-			case "listData": {
-				// check if arg is call to unListData
-				const a = args[0];
-				if (a instanceof IRCoreCallExpr && a.builtinName == "unListData") {
-					return a.argExprs[0];
-				}
-
-				break;
-			}
-			case "unListData": {
-				// check if arg is call to listData
-				const a = args[0];
-				if (a instanceof IRCoreCallExpr && a.builtinName == "listData") {
-					return a.argExprs[0];
-				}
-				
-				break;
-			}		
 		}
 
-		return new IRCoreCallExpr(this.#name, args, this.parensSite);
+		return term;
 	}
 
 	/**
@@ -40836,8 +40757,13 @@ export class IRCoreCallExpr extends IRCallExpr {
 	 * @returns {UplcTerm}
 	 */
 	static newUplcBuiltin(site, name) {
-		let builtinName = name.slice("__core__".length);
-		assert(!builtinName.startsWith("__core__"));
+		assert(name.startsWith(BUILTIN_PREFIX));
+
+		if (name.endsWith(SAFE_BUILTIN_SUFFIX)) {
+			name = name.slice(0, name.length - SAFE_BUILTIN_SUFFIX.length);
+		}
+
+		const builtinName = name.slice(BUILTIN_PREFIX.length);
 
 		/**
 		 * @type {UplcTerm}
@@ -40859,671 +40785,28 @@ export class IRCoreCallExpr extends IRCallExpr {
 	 * @returns {UplcTerm}
 	 */
 	toUplc() {
-		let term = IRCoreCallExpr.newUplcBuiltin(this.site, this.#name.value);
+		if (this.func instanceof IRNameExpr && this.func.name.startsWith(BUILTIN_PREFIX)) {
+			let term = IRCallExpr.newUplcBuiltin(this.site, this.func.name);
 
-		return this.toUplcCall(term);
-	}
-}
-
-/**
- * IR function call of non-core function
- * @internal
- */
-export class IRUserCallExpr extends IRCallExpr {
-	/**
-	 * @readonly
-	 * @type {IRExpr}
-	 */
-	fnExpr;
-
-	/**
-	 * @param {IRExpr} fnExpr 
-	 * @param {IRExpr[]} argExprs 
-	 * @param {Site} parensSite 
-	 */
-	constructor(fnExpr, argExprs, parensSite) {
-		super(fnExpr.site, argExprs, parensSite);
-
-		this.fnExpr = fnExpr;
-	}
-
-	/**
-	 * Handles upgrade to more complicated IRExpr types
-	 * @param {IRExpr} fnExpr 
-	 * @param {IRExpr[]} argExprs 
-	 * @param {Site} parensSite 
-	 * @returns {IRNestedAnonCallExpr | IRAnonCallExpr | IRFuncDefExpr | IRUserCallExpr}
-	 */
-	static new(fnExpr, argExprs, parensSite) {
-		if (fnExpr instanceof IRAnonCallExpr) {
-			return new IRNestedAnonCallExpr(fnExpr, argExprs, parensSite);
-		} else if (fnExpr instanceof IRFuncExpr) {
-			return IRAnonCallExpr.new(fnExpr, argExprs, parensSite);
+			return this.toUplcCall(term);
 		} else {
-			return new IRUserCallExpr(fnExpr, argExprs, parensSite);
+			return this.toUplcCall(this.func.toUplc());
 		}
-	}
-
-	/**
-	 * @param {string} indent
-	 * @returns {string}
-	 */
-	toString(indent = "") {
-		let comment = (this.fnExpr instanceof IRFuncExpr && this.fnExpr.args.length == 1 && this.fnExpr.args[0].name.startsWith("__")) ? `/*${this.fnExpr.args[0].name}*/` : "";
-
-		return `${this.fnExpr.toString(indent)}(${comment}${this.argsToString(indent)})`;
-	}
-
-	/**
-	 * @param {IRScope} scope 
-	 */
-	resolveNames(scope) {
-		this.fnExpr.resolveNames(scope);
-
-		super.resolveNamesInArgs(scope);
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {IRExpr}
-	 */
-	evalConstants(stack) {
-		return IRUserCallExpr.new(
-			this.fnExpr.evalConstants(stack),
-			this.evalConstantsInArgs(stack),
-			this.parensSite
-		);
-	}
-
-	/**
-	 * @param {IRCallStack} stack 
-	 * @returns {?IRValue}
-	 */
-	eval(stack) {
-		let args = this.evalArgs(stack);
-
-		if (args === null) {
-			return null;
-		} else {
-			let fn = this.fnExpr.eval(stack);
-
-			if (fn === null) {
-				return null;
-			} else {
-				try {
-					return fn.call(args);
-				} catch (e) {
-					if (e instanceof RuntimeError) {
-						if (!stack.throwRTErrors) {
-							return null;
-						} else {
-							throw e;
-						}
-					} else {
-						throw e;
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining));
-
-		if (this.fnExpr instanceof IRNameExpr && this.fnExpr.isVariable(fnVar)) {
-			const remainingArgExprs = argExprs.filter((_, i) => remaining.some(i_ => i_ == i));
-
-			if (remainingArgExprs.length == 0) {
-				return this.fnExpr;
-			} else {
-				return new IRUserCallExpr(
-					this.fnExpr,
-					remainingArgExprs,
-					this.parensSite
-				);
-			}
-		} else {
-			const fnExpr = this.fnExpr.simplifyUnusedRecursionArgs(fnVar, remaining);
-
-			return new IRUserCallExpr(
-				fnExpr,
-				argExprs,
-				this.parensSite
-			)
-		}
-	}
-
-	/**
-	 * @param {IRLiteralRegistry} literals
-	 * @returns {(IRExpr[] | IRLiteralExpr)}
-	 */
-	simplifyLiteralsInArgsAndTryEval(literals) {
-		const args = this.simplifyLiteralsInArgs(literals);
-
-		if (args.length > 0 && args.every(a => ((a instanceof IRLiteralExpr) || (a instanceof IRFuncExpr)))) {
-			try {
-				const fn = this.fnExpr.eval(new IRCallStack(false));
-
-				if (fn != null) {
-					const res = fn.call(
-						args.map(a => {
-							const v = a.eval(new IRCallStack(false));
-
-							if (v == null) {
-								// caught by outer catch
-								throw new Error("null eval sub-result");
-							} else {
-								return v;
-							}
-						})
-					);
-
-					if (res != null && res.value != null) {
-						return new IRLiteralExpr(res.value);
-					}
-				}
-			} catch(e) {
-			}
-		}
-
-		return args;
-	}
-
-	/**
-	 * @param {IRLiteralRegistry} literals
-	 * @returns {IRExpr}
-	 */
-	simplifyLiterals(literals) {
-		const argsOrLiteral = this.simplifyLiteralsInArgsAndTryEval(literals);
-
-		if (argsOrLiteral instanceof IRLiteralExpr) {
-			return argsOrLiteral;
-		} else {
-			const args = argsOrLiteral;
-
-			return IRUserCallExpr.new(
-				this.fnExpr.simplifyLiterals(literals),
-				args, 
-				this.parensSite
-			);
-		}
-	}
-
-	/**
-	 * @param {IRNameExprRegistry} nameExprs 
-	 */
-	registerNameExprs(nameExprs) {
-		this.registerNameExprsInArgs(nameExprs);
-		
-		this.fnExpr.registerNameExprs(nameExprs);
-	}
-
-	/**
-	 * @param {Map<IRVariable, IRVariable>} newVars 
-	 * @returns {IRExpr}
-	 */
-	copy(newVars) {
-		return new IRUserCallExpr(this.fnExpr.copy(newVars), this.argExprs.map(a => a.copy(newVars)), this.parensSite);
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		const args = this.simplifyTopologyInArgs(registry);
-
-		if (this.fnExpr instanceof IRNameExpr) {
-			if (this.fnExpr.isCore()) {
-				return new IRCoreCallExpr(new Word(this.fnExpr.site, this.fnExpr.name), args, this.parensSite);
-			} else {
-				switch (this.fnExpr.name) {
-					case "__helios__bool____to_data": {
-							// check if arg is a call to __helios__bool__from_data
-							const a = args[0];
-							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__bool__from_data") {
-								return a.argExprs[0];
-							}
-						}
-						break;
-					case "__helios__bool__from_data": {
-							// check if arg is a call to __helios__bool____to_data
-							const a = args[0];
-							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__bool____to_data") {
-								return a.argExprs[0];
-							}
-						}
-						break;
-					case "__helios__bool____not": {
-							const a = args[0];
-							if (a instanceof IRUserCallExpr && a.fnExpr instanceof IRNameExpr && a.fnExpr.name == "__helios__bool____not") {
-								return a.argExprs[0];
-							}
-						}
-						break;
-					case "__helios__common__concat": {
-							// check if either 1st or 2nd arg is the empty list
-							const [a, b] = args;
-							if (a instanceof IRLiteralExpr && a.value instanceof UplcList && a.value.length == 0) {
-								return b;
-							} else {
-								if (b instanceof IRLiteralExpr && b.value instanceof UplcList && b.value.length == 0) {
-									return a;
-								}
-							}
-						}
-						break;
-				}
-			}
-		}
-
-		return IRUserCallExpr.new(
-			this.fnExpr.simplifyTopology(registry),
-			args,
-			this.parensSite
-		);
-	}
-
-	/**
-	 * @returns {UplcTerm}
-	 */
-	toUplc() {
-		return super.toUplcCall(this.fnExpr.toUplc());
-	}
-}
-
-/**
- * @internal
- */
-export class IRAnonCallExpr extends IRUserCallExpr {
-	#anon;
-
-	/**
-	 * @param {IRFuncExpr} fnExpr 
-	 * @param {IRExpr[]} argExprs 
-	 * @param {Site} parensSite 
-	 */
-	constructor(fnExpr, argExprs, parensSite) {
-		super(fnExpr, argExprs, parensSite)
-
-		this.#anon = fnExpr;
-	}
-
-	/**
-	 * Handles upgrade to IRFuncDefExpr, which is very important to avoid inlining expensive expressions into potentially recursive scopes
-	 * @param {IRFuncExpr} fnExpr
-	 * @param {IRExpr[]} argExprs
-	 * @param {Site} parensSite
-	 * @returns {IRAnonCallExpr | IRFuncDefExpr}
-	 */
-	static new(fnExpr, argExprs, parensSite) {
-		const def = argExprs[0];
-
-		if (argExprs.length == 1 && def && def instanceof IRFuncExpr) {
-			return new IRFuncDefExpr(
-				fnExpr,
-				def,
-				parensSite
-			);
-		} else {
-			return new IRAnonCallExpr(
-				fnExpr,
-				argExprs,
-				parensSite
-			);
-		}
-	}
-
-	/**
-	 * Internal function
-	 * @type {IRFuncExpr}
-	 */
-	get anon() {
-		return this.#anon;
-	}
-
-	/**
-	 * @type {IRVariable[]}
-	 */
-	get argVariables() {
-		return this.#anon.args;
-	}
-
-	/**
-	 * Add args to the stack as IRDeferredValue instances
-	 * @param {IRCallStack} stack
-	 */
-	evalConstants(stack) {
-		const argExprs = this.evalConstantsInArgs(stack);
-
-		const parentStack = stack;
-
-		argExprs.forEach((argExpr, i) => {
-			stack = stack.set(this.argVariables[i], new IRDeferredValue(() => argExpr.eval(parentStack)));
-		});
-
-		const anonBody = this.#anon.body.evalConstants(stack);
-
-		if (anonBody instanceof IRLiteralExpr) {
-			return anonBody;
-		} else {
-			return IRUserCallExpr.new(
-				new IRFuncExpr(
-					this.#anon.site,
-					this.#anon.args,
-					anonBody
-				),
-				argExprs,
-				this.parensSite
-			);
-		}
-	}
-
-	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		const argExprs = this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining));
-
-		let anon = assertClass(this.#anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr);
-
-		return IRAnonCallExpr.new(anon, argExprs, this.parensSite);
-	}
-
-	/**
-	 * Add literal args to the map
-	 * @param {IRLiteralRegistry} literals
-	 * @returns {IRExpr}
-	 */
-	simplifyLiterals(literals) {
-		const argsOrLiteral = super.simplifyLiteralsInArgsAndTryEval(literals);
-
-		if (argsOrLiteral instanceof IRLiteralExpr) {
-			return argsOrLiteral;
-		} else {
-			const args = argsOrLiteral;
-
-			args.forEach((arg, i) => {
-				if (arg instanceof IRLiteralExpr) {
-					literals.set(this.argVariables[i], arg);
-				}
-			});
-
-			const anonBody = this.#anon.body.simplifyLiterals(literals);
-
-			if (anonBody instanceof IRLiteralExpr) {
-				return anonBody;
-			} else {
-				return IRAnonCallExpr.new(
-					new IRFuncExpr(
-						this.#anon.site,
-						this.#anon.args,
-						anonBody
-					),
-					args,
-					this.parensSite
-				);
-			}
-		}
-	}
-
-	/**
-	 * @param {IRNameExprRegistry} nameExprs 
-	 */
-	registerNameExprs(nameExprs) {
-		this.registerNameExprsInArgs(nameExprs);
-
-		this.argVariables.forEach(a => nameExprs.registerVariable(a));
-
-		this.#anon.body.registerNameExprs(nameExprs);
-	}
-	
-	/**
-	 * @param {IRExprRegistry} registry 
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		const args = this.simplifyTopologyInArgs(registry);
-
-		assert(args.length == this.argVariables.length, `number of args should be equal to number of argVariables (${this.toString()})`);
-
-		// remove unused args, inline args that are only referenced once, inline all IRNameExprs, inline function with default args,
-		//  inline tiny builtins, inline functions whose body is simply a IRNameExpr
-		const remainingIds = this.argVariables.map((variable, i) => {
-			const n = registry.countReferences(variable);
-
-			const arg = assertDefined(args[i]);
-
-			if (
-				n == 0 
-				|| variable.isAlwaysInlineable()
-				|| (n == 1 && (!registry.maybeInsideLoop(variable) || arg instanceof IRFuncExpr)) 
-				|| arg instanceof IRNameExpr 
-				|| (arg instanceof IRFuncExpr && arg.hasOptArgs())
-				|| (arg instanceof IRFuncExpr && arg.body instanceof IRNameExpr)
-				
-			) {
-				if (n > 0) {
-					// inline
-					registry.addInlineable(variable, arg);
-				}
-
-				return -1;
-			} else {
-				return i;
-			}
-		}).filter(i => i != -1);
-
-		const remainingVars = remainingIds.map(i => this.argVariables[i]);
-		const remainingExprs = remainingIds.map(i => args[i]);
-
-		const anonBody = this.#anon.body.simplifyTopology(registry);
-
-		if (anonBody instanceof IRLiteralExpr || remainingExprs.length == 0) {
-			return anonBody;
-		} else {
-			return IRAnonCallExpr.new(
-				new IRFuncExpr(
-					this.#anon.site,
-					remainingVars,
-					anonBody
-				),
-				remainingExprs,
-				this.parensSite
-			);
-		}
-	}
-}
-
-/**
- * @internal
- */
-export class IRNestedAnonCallExpr extends IRUserCallExpr {
-	#anon;
-
-	/**
-	 * @param {IRAnonCallExpr} anon
-	 * @param {IRExpr[]} outerArgExprs
-	 * @param {Site} parensSite
-	 */
-	constructor(anon, outerArgExprs, parensSite) {
-		super(anon, outerArgExprs, parensSite);
-
-		this.#anon = anon;
-	}
-
-	/**
-	 * @param {IRVariable} fnVar
-	 * @param {number[]} remaining
-	 * @returns {IRExpr}
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		return new IRNestedAnonCallExpr(
-			assertClass(this.#anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRAnonCallExpr),
-			this.argExprs.map(ae => ae.simplifyUnusedRecursionArgs(fnVar, remaining)),
-			this.parensSite
-		)
-	}
-		
-	/**
-	 * Flattens consecutive nested calls
-	 * @param {IRExprRegistry} registry
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		const anon = this.#anon.simplifyTopology(registry);
-
-		const args = this.simplifyTopologyInArgs(registry);
-
-		if (anon instanceof IRAnonCallExpr && anon.anon.body instanceof IRFuncExpr) {
-			// flatten
-			const allArgs = anon.argExprs.slice().concat(args);
-			const allVars = anon.argVariables.slice().concat(anon.anon.body.args.slice());
-
-			assert(allArgs.length == allVars.length);
-
-			return IRUserCallExpr.new(
-				new IRFuncExpr(
-					anon.anon.body.site,
-					allVars,
-					anon.anon.body.body
-				),
-				allArgs,
-				this.parensSite
-			);
-		} else {
-			return IRUserCallExpr.new(
-				anon,
-				args,
-				this.parensSite
-			);
-		}
-	}
-}
-
-/**
- * @internal
- */
-export class IRFuncDefExpr extends IRAnonCallExpr {
-	#def;
-
-	/**
-	 * @param {IRFuncExpr} anon 
-	 * @param {IRFuncExpr} defExpr 
-	 * @param {Site} parensSite
-	 */
-	constructor(anon, defExpr, parensSite) {
-		super(anon, [defExpr], parensSite);
-
-		this.#def = defExpr;
-	}
-
-	/**
-	 * @param {IRNameExprRegistry} nameExprs 
-	 */
-	registerNameExprs(nameExprs) {
-		this.argVariables.forEach(a => nameExprs.registerVariable(a));
-
-		this.anon.body.registerNameExprs(nameExprs);
-
-		nameExprs = nameExprs.resetVariables();
-
-		this.#def.registerNameExprs(nameExprs);
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry
-	 * @returns {[IRFuncExpr, IRExpr]}
-	 */
-	simplifyRecursionArgs(registry) {
-		let anon = this.anon;
-		let def = this.#def;
-
-		if (this.#def.args.every(a => a.name.startsWith("__module") || a.name.startsWith("__const"))) {
-			const usedArgs = this.#def.args.map((variable, i) => {
-				const n = registry.countReferences(variable);
-
-				if (n == 0) {
-					return -1;
-				} else {
-					return i;
-				}
-			}).filter(i => i != -1);
-
-			if (usedArgs.length < this.#def.args.length) {
-				anon = new IRFuncExpr(
-					anon.site,
-					anon.args,
-					anon.body.simplifyUnusedRecursionArgs(anon.args[0], usedArgs)
-				);
-
-				if (usedArgs.length == 0) {
-					// simplify the body if none of the args remain
-					return [anon, this.#def.body];
-				}
-
-				def = new IRFuncExpr(
-					this.#def.site,
-					usedArgs.map(i => def.args[i]),
-					this.#def.body
-				);
-			}
-		}
-
-		return [anon, def];
-	}
-
-	/**
-	 * Remove args that are unused in def
-	 * @param {IRExprRegistry} registry
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		const [anon, def] = this.simplifyRecursionArgs(registry);
-		
-		const res = (new IRAnonCallExpr(anon, [def], this.parensSite)).simplifyTopology(registry);
-
-		if (res instanceof IRAnonCallExpr && res.argExprs.length == 0) {
-			const argExpr = res.argExprs[0];
-			
-			if (res.anon.args.length == 1 && argExpr instanceof IRFuncExpr) {
-				return new IRFuncDefExpr(
-					res.anon,
-					argExpr,
-					this.parensSite
-				)
-			}
-		}
-
-		return res;
-	}
-
-	/**
-	 * @param {IRVariable} fnVar
-	 * @param {number[]} remaining
-	 * @returns {IRExpr}
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		return new IRFuncDefExpr(
-			assertClass(this.anon.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr),
-			assertClass(this.#def.simplifyUnusedRecursionArgs(fnVar, remaining), IRFuncExpr),
-			this.parensSite
-		);
 	}
 }
 
 /**
  * Intermediate Representation error call (with optional literal error message)
  * @internal
+ * @implements {IRExpr}
  */
-export class IRErrorCallExpr extends IRExpr {
+export class IRErrorExpr {
+	/**
+	 * @readonly
+	 * @type {Site}
+	 */
+	site;
+
 	#msg;
 
 	/**
@@ -41531,7 +40814,7 @@ export class IRErrorCallExpr extends IRExpr {
 	 * @param {string} msg 
 	 */
 	constructor(site, msg = "") {
-		super(site);
+		this.site = site;
 		this.#msg = msg;
 	}
 
@@ -41550,61 +40833,10 @@ export class IRErrorCallExpr extends IRExpr {
 	}
 
 	/**
-	 * @param {IRCallStack} stack
 	 * @returns {IRExpr}
 	 */
-	evalConstants(stack) {
-		return this;
-	}
-
-	/**
-	 * @param {IRCallStack} stack
-	 * @returns {null | IRValue}
-	 */
-	eval(stack) {
-		if (stack.throwRTErrors) {
-			throw new RuntimeError(this.#msg);
-		} else {
-			return null;
-		}
-	}
-
-	/**
-	 * @param {IRLiteralRegistry} literals 
-	 * @returns {IRExpr}
-	 */
-	simplifyLiterals(literals) {
-		return this;
-	}
-
-	/**
-	 * @param {IRNameExprRegistry} nameExprs
-	 */
-	registerNameExprs(nameExprs) {
-	}
-
-	/**
-	 * @param {Map<IRVariable, IRVariable>} newVars 
-	 * @returns {IRExpr}
-	 */
-	copy(newVars) {
-		return new IRErrorCallExpr(this.site, this.#msg);
-	}
-
-	/**
-	 * @param {IRExprRegistry} registry
-	 * @returns {IRExpr}
-	 */
-	simplifyTopology(registry) {
-		return this;
-	}
-	/**
-	 * @param {IRVariable} fnVar 
-	 * @param {number[]} remaining 
-	 * @returns {IRExpr}
-	 */
-	simplifyUnusedRecursionArgs(fnVar, remaining) {
-		return this;
+	copy() {
+		return new IRErrorExpr(this.site, this.#msg);
 	}
 
 	/**
@@ -41615,20 +40847,99 @@ export class IRErrorCallExpr extends IRExpr {
 	}
 }
 
+/**
+ * @internal
+ * @param {IRExpr} root 
+ * @param {{
+ *   nameExpr?: (expr: IRNameExpr) => void
+ *   errorExpr?: (expr: IRErrorExpr) => void
+ *   literalExpr?: (expr: IRLiteralExpr) => void
+ *   callExpr?: (expr: IRCallExpr) => void
+ *   funcExpr?: (expr: IRFuncExpr) => void
+ *   exit?: () => boolean
+ * }} callbacks 
+ * @returns 
+ */
+export function loopIRExprs(root, callbacks) {
+	const stack = [root];
+
+	let head = stack.pop();
+
+	while (head) {
+		if (head instanceof IRNameExpr) {
+			if (callbacks.nameExpr) {
+				callbacks.nameExpr(head);
+			}
+		} else if (head instanceof IRErrorExpr) {
+			if (callbacks.errorExpr) {
+				callbacks.errorExpr(head);
+			}
+		} else if (head instanceof IRLiteralExpr) {
+			if (callbacks.literalExpr) {
+				callbacks.literalExpr(head);
+			}
+		} else if (head instanceof IRCallExpr) {
+			stack.push(head.func);
+
+			for (let a of head.args) {
+				stack.push(a);
+			}
+
+			if (callbacks.callExpr) {
+				callbacks.callExpr(head);
+			}
+		} else if (head instanceof IRFuncExpr) {
+			if (callbacks.funcExpr) {
+				callbacks.funcExpr(head);
+			}
+
+			stack.push(head.body);
+		}
+
+		if (callbacks.exit && callbacks.exit()) {
+			return;
+		}
+
+		head = stack.pop();
+	}
+}
+
 
 /////////////////////////////////////
 // Section 29: IR AST build functions
 /////////////////////////////////////
 
 /**
+ * @internal
+ */
+class IRExprTagger {
+	#tag;
+
+	constructor() {
+		this.#tag = 0;
+	}
+
+	genTag() {
+		this.#tag += 1;
+
+		return this.#tag;
+	}
+}
+
+/**
  * Build an Intermediate Representation expression
  * @param {Token[]} ts 
+ * @param {IRExprTagger | null} funcTagger // each IRFuncExpr needs a unique tag, so that hashing different IRFuncExprs with the same args and bodies leads to a different hash
  * @returns {IRExpr}
  * @internal
  */
-export function buildIRExpr(ts) {
+export function buildIRExpr(ts, funcTagger = null) {
 	/** @type {null | IRExpr} */
 	let expr = null;
+
+	if (funcTagger === null) {
+		funcTagger = new IRExprTagger();
+	}
 
 	while (ts.length > 0) {
 		let t = ts.shift();
@@ -41637,17 +40948,17 @@ export function buildIRExpr(ts) {
 			throw new Error("unexpected: no tokens");
 		} else {
 			if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
-				assert(expr === null, "should be preceded by expr (" + expr?.toString() + ")");
+				assert(expr === null, "shouldn't be preceded by an expr");
 
 				ts.unshift(t);
 
-				expr = buildIRFuncExpr(ts);
+				expr = buildIRFuncExpr(ts, funcTagger);
 			} else if (t.isGroup("(")) {
 				let group = assertDefined(t.assertGroup(), "should be a group");
 
 				if (expr === null) {
 					if (group.fields.length == 1) {
-						expr = buildIRExpr(group.fields[0])
+						expr = buildIRExpr(group.fields[0], funcTagger)
 					} else if (group.fields.length == 0) {
 						expr = new IRLiteralExpr(new UplcUnit(t.site));
 					} else {
@@ -41656,18 +40967,10 @@ export function buildIRExpr(ts) {
 				} else {
 					let args = [];
 					for (let f of group.fields) {
-						args.push(buildIRExpr(f));
+						args.push(buildIRExpr(f, funcTagger));
 					}
 
-					if (expr instanceof IRNameExpr && expr.name.startsWith("__core")) {
-						if (!IRScope.isBuiltin(expr.name)) {
-							throw expr.site.referenceError(`builtin '${expr.name}' undefined`);
-						}
-
-						expr = new IRCoreCallExpr(new Word(expr.site, expr.name), args, t.site);
-					} else {
-						expr = IRUserCallExpr.new(expr, args, t.site);
-					}
+					expr = new IRCallExpr(t.site, expr, args);
 				}
 			} else if (t.isSymbol("-")) {
 				// only makes sense next to IntegerLiterals
@@ -41700,18 +41003,6 @@ export function buildIRExpr(ts) {
 			} else if (t instanceof StringLiteral) {
 				assert(expr === null);
 				expr = new IRLiteralExpr(new UplcString(t.site, t.value));
-			} else if (t.isWord("const")) {
-				assert(expr === null, "unexpected expr before 'const'");
-
-				let maybeGroup = ts.shift();
-				if (maybeGroup === undefined) {
-					throw t.site.syntaxError("expected parens after const");
-				} else {
-					let parens = assertDefined(maybeGroup.assertGroup("(", 1), "expected parens with single entry after 'const'");
-					let pts = parens.fields[0];
-
-					expr = new IRConstExpr(t.site, buildIRExpr(pts));
-				}
 			} else if (t.isWord("error")) {
 				assert(expr === null, "unexpected expr before 'error'");
 
@@ -41721,7 +41012,7 @@ export function buildIRExpr(ts) {
 				} else {
 					assertDefined(maybeGroup.assertGroup("(", 0), "expected empty parens after 'error'");
 					
-					expr = new IRErrorCallExpr(t.site, "");
+					expr = new IRErrorExpr(t.site, "");
 				}
 			} else if (t.isWord()) {
 				const w = assertDefined(t.assertWord(), "expected word");
@@ -41747,9 +41038,10 @@ export function buildIRExpr(ts) {
 /**
  * Build an IR function expression
  * @param {Token[]} ts 
+ * @param {IRExprTagger} funcTagger
  * @returns {IRFuncExpr}
  */
-function buildIRFuncExpr(ts) {
+function buildIRFuncExpr(ts, funcTagger) {
 	let maybeParens = ts.shift();
 	if (maybeParens === undefined) {
 		throw new Error("empty func expr");
@@ -41775,15 +41067,2936 @@ function buildIRFuncExpr(ts) {
 			throw braces.syntaxError("empty function body")
 		}
 
-		let bodyExpr = buildIRExpr(braces.fields[0]);
+		let bodyExpr = buildIRExpr(braces.fields[0], funcTagger);
 
-		return new IRFuncExpr(parens.site, argNames.map(a => new IRVariable(a)), bodyExpr)
+		return new IRFuncExpr(parens.site, argNames.map(a => new IRVariable(a)), bodyExpr, funcTagger.genTag());
 	}
 }
 
 
+///////////////////////////////////
+// Section 30: IR pseudo evaluation
+///////////////////////////////////
+
+
+/**
+ * @internal
+ * @typedef {{
+ *   code: number
+ *   hash(depth?: number): number[]
+ *   toString(): string
+ *   isLiteral(): boolean
+ *   hasError(maybe: boolean): boolean
+ *   withoutLiterals(): IRValue
+ *   withoutErrors(): IRValue
+ *   dump(depth?: number): any
+ * }} IRValue
+ */
+
+const HASH_DEPTH = 3
+
+const HASH_CODES = {
+    Data: hashCode("Data"),
+    Error: hashCode("Error"),
+    Any: hashCode("Any")
+}
+
+/**
+ * @internal
+ */
+class IRStack {
+    /**
+     * @type {[IRVariable, IRValue][]}
+     */
+    #values;
+
+    #isLiteral;
+
+    /**
+     * First code is the shallowest (no nested stacks)
+     * Second code includes up to one nested stack
+     * @type {number[]}
+     */
+    #codes;
+
+    /**
+     * @param {[IRVariable, IRValue][]} values 
+     * @param {boolean} isLiteral
+     */
+    constructor(values, isLiteral) {
+        this.#values = values;
+        this.#isLiteral = isLiteral || values.length == 0;
+        this.#codes = []; 
+    }
+
+    dump(depth = 0) {
+        return {
+            hash: this.code,
+            hashes: this.hash(HASH_DEPTH),
+            isLiteral: this.#isLiteral,
+            ...(depth > 0 ? {values: this.#values.map(([_, arg]) => {
+                return arg.dump(depth - 1)
+            })} : {})
+        }
+    }
+
+    /**
+     * @type {number}
+     */
+    get code() {
+        if (this.#codes.length == HASH_DEPTH + 1) {
+            return this.#codes[HASH_DEPTH];
+        }
+
+        const codes = this.hash(HASH_DEPTH);
+
+        return codes[HASH_DEPTH];
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        if (depth < this.#codes.length) {
+            return this.#codes.slice(0, depth+1);
+        }
+
+        const valueCodes = this.#values.map(v => v[1].hash(HASH_DEPTH));
+
+        /**
+         * @type {number[]}
+         */
+        const lst = [];
+
+        for (let i = 0; i < HASH_DEPTH + 1; i++) {
+            const codes = valueCodes.map(vc => vc[i]);
+
+            let c = 0;
+
+            for (let co of codes) {
+                c = hashCode(co, c);
+            }
+
+            lst.push(c);
+        }
+
+        this.#codes = lst;
+
+        return this.#codes.slice(0, depth + 1);
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isLiteral() {
+        return this.#isLiteral;
+    }
+
+    /**
+     * @return {IRStack}
+     */
+    withoutLiterals() {
+        /**
+         * @type {[IRVariable, IRValue][]}
+         */
+        const varVals = this.#values.map(([vr, vl]) => {
+            /**
+             * @type {[IRVariable, IRValue]}
+             */
+            return [vr, vl.withoutLiterals()]
+        });
+
+
+        return new IRStack(
+            varVals, 
+            varVals.every(([_, v]) => v.isLiteral())
+        );
+    }
+
+    /**
+     * @param {IRVariable} v 
+     * @returns {IRValue}
+     */
+    getValue(v) {
+        const j = this.#values.findIndex(([va]) => va == v)
+
+        if (j != -1) {
+            return this.#values[j][1];
+        }
+
+        throw new Error(`${v.name} not found in IRStack`);
+    }
+
+    /**
+     * @param {[IRVariable, IRValue][]} args 
+     * @returns {IRStack}
+     */
+    extend(args) {
+        assert(args.every(([_, v]) => !(v instanceof IRErrorValue)));
+
+        return new IRStack(
+            this.#values.concat(args),
+            this.#isLiteral && args.every(([_, v]) => v.isLiteral())
+        );
+    }
+
+    /**
+     * @param {Set<IRVariable>} irVars 
+     * @returns {IRStack}
+     */
+    filter(irVars) {
+        const varVals = this.#values.filter(([v]) => irVars.has(v));
+        return new IRStack(varVals, varVals.every(([_, v]) => v.isLiteral()));
+    }
+
+    /**
+     * @returns {IRStack}
+     */
+    static empty() {
+        return new IRStack([], true);
+    }
+
+    /**
+     * Both stack are expected to have the same shape
+     * TODO: get rid of this
+     * @param {IRStack} other
+     * @returns {IRStack}
+     */
+    merge(other) {
+        const n = this.#values.length;
+
+        assert(n == other.#values.length);
+
+        let stack = IRStack.empty();
+
+        for (let i = 0; i < n; i++) {
+            const a = this.#values[i];
+            const b = other.#values[i];
+
+            if (a == b) {
+                stack = stack.extend([a]);
+            } else {
+                stack = stack.extend([[a[0], IRMultiValue.flatten([a[1], b[1]])]]);
+            }
+        }
+
+        return stack;
+    }
+}
+
+/**
+ * @internal
+ * @implements {IRValue}
+ */
+export class IRLiteralValue {
+	/**
+	 * @readonly
+	 */
+	value;
+
+	/**
+	 * @param {UplcValue} value 
+	 */
+	constructor(value) {
+		this.value = value;
+	}
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return this.value.toString();
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isLiteral() {
+        return true;
+    }
+
+    /**
+     * @param {boolean} maybe
+     * @returns {boolean}
+     */
+    hasError(maybe = true) {
+        return false;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutLiterals() {
+        if (this.value instanceof UplcUnit) {
+            return new IRAnyValue();
+        } else {
+            return new IRDataValue();
+        }
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutErrors() {
+        return this;
+    }
+
+    dump(depth = 0) {
+        return {
+            type: "Literal",
+            value: this.toString(),
+            hash: this.code
+        }
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth+1)).fill(hashCode(this.toString()));
+    }
+
+    /**
+     * TODO: code that takes Literal value into account (eg. `get codeWithLiterals()`)
+     * @type {number}
+     */
+    get code() {
+        return this.hash(0)[0];
+    }
+}
+
+/**
+ * @internal
+ * @implements {IRValue}
+ */
+export class IRDataValue {
+    /**
+     * @returns {boolean}
+     */
+    isLiteral() {
+        return false;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutLiterals() {
+        return this;
+    }
+
+    /**
+     * @param {boolean} maybe
+     * @returns {boolean}
+     */
+    hasError(maybe = true) {
+        return false;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutErrors() {
+        return this;
+    }
+
+    /**
+     * @type {number}
+     */
+    get code() {
+        return hashCode(this.toString());
+    }
+
+    /**
+     * 
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth + 1)).fill(HASH_CODES.Data);
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return `Data`;
+    }
+
+    dump(depth = 0) {
+        return {
+            type: "Data",
+            hash: this.code
+        }
+    }
+}
+
+/**
+ * @param {IRExpr} expr 
+ * @returns {Set<IRVariable>}
+ */
+function collectIRVariables(expr) {
+    /**
+     * @type {Set<IRVariable>}
+     */
+    const s = new Set();
+
+    loopIRExprs(expr, {
+        nameExpr: (nameExpr) => {
+            if (!nameExpr.isCore()) {
+                s.add(nameExpr.variable);
+            }
+        }
+    });
+
+    return s;
+}
+
+/**
+ * @internal
+ * @implements {IRValue}
+ */
+export class IRBuiltinValue {
+    /**
+     * @readonly
+     * @type {IRNameExpr}
+     */
+    builtin;
+
+    /**
+     * @param {IRNameExpr} builtin 
+     */
+    constructor(builtin) {
+		assert(builtin.isCore());
+
+        this.builtin = builtin;
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return `Builtin`;
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isLiteral() {
+        return true;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutLiterals() {
+        return this;
+    }
+
+    /**
+     * @param {boolean} maybe
+     * @returns {boolean}
+     */
+    hasError(maybe = true) {
+        return false;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutErrors() {
+        return this;
+    }
+
+    /**
+     * @type {number}
+     */
+    get code() {
+        return hashCode(this.builtin.toString());
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth + 1)).fill(hashCode(this.builtin.toString()));
+    }
+
+    dump(depth = 0) {
+        return {
+            type: "Builtin",
+            name: this.builtin.name,
+            hash: this.code
+        }
+    }
+}
+
+/**
+ * @internal
+ * @implements {IRValue}
+ */
+export class IRFuncValue {
+    /**
+     * @readonly
+     * @type {IRStack}
+     */
+    stack;
+
+	/**
+	 * @readonly
+	 * @type {IRFuncExpr}
+	 */
+	definition;
+
+	/**
+     * @param {IRFuncExpr} definition
+     * @param {IRStack} stack
+	 */
+	constructor(definition, stack) {
+        this.definition = definition;
+        const irVars = collectIRVariables(definition);
+        this.stack = stack.filter(irVars);
+	}
+
+    /**
+     * @param {IRFuncExpr} definition 
+     * @param {IRStack} stack 
+     * @returns {IRFuncValue}
+     */
+    static new(definition, stack) {
+        return new IRFuncValue(definition, stack);
+    }
+
+    /**
+     * @private
+     * @type {number}
+     */
+    get internalCode() {
+        return this.definition.tag;
+    }
+
+    /**
+     * @type {number}
+     */
+    get code() {
+        return hashCode(this.stack.code, this.internalCode);
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        const c = this.internalCode;
+
+        const codes = [];
+        const stackCodes = depth > 0 ? this.stack.hash(depth - 1) : [];
+
+        for (let i = 0; i < depth + 1; i++) {
+            if (i == 0) {
+                codes.push(c);
+            } else {
+                codes.push(hashCode(stackCodes[i-1], c))
+            }
+        }
+
+        return codes;
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isLiteral() {
+        return this.stack.isLiteral();
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutLiterals() {
+        return new IRFuncValue(this.definition, this.stack.withoutLiterals());
+    }
+
+    /**
+     * @param {boolean} maybe
+     * @returns {boolean}
+     */
+    hasError(maybe = true) {
+        return false;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutErrors() {
+        return this;
+    }
+
+    dump(depth = 0) {
+        return {
+            type: "Fn",
+            definition: this.definition.toString(),
+            hash: this.code,
+            hashes: this.hash(HASH_DEPTH),
+            stack: this.stack.dump(depth)
+        }
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return `Fn`;
+    }
+}
+
+/**
+ * @internal
+ * @implements {IRValue}
+ */
+export class IRErrorValue {
+    /**
+     * @returns {boolean}
+     */
+    isLiteral() {
+        return false;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutLiterals() {
+        return this;
+    }
+
+    /**
+     * @param {boolean} maybe
+     * @returns {boolean}
+     */
+    hasError(maybe = true) {
+        return true;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutErrors() {
+        throw new Error("can't remove IRErrorValue from IRErrorValue");
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return `Error`;
+    }
+
+    dump(depth = 0) {
+        return {
+            type: "Error",
+            hash: this.code
+        }
+    }
+
+    /**
+     * @type {number}
+     */
+    get code() {
+        return hashCode(this.toString());
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth + 1)).fill(HASH_CODES.Error);
+    }
+}
+
+/**
+ * Can be Data of any function
+ * Simply eliminated when encountered in an IRMultiValue
+ * @internal
+ * @implements {IRValue}
+ */
+export class IRAnyValue {
+    /**
+     * @returns {boolean}
+     */
+    isLiteral() {
+        return false;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutLiterals() {
+        return this;
+    }
+
+    /**
+     * Maybe this IRAnyValue instance represents an Error, we can't know for sure.
+     * @param {boolean} maybe
+     * @returns {boolean}
+     */
+    hasError(maybe = true) {
+        return maybe;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutErrors() {
+        return this;
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return `Any`;
+    }
+
+    dump(depth = 0) {
+        return {
+            type: "Any",
+            hash: this.code
+        }
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        return (new Array(depth + 1)).fill(HASH_CODES.Any);
+    }
+
+    /**
+     * @type {number}
+     */
+    get code() {
+        return hashCode(this.toString());
+    }
+}
+
+/**
+ * @internal
+ * @implements {IRValue}
+ */
+export class IRMultiValue {
+	/**
+	 * @readonly
+	 */
+	values;
+
+	/**
+	 * @param {IRValue[]} values 
+	 */
+	constructor(values) {
+        assert(values.every(v => !(v instanceof IRLiteralValue)));
+		this.values = values;
+	}
+
+    /**
+     * @param {boolean} maybe
+     * @returns {boolean}
+     */
+    hasError(maybe = true) {
+        return this.values.some(v => v.hasError(maybe));
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isLiteral() {
+        return false;
+    }
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutLiterals() {
+        return IRMultiValue.flatten(this.values.map(v => v.withoutLiterals()));
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    hasData() {
+        return this.values.some(v => v instanceof IRDataValue);
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    hasLiteral() {
+        return this.values.some(v => v instanceof IRLiteralValue);
+    }
+
+    dump(depth = 0) {
+        return {
+            type: "Multi",
+            hash: this.code,
+            values: this.values.slice().sort((a, b) => a.code - b.code).map(v => v.dump(depth))
+        }
+    }
+
+    toString() {
+        /**
+         * @type {string[]}
+         */
+        const parts = [];
+
+        if (this.hasError()) {
+            parts.push(`Error`);
+        }
+
+        if (this.hasData()) {
+            parts.push(`Data`);
+        }
+
+        this.values.forEach(v => {
+            if (v instanceof IRFuncValue) {
+                parts.push(`Fn${v.definition.tag}`);
+            } else if (v instanceof IRBuiltinValue) {
+                parts.push(`Builtin_${v.builtin.name.slice(("__core__").length)}`);
+            }
+        });
+
+        this.values.forEach(v => {
+            if (v instanceof IRLiteralValue) {
+                parts.push(v.toString());
+            }
+        });
+
+        if (parts.length == 1 && parts[0] == `Error` && this.values.some(v => v instanceof IRAnyValue)) {
+            parts.push("Any");
+        }
+
+        return `(${parts.join(" | ")})`;
+    }
+
+    /**
+     * @type {number}
+     */
+    get code() {
+        const valueCodes = this.values.map(v => v.code)
+
+        valueCodes.sort()
+
+        let c = 0;
+
+        for (let vc of valueCodes) {
+            c = hashCode(vc, c)
+        }
+
+        return c;
+    }
+
+    /**
+     * @param {number} depth 
+     * @returns {number[]}
+     */
+    hash(depth = 0) {
+        const valueCodes = this.values.map(v => v.hash(depth));
+
+        /**
+         * @type {number[]}
+         */
+        const lst = [];
+
+        for (let i = 0; i < depth + 1; i++) {
+            const codes = valueCodes.map(vc => vc[i]).sort();
+
+            let c = 0;
+
+            for (let co of codes) {
+                c = hashCode(co, c);
+            }
+
+            lst.push(c);
+        }
+
+        return lst;
+    }
+
+	/**
+	 * @param {IRValue[]} values 
+	 * @returns {IRValue}
+	 */
+	static flatten(values) {
+        if (values.length == 1) {
+            return values[0];
+        }
+
+		// flatten nested IRMultiValues
+		values = values.map(v => {
+			if (v instanceof IRMultiValue) {
+				return v.values
+			} else {
+				return [v]
+			}
+		}).flat();
+
+        if (values.length == 1) {
+            return values[0];
+        } else if (values.every((v, i) => v instanceof IRLiteralValue && ((i == 0) || (v.code == values[0].code)))) {
+            return values[0];
+        }
+        
+        const hasError = values.some(v => v instanceof IRErrorValue);
+		const hasData = values.some(v => v instanceof IRDataValue || (v instanceof IRLiteralValue && !(v.value instanceof UplcUnit)));
+        const hasAny = values.some(v => v instanceof IRAnyValue || (v instanceof IRLiteralValue && v.value instanceof UplcUnit));
+
+		/**
+		 * @type {IRValue[]}
+		 */
+		let flattened = [];
+
+		if (values.some(v => v instanceof IRFuncValue || v instanceof IRBuiltinValue)) {
+			/**
+			 * @type {Map<IRExpr, IRFuncValue | IRBuiltinValue>}
+			 */
+			const s = new Map();
+
+			values.forEach(v => {
+				if (v instanceof IRFuncValue) {
+                    const prev = s.get(v.definition);
+
+                    if (prev instanceof IRFuncValue) {
+                        s.set(v.definition, IRFuncValue.new(v.definition, prev.stack.merge(v.stack)));
+                    } else {
+                        s.set(v.definition, v);
+                    }
+                } else if (v instanceof IRBuiltinValue) {
+                    s.set(v.builtin, v)
+                }
+			});
+
+            flattened = flattened.concat(Array.from(s.values()));
+		} else if (hasData) {
+            flattened.push(new IRDataValue());
+        } else if (hasAny) {
+            flattened.push(new IRAnyValue());
+        }
+
+        if (hasError) {
+            flattened.push(new IRErrorValue());
+        }
+
+        if (flattened.length == 1) {
+			return flattened[0];
+		} else {
+			return new IRMultiValue(flattened);
+		}
+	}
+
+	/**
+	 * @param {IRValue[]} values 
+	 * @returns {IRValue[][]}
+	 */
+	static allPermutations(values) {
+		if (!values.some(v => v instanceof IRMultiValue)) {
+			return [values];
+		} else {
+			/**
+			 * @type {IRValue[][]}
+			 */
+			const permutations = [];
+
+			let ns = values.map(v => {
+				if (v instanceof IRMultiValue) {
+					return v.values.length;
+				} else {
+					return 1;
+				}
+			});
+
+			let N = ns.reduce((prev, n) => {
+				return prev * n
+			}, 1);
+
+			for (let i = 0; i < N; i++) {
+				let j = i;
+
+				/**
+				 * @type {number[]}
+				 */
+				const is = [];
+
+				ns.forEach(n => {
+					is.push(j % n);
+
+					j = Math.floor(j / n);
+				});
+
+				permutations.push(is.map((j, i) => {
+					const v = assertDefined(values[i]);
+
+					if (v instanceof IRMultiValue) {
+						return v.values[j];
+					} else {
+						assert(j == 0);
+						return v;
+					}
+				}));
+			}
+
+			return permutations;
+		}
+	}
+
+    /**
+     * @returns {IRValue}
+     */
+    withoutErrors() {
+        return IRMultiValue.flatten(this.values.filter(v => !(v instanceof IRErrorValue)));
+    }
+}
+
+
+/**
+ * @internal
+ * @type {{[name: string]: (args: IRValue[]) => IRValue}}
+ */
+const IR_BUILTIN_CALLBACKS = {
+    addInteger: ([a, b]) => {
+        return new IRDataValue();
+    },
+    subtractInteger: ([a, b]) => {
+        return new IRDataValue();
+    },
+    multiplyInteger: ([a, b]) => {
+        if (a instanceof IRLiteralValue && a.value.int == 0n) {
+            return a;
+        } else if (b instanceof IRLiteralValue && b.value.int == 0n) {
+            return b;
+        } else {
+            return new IRDataValue();
+        }
+    },
+    divideInteger: ([a, b]) => {
+        if (a instanceof IRLiteralValue && a.value.int == 0n) {
+            return IRMultiValue.flatten([a, new IRErrorValue()]);
+        } else if (b instanceof IRLiteralValue) {
+            if (b.value.int == 0n) {
+                return new IRErrorValue();
+            } else if (b.value.int == 1n) {
+                return a;
+            } else {
+                return new IRDataValue();
+            }
+        } else {
+            return IRMultiValue.flatten([new IRDataValue(), new IRErrorValue()]);
+        }
+    },
+    modInteger: ([a, b]) => {
+        if (b instanceof IRLiteralValue) {
+            if (b.value.int == 1n) {
+                return new IRLiteralValue(new UplcInt(b.value.site, 0n, true));
+            } else if (b.value.int == 0n) {
+                return new IRErrorValue();
+            } else {
+                return new IRDataValue();
+            }
+        } else {
+            return IRMultiValue.flatten([
+                new IRDataValue(),
+                new IRErrorValue()
+            ]);
+        }
+    },
+    quotientInteger: ([a, b]) => {
+        if (a instanceof IRLiteralValue && a.value.int == 0n) {
+            return IRMultiValue.flatten([a, new IRErrorValue()]);
+        } else if (b instanceof IRLiteralValue) {
+            if (b.value.int == 0n) {
+                return new IRErrorValue();
+            } else if (b.value.int == 1n) {
+                return a;
+            } else {
+                return new IRDataValue();
+            }
+        } else {
+            return IRMultiValue.flatten([new IRDataValue(), new IRErrorValue()]);
+        }
+    },
+    remainderInteger: ([a, b]) => {
+        if (b instanceof IRLiteralValue) {
+            if (b.value.int == 1n) {
+                return new IRLiteralValue(new UplcInt(b.value.site, 0n, true));
+            } else if (b.value.int == 0n) {
+                return new IRErrorValue();
+            } else {
+                return new IRDataValue();
+            }
+        } else {
+            return IRMultiValue.flatten([
+                new IRDataValue(),
+                new IRErrorValue()
+            ]);
+        }
+    },
+    equalsInteger: ([a, b]) => {
+        return new IRDataValue();
+    },
+    lessThanInteger: ([a, b]) => {
+        return new IRDataValue();
+    },
+    lessThanEqualsInteger: ([a, b]) => {
+        return new IRDataValue();
+    },
+    appendByteString: ([a, b]) => {
+        return new IRDataValue();
+    },
+    consByteString: ([a, b]) => {
+        return new IRDataValue();
+    },
+    sliceByteString: ([a, b, c]) => {
+        if (b instanceof IRLiteralValue && b.value.int <= 0n) {
+            return new IRLiteralValue(new UplcByteArray(b.value.site, []));
+        } else {
+            return new IRDataValue();
+        }
+    },
+    lengthOfByteString: ([a]) => {
+        return new IRDataValue();
+    },
+    indexByteString: ([a, b]) => {
+        if (b instanceof IRLiteralValue && b.value.int < 0n) {
+            return new IRErrorValue();
+        } else if (a instanceof IRLiteralValue && a.value.bytes.length == 0) {
+            return new IRErrorValue();
+        } else {
+            return IRMultiValue.flatten([
+                new IRDataValue(),
+                new IRErrorValue()
+            ]);
+        }
+    },
+    equalsByteString: ([a, b]) => {
+        return new IRDataValue();
+    },
+    lessThanByteString: ([a, b]) => {
+        return new IRDataValue();
+    },
+    lessThanEqualsByteString: ([a, b]) => {
+        return new IRDataValue();
+    },
+    appendString: ([a, b]) => {
+        return new IRDataValue();
+    },
+    equalsString: ([a, b]) => {
+        return new IRDataValue();
+    },
+    encodeUtf8: ([a]) => {
+        return new IRDataValue();
+    },
+    decodeUtf8: ([a]) => {
+        return IRMultiValue.flatten([
+            new IRDataValue(),
+            new IRErrorValue()
+        ]);
+    },
+    sha2_256: ([a]) => {
+        return new IRDataValue();
+    },
+    sha3_256: ([a]) => {
+        return new IRDataValue();
+    },
+    blake2b_256: ([a]) => {
+        return new IRDataValue();
+    },
+    verifyEd25519Signature: ([a, b, c]) => {
+        if (a instanceof IRLiteralValue && a.value.bytes.length != 32) {
+            return new IRErrorValue();
+        } else if (c instanceof IRLiteralValue && c.value.bytes.length != 64) {
+            return new IRErrorValue();
+        } else {
+            return IRMultiValue.flatten([
+                new IRDataValue(),
+                new IRErrorValue()
+            ]);
+        }
+    },
+    ifThenElse: ([a, b, c]) => {
+        if (a instanceof IRLiteralValue) {
+            if (a.value.bool) {
+                return b;
+            } else {
+                return c;
+            }
+        } else {
+            return IRMultiValue.flatten([b, c]);
+        }
+    },
+    chooseUnit: ([a, b]) => {
+        return b;
+    },
+    trace: ([a, b]) => {
+        return b;
+    },
+    fstPair: ([a]) => {
+        return new IRDataValue();
+    },
+    sndPair: ([a]) => {
+        return new IRDataValue();
+    },
+    chooseList: ([a, b, c]) => {
+        if (a instanceof IRLiteralValue) {
+            if (a.value.list.length == 0) {
+                return b;
+            } else {
+                return c;
+            }
+        } else {
+            return IRMultiValue.flatten([b, c]);
+        }
+    },
+    mkCons: ([a, b]) => {
+        return new IRDataValue();
+    },
+    headList: ([a]) => {
+        return IRMultiValue.flatten([
+            new IRDataValue(),
+            new IRErrorValue()
+        ]);
+    },
+    tailList: ([a]) => {
+        return IRMultiValue.flatten([
+            new IRDataValue(),
+            new IRErrorValue()
+        ]);
+    },
+    nullList: ([a]) => {
+        return new IRDataValue();
+    },
+    chooseData: ([a, b, c, d, e, f]) => {
+        if (a instanceof IRLiteralValue) {
+            const data = a.value.data;
+
+            if (data instanceof ConstrData) {
+                return b;
+            } else if (data instanceof MapData) {
+                return c;
+            } else if (data instanceof ListData) {
+                return d;
+            } else if (data instanceof IntData) {
+                return e;
+            } else if (data instanceof ByteArrayData) {
+                return f;
+            } else {
+                throw new Error("unhandled UplcData type");
+            }
+        } else {
+            return IRMultiValue.flatten([b, c, d, e, f]);
+        }
+    },
+    constrData: ([a, b]) => {
+        return new IRDataValue();
+    },
+    mapData: ([a])  => {
+        return new IRDataValue();
+    },
+    listData: ([a]) => {
+        return new IRDataValue();
+    },
+    iData: ([a]) => {
+        return new IRDataValue();
+    },
+    bData: ([a]) => {
+        return new IRDataValue();
+    },
+    unConstrData: ([a]) => {
+        return IRMultiValue.flatten([
+            new IRDataValue(),
+            new IRErrorValue()
+        ]);
+    },
+    unMapData: ([a]) => {
+        return IRMultiValue.flatten([
+            new IRDataValue(),
+            new IRErrorValue()
+        ]);
+    },
+    unListData: ([a]) => {
+        return IRMultiValue.flatten([
+            new IRDataValue(),
+            new IRErrorValue()
+        ]);
+    },
+    unIData: ([a]) => {
+        return IRMultiValue.flatten([
+            new IRDataValue(),
+            new IRErrorValue()
+        ]);
+    },
+    unBData: ([a]) => {
+        return IRMultiValue.flatten([
+            new IRDataValue(),
+            new IRErrorValue()
+        ]);
+    },
+    equalsData: ([a, b]) => {
+        return new IRDataValue();
+    },
+    mkPairData: ([a, b]) => {
+        return new IRDataValue();
+    },
+    mkNilData: ([a]) => {
+        return new IRDataValue();
+    },
+    mkNilPairData: ([a]) => {
+        return new IRDataValue();
+    },
+    serialiseData: ([a]) => {
+        return new IRDataValue();
+    }
+};
+
+/**
+ * @internal
+ */
+export class IREvaluator {
+    /**
+     * Unwraps an IR AST
+     * @type {(
+     *   {
+     *     stack: IRStack,
+     *     expr: IRErrorExpr | IRLiteralExpr | IRNameExpr | IRFuncExpr | IRCallExpr
+     *   } |
+     *   {calling: IRCallExpr, code: number, args: IRValue[]} |
+     *   {fn: IRFuncExpr, owner: null | IRExpr, stack: IRStack} | 
+     *   {multi: number, owner: null | IRExpr} | 
+     *   {value: IRValue, owner: null | IRExpr} |
+     *   {ignore: number, owner: null | IRExpr}
+     * )[]}
+     */
+    #compute;
+
+    /**
+     * @type {IRValue[]}
+     */
+    #reduce;
+
+    /**
+	 * Keep track of the eval result of each expression
+	 * @type {Map<IRExpr, IRValue>}
+	 */
+	#exprValues;
+
+    /**
+     * Keep track of all values passed through IRVariables
+     * @type {Map<IRVariable, IRValue>}
+     */
+    #variableValues;
+
+
+    /**
+     * @type {Map<IRFuncExpr, number>}
+     */
+    #callCount;
+
+    /**
+     * @type {Map<IRFuncExpr, Set<IRCallExpr>>}
+     */
+    #funcCallExprs;
+
+    /**
+     * @type {Map<IRVariable, Set<IRNameExpr>>}
+     */
+    #variableReferences;
+
+    /**
+     * @type {Map<IRCallExpr, Map<number, IRValue>>}
+     */
+    #cachedCalls;
+
+    #evalLiterals;
+
+    /**
+     * @param {boolean} evalLiterals 
+     */
+	constructor(evalLiterals = true) {
+        this.#compute = [];
+        this.#reduce = [];
+
+        // data structures used by optimization
+        this.#exprValues = new Map();
+        this.#variableValues = new Map();
+        this.#callCount = new Map();
+        this.#funcCallExprs = new Map();
+        this.#variableReferences = new Map();
+        this.#cachedCalls = new Map();
+        this.#evalLiterals = evalLiterals;
+	}
+
+    /**
+     * @type {IRFuncExpr[]}
+     */
+    get funcExprs() {
+        return Array.from(this.#funcCallExprs.keys());
+    }
+
+    /**
+     * @param {IRExpr} expr 
+     * @returns {undefined | IRValue}
+     */
+    getExprValue(expr) {
+        return this.#exprValues.get(expr);
+    }
+
+    /**
+     * @param {IRVariable} v
+     * @returns {undefined | IRValue}
+     */
+    getVariableValue(v) {
+        return this.#variableValues.get(v);
+    }
+
+    /**
+     * @param {IRVariable} v 
+     * @returns {number}
+     */
+    countVariableReferences(v) {
+        return this.#variableReferences.get(v)?.size ?? 0;
+    }
+
+    /**
+     * @param {IRVariable} v 
+     * @returns {IRNameExpr[]}
+     */
+    getVariableReferences(v) {
+        return Array.from(this.#variableReferences.get(v) ?? [])
+    }
+
+    /**
+     * @param {IRFuncExpr} fn
+     * @returns {number}
+     */
+    countFuncCalls(fn) {
+        return this.#callCount.get(fn) ?? 0;
+    }
+
+    /**
+     * @param {IRExpr} expr 
+     * @returns {boolean}
+     */
+    expectsError(expr) {
+        const v = this.getExprValue(expr);
+
+        if (v) {
+            if (v instanceof IRErrorValue) {
+                return true;
+            } else if (v instanceof IRMultiValue && v.hasError()) {
+                return true;
+            } else if (v instanceof IRAnyValue) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            // the expression might be recently formed, so if not found, better be on the safe side
+            return true;
+        }
+    }
+
+    /**
+     * @param {IRFuncExpr} fn
+     * @returns {number[]} indices
+     */
+    getUnusedFuncVariables(fn) {
+        /**
+         * @type {number[]}
+         */
+        const indices = [];
+
+        fn.args.forEach((a, i) => {
+            const s = this.#variableReferences.get(a);
+            if (!s || s.size == 0) {
+                indices.push(i);
+            }
+        })
+
+        return indices;
+    }
+
+    /**
+     * @param {IRFuncExpr} fn 
+     * @returns {IRCallExpr[]}
+     */
+    getFuncCallExprs(fn) {
+        return Array.from(this.#funcCallExprs.get(fn) ?? []);
+    }
+
+    /**
+     * @param {IRFuncExpr} fn 
+     * @returns {boolean}
+     */
+    onlyDedicatedCallExprs(fn) {
+        const callExprs = this.getFuncCallExprs(fn);
+
+        // if there are no callExprs then we don't know exactly how the function is called (eg. main), and we can't flatten
+        if (callExprs.length == 0) {
+            return false;
+        }
+
+        return callExprs.every(ce => {
+            if (ce.func == fn) {
+                // literally calling fn directly
+                return true;
+            }
+
+            const v = this.getExprValue(ce.func);
+
+            if (!v) {
+                return false;
+            } else if (v instanceof IRMultiValue) {
+                return v.values.every(vv => !(vv instanceof IRFuncValue) || (vv.definition == fn))
+            } else if (v instanceof IRFuncValue) {
+                //assert(v.definition == fn, `expected ${fn.toString()}, not ${v.definition.toString()}`);
+                return true;
+            } else {
+                throw new Error(`unexpected ${v.toString()}`);
+            }
+        });
+    }
+
+    /**
+     * @param {IRFuncExpr} fn
+     * @param {number[]} unused
+     * @returns {boolean}
+     */
+    noUnusedArgErrors(fn, unused) {
+        const callExprs = this.getFuncCallExprs(fn);
+
+        return callExprs.every(ce => {
+            return unused.every(i => {
+                return !this.expectsError(ce.args[i]);
+            });
+        });
+    }
+
+    /**
+     * @param {IRFuncExpr} first 
+     * @param {IRFuncExpr} second
+     */
+    onlyNestedCalls(first, second) {
+        const callExprs = this.getFuncCallExprs(second);
+
+        // if there are no callExprs then we don't know exactly how the function is called (eg. main), and we can't flatten
+        if (callExprs.length == 0) {
+            return false;
+        }
+
+        return callExprs.every(ce => {
+            if (ce.func instanceof IRCallExpr) {
+                const v = this.getExprValue(ce.func.func);
+
+                if (!v) {
+                    return false;
+                } else if (v instanceof IRMultiValue) {
+                    return v.values.every(vv => !(vv instanceof IRFuncValue) || (vv.definition == first))
+                } else if (v instanceof IRFuncValue) {
+                    return v.definition == first;
+                } else {
+                    throw new Error(`unexpected ${v.toString()}`);
+                }
+            } else {
+                return false;
+            }
+        });
+    }
+
+    /**
+     * Push onto the computeStack, unwrapping IRCallExprs
+     * @private
+     * @param {IRStack} stack
+     * @param {IRExpr} expr
+     */
+    pushExpr(stack, expr) {
+        if (expr instanceof IRErrorExpr) {
+            this.#compute.push({stack: stack, expr: expr});
+        } else if (expr instanceof IRLiteralExpr) {
+            this.#compute.push({stack: stack, expr: expr});
+        } else if (expr instanceof IRNameExpr) {
+            this.#compute.push({stack: stack, expr: expr});
+        } else if (expr instanceof IRFuncExpr) {
+            this.#compute.push({stack: stack, expr: expr});
+        } else if (expr instanceof IRCallExpr) {
+            this.#compute.push({stack: stack, expr: expr});
+
+            this.pushExpr(stack, expr.func);
+
+            expr.args.forEach(a => this.pushExpr(stack, a));
+        } else {
+            throw new Error("unexpected expression type");
+        }
+    }
+
+    /**
+     * @param {IRExpr} expr 
+     * @param {IRValue} value 
+     */
+    setExprValue(expr, value) {
+        const outputs = this.#exprValues.get(expr);
+
+        if (outputs) {
+            this.#exprValues.set(expr, IRMultiValue.flatten([outputs, value]));
+        } else {
+            this.#exprValues.set(expr, value);
+        }
+    }
+
+    /**
+     * @param {null | IRExpr} owner 
+     * @param {IRValue} value 
+     */
+    pushReductionValue(owner, value) {
+        if (owner) {
+            this.setExprValue(owner, value);
+        }
+
+        this.#reduce.push(value);
+    }
+
+    /**
+     * @private
+     * @param {IRStack} stack
+     * @param {IRNameExpr} nameExpr
+     * @returns {IRValue}
+     */
+    getValue(stack, nameExpr) {
+        const variable = nameExpr.variable;
+
+        const s = this.#variableReferences.get(variable);
+
+        if (s) {
+            s.add(nameExpr);
+        } else {
+            this.#variableReferences.set(variable, new Set([nameExpr]));
+        }
+
+        return stack.getValue(variable);
+    }
+
+    /**
+     * @private
+     * @param {IRExpr} owner
+     * @param {IRNameExpr} nameExpr 
+     * @param {IRValue[]} args
+     */
+    callBuiltin(owner, nameExpr, args) {
+        let builtin = nameExpr.name.slice(BUILTIN_PREFIX.length);
+        const isSafe = builtin.endsWith(SAFE_BUILTIN_SUFFIX);
+        if (isSafe) {
+            builtin = builtin.slice(0, builtin.length - SAFE_BUILTIN_SUFFIX.length);
+        }
+
+        // collect results for each permutation of multivalued args
+
+        /**
+         * @type {IRValue[][]}
+         */
+        const permutations = IRMultiValue.allPermutations(args);
+
+        const resValues = permutations.map(args => {
+            if (args.every(a => a instanceof IRLiteralValue)) {
+                try {
+                    const res = UplcBuiltin.evalStatic(new Word(Site.dummy(), builtin), args.map(a => assertClass(a, IRLiteralValue).value));
+                    return new IRLiteralValue(res);
+                } catch (e) {
+                    if (e instanceof RuntimeError) {
+                        return new IRErrorValue();
+                    } else {
+                        throw e;
+                    }
+                }
+            } else if (args.some(a => a instanceof IRErrorValue)) {
+                return new IRErrorValue();
+            } else {
+                const res = assertDefined(IR_BUILTIN_CALLBACKS[builtin], `builtin ${builtin} not defined in IR_BUILTIN_CALLBACKS`)(args);
+                
+                if (isSafe && res instanceof IRMultiValue && res.hasError()) {
+                    return res.withoutErrors();
+                } else {
+                    return res;
+                }
+            }
+        });
+
+        this.pushReductionValue(owner, IRMultiValue.flatten(resValues));
+    }
+
+    /**
+     * @param {IRFuncExpr} fn 
+     */
+    incrCallCount(fn) {
+        const prev = this.#callCount.get(fn);
+
+        if (prev) {
+            this.#callCount.set(fn, Math.min(prev + 1, Number.MAX_SAFE_INTEGER));
+        } else {
+            this.#callCount.set(fn, 1);
+        }
+    }
+
+    /**
+     * @param {IRVariable[]} variables 
+     * @param {IRValue[]} values 
+     * @returns {[IRVariable, IRValue][]}
+     */
+    mapVarsToValues(variables, values) {
+        assert(variables.length == values.length, "variables and values don't have the same length([" + variables.map(v => v.name).join(",") + "] vs [" + values.map(v => v.toString()).join(",") + "]");
+
+        /**
+         * @type {[IRVariable, IRValue][]}
+         */
+        const m = [];
+
+        variables.forEach((variable, i) => {
+            const value = values[i];
+
+            const allValues = this.#variableValues.get(variable);
+
+            if (allValues) {
+                this.#variableValues.set(variable, IRMultiValue.flatten([allValues, value]));
+            } else {
+                this.#variableValues.set(variable, value);
+            }
+
+            m.push([variable, value]);
+        });
+
+        return m;
+    }
+
+    /**
+     * @private
+     * @param {IRStack} stack
+     * @param {null | IRExpr} owner
+     * @param {IRFuncExpr} fn
+     * @param {IRValue[]} args
+     */
+    pushFuncCall(stack, owner, fn, args) {
+        if (args.some(a => a instanceof IRErrorValue)) {
+            this.pushReductionValue(owner, new IRErrorValue());
+        } else {
+            if (args.some(a => a.hasError(true))) {
+                this.#compute.push({multi: 2, owner: owner});
+                this.#compute.push({value: new IRErrorValue(), owner: owner});
+                args = args.map(a => a.withoutErrors())
+            }
+            
+            const varsToValues = this.mapVarsToValues(fn.args, args);
+            stack = stack.extend(varsToValues);
+    
+            this.incrCallCount(fn);
+            this.#compute.push({fn: fn, owner: owner, stack: stack});
+            this.pushExpr(stack, fn.body); 
+        }
+    }
+
+    /**
+     * @private
+     * @param {IRExpr} owner for entry point ths is the entry point IRFuncExpr, for all other calls this is the IRCallExpr
+     * @param {IRFuncValue} v
+     * @param {IRValue[]} args 
+     */
+    callFunc(owner, v, args) {
+        const fn = v.definition;
+        const stack = v.stack;
+
+        if (owner instanceof IRCallExpr) {
+            const s = this.#funcCallExprs.get(fn);
+
+            if (!s) {
+                this.#funcCallExprs.set(fn, new Set([owner]));
+            } else {
+                s.add(owner);
+            }
+        }
+
+        this.pushFuncCall(stack, owner, fn, args);
+    }
+
+    /**
+     * Call an unknown function (eg. returned at the deepest point of recursion)
+     * Make sure any arguments that are functions are also called so that all possible execution paths are touched (TODO: should we also called function values returned by those calls etc.?)
+     * Absorb the return values of these functions
+     * @private
+     * @param {IRExpr} owner
+     * @param {IRAnyValue} fn
+     * @param {IRValue[]} args
+     */
+    callAnyFunc(owner, fn, args) {
+        if (args.some(a => a instanceof IRErrorValue)) {
+            this.pushReductionValue(owner, new IRErrorValue());
+        } else {
+            if (args.some(a => a.hasError(false))) {
+                this.#compute.push({multi: 2, owner: owner});
+                this.#compute.push({value: new IRErrorValue(), owner: owner});
+                args = args.map(a => a.withoutErrors())
+            }
+
+            /**
+             * Only user-defined functions!
+             * @type {IRFuncValue[]}
+             */
+            const fnsInArgs = [];
+
+            args.forEach(a => {
+                if (a instanceof IRMultiValue) {
+                    a.values.forEach(aa => {
+                        if (aa instanceof IRFuncValue) {
+                            fnsInArgs.push(aa);
+                        }
+                    });
+                } else if (a instanceof IRFuncValue) {
+                    fnsInArgs.push(a);
+                }
+            });
+
+            this.#compute.push({ignore: fnsInArgs.length, owner: owner});
+
+            fnsInArgs.forEach(fn => {
+                const def = assertClass(fn.definition, IRFuncExpr);
+
+                this.pushFuncCall(fn.stack, null, def, def.args.map(a => new IRAnyValue()));
+            });
+        }
+    }
+
+    /**
+     * @private
+     * @param {IRCallExpr} expr
+     * @param {number} code
+     * @param {IRValue} value
+     */
+    cacheValue(expr, code, value) {
+        const prev = this.#cachedCalls.get(expr);
+
+        if (prev) {
+            const prevPrev = prev.get(code);
+
+            if (prevPrev && !(prevPrev instanceof IRAnyValue)) {
+                const newValue = IRMultiValue.flatten([prevPrev, value]);
+                prev.set(code, newValue);
+            } else {
+                prev.set(code, value);
+            }
+        } else {
+            this.#cachedCalls.set(expr, new Map([[code, value]]));
+        }
+    }
+
+    /**
+     * @private
+     */
+    evalInternal() {
+        let head = this.#compute.pop();
+
+		while (head) {
+            if ("expr" in head) {
+                const expr = head.expr;
+
+                if (expr instanceof IRCallExpr) {
+                    let fn = assertDefined(this.#reduce.pop());
+
+                    /**
+                     * @type {IRValue[]}
+                     */
+                    let args = [];
+
+                    for (let i = 0; i < expr.args.length; i++) {
+                        args.push(assertDefined(this.#reduce.pop()))
+                    }
+
+                    // don't allow partial literal args (could lead to infinite recursion where the partial literal keeps updating)
+                    //  except when calling builtins (partial literals are important: eg. in divideInteger(<data>, 10) we know that the callExpr doesn't return an error)
+                    const allLiteral = fn.isLiteral() && args.every(a => a.isLiteral());
+                    if (!allLiteral && !(fn instanceof IRBuiltinValue)) {
+                        fn = fn.withoutLiterals();
+                        args = args.map(a => a.withoutLiterals());
+                    } 
+
+                    let code = fn.code;
+                    args.forEach(a => {
+                        code = hashCode(a.code, code);
+                    });
+
+                    const cached = this.#cachedCalls.get(expr)?.get(code);
+                    const fns = fn instanceof IRMultiValue ? fn.values : [fn];
+                    if (cached) {
+                        this.pushReductionValue(expr, cached);
+                        
+                        // increment the call count even though we are using a cached value
+                        for (let fn of fns) {
+                            if (fn instanceof IRFuncValue) {
+                                this.incrCallCount(fn.definition);
+                            }
+                        }
+                    } else {
+                        this.cacheValue(expr, code, new IRAnyValue());
+                        this.#compute.push({calling: expr, code: code, args: args});
+
+                        if (fns.length > 1) {
+                            this.#compute.push({multi: fns.length, owner: expr});
+                        }
+
+                        for (let fn of fns) {
+                            if (fn instanceof IRAnyValue) {///} || fn instanceof IRDataValue) {
+                                this.callAnyFunc(expr, fn, args);
+                            } else if (fn instanceof IRErrorValue) {
+                                this.pushReductionValue(expr, new IRErrorValue());
+                            } else if (fn instanceof IRFuncValue) {
+                                this.callFunc(expr, fn, args);
+                            } else if (fn instanceof IRBuiltinValue) {
+                                this.callBuiltin(expr, fn.builtin, args);
+                            } else {
+                                console.log(expr.toString());
+                                throw expr.site.typeError("unable to call " + fn.toString());
+                            }
+                        }
+                    }
+                } else if (expr instanceof IRErrorExpr) {
+                    this.pushReductionValue(expr, new IRErrorValue());
+                } else if (expr instanceof IRNameExpr) {
+                    if (expr.isParam()) {
+                        this.pushReductionValue(expr, new IRDataValue());
+                    } else if (expr.isCore()) {
+                        this.pushReductionValue(expr, new IRBuiltinValue(expr));
+                    } else {
+                        this.pushReductionValue(expr, this.getValue(head.stack, expr));
+                    }
+                } else if (expr instanceof IRLiteralExpr) {
+                    if (this.#evalLiterals ) {
+                        this.pushReductionValue(expr, new IRLiteralValue(expr.value));
+                    } else {
+                        if (expr.value instanceof UplcUnit) {
+                            this.pushReductionValue(expr, new IRAnyValue());
+                        } else {
+                            this.pushReductionValue(expr, new IRDataValue());
+                        }
+                    }
+                } else if (expr instanceof IRFuncExpr) {
+                    // don't set owner because it is confusing wrt. return value type
+                    this.#reduce.push(IRFuncValue.new(expr, head.stack));
+                } else {
+                    throw new Error("unexpected expr type");
+                }
+            } else if ("calling" in head) {
+                // keep track of recursive calls
+                
+                const last = assertDefined(this.#reduce.pop());
+                this.cacheValue(head.calling, head.code, last);
+                this.pushReductionValue(head.calling, last);
+			} else if ("fn" in head && head.fn instanceof IRFuncExpr) {
+                // track the owner
+                const owner = head.owner;
+                const last = assertDefined(this.#reduce.pop());
+                
+                this.setExprValue(head.fn, last);
+                this.pushReductionValue(owner, last);
+			} else if ("multi" in head) {
+                // collect multiple IRValues from the reductionStack and put it back as a single IRMultiValue
+
+				/**
+				 * @type {IRValue[]}
+				 */
+				const values = [];
+
+				for (let i = 0; i < head.multi; i++) {
+					values.push(assertDefined(this.#reduce.pop()));
+				}
+
+                this.pushReductionValue(head.owner, IRMultiValue.flatten(values));
+            } else if ("value" in head) {
+                this.pushReductionValue(head.owner, head.value);
+            } else if ("ignore" in head) {
+                const vs = [new IRAnyValue()];
+                for (let i = 0; i < head.ignore; i++) {
+                    if (assertDefined(this.#reduce.pop()) instanceof IRErrorValue) {
+                        vs.push(new IRErrorValue());
+                    }
+                }
+
+                this.pushReductionValue(head.owner, IRMultiValue.flatten(vs));
+			} else {
+				throw new Error("unexpected term");
+			}
+
+            head = this.#compute.pop();
+		}
+    }
+
+    /**
+     * @param {IRExpr} expr entry point
+     * @returns {IRValue}
+     */
+    evalFirstPass(expr) {
+        this.pushExpr(IRStack.empty(), expr);
+
+        this.evalInternal();
+
+        const res = assertDefined(this.#reduce.pop());
+
+        assert(this.#reduce.length == 0, "expected a single reduction value in first phase [" + this.#reduce.map(v => v.toString()).join(", ") + "]");
+
+        if (res instanceof IRFuncValue) {
+            return res;
+        } else if (res instanceof IRLiteralValue) {
+            return res; // used by const
+        } else {
+            throw new Error(`expected entry point function, got ${res.toString()}`);
+        }
+    }
+
+    /**
+     * @param {IRFuncValue} main
+     * @returns {IRValue}
+     */
+    evalSecondPass(main) {
+        const definition = assertClass(main.definition, IRFuncExpr);
+        const args = definition.args.map(a => new IRDataValue());
+        this.callFunc(definition, main, args);
+
+        this.evalInternal();
+
+        const res = assertDefined(this.#reduce.pop());
+
+        assert(this.#reduce.length == 0, "expected a single reduction value in second phase [" + res.toString() + ", " + this.#reduce.map(v => v.toString()).join(", ") + "]");
+
+        const finalValues = (res instanceof IRMultiValue) ? res.values : [res];
+
+        for (let v of finalValues) {
+            if (v instanceof IRErrorValue) {
+
+                // ok
+                /*if (finalValues.length == 1) {
+                    console.error("Warning: script always fails");
+                }*/
+            } else if (v instanceof IRLiteralValue) {
+                // ok
+            } else if (v instanceof IRDataValue) {
+                // ok
+            } else {
+                // ok, (could be a literal UplcUnit, which is treated as Any because in other contexts it could be a function)
+            }
+        }
+
+        return IRMultiValue.flatten(finalValues);
+    }
+
+	/**
+	 * @param {IRExpr} expr entry point
+     * @returns {IRValue}
+	 */
+	eval(expr) {
+        const res = this.evalFirstPass(expr);
+
+        if (res instanceof IRFuncValue) {
+            return this.evalSecondPass(res);
+        } else {
+            return res;
+        }
+	}
+
+    /**
+     * @param {IRExpr} expr 
+     * @returns {UplcData}
+     */
+    evalConst(expr) {
+        const res = this.evalFirstPass(expr);
+
+        if (res instanceof IRLiteralValue) {
+            let v = res.value;
+
+            if (v instanceof UplcDataValue) {
+                return v.data;
+            } else if (v instanceof UplcInt) {
+                return new IntData(v.int);
+            } else if (v instanceof UplcBool) {
+                return new ConstrData(v.bool ? 1 : 0, []);
+            } else if (v instanceof UplcList) {
+                if (v.isDataList()) {
+                    return new ListData(v.list.map(item => item.data));
+                } else if (v.isDataMap()) {
+                    return new MapData(v.list.map(item => {
+                        const pair = assertClass(item, UplcPair);
+
+                        return [pair.key, pair.value];
+                    }));
+                }
+            } else if (v instanceof UplcString) {
+                return new ByteArrayData(textToBytes(v.string));
+            } else if (v instanceof UplcByteArray) {
+                return new ByteArrayData(v.bytes);
+            }
+
+            throw new Error(`unable to turn '${v.toString()}' into data`);
+        } else {
+            throw new Error("expected IRLiteralValue");
+        }
+    }
+}
+
+
+/**
+ * Used to debug the result of IREvalation
+ * @internal
+ * @param {IREvaluator} evaluation 
+ * @param {IRExpr} expr 
+ * @returns {string}
+ */
+export function annotateIR(evaluation, expr) {
+    /**
+     * @param {IRExpr} expr 
+     * @param {string} indent
+     * @returns {string}
+     */
+    const annotate = (expr, indent) => {
+        if (expr instanceof IRLiteralExpr) {
+            return expr.value.toString();
+        } else if (expr instanceof IRErrorExpr) {
+            return `error()`;
+        } else if (expr instanceof IRNameExpr) {
+            const output = evaluation.getExprValue(expr);
+
+            if (output) {
+                return `${expr.name}: ${output.toString()}`
+            } else {
+                return expr.name;
+            }
+        } else if (expr instanceof IRFuncExpr) {
+            const output = evaluation.getExprValue(expr);
+
+            const isGlobalDef = expr.args.length == 1 && expr.args[0].name.startsWith("__");
+            const innerIndent = indent + (isGlobalDef ? "" : TAB);
+
+            let countStr = "";
+            const count = evaluation.countFuncCalls(expr);
+            if (count == Number.MAX_SAFE_INTEGER) {
+                countStr = "\u221e";
+            } else {
+                countStr = count.toString();
+            }
+
+            return `${expr.tag}(${expr.args.map(a => {
+                const v = evaluation.getVariableValue(a);
+
+                if (v) {
+                    return `${a.name}: ${v.toString()}`;
+                } else {
+                    return a.name;
+                }
+            }).join(", ")})${countStr} -> ${output ? output.toString() + " " : ""}{\n${innerIndent}${annotate(expr.body, innerIndent)}\n${indent}}`;
+        } else if (expr instanceof IRCallExpr) {
+            const output = evaluation.getExprValue(expr);
+
+            const isGlobalDef = expr.func instanceof IRFuncExpr && expr.func.args.length == 1 && expr.func.args[0].name.startsWith("__");
+            const globalDef = expr.func instanceof IRFuncExpr && expr.func.args.length == 1 ? expr.func.args[0].name : "";
+
+            const parens = `(${isGlobalDef ? `\n${indent}${TAB}/* ${globalDef} */` : ""}${expr.args.map(a => `\n${indent}${TAB}${annotate(a, indent + TAB)}`).join(",")}${(expr.args.length > 0) || isGlobalDef ? `\n${indent}` : ""})${output ? `: ${output.toString()}` : ""}`;
+
+            if (expr.func instanceof IRNameExpr) {
+                return `${expr.func.toString()}${parens}`;
+            } else {
+                return `${annotate(expr.func, indent)}${parens}`;
+            }
+        } else {
+            throw new Error("unhandled IRExpr");
+        }
+    }
+
+    return annotate(expr, "");
+}
+
+
+//////////////////////////////
+// Section 31: IR optimization
+//////////////////////////////
+
+/**
+ * Recursive algorithm that performs the following optimizations.
+ * 
+ * Optimizations performed in both `aggressive == false` and `aggressive == true` cases:
+ *   * replace `IRNameExpr` by `IRLiteralExpr` if the expected value is IRLiteralValue
+ *   * replace `IRCallExpr` by `IRLiteralExpr` if the expected value is IRLiteralValue
+ * 
+ * Optimizations only performed in the `aggressive == true` case:
+ *   * replace `IRNameExpr` by `IRErrorExpr` if the expected value is IRErrorValue
+ *   * replace `IRCallExpr` by `IRErrorExpr` if the expected value is IRErrorValue
+ *   * replace `__core__addInteger(<expr>, 0)` or `__core__addInteger(0, <expr>)` by `<expr>`
+ *   * replace `__core__subtractInteger(<expr>, 0)` by `<expr>`
+ *   * replace `__core__multiplyInteger(<expr>, 1)` or `__core__multiplyInteger(1, <expr>)` by `<expr>`
+ *   * replace `__core__divideInteger(<expr>, 1)` by `<expr>`
+ *   * replace `__core__quotientInteger(<expr>, 1)` by `<expr>`
+ *   * replace `__core__appendByteString(<expr>, #)` or `__core__appendByteString(#, <expr>)` by `<expr>`
+ *   * replace `__core__appendString(<expr>, "")` or `__core__appendString("", <expr>)` by `<expr>`
+ *   * replace `__core__decodeUtf8(__core__encodeUtf8(<expr>))` by `<expr>`
+ *   * replace `__core__ifThenElse(true, <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
+ *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
+ *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
+ *   * replace `__core__ifThenElse(<cond-expr>, <expr-a>, <expr_a>)` by `<expr-a>` if `<cond-expr>` doesn't expect IRErrorValue
+ *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
+ *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
+ *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
+ *   * replace `__core__chooseList([...], <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
+ *   * replace `__core__chooseData(ConstrData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expressions expect IRErrorValue
+ *   * replace `__core__chooseData(__core__constrData(<index-expr>, <fields-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expressions expect IRErrorValue
+ *   * replace `__core__chooseData(MapData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__mapData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(ListData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__listData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(IntData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__iData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(ByteArrayData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__chooseData(__core__bData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
+ *   * replace `__core__unMapData(__core__mapData(<expr>))` by `<expr>`
+ *   * replace `__core__unListData(__core__listData(<expr>))` by `<expr>`
+ *   * replace `__core__unIData(__core__iData(<expr>))` by `<expr>`
+ *   * replace `__core__unBData(__core__bData(<expr>))` by `<expr>`
+ *   * replace `__core__equalsData(__core__iData(<expr-a>), __core__iData(<expr-b>))` by `__core__equalsInteger(<expr-a>, <expr-b>)`
+ *   * replace `__core__equalsData(__core__bData(<expr-a>), __core__bData(<expr-b>))` by `__core__equalsByteString(<expr-a>, <expr-b>)`
+ *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
+ *   * replace IRCallExpr args that are uncalled IRFuncExprs with `()`
+ *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
+ *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<name-expr>` if each var is only referenced once (i.e. only referenced in the call)
+ *   * replace `(<var>) -> {<var>}(<arg-expr>)` by `<arg-expr>`
+ *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each var is only referenced once (i.e. only referenced in the call)
+ *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
+ *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
+ *   * inline `<call-expr>` in `(<vars>) -> {...}(<call-expr>, ...)` if the corresponding var is only referenced once and if all the nested IRFuncExprs are only evaluated once and if the IRCallExpr doesn't expect an error
+ *   * replace `() -> {<expr>}()` by `<expr>`
+ * 
+ * Optimizations that we have considered, but are NOT performed:
+ *   * replace `__core__subtractInteger(0, <expr>)` by `__core__multiplyInteger(<expr>, -1)`
+ *       reason: it is unclear if either method is cheaper for the majority of cases
+ *   * replace `__core__multiplyInteger(<expr>, -1)` by `__core__subtractInteger(0, <expr>)`
+ *       reason: it is unclear if either method is cheaper for the majority of cases
+ * 
+ * @internal
+ * @param {IREvaluator} evaluation 
+ * @param {IRExpr} expr
+ * @param {boolean} aggressive
+ * @returns {IRExpr}
+ */
+export class IROptimizer {
+    #evaluator;
+    #root;
+    #aggressive;
+
+    /**
+     * @type {Map<IRVariable, IRExpr>}
+     */
+    #inlining;
+
+    /**
+     * @type {Map<IRFuncExpr, number>}
+     */
+    #callCount;
+
+    /**
+     * @param {IRExpr} root
+     * @param {boolean} aggressive 
+     */
+    constructor(root, aggressive = false) {
+        this.#evaluator = new IREvaluator();
+        this.#root = root;
+        IROptimizer.assertNoDuplicateExprs(root);
+        this.#aggressive = aggressive;
+
+        this.#inlining = new Map();
+        this.#callCount = new Map();
+
+        this.init();
+    }
+
+    /**
+     * @param {IRExpr} expr 
+     * @returns {boolean}
+     */
+    expectsError(expr) {
+        return this.#evaluator.expectsError(expr);
+    }
+
+    /**
+     * @private
+     * @param {IRFuncExpr} fn 
+     */
+    countFuncCalls(fn) {
+        return this.#callCount.get(fn) ?? this.#evaluator.countFuncCalls(fn);
+    }
+
+    /**
+     * Makes sure the callCount is copied from IREvaluator
+     * @private
+     * @param {IRFuncExpr} old 
+     * @param {IRVariable[]} args
+     * @param {IRExpr} body
+     * @returns {IRFuncExpr}
+     */
+    newFuncExpr(old, args, body) {
+        const n = this.countFuncCalls(old);
+
+        const funcExpr = new IRFuncExpr(
+            old.site,
+            args,
+            body,
+            old.tag
+        );
+
+        this.#callCount.set(funcExpr, n);
+
+        return funcExpr;
+    }
+
+    /**
+     * Apply optimizations that require access to the root:
+     *   * flatten nested IRFuncExpr where possible
+     *   * remove unused IRFuncExpr variables
+     * @private
+     */
+    init() {
+        this.#evaluator.eval(this.#root);
+
+        if (config.DEBUG) {
+            console.log(annotateIR(this.#evaluator, this.#root));
+        }
+
+        if (!this.#aggressive) {
+            return;
+        }
+
+        this.removeUnusedArgs();
+
+        this.replaceUncalledArgsWithUnit();
+
+        // rerun evaluation
+        this.#evaluator = new IREvaluator();
+
+        this.#evaluator.eval(this.#root);
+
+        if (config.DEBUG) {
+            console.log(annotateIR(this.#evaluator, this.#root));
+        }
+
+        this.flattenNestedFuncExprs();
+    }
+
+    /**
+     * Mutates
+     * @private
+     */
+    removeUnusedArgs() {
+        const funcExprs = this.#evaluator.funcExprs.filter(expr => {
+            const unusedIndices = this.#evaluator.getUnusedFuncVariables(expr);
+
+            return unusedIndices.length > 0 && this.#evaluator.onlyDedicatedCallExprs(expr) && this.#evaluator.noUnusedArgErrors(expr, unusedIndices);
+        });
+
+        funcExprs.forEach(expr => {
+            const unusedIndices = this.#evaluator.getUnusedFuncVariables(expr);
+            const unused = new Set(unusedIndices);
+
+            const callExprs = this.#evaluator.getFuncCallExprs(expr);
+
+            callExprs.forEach(callExpr => {
+                callExpr.args = callExpr.args.filter((a, i) => !unused.has(i));
+            });
+            
+            expr.args = expr.args.filter((a, i) => !unused.has(i));
+        });
+    }
+
+    /**
+     * TODO: improve IREvaluator to make sure all possible IRFuncExpr calls are evaluated
+     * @private
+     */
+    replaceUncalledArgsWithUnit() {
+        loopIRExprs(this.#root, {
+            callExpr: (callExpr) => {
+                callExpr.args = callExpr.args.map(a => {
+                    if (a instanceof IRFuncExpr && this.#evaluator.countFuncCalls(a) == 0) {
+                        return new IRLiteralExpr(new UplcUnit(a.site));
+                    } else {
+                        return a;
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * In scope order, call func before call args
+     * @private
+     */
+    collectFuncExprs() {
+        /**
+         * @type {IRFuncExpr[]}
+         */
+        const funcExprs = [];
+
+        loopIRExprs(this.#root, {
+            funcExpr: (funcExpr) => {
+                funcExprs.push(funcExpr);
+            }
+        });
+
+        return funcExprs;
+    }
+
+    /**
+     * @private
+     */
+    flattenNestedFuncExprs() {
+        const funcExprs = this.collectFuncExprs();
+
+        /**
+         * @type {Set<IRFuncExpr>}
+         */
+        const done = new Set();
+
+        funcExprs.forEach(expr => {
+            if (done.has(expr)) {
+                return;
+            }
+
+            let last = expr;
+            let args = expr.args.slice();
+            let depth = 1;
+
+            while (last.body instanceof IRFuncExpr && this.#evaluator.onlyDedicatedCallExprs(last.body) && this.#evaluator.onlyNestedCalls(last, last.body)) {
+                depth += 1;
+                last = last.body;
+                args = args.concat(last.args.slice());
+                done.add(last);
+            }
+
+            if (depth == 1) {
+                // don't do anything
+                return;
+            }
+
+            const callExprs = this.#evaluator.getFuncCallExprs(last);
+
+            assert(callExprs.length > 0);
+
+            callExprs.forEach(callExpr => {
+                let inner = callExpr;
+
+                /**
+                 * @type {IRExpr[][]}
+                 */
+                let allArgs = [];
+
+                for (let i = 0; i < depth; i++) {
+                    allArgs.push(inner.args.slice());
+
+                    if (i < depth - 1) {
+                        inner = assertClass(inner.func, IRCallExpr);
+                    }
+                }
+
+                callExpr.func = inner.func;
+                callExpr.args = allArgs.reverse().flat();
+            });
+                
+            expr.args = args;
+            expr.body = last.body;
+        })
+    }
+
+    /**
+     * @param {IRFuncExpr} start
+     * @param {IRNameExpr} nameExpr
+     * @returns {boolean}
+     */
+    isEvaluatedMoreThanOnce(start, nameExpr) {
+        /**
+         * @type {Map<IRExpr, IRCallExpr | IRFuncExpr>}
+         */
+        const parents = new Map();
+
+        let foundNameExpr = false;
+
+        loopIRExprs(start, {
+            funcExpr: (funcExpr) => {
+                parents.set(funcExpr.body, funcExpr);
+            },
+            callExpr: (callExpr) => {
+                parents.set(callExpr.func, callExpr);
+                callExpr.args.forEach(a => {parents.set(a, callExpr)});
+            },
+            nameExpr: (ne) => {
+                foundNameExpr = ne == nameExpr;
+            },
+            exit: () => {
+                return foundNameExpr;
+            }
+        });
+
+        let parent = parents.get(nameExpr);
+
+        while (parent && parent != start) {
+            if (parent instanceof IRFuncExpr && this.countFuncCalls(parent) > 1) {
+                return true;
+            }
+            
+            parent = parents.get(parent);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param {IRVariable} v 
+     * @param {IRExpr} expr 
+     */
+    inline(v, expr) {
+        this.#inlining.set(v, expr);
+    }
+    
+    /**
+     * @private
+     * @param {IRNameExpr} expr 
+     * @returns {IRExpr}
+     */
+    optimizeNameExpr(expr) {
+        const v = this.#evaluator.getExprValue(expr);
+    
+        if (v) {
+            if (v instanceof IRLiteralValue) {
+                return new IRLiteralExpr(v.value);
+            } else if (v instanceof IRErrorValue && this.#aggressive) {
+                return new IRErrorExpr(expr.site);
+            }
+        }
+
+        if (!expr.isCore()) {
+            const newExpr = this.#inlining.get(expr.variable);
+
+            if (newExpr) {
+                // always copy to make sure any (nested) IRNameExpr is unique (=> unique DeBruijn index)
+                return newExpr.copy();
+            }
+        }
+
+        return expr;
+    }
+
+    /**
+     * The optimizations are only performed in aggressive mode
+     * @private
+     * @param {IRCallExpr} expr
+     * @returns {IRExpr}
+     */
+    optimizeBuiltinCallExpr(expr) {
+        const builtinName = expr.builtinName;
+
+        const args = expr.args;
+
+        switch (builtinName) {
+            case "addInteger": {
+                const [a, b] = args;
+
+                if (a instanceof IRLiteralExpr && a.value.int == 0n) {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value.int == 0n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "subtractInteger": {
+                const [a, b] = args;
+
+                if (b instanceof IRLiteralExpr && b.value.int == 0n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "multiplyInteger": {
+                const [a, b] = args;
+
+                if (a instanceof IRLiteralExpr && a.value.int == 1n) {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value.int == 1n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "divideInteger": {
+                const [a, b] = args;
+
+                if (b instanceof IRLiteralExpr && b.value.int == 1n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "quotientInteger": {
+                const [a, b] = args;
+
+                if (b instanceof IRLiteralExpr && b.value.int == 1n) {
+                    return a;
+                }
+
+                break;
+            };
+            case "appendByteString": {
+                const [a, b] = args;
+
+                if (a instanceof IRLiteralExpr && a.value.bytes.length == 0) {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value.bytes.length == 0) {
+                    return a;
+                }
+
+                break;
+            };
+            case "appendString": {
+                const [a, b] = args;
+
+                if (a instanceof IRLiteralExpr && a.value.string == "") {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value.string == "") {
+                    return a;
+                }
+
+                break;
+            };
+            case "decodeUtf8": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "encodeUtf8") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "ifThenElse": {
+                const [cond, a, b] = args;
+
+                if (cond instanceof IRLiteralExpr) {
+                    if (cond.value.bool && !this.expectsError(b)) {
+                        return a;
+                    } else if (!cond.value.bool && !this.expectsError(a)) {
+                        return b;
+                    }
+                } else if (!this.expectsError(cond) && a.toString() == b.toString()) {
+                    return a;
+                } else if (cond instanceof IRCallExpr && cond.func instanceof IRNameExpr && cond.builtinName == "nullList") {
+                    return new IRCallExpr(
+                        expr.site,
+                        new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}chooseList`)),
+                        [cond.args[0], a, b]
+                    );
+                }
+
+                break;
+            };
+            case "chooseUnit": {
+                const [a, b] = args;
+
+                if (b instanceof IRLiteralExpr && b.value instanceof UplcUnit) {
+                    return a;
+                }
+
+                break;
+            };
+            case "trace": {
+                const [a, b] = args;
+
+                if (!this.expectsError(a)) {
+                    return b;
+                }
+
+                break;
+            };
+            case "chooseList": {
+                const [lst, a, b] = args;
+
+                if (lst instanceof IRLiteralExpr) {
+                    if (lst.value.list.length == 0 && !this.expectsError(b)) {
+                        return a;
+                    } else if (lst.value.list.length > 0 && !this.expectsError(a)) {
+                        return b;
+                    }
+                }
+
+                break;
+            };
+            case "chooseData": {
+                const [cond, C, M, L, I, B] = args;
+
+                if (cond instanceof IRLiteralExpr) {
+                    if (cond.value.data instanceof ConstrData && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return C;
+                    } else if (cond.value.data instanceof MapData && !this.expectsError(C) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return M;
+                    } else if (cond.value.data instanceof ListData && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return L;
+                    } else if (cond.value.data instanceof IntData && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(B)) {
+                        return I;
+                    } else if (cond.value.data instanceof ByteArrayData && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I)) {
+                        return B;
+                    }
+                } else if (cond instanceof IRCallExpr && cond.func instanceof IRNameExpr && !this.expectsError(cond)) {
+                    if (cond.builtinName == "constrData" && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return C;
+                    } else if (cond.builtinName == "mapData" && !this.expectsError(C) && !this.expectsError(L) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return M;
+                    } else if (cond.builtinName == "listData" && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(I) && !this.expectsError(B)) {
+                        return L;
+                    } else if (cond.builtinName == "iData" && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(B)) {
+                        return I;
+                    } else if (cond.builtinName == "bData" && !this.expectsError(C) && !this.expectsError(M) && !this.expectsError(L) && !this.expectsError(I)) {
+                        return B;
+                    }
+                }
+
+                break;
+            };
+            case "unMapData": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "mapData") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "unListData": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "listData") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "unIData": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "iData") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "unBData": {
+                const [arg] = args;
+
+                if (arg instanceof IRCallExpr && arg.func instanceof IRNameExpr && arg.builtinName == "bData") {
+                    return arg.args[0];
+                }
+
+                break;
+            };
+            case "equalsData": {
+                const [a, b] = args;
+
+                if (
+                    a instanceof IRCallExpr && a.func instanceof IRNameExpr && a.builtinName == "iData" &&
+                    b instanceof IRCallExpr && b.func instanceof IRNameExpr && b.builtinName == "iData"
+                ) {
+                    return new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsInteger`)), [a.args[0], b.args[0]]);
+                } else if (
+                    a instanceof IRCallExpr && a.func instanceof IRNameExpr && a.builtinName == "bData" &&
+                    b instanceof IRCallExpr && b.func instanceof IRNameExpr && b.builtinName == "bData"
+                ) {
+                    return new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsByteString`)), [a.args[0], b.args[0]]);
+                }
+
+                break;
+            };
+        }
+
+        return expr;
+    }
+
+    /**
+     * @private
+     * @param {IRCallExpr} expr 
+     * @returns {IRExpr}
+     */
+    optimizeCallExpr(expr) {
+        const v = this.#evaluator.getExprValue(expr);
+    
+        if (v) {
+            if (v instanceof IRLiteralValue) {
+                return new IRLiteralExpr(v.value);
+            } else if (v instanceof IRErrorValue && this.#aggressive) {
+                return new IRErrorExpr(expr.site);
+            }
+        }
+
+        let func = expr.func;
+        
+        let args = expr.args.map(a => this.optimizeInternal(a));
+
+        if (func instanceof IRFuncExpr && func.args.length == 1 && func.body instanceof IRNameExpr && func.body.isVariable(func.args[0])) {
+            assert(args.length == 1);
+
+            return args[0];
+        }
+
+        // see if any arguments can be inlined
+        if (func instanceof IRFuncExpr) {
+            let unused = new Set();
+
+            const funcExpr = func;
+            const variables = func.args;
+
+            args.forEach((a, i) => {
+                const v = variables[i];
+
+                if (a instanceof IRNameExpr) {
+                    // inline all IRNameExprs
+                    unused.add(i);
+                    this.inline(v, a);
+                } else if (a instanceof IRFuncExpr && this.#evaluator.countVariableReferences(v) == 1) {
+                    // inline IRFuncExpr if it is only reference once
+                    unused.add(i);
+                    this.inline(v, a);
+                } else if (a instanceof IRCallExpr && this.#evaluator.countVariableReferences(v) == 1 && !this.expectsError(a)) {
+                    const nameExpr = this.#evaluator.getVariableReferences(v)[0];
+
+                    if (!this.isEvaluatedMoreThanOnce(funcExpr, nameExpr)) {
+                        unused.add(i);
+                        this.inline(v, a);
+                    }
+                }
+            });
+
+            if (unused.size > 0) {
+                args = args.filter((a, i) => !unused.has(i));
+
+                const newFuncExpr = this.newFuncExpr(
+                    func,
+                    func.args.filter((a, i) => !unused.has(i)),
+                    func.body
+                );
+
+                func = newFuncExpr;
+            }
+        }
+
+        if (args.length == 0 && func instanceof IRFuncExpr && func.args.length == 0) {
+            return this.optimizeInternal(func.body);
+        }
+
+        expr = new IRCallExpr(
+            expr.site, 
+            this.optimizeInternal(func),
+            args
+        );
+
+        const builtinName = expr.builtinName;
+
+        if (builtinName != "" && this.#aggressive) {
+            return this.optimizeBuiltinCallExpr(expr);
+        }
+
+        return expr;
+    }
+
+    /**
+     * @private
+     * @param {IRFuncExpr} expr 
+     * @returns {IRExpr}
+     */
+    optimizeFuncExpr(expr) {
+        expr = this.newFuncExpr(
+            expr, 
+            expr.args,
+            this.optimizeInternal(expr.body)
+        );
+
+        if (
+            expr.body instanceof IRCallExpr && 
+            (expr.body.func instanceof IRNameExpr || expr.body.func instanceof IRFuncExpr) && 
+            expr.body.args.length == expr.args.length && 
+            expr.body.args.every((a, i) => {
+                return a instanceof IRNameExpr && a.isVariable(expr.args[i]) && this.#evaluator.countVariableReferences(expr.args[i]) == 1;
+            })
+        ) {
+            return expr.body.func;
+        }
+
+        return expr;
+    }
+
+    /**
+     * @private
+     * @param {IRExpr} expr 
+     */
+    optimizeInternal(expr) {
+        const newExpr = (() => {
+            if (expr instanceof IRLiteralExpr) {
+                // already optimal
+                return expr;
+            } else if (expr instanceof IRErrorExpr) {
+                // already optimal
+                return expr;
+            } else if (expr instanceof IRNameExpr) {
+                return this.optimizeNameExpr(expr);
+            } else if (expr instanceof IRCallExpr) {
+                return this.optimizeCallExpr(expr);
+            } else if (expr instanceof IRFuncExpr) {
+                return this.optimizeFuncExpr(expr);
+            } else {
+                throw new Error("unhandled IRExpr");
+            }
+        })();
+
+        return newExpr;
+    }
+
+    /**
+     * @param {IRExpr} expr 
+     */
+    static assertNoDuplicateExprs(expr) {
+        /**
+         * @type {Set<IRExpr>}
+         */
+        const s = new Set();
+
+        loopIRExprs(expr, {
+            nameExpr: (nameExpr) => {
+                if (s.has(nameExpr)) {
+                    console.log(expr.toString());
+                    throw new Error("duplicate IRNameExpr " + nameExpr.name);
+                }
+
+                s.add(nameExpr);
+            }
+        });
+    }
+
+    /**
+     * @returns {IRExpr}
+     */
+    optimize() {
+        const expr = this.optimizeInternal(this.#root);
+
+        IROptimizer.assertNoDuplicateExprs(expr);
+
+        return expr;
+    }
+}
+
+
 /////////////////////////
-// Section 30: IR Program
+// Section 32: IR Program
 /////////////////////////
 
 
@@ -41840,8 +44053,6 @@ export class IRProgram {
 
 			throw e;
 		}
-		
-		expr = expr.evalConstants(new IRCallStack(true));
 
 		if (simplify) {
 			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
@@ -41860,6 +44071,17 @@ export class IRProgram {
 	}
 
 	/**
+	 * @returns {string}
+	 */
+	annotate() {
+		const evaluator = new IREvaluator();
+
+		evaluator.eval(this.#expr);
+
+		return annotateIR(evaluator, this.#expr);
+	}
+
+	/**
 	 * @param {IRExpr} expr
 	 * @returns {IRExpr}
 	 */
@@ -41870,9 +44092,9 @@ export class IRProgram {
 		while (dirty) {
 			dirty = false;
 
-			expr = IRProgram.simplifyLiterals(expr);
+			const optimizer = new IROptimizer(expr, true);
 
-			expr = IRProgram.simplifyTopology(expr);
+			expr = optimizer.optimize();
 
 			const newState = expr.toString();
 
@@ -41883,26 +44105,6 @@ export class IRProgram {
 		}
 
 		return expr;
-	}
-
-	/**
-	 * @param {IRExpr} expr 
-	 * @returns {IRExpr}
-	 */
-	static simplifyLiterals(expr) {
-		return expr.simplifyLiterals(new Map());
-	}
-
-	/**
-	 * @param {IRExpr} expr 
-	 * @returns {IRExpr}
-	 */
-	static simplifyTopology(expr) {
-		const nameExprs = new IRNameExprRegistry();
-
-		expr.registerNameExprs(nameExprs);
-
-		return expr.simplifyTopology(new IRExprRegistry(nameExprs));
 	}
 
 	/**
@@ -42053,7 +44255,7 @@ export class IRParametricProgram {
 
 
 /////////////////////////////
-// Section 31: Helios program
+// Section 33: Helios program
 /////////////////////////////
 
 
@@ -42804,18 +45006,31 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		const path = constStatement.path;
 
-		const inner = new IR([
-			new IR("const"),
-			new IR("("),
-			new IR(path),
-			new IR(")")
-		]);
+		const inner = new IR(path);
 
 		const ir = this.wrapInner(ctx, inner, map);
 
-		const irProgram = IRProgram.new(ir, this.#purpose, true);
+		const [irSrc, codeMap] = ir.generateSource();
 
-		return new UplcDataValue(irProgram.site, irProgram.data);
+		const irTokens = tokenizeIR(irSrc, codeMap);
+
+		const expr = buildIRExpr(irTokens);
+
+		const scope = new IRScope(null, null);
+
+		expr.resolveNames(scope);
+
+		const evaluation = new IREvaluator();
+		
+		try {
+			const data = evaluation.evalConst(expr);
+
+			return new UplcDataValue(expr.site, data);
+		} catch (e) {
+			console.log(irSrc);
+
+			throw e;
+		}
 	}
 
 	/**
@@ -43298,6 +45513,18 @@ const DEFAULT_PROGRAM_CONFIG = {
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
 		return new Source(irProgram.toString(), this.name).pretty();
+	}
+
+	/**
+	 * @param {boolean} simplify 
+	 * @returns {string}
+	 */
+	annotateIR(simplify = false) {
+		const ir = this.toIR(new ToIRContext(simplify));
+
+		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
+
+		return new Source(irProgram.annotate(), this.name).pretty();
 	}
 
 	/**
@@ -43848,7 +46075,7 @@ class EndpointProgram extends GenericProgram {
 
 
 /////////////////////////////
-// Section 32: Native scripts
+// Section 34: Native scripts
 /////////////////////////////
 
 /**
@@ -44451,7 +46678,7 @@ class NativeBefore extends NativeScript {
 
 
 ///////////////////////
-// Section 33: Tx types
+// Section 35: Tx types
 ///////////////////////
 
 /**
@@ -49972,7 +52199,7 @@ export class TxMetadata {
 
 
 ////////////////////////////////////
-// Section 34: Highlighting function
+// Section 36: Highlighting function
 ////////////////////////////////////
 
 /**
@@ -50299,7 +52526,7 @@ export function highlight(src) {
 
 
 ////////////////////////////
-// Section 35: CoinSelection
+// Section 37: CoinSelection
 ////////////////////////////
 
 /**
@@ -50444,7 +52671,7 @@ export const CoinSelection = {
 
 
 //////////////////////
-// Section 36: Wallets
+// Section 38: Wallets
 //////////////////////
 
 /**
@@ -50864,7 +53091,7 @@ export class RemoteWallet {
 
 
 //////////////////////
-// Section 37: Network
+// Section 39: Network
 //////////////////////
 
 
@@ -51556,7 +53783,7 @@ export class KoiosV0 {
 
 
 ///////////////////////
-// Section 38: Emulator
+// Section 40: Emulator
 ///////////////////////
 /**
  * Raw network parameters used by Emulator
@@ -53066,7 +55293,7 @@ export class NetworkSlice {
 
 
 //////////////////////////////////////
-// Section 39: Fuzzy testing framework
+// Section 41: Fuzzy testing framework
 //////////////////////////////////////
 
 /**
@@ -53095,6 +55322,8 @@ export class FuzzyTest {
 
 	#simplify;
 
+	#printMessages;
+
 	/**
 	 * @type {NetworkParams}
 	 */
@@ -53106,7 +55335,7 @@ export class FuzzyTest {
 	 * @param {number} runsPerTest
 	 * @param {boolean} simplify If true then also test the simplified program
 	 */
-	constructor(seed = 0, runsPerTest = 100, simplify = false) {
+	constructor(seed = 0, runsPerTest = 100, simplify = false, printMessages = false) {
 		console.log("starting fuzzy testing  with seed", seed);
 
 		this.#seed = seed;
@@ -53114,6 +55343,7 @@ export class FuzzyTest {
 		this.#runsPerTest = runsPerTest;
 		this.#simplify = simplify;
 		this.#dummyNetworkParams = new NetworkParams(rawNetworkEmulatorParams);
+		this.#printMessages = printMessages;
 	}
 
 	reset() {
@@ -53463,9 +55693,10 @@ export class FuzzyTest {
 		if (purposeName === null) {
 			throw new Error("failed to get script purpose and name");
 		} else {
-			let [_, testName] = purposeName;
+			const [_, testName] = purposeName;
 
-			let program = Program.new(src).compile(simplify);
+			const program = Program.new(src);
+			const uplcProgram = program.compile(simplify);
 
 			/**
 			 * @type {Cost}
@@ -53488,38 +55719,47 @@ export class FuzzyTest {
 					cpu: 0n
 				};
 
-				let result = await program.run(
-					args, {
-						...DEFAULT_UPLC_RTE_CALLBACKS,
-						onPrint: async (msg) => {return},
-						onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
-					},
-					this.#dummyNetworkParams
-				);
+				try {
+					let result = await uplcProgram.run(
+						args, {
+							...DEFAULT_UPLC_RTE_CALLBACKS,
+							onPrint: this.#printMessages ? async (msg) => {console.log(msg)} : async (msg) => {return},
+							onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
+						},
+						this.#dummyNetworkParams
+					);
+				
+					let obj = propTest(args, result, simplify);
 
-				let obj = propTest(args, result, simplify);
-
-				if (result instanceof UplcValue) {
-					totalCost.mem += cost.mem;
-					totalCost.cpu += cost.cpu;
-					nonErrorRuns += 1;
-				}
-
-				if (typeof obj == "boolean") {
-					if (!obj) {
-						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+					if (result instanceof UplcValue) {
+						totalCost.mem += cost.mem;
+						totalCost.cpu += cost.cpu;
+						nonErrorRuns += 1;
 					}
-				} else {
-					// check for failures
-					for (let key in obj) {
-						if (!obj[key]) {
-							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+
+					if (typeof obj == "boolean") {
+						if (!obj) {
+							console.log(program.annotateIR(simplify));
+							throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+						}
+					} else {
+						// check for failures
+						for (let key in obj) {
+							if (!obj[key]) {
+								console.log(program.annotateIR(simplify));
+								throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+							}
 						}
 					}
+				} catch (e) {
+					console.log("UNSIMPLIFIED:", program.annotateIR(false));
+					console.log("SIMPLIFIED:", program.annotateIR(true));
+					
+					throw e;
 				}
 			}
 
-			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes, ${nonErrorRuns > 0 ? totalCost.mem/BigInt(nonErrorRuns): "N/A"} mem, ${nonErrorRuns > 0 ? totalCost.cpu/BigInt(nonErrorRuns): "N/A"} cpu)`);
+			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${uplcProgram.calcSize()} bytes, ${nonErrorRuns > 0 ? totalCost.mem/BigInt(nonErrorRuns): "N/A"} mem, ${nonErrorRuns > 0 ? totalCost.cpu/BigInt(nonErrorRuns): "N/A"} cpu)`);
 		}
 
 		if (!simplify && this.#simplify) {
@@ -53554,20 +55794,32 @@ export class FuzzyTest {
 
 				let args = paramArgs.map(paramArg => program.evalParam(paramArg));
 			
-				let coreProgram = Program.new(src).compile(simplify);
+				program = Program.new(src);
 
-				let result = await coreProgram.run(args);
+				let coreProgram = program.compile(simplify);
+
+				let result = await coreProgram.run(
+					args,
+					{
+						...DEFAULT_UPLC_RTE_CALLBACKS,
+						onPrint: this.#printMessages ? async (msg) => {console.log(msg)} : async (msg) => {return}
+					}
+				);
 
 				let obj = propTest(args, result, simplify);
 
 				if (typeof obj == "boolean") {
 					if (!obj) {
+						console.log(program.annotateIR(simplify));
+
 						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 					}
 				} else {
 					// check for failures
 					for (let key in obj) {
 						if (!obj[key]) {
+							console.log(program.annotateIR(simplify));
+
 							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 						}
 					}
@@ -53585,7 +55837,7 @@ export class FuzzyTest {
 
 
 //////////////////////////////////////////
-// Section 40: Bundling specific functions
+// Section 42: Bundling specific functions
 //////////////////////////////////////////
 
 

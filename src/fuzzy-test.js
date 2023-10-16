@@ -75,6 +75,8 @@ export class FuzzyTest {
 
 	#simplify;
 
+	#printMessages;
+
 	/**
 	 * @type {NetworkParams}
 	 */
@@ -86,7 +88,7 @@ export class FuzzyTest {
 	 * @param {number} runsPerTest
 	 * @param {boolean} simplify If true then also test the simplified program
 	 */
-	constructor(seed = 0, runsPerTest = 100, simplify = false) {
+	constructor(seed = 0, runsPerTest = 100, simplify = false, printMessages = false) {
 		console.log("starting fuzzy testing  with seed", seed);
 
 		this.#seed = seed;
@@ -94,6 +96,7 @@ export class FuzzyTest {
 		this.#runsPerTest = runsPerTest;
 		this.#simplify = simplify;
 		this.#dummyNetworkParams = new NetworkParams(rawNetworkEmulatorParams);
+		this.#printMessages = printMessages;
 	}
 
 	reset() {
@@ -443,9 +446,10 @@ export class FuzzyTest {
 		if (purposeName === null) {
 			throw new Error("failed to get script purpose and name");
 		} else {
-			let [_, testName] = purposeName;
+			const [_, testName] = purposeName;
 
-			let program = Program.new(src).compile(simplify);
+			const program = Program.new(src);
+			const uplcProgram = program.compile(simplify);
 
 			/**
 			 * @type {Cost}
@@ -468,38 +472,47 @@ export class FuzzyTest {
 					cpu: 0n
 				};
 
-				let result = await program.run(
-					args, {
-						...DEFAULT_UPLC_RTE_CALLBACKS,
-						onPrint: async (msg) => {return},
-						onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
-					},
-					this.#dummyNetworkParams
-				);
+				try {
+					let result = await uplcProgram.run(
+						args, {
+							...DEFAULT_UPLC_RTE_CALLBACKS,
+							onPrint: this.#printMessages ? async (msg) => {console.log(msg)} : async (msg) => {return},
+							onIncrCost: (name, isTerm, c) => {cost.mem = cost.mem + c.mem; cost.cpu = cost.cpu + c.cpu}
+						},
+						this.#dummyNetworkParams
+					);
+				
+					let obj = propTest(args, result, simplify);
 
-				let obj = propTest(args, result, simplify);
-
-				if (result instanceof UplcValue) {
-					totalCost.mem += cost.mem;
-					totalCost.cpu += cost.cpu;
-					nonErrorRuns += 1;
-				}
-
-				if (typeof obj == "boolean") {
-					if (!obj) {
-						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+					if (result instanceof UplcValue) {
+						totalCost.mem += cost.mem;
+						totalCost.cpu += cost.cpu;
+						nonErrorRuns += 1;
 					}
-				} else {
-					// check for failures
-					for (let key in obj) {
-						if (!obj[key]) {
-							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+
+					if (typeof obj == "boolean") {
+						if (!obj) {
+							console.log(program.annotateIR(simplify));
+							throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+						}
+					} else {
+						// check for failures
+						for (let key in obj) {
+							if (!obj[key]) {
+								console.log(program.annotateIR(simplify));
+								throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
+							}
 						}
 					}
+				} catch (e) {
+					console.log("UNSIMPLIFIED:", program.annotateIR(false));
+					console.log("SIMPLIFIED:", program.annotateIR(true));
+					
+					throw e;
 				}
 			}
 
-			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${program.calcSize()} bytes, ${nonErrorRuns > 0 ? totalCost.mem/BigInt(nonErrorRuns): "N/A"} mem, ${nonErrorRuns > 0 ? totalCost.cpu/BigInt(nonErrorRuns): "N/A"} cpu)`);
+			console.log(`property tests for '${testName}' succeeded${simplify ? " (simplified)":""} (${uplcProgram.calcSize()} bytes, ${nonErrorRuns > 0 ? totalCost.mem/BigInt(nonErrorRuns): "N/A"} mem, ${nonErrorRuns > 0 ? totalCost.cpu/BigInt(nonErrorRuns): "N/A"} cpu)`);
 		}
 
 		if (!simplify && this.#simplify) {
@@ -534,20 +547,32 @@ export class FuzzyTest {
 
 				let args = paramArgs.map(paramArg => program.evalParam(paramArg));
 			
-				let coreProgram = Program.new(src).compile(simplify);
+				program = Program.new(src);
 
-				let result = await coreProgram.run(args);
+				let coreProgram = program.compile(simplify);
+
+				let result = await coreProgram.run(
+					args,
+					{
+						...DEFAULT_UPLC_RTE_CALLBACKS,
+						onPrint: this.#printMessages ? async (msg) => {console.log(msg)} : async (msg) => {return}
+					}
+				);
 
 				let obj = propTest(args, result, simplify);
 
 				if (typeof obj == "boolean") {
 					if (!obj) {
+						console.log(program.annotateIR(simplify));
+
 						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 					}
 				} else {
 					// check for failures
 					for (let key in obj) {
 						if (!obj[key]) {
+							console.log(program.annotateIR(simplify));
+
 							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 						}
 					}

@@ -879,7 +879,7 @@ export function tokenize(src) {
  * @param {CodeMap} codeMap 
  * @returns {Token[]}
  */
-export function tokenizeIR(rawSrc, codeMap) {
+export function tokenizeIR(rawSrc, codeMap = []) {
 	let src = new Source(rawSrc, "<ir>");
 
 	// the Tokenizer for Helios can simply be reused for the IR
@@ -888,6 +888,7 @@ export function tokenizeIR(rawSrc, codeMap) {
 	const ts = tokenizer.tokenize();
 
 	if (src.errors.length > 0) {
+		console.log(src.pretty());
 		throw src.errors[0];
 	} else if (ts === null) {
 		throw new Error("should've been thrown above");

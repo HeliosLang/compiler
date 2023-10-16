@@ -98,7 +98,7 @@ class RawFunc {
 		} else {
 			for (let dep of this.#dependencies) {
 				if (!db.has(dep)) {
-					throw new Error(`InternalError: dependency ${dep} is not a builtin`);
+					throw new Error(`InternalError: dependency ${dep} not found`);
 				} else {
 					assertDefined(db.get(dep)).load(db, dst);
 				}
@@ -195,13 +195,14 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	/**
 	 * Adds basic auto members to a fully named type
 	 * @param {string} ns 
+	 * @param {{eq?: string, neq?: string, serialize?: string, from_data?: string, to_data?: string}} custom
 	 */
-	function addDataFuncs(ns) {
-		add(new RawFunc(`${ns}____eq`, "__helios__common____eq"));
-		add(new RawFunc(`${ns}____neq`, "__helios__common____neq"));
-		add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"));
-		add(new RawFunc(`${ns}__from_data`, "__helios__common__identity"));
-		add(new RawFunc(`${ns}____to_data`, "__helios__common__identity"));
+	function addDataFuncs(ns, custom = {}) {
+		add(new RawFunc(`${ns}____eq`, custom?.eq ?? "__helios__common____eq"));
+		add(new RawFunc(`${ns}____neq`, custom?.neq ?? "__helios__common____neq"));
+		add(new RawFunc(`${ns}__serialize`, custom?.serialize ?? "__helios__common__serialize"));
+		add(new RawFunc(`${ns}__from_data`, custom?.from_data ?? "__helios__common__identity"));
+		add(new RawFunc(`${ns}____to_data`, custom?.to_data ?? "__helios__common__identity"));
 	}
 
 	/**
@@ -311,9 +312,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {false}, 
 					() -> {
 						__core__ifThenElse(
-							fn(__core__headList(self)),
+							fn(__core__headList__safe(self)),
 							() -> {true}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
+							() -> {recurse(recurse, __core__tailList__safe(self), fn)}
 						)()
 					}
 				)()
@@ -331,8 +332,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {true},
 					() -> {
 						__core__ifThenElse(
-							fn(__core__headList(self)),
-							() -> {recurse(recurse, __core__tailList(self), fn)},
+							fn(__core__headList__safe(self)),
+							() -> {recurse(recurse, __core__tailList__safe(self), fn)},
 							() -> {false}
 						)()
 					}
@@ -351,8 +352,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {lst},
 					() -> {
 						__core__mkCons(
-							fn(__core__headList(rem)), 
-							recurse(recurse, __core__tailList(rem), lst)
+							fn(__core__headList__safe(rem)), 
+							recurse(recurse, __core__tailList__safe(rem), lst)
 						)
 					}
 				)()
@@ -369,11 +370,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					self, 
 					() -> {nil}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)),
-							() -> {__core__mkCons(__core__headList(self), recurse(recurse, __core__tailList(self), fn))}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head),
+								() -> {__core__mkCons(head, recurse(recurse, __core__tailList__safe(self), fn))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -397,11 +400,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					self, 
 					() -> {__helios__error("not found")}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)), 
-							() -> {__core__headList(self)}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head), 
+								() -> {head}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -417,11 +422,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					self, 
 					() -> {__core__constrData(1, __helios__common__list_0)}, 
 					() -> {
-						__core__ifThenElse(
-							fn(__core__headList(self)), 
-							() -> {__core__constrData(0, __helios__common__list_1(callback(__core__headList(self))))}, 
-							() -> {recurse(recurse, __core__tailList(self), fn)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								fn(head), 
+								() -> {__core__constrData(0, __helios__common__list_1(callback(head)))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), fn)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -430,13 +437,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc("__helios__common__fold",
 	`(self, fn, z) -> {
 		(recurse) -> {
-			recurse(recurse, self, fn, z)
+			recurse(recurse, self, z)
 		}(
-			(recurse, self, fn, z) -> {
+			(recurse, self, z) -> {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {recurse(recurse, __core__tailList(self), fn, fn(z, __core__headList(self)))}
+					() -> {recurse(recurse, __core__tailList__safe(self), fn(z, __core__headList__safe(self)))}
 				)()
 			}
 		)
@@ -444,13 +451,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc("__helios__common__fold_lazy",
 	`(self, fn, z) -> {
 		(recurse) -> {
-			recurse(recurse, self, fn, z)
+			recurse(recurse, self)
 		}(
-			(recurse, self, fn, z) -> {
+			(recurse, self) -> {
 				__core__chooseList(
 					self, 
 					() -> {z}, 
-					() -> {fn(__core__headList(self), () -> {recurse(recurse, __core__tailList(self), fn, z)})}
+					() -> {fn(__core__headList__safe(self), () -> {recurse(recurse, __core__tailList__safe(self))})}
 				)()
 			}
 		)
@@ -469,9 +476,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__ifThenElse(
 								comp(x, head),
 								() -> {__core__mkCons(x, lst)},
-								() -> {__core__mkCons(head, recurse(recurse, __core__tailList(lst)))}
+								() -> {__core__mkCons(head, recurse(recurse, __core__tailList__safe(lst)))}
 							)()
-						}(__core__headList(lst))
+						}(__core__headList__safe(lst))
 					}
 				)()
 			}
@@ -489,7 +496,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {
 						(head, tail) -> {
 							__helios__common__insert_in_sorted(head, tail, comp)
-						}(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+						}(__core__headList__safe(lst), recurse(recurse, __core__tailList__safe(lst)))
 					}
 				)()
 			}
@@ -505,11 +512,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					self, 
 					fnNotFound, 
 					() -> {
-						__core__ifThenElse(
-							__core__equalsData(key, __core__fstPair(__core__headList(self))), 
-							() -> {fnFound(__core__sndPair(__core__headList(self)))}, 
-							() -> {recurse(recurse, __core__tailList(self), key)}
-						)()
+						(head) -> {
+							__core__ifThenElse(
+								__core__equalsData(key, __core__fstPair(head)), 
+								() -> {fnFound(__core__sndPair(head))}, 
+								() -> {recurse(recurse, __core__tailList__safe(self), key)}
+							)()
+						}(__core__headList__safe(self))
 					}
 				)()
 			}
@@ -528,7 +537,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				__core__chooseList(
 					lst, 
 					() -> {0}, 
-					() -> {__core__addInteger(recurse(recurse, __core__tailList(lst)), 1)}
+					() -> {__core__addInteger(recurse(recurse, __core__tailList__safe(lst)), 1)}
 				)()
 			}
 		)
@@ -542,7 +551,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				__core__chooseList(
 					rem,
 					() -> {lst},
-					() -> {__core__mkCons(__core__headList(rem), recurse(recurse, lst, __core__tailList(rem)))}
+					() -> {__core__mkCons(__core__headList__safe(rem), recurse(recurse, lst, __core__tailList__safe(rem)))}
 				)()
 			}
 		)
@@ -636,16 +645,74 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											value
 										},
 										() -> {
-											recurse(recurse, __core__tailList(map))
+											recurse(recurse, __core__tailList__safe(map))
 										}
 									)()
 								}(__core__fstPair(head), __core__sndPair(head))
-							}(__core__headList(map))
+							}(__core__headList__safe(map))
 						}
 					)()
 				}
 			)
 		}(__core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(self)))))
+	}`));
+	add(new RawFunc("__helios__common__test_cip68_field",
+	`(self, name, inner_test) -> {
+		__core__chooseData(
+			self,
+			() -> {
+				(fields) -> {
+					__core__chooseList(
+						fields,
+						() -> {false},
+						() -> {
+							(head) -> { 
+								__core__chooseData(
+									head,
+									() -> {false},
+									() -> {
+										(map) -> {
+											(recurse) -> {
+												recurse(recurse, map)
+											}(
+												(recurse, map) -> {
+													__core__chooseList(
+														map,
+														() -> {false},
+														() -> {
+															(head) -> {
+																(key, value) -> {
+																	__core__ifThenElse(
+																		__core__equalsData(key, name),
+																		() -> {
+																			inner_test(value)
+																		},
+																		() -> {
+																			recurse(recurse, __core__tailList__safe(map))
+																		}
+																	)()
+																}(__core__fstPair(head), __core__sndPair(head))
+															}(__core__headList__safe(map))
+														}
+													)()
+												}
+											)
+										}(__core__unMapData__safe(head))
+									},
+									() -> {false},
+									() -> {false},
+									() -> {false}
+								)()
+							}(__core__headList__safe(fields))
+						}
+					)()
+				}(__core__sndPair(__core__unConstrData__safe(self)))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
 	}`));
 	add(new RawFunc("__helios__common__fields", 
 	`(self) -> {
@@ -708,6 +775,73 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(data) -> {
 		__core__blake2b_256(${FTPP}0__serialize(data)())
 	}`));
+	add(new RawFunc(`__helios__common__test_constr_data_2`,
+	`(data, index, test_a, test_b) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(__core__fstPair(pair), index),
+						() -> {
+							(fields) -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__ifThenElse(
+											test_a(__core__headList__safe(fields)),
+											() -> {
+												(tail) -> {
+													__core__chooseList(
+														tail,
+														() -> {
+															false
+														},
+														() -> {
+															__core__ifThenElse(
+																test_b(__core__headList__safe(tail)),
+																() -> {
+																	__core__chooseList(
+																		__core__tailList__safe(tail), 
+																		() -> {
+																			true
+																		},
+																		() -> {
+																			false
+																		}
+																	)()
+																},
+																() -> {
+																	false
+																}
+															)()
+														}
+													)()
+												}(__core__tailList__safe(fields))
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							}(__core__sndPair(pair))
+						},
+						() -> {
+							false
+						}
+					)()
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 
 
 	// Global builtin functions
@@ -746,6 +880,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// Int builtins
 	add(new RawFunc("__helios__int____eq", "__core__equalsInteger"));
 	add(new RawFunc("__helios__int__from_data", "__core__unIData"));
+	add(new RawFunc("__helios__int__test_data", `(data) -> {
+		__core__chooseData(data, false, false, false, true, false)
+	}`));
 	add(new RawFunc("__helios__int____to_data", "__core__iData"));
 	addNeqFunc("__helios__int");
 	addSerializeFunc("__helios__int");
@@ -1081,7 +1218,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc("__helios__int__show",
 	`(self) -> {
 		() -> {
-			__core__decodeUtf8(
+			__core__decodeUtf8__safe(
 				(recurse) -> {
 					__core__ifThenElse(
 						__core__lessThanInteger(self, 0),
@@ -1455,6 +1592,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Real builtins
 	addIntLikeFuncs("__helios__real");
+	add(new RawFunc("__helios__real__test_data", "__helios__int__test_data"));
 	add(new RawFunc("__helios__real__PRECISION", REAL_PRECISION.toString()));
 	add(new RawFunc("__helios__real__ONE", '1' + new Array(REAL_PRECISION).fill('0').join('')));
 	add(new RawFunc("__helios__real__HALF", '5' + new Array(REAL_PRECISION-1).fill('0').join('')));
@@ -1613,6 +1751,48 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Bool builtins
 	addSerializeFunc("__helios__bool");
+	add(new RawFunc("__helios__bool__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__chooseList(
+							fields,
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(0, index),
+									() -> {
+										true
+									},
+									() -> {
+										__core__ifThenElse(
+											__core__equalsInteger(1, index),
+											() -> {
+												true
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								false
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+					
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__bool____eq", 
 	`(a, b) -> {
 		__core__ifThenElse(a, b, __helios__bool____not(b))
@@ -1715,6 +1895,18 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(d) -> {
 		__core__decodeUtf8(__core__unBData(d))
 	}`));
+	// TODO: compete valid UTF-8 check
+	add(new RawFunc("__helios__string__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data, 
+			() -> {false}, 
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {true}
+		)()
+	}`));
 	add(new RawFunc("__helios__string____to_data", 
 	`(s) -> {
 		__core__bData(__core__encodeUtf8(s))
@@ -1785,6 +1977,33 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	}`));
 	add(new RawFunc("__helios__bytearray____eq", "__core__equalsByteString"));
 	add(new RawFunc("__helios__bytearray__from_data", "__core__unBData"));
+	add(new RawFunc("__helios__bytearray__test_data",
+	`(data) -> {
+		__core__chooseData(data, false, false, false, false, true)
+	}`));
+	add(new RawFunc(`__helios__bytearray__test_data_fixed_length`,
+	`(data, n) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {
+				(bytes) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(__core__lengthOfByteString(bytes), n),
+						() -> {
+							true
+						},
+						() -> {
+							false
+						}
+					)()
+				}(__core__unBData__safe(data))
+			}
+		)()
+	}`));
 	add(new RawFunc("__helios__bytearray____to_data", "__core__bData"));
 	add(new RawFunc("__helios__bytearray____add", "__core__appendByteString"));
 	add(new RawFunc("__helios__bytearray____geq",
@@ -1852,7 +2071,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__lessThanInteger(0, n),
 							() -> {
 								__core__appendString(
-									__core__decodeUtf8(
+									__core__decodeUtf8__safe(
 										(hexBytes) -> {
 											__core__ifThenElse(
 												__core__equalsInteger(__core__lengthOfByteString(hexBytes), 1),
@@ -2316,8 +2535,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											callback(
 												false,
 												${head},
-												${FTPP}0__from_data(__core__headList(lst)),
-												recurse(recurse, next_iterator, __core__tailList(lst))
+												${FTPP}0__from_data(__core__headList__safe(lst)),
+												recurse(recurse, next_iterator, __core__tailList__safe(lst))
 											)
 										}
 									)()
@@ -2345,29 +2564,63 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addSerializeFunc(`__helios__list[${TTPP}0]`);
 	addNeqFunc(`__helios__list[${TTPP}0]`);
 	addDataLikeEqFunc(`__helios__list[${TTPP}0]`);
-	add(new RawFunc(`__helios__list[${TTPP}0]__from_data`, (config.CHECK_CASTS && !simplify) ? `(data) -> {
-			(lst) -> {
-				(recurse) -> {
-					recurse(recurse, lst)
-				}(
-					(recurse, lst) -> {
-						__core__chooseList(
-							lst,
+	add(new RawFunc(`__helios__list[${TTPP}0]__test_data_internal`,
+	`(lst) -> {
+		(recurse) -> {
+			recurse(recurse, lst)
+		}(
+			(recurse, lst) -> {
+				__core__chooseList(
+					lst,
+					() -> {
+						true
+					},
+					() -> {
+						__core__ifThenElse(
+							${TTPP}0__test_data(__core__headList__safe(lst)),
 							() -> {
-								__core__mkNilData(())
+								recurse(recurse, __core__tailList__safe(lst))
 							},
 							() -> {
-								__core__mkCons(
-									${TTPP}0____to_data(${TTPP}0__from_data(__core__headList(lst))),
-									recurse(recurse, __core__tailList(lst))
-								)
+								false
 							}
 						)()
-						
 					}
-				)
-			}(__core__unListData(data))
-		}` : "__core__unListData"));
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__from_data`, 
+	`(data) -> {
+		(lst) -> {
+			(ignore) -> {
+				lst
+			}(
+				__core__ifThenElse(
+					__helios__list[${TTPP}0]__test_data_internal(lst),
+					() -> {
+						()
+					},
+					() -> {
+						__core__trace("Warning: invalid list data", ())
+					}
+				)()
+			)
+		}(__core__unListData(data))
+	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__test_data`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {false},
+			() -> {
+				__helios__list[${TTPP}0]__test_data_internal(__core__unListData__safe(data))
+			},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]____to_data`, "__core__listData"));
 	add(new RawFunc(`__helios__list[${TTPP}0]__new`,
 	`(n, fn) -> {
@@ -2416,8 +2669,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {
 								callback(
 									false, 
-									__core__headList(lst),
-									recurse(recurse, __core__tailList(lst))
+									__core__headList__safe(lst),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -2442,8 +2695,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {
 								callback(
 									false, 
-									${TTPP}0__from_data(__core__headList(lst)),
-									recurse(recurse, __core__tailList(lst))
+									${TTPP}0__from_data(__core__headList__safe(lst)),
+									recurse(recurse, __core__tailList__safe(lst))
 								)
 							}
 						)()
@@ -2498,9 +2751,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								() -> {
 									callback(
 										false,
-										${TTPP}0__from_data(__core__headList(lst1)),
-										${FTPP}0__from_data(__core__headList(lst2)),
-										recurse(recurse, __core__tailList(lst1), __core__tailList(lst2))
+										${TTPP}0__from_data(__core__headList__safe(lst1)),
+										${FTPP}0__from_data(__core__headList__safe(lst2)),
+										recurse(recurse, __core__tailList__safe(lst1), __core__tailList__safe(lst2))
 									)
 								}
 							)()
@@ -2532,10 +2785,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__ifThenElse(
 								__core__equalsInteger(index, i), 
 								() -> {
-									__core__headList(self)
+									__core__headList__safe(self)
 								}, 
 								() -> {
-									recurse(recurse, __core__tailList(self), __core__addInteger(i, 1))
+									recurse(recurse, __core__tailList__safe(self), __core__addInteger(i, 1))
 								}
 							)()
 						}
@@ -2586,12 +2839,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__ifThenElse(
 								__core__equalsInteger(i, index),
 								() -> {
-									__core__mkCons(item, __core__tailList(lst))
+									__core__mkCons(item, __core__tailList__safe(lst))
 								},
 								() -> {
 									__core__mkCons(
-										__core__headList(lst),
-										recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))
+										__core__headList__safe(lst),
+										recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1))
 									)
 								}
 							)()
@@ -2623,8 +2876,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									}
 								},
 								() -> {
-									recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1), (h) -> {
-										build_head(__core__mkCons(__core__headList(lst), h))
+									recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1), (h) -> {
+										build_head(__core__mkCons(__core__headList__safe(lst), h))
 									})
 								}
 							)()
@@ -2701,7 +2954,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							(callback) -> {callback(0, lst)}
 						},
 						() -> {
-							recurse(recurse, __core__tailList(lst))(
+							recurse(recurse, __core__tailList__safe(lst))(
 								(count, result) -> {
 									__core__ifThenElse(
 										__core__equalsInteger(count, n),
@@ -2710,7 +2963,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 												callback(
 													count,
 													__core__mkCons(
-														__core__headList(lst), 
+														__core__headList__safe(lst), 
 														result
 													)
 												)
@@ -2803,7 +3056,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							(callback) -> {callback(0, lst)}
 						},
 						() -> {
-							recurse(recurse, __core__tailList(lst))(
+							recurse(recurse, __core__tailList__safe(lst))(
 								(count, tail) -> {
 									__core__ifThenElse(
 										__core__equalsInteger(count, n),
@@ -2862,7 +3115,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							__core__mkCons(item, lst)
 						},
 						() -> {
-							__core__mkCons(__core__headList(lst), recurse(recurse, __core__tailList(lst)))
+							__core__mkCons(__core__headList__safe(lst), recurse(recurse, __core__tailList__safe(lst)))
 						}
 					)()
 				}
@@ -2896,9 +3149,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(lst))}
+									() -> {recurse(recurse, __core__tailList__safe(lst))}
 								)()
-							}(${TTPP}0__from_data(__core__headList(lst)))
+							}(${TTPP}0__from_data(__core__headList__safe(lst)))
 						}
 					)()
 				}
@@ -2920,9 +3173,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__ifThenElse(
 									fn(item),
 									() -> {i},
-									() -> {recurse(recurse, __core__tailList(lst), __core__addInteger(i, 1))}
+									() -> {recurse(recurse, __core__tailList__safe(lst), __core__addInteger(i, 1))}
 								)()
-							}(${TTPP}0__from_data(__core__headList(lst)))
+							}(${TTPP}0__from_data(__core__headList__safe(lst)))
 						}
 					)()
 				}
@@ -2966,8 +3219,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						},
 						() -> {
 							__core__chooseUnit(
-								fn(${TTPP}0__from_data(__core__headList(lst))),
-								recurse(recurse, __core__tailList(lst))
+								fn(${TTPP}0__from_data(__core__headList__safe(lst))),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -3090,8 +3343,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									)()
 								}(__core__unConstrData(fn(head)))
 							}(
-								${TTPP}0__from_data(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								${TTPP}0__from_data(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -3127,8 +3380,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						},
 						() -> {
 							${TTPP}0____add(
-								${TTPP}0__from_data(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								${TTPP}0__from_data(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -3153,9 +3406,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__helios__string____add(
 									__helios__string____add(
 										sep,
-										__helios__string__from_data(__core__headList(lst))
+										__helios__string__from_data(__core__headList__safe(lst))
 									),
-									recurse(recurse, __core__tailList(lst), separator)
+									recurse(recurse, __core__tailList__safe(lst), separator)
 								)
 							}
 						)()
@@ -3181,9 +3434,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__helios__bytearray____add(
 									__helios__bytearray____add(
 										sep,
-										__core__unBData(__core__headList(lst))
+										__core__unBData(__core__headList__safe(lst))
 									),
-									recurse(recurse, __core__tailList(lst), separator)
+									recurse(recurse, __core__tailList__safe(lst), separator)
 								)
 							}
 						)()
@@ -3206,8 +3459,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						},
 						() -> {
 							__helios__list[${TTPP}0]____add(
-								__core__unListData(__core__headList(lst)),
-								recurse(recurse, __core__tailList(lst))
+								__core__unListData(__core__headList__safe(lst)),
+								recurse(recurse, __core__tailList__safe(lst))
 							)
 						}
 					)()
@@ -3221,35 +3474,74 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addSerializeFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addNeqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addDataLikeEqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
-	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data`, (config.CHECK_CASTS && !simplify) ? `(data) -> {
-			(map) -> {
-				(recurse) -> {
-					recurse(recurse, map)
-				}(
-					(recurse, map) -> {
-						__core__chooseList(
-							map,
-							() -> {
-								__core__mkNilPairData(())
-							},
-							() -> {
-								__core__mkCons(
-									(head) -> {
-										__core__mkPairData(
-											${TTPP}0____to_data(${TTPP}0__from_data(__core__fstPair(head))),
-											${TTPP}1____to_data(${TTPP}1__from_data(__core__sndPair(head)))
-										)
-									}(__core__headList(map)),
-									recurse(recurse, __core__tailList(map))
-								)
-							}
-						)()
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__test_data_internal`,
+	`(map) -> {
+		(recurse) -> {
+			recurse(recurse, map)
+		}(
+			(recurse, map) -> {
+				__core__chooseList(
+					map,
+					() -> {
+						true
+					},
+					() -> {
+						(head) -> {
+							__core__ifThenElse(
+								${TTPP}0__test_data(__core__fstPair(head)),
+								() -> {
+									__core__ifThenElse(
+										${TTPP}1__test_data(__core__sndPair(head)),
+										() -> {
+											recurse(recurse, __core__tailList__safe(map))
+										},
+										() -> {
+											false
+										}
+									)()
+								},
+								() -> {
+									false
+								}
+							)()
+						}(__core__headList__safe(map))
 					}
-				)
-			}(__core__unMapData(data))
-		}` :
-		"__core__unMapData"
-	));
+				)()
+			}
+		)
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data`, 
+	`(data) -> {
+		(map) -> {
+			(ignore) -> {
+				map
+			}(
+				__core__ifThenElse(
+					__helios__map[${TTPP}0@${TTPP}1]__test_data_internal(map),
+					() -> {
+						()
+					},
+					() -> {
+						__core__trace("Warning: invalid map data", ())
+					}
+				)()
+				
+			)
+		}(__core__unMapData(data))
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__test_data`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {
+				__helios__map[${TTPP}0@${TTPP}1]__test_data_internal(__core__unMapData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____to_data`, "__core__mapData"));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]____add`, "__helios__common__concat"));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__prepend`,
@@ -3367,7 +3659,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										() -> {recurse(recurse, tail)},
 										() -> {__core__mkCons(head, recurse(recurse, tail))}
 									)()
-								}(__core__headList(self), __core__tailList(self))
+								}(__core__headList__safe(self), __core__tailList__safe(self))
 							}
 						)()
 					}
@@ -3407,14 +3699,14 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											}
 										}, 
 										() -> {
-											recurse(recurse, __core__tailList(self))
+											recurse(recurse, __core__tailList__safe(self))
 										}
 									)()
 								}(
 									${TTPP}0__from_data(__core__fstPair(head)), 
 									${TTPP}1__from_data(__core__sndPair(head))
 								)
-							}(__core__headList(self))
+							}(__core__headList__safe(self))
 						}
 					)()
 				}
@@ -3453,11 +3745,11 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											}
 										}, 
 										() -> {
-											recurse(recurse, __core__tailList(self), fn)
+											recurse(recurse, __core__tailList__safe(self), fn)
 										}
 									)()
 								}(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head)))
-							}(__core__headList(self))
+							}(__core__headList__safe(self))
 						}
 					)()
 				}
@@ -3479,9 +3771,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
-							}(${TTPP}0__from_data(__core__fstPair(__core__headList(map))))
+							}(${TTPP}0__from_data(__core__fstPair(__core__headList__safe(map))))
 						}
 					)()
 				}
@@ -3515,9 +3807,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__ifThenElse(
 									fn(item), 
 									() -> {item}, 
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
-							}(${TTPP}1__from_data(__core__sndPair(__core__headList(map))))
+							}(${TTPP}1__from_data(__core__sndPair(__core__headList__safe(map))))
 						}
 					)()
 				}
@@ -3592,9 +3884,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							(head) -> {
 								__core__chooseUnit(
 									fn(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head))),
-									recurse(recurse, __core__tailList(map))
+									recurse(recurse, __core__tailList__safe(map))
 								)
-							}(__core__headList(map))
+							}(__core__headList__safe(map))
 						}
 					)()
 				}
@@ -3625,7 +3917,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											__core__mkCons(head, recurse(recurse, tail))
 										}
 									)()
-								}(__core__headList(self), __core__tailList(self))
+								}(__core__headList__safe(self), __core__tailList__safe(self))
 							}
 						)()
 					}
@@ -3652,9 +3944,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										false, 
 										${TTPP}0__from_data(__core__fstPair(head)),
 										${TTPP}1__from_data(__core__sndPair(head)),
-										recurse(recurse, __core__tailList(map))
+										recurse(recurse, __core__tailList__safe(map))
 									)
-								}(__core__headList(map))	
+								}(__core__headList__safe(map))	
 							}
 						)()
 					}
@@ -3714,10 +4006,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											)
 										},
 										() -> {
-											__core__mkCons(pair, recurse(recurse, __core__tailList(map)))
+											__core__mkCons(pair, recurse(recurse, __core__tailList__safe(map)))
 										}
 									)()
-								}(__core__headList(map))
+								}(__core__headList__safe(map))
 							}
 						)()
 					}
@@ -3772,7 +4064,76 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 
 	// Option[T] builtins
-	addDataFuncs(`__helios__option[${TTPP}0]`);
+	add(new RawFunc(`__helios__option[${TTPP}0]__test_data`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(index, 0),
+							() -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__chooseList(
+											__core__tailList__safe(fields),
+											() -> {
+												${TTPP}0__test_data(__core__headList__safe(fields))
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(index, 1),
+									() -> {
+										__core__chooseList(
+											fields,
+											true,
+											false
+										)
+									},
+									() -> {
+										false
+									}
+								)()
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`))
+	addDataFuncs(`__helios__option[${TTPP}0]`, {
+		from_data: `(data) -> {
+			(ignore) -> {
+				data
+			}(
+				__core__ifThenElse(
+					__helios__option[${TTPP}0]__test_data(data),
+					() -> {
+						()
+					},
+					() -> {
+						__core__trace("Warning: invalid option data", ())
+					}
+				)()
+			)
+		}`
+	});
 	add(new RawFunc(`__helios__option[${TTPP}0]__map[${FTPP}0]`, 
 	`(self) -> {
 		(fn) -> {
@@ -3837,20 +4198,26 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		__helios__common__assert_constr_index(data, 1)
 	}`));
 
+
+	// ScriptHash builtin
+	addByteArrayLikeFuncs("__helios__scripthash");
+	add(new RawFunc("__helios__scripthash__test_data", `(data) -> {__helios__bytearray__test_data_fixed_length(data, 28)}`));
+
 	
 	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash", "datumhash"]) {
 	// Hash builtins
 		addByteArrayLikeFuncs(`__helios__${hash}`);
+		add(new RawFunc(`__helios__${hash}__test_data`,
+		`(data) -> {
+			__helios__bytearray__test_data_fixed_length(data, ${hash == "datumhash" ? 32 : 28})
+		}`));
 		add(new RawFunc(`__helios__${hash}__from_script_hash`, "__helios__common__identity"));
 	}
 
 	
-	// ScriptHash builtin
-	addByteArrayLikeFuncs("__helios__scripthash");
-
-
 	// PubKey builtin
 	addByteArrayLikeFuncs("__helios__pubkey");
+	add(new RawFunc("__helios__pubkey__test_data", `(data) -> {__helios__bytearray__test_data_fixed_length(data, 32)}`));
 	add(new RawFunc("__helios__pubkey__verify", 
 	`(self) -> {
 		(message, signature) -> {
@@ -3861,6 +4228,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// ScriptContext builtins
 	addDataFuncs("__helios__scriptcontext");
+	// TODO: test fields
+	add(new RawFunc("__helios__scriptcontext__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__scriptcontext__new_spending",
 	`(tx, output_id) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -3912,9 +4293,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									__core__ifThenElse(
 										__core__equalsData(__helios__txinput__output_id(item), id), 
 										() -> {item}, 
-										() -> {recurse(recurse, __core__tailList(lst))}
+										() -> {recurse(recurse, __core__tailList__safe(lst))}
 									)()
-								}(__core__headList(lst))
+								}(__core__headList__safe(lst))
 							}
 						)()
 					}
@@ -4050,6 +4431,19 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// StakingPurpose builtins
 	addDataFuncs("__helios__stakingpurpose");
+	add(new RawFunc("__helios__stakingpurpose__testdata", 
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 
 
 	// StakingPurpose::Rewarding builtins
@@ -4064,6 +4458,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// ScriptPurpose builtins
 	addDataFuncs("__helios__scriptpurpose");
+	// TODO: test fields
+	add(new RawFunc("__helios__scriptpurpose__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__scriptpurpose__new_minting",
 	`(mph) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__mintingpolicyhash____to_data(mph)))
@@ -4107,6 +4515,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// DCert builtins
 	addDataFuncs("__helios__dcert");
+	// TODO: test each enum variant
+	add(new RawFunc("__helios__dcert__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__dcert__new_register",
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
@@ -4314,9 +4736,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						},
 						() -> {
 							__helios__txbuilder__redeem[${FTPP}0](
-								recurse(recurse, __core__tailList(inputs))
+								recurse(recurse, __core__tailList__safe(inputs))
 							)(
-								__core__headList(inputs),
+								__core__headList__safe(inputs),
 								redeemer
 							)
 						}
@@ -4524,6 +4946,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Tx builtins
 	addDataFuncs("__helios__tx");
+	// TODO: test fields
+	add(new RawFunc("__helios__tx__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc(`__helios__tx__new[${FTPP}0@${FTPP}1]`,
 	`(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums, txId) -> {
 		__core__constrData(0, __helios__common__list_12(
@@ -4835,6 +5271,47 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(bytes) -> {
 		__core__constrData(0, __helios__common__list_1(__core__bData(bytes))) 
 	}`));
+	add(new RawFunc("__helios__txid__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(0, index),
+							() -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__chooseList(
+											__core__tailList__safe(fields),
+											() -> {
+												__helios__bytearray__test_data_fixed_length(__core__headList__safe(fields), 32)
+											},
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								false
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__txid__show",
 	`(self) -> {
 		__helios__bytearray__show(__helios__txid__bytes(self))
@@ -4843,6 +5320,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TxInput builtins
 	addDataFuncs("__helios__txinput");
+	add(new RawFunc("__helios__txinput__test_data", 
+	`(data) -> {
+		__helios__common__test_constr_data_2(data 0, __helios__txoutputid__test_data, __helios__txoutput__test_data)
+	}`));
 	add(new RawFunc("__helios__txinput__new",
 	`(output_id, output) -> {
 		__core__constrData(0, __helios__common__list_2(output_id, output))
@@ -4865,6 +5346,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TxOutput builtins
 	addDataFuncs("__helios__txoutput");
+	// TODO: test fields
+	add(new RawFunc("__helios__txoutput__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__txoutput__new", 
 	`(address, value, datum) -> {
 		__core__constrData(0, __helios__common__list_4(address, __core__mapData(value), datum, __helios__option__NONE))
@@ -4965,6 +5460,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// OutputDatum
 	addDataFuncs("__helios__outputdatum");
+	// TODO: test each enum variant
+	add(new RawFunc("__helios__outputdatum__test_data", 
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__outputdatum__new_none",
 	`() -> {
 		__core__constrData(0, __helios__common__list_0)
@@ -5020,6 +5529,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// RawData
 	addDataFuncs("__helios__data");
+	add(new RawFunc("__helios__data__test_data", `(data) -> {true}`));
 	add(new RawFunc("__helios__data__tag", 
 	`(self) -> {
 		__core__fstPair(__core__unConstrData(self))
@@ -5028,6 +5538,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TxOutputId
 	addDataFuncs("__helios__txoutputid");
+	add(new RawFunc("__helios__txoutputid__test_data",
+	`(data) -> {
+		__helios__common__test_constr_data_2(data, 0, __helios__txid__test_data, __helios__int__test_data)
+	}`));
 	add(new RawFunc("__helios__txoutputid__tx_id", "__helios__common__field_0"));
 	add(new RawFunc("__helios__txoutputid__index", 
 	`(self) -> {
@@ -5358,6 +5872,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(hex) -> {
 		__helios__address__from_bytes(__helios__bytearray__parse(hex))
 	}`));
+	add(new RawFunc("__helios__address__test_data", 
+	`(data) -> {
+		__helios__common__test_constr_data_2(data, 0, __helios__credential__test_data, __helios__option[__helios__stakingcredential]__test_data)
+	}`));
 	add(new RawFunc("__helios__address__new", 
 	`(cred, staking_cred) -> {
 		__core__constrData(0, __helios__common__list_2(cred, staking_cred))
@@ -5378,6 +5896,71 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Credential builtins
 	addDataFuncs("__helios__credential");
+	add(new RawFunc("__helios__credential__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				(pair) -> {
+					(index, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(index, 0),
+							() -> {
+								__core__chooseList(
+									fields,
+									() -> {
+										false
+									},
+									() -> {
+										__core__chooseList(
+											__core__tailList__safe(fields),
+											() -> {
+												__helios__validatorhash__test_data(__core__headList__safe(fields))
+											}, 
+											() -> {
+												false
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(index, 1),
+									() -> {
+										__core__chooseList(
+											fields,
+											() -> {
+												false
+											},
+											() -> {
+												__core__chooseList(
+													__core__tailList__safe(fields),
+													() -> {
+														__helios__pubkeyhash__test_data(__core__headList__safe(fields))
+													}, 
+													() -> {
+														false
+													}
+												)()
+											}
+										)()
+									},
+									() -> {
+										false
+									}
+								)()
+							}
+						)()
+					}(__core__fstPair(pair), __core__sndPair(pair))
+				}(__core__unConstrData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__credential__new_pubkey",
 	`(hash) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__pubkeyhash____to_data(hash)))
@@ -5423,6 +6006,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// StakingHash builtins
 	addDataFuncs("__helios__stakinghash");
+	add(new RawFunc("__helios__stakinghash__test_data", "__helios__credential__test_data"));
 	add(new RawFunc("__helios__stakinghash__new_stakekey", "__helios__credential__new_pubkey"));
 	add(new RawFunc("__helios__stakinghash__new_validator", "__helios__credential__new_validator"));
 	add(new RawFunc("__helios__stakinghash__is_stakekey", "__helios__credential__is_stakekey"));
@@ -5431,18 +6015,34 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// StakingHash::StakeKey builtins
 	addEnumDataFuncs("__helios__stakinghash__stakekey", 0);
+	add(new RawFunc("__helios__stakinghash__stakekey__test_data", "__helios__credential__pubkey__test_data"));
 	add(new RawFunc("__helios__stakinghash__stakekey__cast", "__helios__credential__pubkey__cast"));
 	add(new RawFunc("__helios__stakinghash__stakekey__hash", "__helios__credential__pubkey__hash"));
 
 
 	// StakingHash::Validator builtins
 	addEnumDataFuncs("__helios__stakinghash__validator", 1);
+	add(new RawFunc("__helios__stakinghash__validator__test_data", "__helios__credential__validator__test_data"));
 	add(new RawFunc("__helios__stakinghash__validator__cast", "__helios__credential__validator__cast"));
 	add(new RawFunc("__helios__stakinghash__validator__hash", "__helios__credential__validator__hash"));
 
 
 	// StakingCredential builtins
 	addDataFuncs("__helios__stakingcredential");
+	// TODO: test fields
+	add(new RawFunc("__helios__stakingcredential__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__stakingcredential__new_hash", 
 	`(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
@@ -5476,6 +6076,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Time builtins
 	addIntLikeFuncs("__helios__time");
+	add(new RawFunc("__helios__time__test_data", `__helios__int__test_data`));
 	add(new RawFunc("__helios__time__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__time____add", `__helios__int____add`));
 	add(new RawFunc("__helios__time____sub", `__helios__int____sub`));
@@ -5489,6 +6090,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Duratin builtins
 	addIntLikeFuncs("__helios__duration");
+	add(new RawFunc("__helios__duration__test_data", `__helios__int__test_data`));
 	add(new RawFunc("__helios__duration__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__duration____add", `__helios__int____add`));
 	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
@@ -5509,6 +6111,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TimeRange builtins
 	addDataFuncs("__helios__timerange");
+	// TODO: test fields
+	add(new RawFunc("__helios__timerange__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				true
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__timerange__new", `
 	(a, b) -> {
 		(a, b) -> {
@@ -5754,6 +6370,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// AssetClass builtins
 	addDataFuncs("__helios__assetclass");
+	add(new RawFunc("__helios__assetclass__test_data",
+	`(data) -> {
+		__helios__common__test_constr_data_2(data, 0, __helios__mintingpolicyhash__test_data, __helios__bytearray__test_data)
+	}`));
 	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(#, #)`));
 	add(new RawFunc("__helios__assetclass__new",
 	`(mph, token_name) -> {
@@ -5854,6 +6474,101 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Value builtins
 	addSerializeFunc("__helios__value");
+	// TODO: test each entry in the map
+	add(new RawFunc("__helios__value__test_data",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {false},
+			() -> {
+				(map) -> {
+					(recurse) -> {
+						recurse(recurse, map)
+					}(
+						(recurse, map) -> {
+							__core__chooseList(
+								map,
+								() -> {
+									true
+								},
+								() -> {
+									(head) -> {
+										(key, value) -> {
+											__core__ifThenElse(
+												__helios__mintingpolicyhash__test_data(key),
+												() -> {
+													__core__chooseData(
+														value,
+														() -> {false},
+														() -> {
+															(inner) -> {
+																__core__chooseList(
+																	inner,
+																	() -> {
+																		false
+																	},
+																	() -> {
+																		(recurse_inner) -> {
+																			recurse_inner(recurse_inner, inner)
+																		}(
+																			(recurse_inner, inner) -> {
+																				__core__chooseList(
+																					inner,
+																					() -> {
+																						true
+																					},
+																					() -> {
+																						(head) -> {
+																							(key, value) -> {
+																								__core__ifThenElse(
+																									__helios__bytearray__test_data(key),
+																									() -> {
+																										__core__ifThenElse(
+																											__helios__int__test_data(value),
+																											() -> {
+																												true
+																											},
+																											() -> {
+																												false
+																											}
+																										)()
+																									},
+																									() -> {
+																										false
+																									}
+																								)()
+																							}(__core__fstPair(head), __core__sndPair(head))
+																						}(__core__headList__safe(inner))
+																					}
+																				)()
+																			}
+																		)
+																	}
+																)()
+															}(__core__unMapData__safe(value))
+														},
+														() -> {false},
+														() -> {false},
+														() -> {false}
+													)()
+												},
+												() -> {
+													false
+												}
+											)()
+										}(__core__fstPair(head), __core__sndPair(head))
+									}(__core__headList__safe(map))
+								}
+							)()
+						}
+					)
+				}(__core__unMapData__safe(data))
+			},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`));
 	add(new RawFunc("__helios__value__from_data", "__core__unMapData"));
 	add(new RawFunc("__helios__value____to_data", "__core__mapData"));
 	add(new RawFunc("__helios__value__value", "__helios__common__identity"));
@@ -5903,7 +6618,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				__core__chooseList(
 					map, 
 					() -> {__helios__common__list_0}, 
-					() -> {__core__mkCons(__core__fstPair(__core__headList(map)), recurse(recurse, __core__tailList(map)))}
+					() -> {__core__mkCons(__core__fstPair(__core__headList__safe(map)), recurse(recurse, __core__tailList__safe(map)))}
 				)()
 			}
 		)
@@ -5924,10 +6639,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							(key) -> {
 								__core__ifThenElse(
 									__helios__common__is_in_bytearray_list(aKeys, key), 
-									() -> {recurse(recurse, keys, __core__tailList(map))},
-									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList(map)))}
+									() -> {recurse(recurse, keys, __core__tailList__safe(map))},
+									() -> {__core__mkCons(key, recurse(recurse, keys, __core__tailList__safe(map)))}
 								)()
-							}(__core__fstPair(__core__headList(map)))
+							}(__core__fstPair(__core__headList__safe(map)))
 						}
 					)()
 				}
@@ -5946,9 +6661,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {__core__mkNilPairData(())},
 					() -> {
 						__core__ifThenElse(
-							__core__equalsData(__core__fstPair(__core__headList(map)), mph), 
-							() -> {__core__unMapData(__core__sndPair(__core__headList(map)))},
-							() -> {recurse(recurse, __core__tailList(map))}
+							__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph), 
+							() -> {__core__unMapData(__core__sndPair(__core__headList__safe(map)))},
+							() -> {recurse(recurse, __core__tailList__safe(map))}
 						)()
 					}
 				)()
@@ -5966,9 +6681,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {0}, 
 					() -> {
 						__core__ifThenElse(
-							__core__equalsData(__core__fstPair(__core__headList(map)), key), 
-							() -> {__core__unIData(__core__sndPair(__core__headList(map)))}, 
-							() -> {recurse(recurse, __core__tailList(map), key)}
+							__core__equalsData(__core__fstPair(__core__headList__safe(map)), key), 
+							() -> {__core__unIData(__core__sndPair(__core__headList__safe(map)))}, 
+							() -> {recurse(recurse, __core__tailList__safe(map), key)}
 						)()
 					}
 				)()
@@ -5994,7 +6709,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										() -> {__core__mkCons(__core__mkPairData(key, __core__iData(sum)), tail)}
 									)()
 								}(op(__helios__value__get_inner_map_int(a, key), __helios__value__get_inner_map_int(b, key)))
-							}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
+							}(__core__headList__safe(keys), recurse(recurse, __core__tailList__safe(keys), result))
 						}
 					)()
 				}
@@ -6019,7 +6734,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									() -> {__core__mkCons(__core__mkPairData(key, __core__mapData(item)), tail)}
 								)()
 							}(__helios__value__add_or_subtract_inner(op)(__helios__value__get_inner_map(a, key), __helios__value__get_inner_map(b, key)))
-						}(__core__headList(keys), recurse(recurse, __core__tailList(keys), result))
+						}(__core__headList__safe(keys), recurse(recurse, __core__tailList__safe(keys), result))
 					}
 				)()
 			}
@@ -6042,9 +6757,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										__core__fstPair(head), 
 										__core__mapData(recurseInner(recurseInner, __core__unMapData(__core__sndPair(head))))
 									),  
-									recurseOuter(recurseOuter, __core__tailList(outer))
+									recurseOuter(recurseOuter, __core__tailList__safe(outer))
 								)
-							}(__core__headList(outer))
+							}(__core__headList__safe(outer))
 						}
 					)()
 				}
@@ -6061,9 +6776,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									__core__fstPair(head),
 									__core__iData(op(__core__unIData(__core__sndPair(head))))
 								),
-								recurseInner(recurseInner, __core__tailList(inner))
+								recurseInner(recurseInner, __core__tailList__safe(inner))
 							)
-						}(__core__headList(inner))
+						}(__core__headList__safe(inner))
 					}
 				)()
 			}
@@ -6088,9 +6803,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									)
 								), 
 								() -> {false}, 
-								() -> {recurse(recurse, __core__tailList(keys))}
+								() -> {recurse(recurse, __core__tailList__safe(keys))}
 							)()
-						}(__core__headList(keys))
+						}(__core__headList__safe(keys))
 					}
 				)()
 			}
@@ -6116,9 +6831,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									)
 								), 
 								() -> {false}, 
-								() -> {recurse(recurse, __core__tailList(keys))}
+								() -> {recurse(recurse, __core__tailList__safe(keys))}
 							)()
-						}(__core__headList(keys))
+						}(__core__headList__safe(keys))
 					}
 				)()
 			}
@@ -6228,10 +6943,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					() -> {
 						__helios__bool__and(
 							() -> {
-								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList(tokens))), 0)
+								__core__equalsInteger(__core__unIData(__core__sndPair(__core__headList__safe(tokens))), 0)
 							},
 							() -> {
-								recurse(recurse, __core__tailList(tokens))
+								recurse(recurse, __core__tailList__safe(tokens))
 							}
 						)
 					}
@@ -6254,10 +6969,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						() -> {
 							__helios__bool__and(
 								() -> {
-									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList(map))))
+									__helios__value__is_zero_inner(__core__unMapData(__core__sndPair(__core__headList__safe(map))))
 								},
 								() -> {
-									recurse(recurse, __core__tailList(map))
+									recurse(recurse, __core__tailList__safe(map))
 								}
 							)
 						}
@@ -6289,9 +7004,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph), 
-									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
-									() -> {outer(outer, inner, __core__tailList(map))}
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList__safe(map))))}, 
+									() -> {outer(outer, inner, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -6301,12 +7016,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {__helios__error("tokenName not found")}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), tokenName),
 									() -> {
-										__core__unIData(__core__sndPair(__core__headList(map)))
+										__core__unIData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										inner(inner, __core__tailList(map))
+										inner(inner, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -6329,9 +7044,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {0}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mintingPolicyHash), 
-									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList(map))))}, 
-									() -> {outer(outer, inner, __core__tailList(map))}
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mintingPolicyHash), 
+									() -> {inner(inner, __core__unMapData(__core__sndPair(__core__headList__safe(map))))}, 
+									() -> {outer(outer, inner, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -6341,12 +7056,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {0}, 
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), tokenName),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), tokenName),
 									() -> {
-										__core__unIData(__core__sndPair(__core__headList(map)))
+										__core__unIData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										inner(inner, __core__tailList(map))
+										inner(inner, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -6386,12 +7101,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {__helios__error("policy not found")},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph),
 									() -> {
-										__core__unMapData(__core__sndPair(__core__headList(map)))
+										__core__unMapData(__core__sndPair(__core__headList__safe(map)))
 									},
 									() -> {
-										recurse(recurse, __core__tailList(map))
+										recurse(recurse, __core__tailList__safe(map))
 									}
 								)()
 							}
@@ -6414,9 +7129,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							() -> {false},
 							() -> {
 								__core__ifThenElse(
-									__core__equalsData(__core__fstPair(__core__headList(map)), mph),
+									__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph),
 									() -> {true},
-									() -> {recurse(recurse, __core__tailList(map))}
+									() -> {recurse(recurse, __core__tailList__safe(map))}
 								)()
 							}
 						)()
@@ -6492,8 +7207,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					},
 					() -> {
 						__helios__value____add(
-							${FTPP}0__value(${FTPP}0__from_data(__core__headList(lst))),
-							recurse(recurse, __core__tailList(lst))
+							${FTPP}0__value(${FTPP}0__from_data(__core__headList__safe(lst))),
+							recurse(recurse, __core__tailList__safe(lst))
 						)
 					}
 				)()

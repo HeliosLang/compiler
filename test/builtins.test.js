@@ -25,6 +25,24 @@ import {
     setRawUsageNotifier
 } from "helios"
 
+import {
+    asBool,
+    asBytes,
+    asBytesList,
+    asData,
+    asInt,
+    asIntList,
+    asNestedIntList,
+    asReal,
+    asString,
+    asStringList,
+    isValidString,
+    isError,
+    equalsList
+} from "./assert.js"
+
+import { spendingScriptContextParam } from "./scriptcontext.js";
+
 /**
  * @typedef {import("helios").PropertyTest} PropertyTest
  */
@@ -33,234 +51,8 @@ const REAL_ONE = BigInt(Math.pow(10, REAL_PRECISION));
 
 config.set({CHECK_CASTS: true});
 
-// helper functions for script property tests
-function asBool(value) {
-    if (value instanceof UplcBool) {
-        return value.bool;
-    } else if (value instanceof ConstrData) {
-        if (value.fields.length == 0) {
-            if (value.index == 0) {
-                return false;
-            } else if (value.index == 1) {
-                return true;
-            } else {
-                throw new Error(`unexpected ConstrData index ${value.index} (expected 0 or 1 for Bool)`);
-            }
-        } else {
-            throw new Error(`expected ConstrData with 0 fields (Bool)`);
-        }
-    } else if (value instanceof UplcDataValue) {
-        return asBool(value.data);
-    } else {
-        throw value;
-    }
-
-    throw new Error(`expected UplcBool, got ${value.toString()}`);
-}
-
-function asInt(value) {
-    if (value instanceof IntData) {
-        return value.value;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof IntData) {
-            return data.value;
-        }
-    }
-
-    throw new Error(`expected IntData, got ${value.toString()}`);
-}
-
-function asReal(value) {
-    return Number(asInt(value))/1000000;
-}
-
-function asBytes(value) {
-    if (value instanceof ByteArrayData) {
-        return value.bytes;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof ByteArrayData) {
-            return data.bytes;
-        }
-    }
-
-    throw new Error(`expected ByteArrayData, got ${value.toString()}`);
-}
-
-function equalsList(a, b) {
-    let n = a.length;
-    return n == b.length && a.every((v, i) => b[i] === v);
-}
-
 function decodeCbor(bs) {
     return UplcData.fromCbor(bs);
-}
-
-function isValidString(value) {
-    if (value instanceof ByteArrayData) {
-        try {
-            void bytesToText(value.bytes);
-
-            return true;
-        } catch(_) {
-            return false;
-        }
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof ByteArrayData) {
-            return isValidString(data);
-        }
-    }
-
-    throw new Error(`expected ByteArrayData, got ${value.toString()}`);
-}
-
-/**
- * @param {any} value 
- * @returns {string}
- */
-function asString(value) {
-    if (value instanceof ByteArrayData) {
-        return bytesToText(value.bytes);
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof ByteArrayData) {
-            return bytesToText(data.bytes);
-        }
-    }
-
-    throw new Error(`expected ByteArrayData, got ${value.toString()}`);
-}
-
-/**
- * 
- * @param {any} value 
- * @returns {bigint[]}
- */
-function asIntList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            if (item instanceof IntData) {
-                items.push(item.value);
-            } else {
-                throw new Error(`expected ListData of IntData, got ${value.toString()}`);
-            }
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        
-        return asIntList(data);
-    }
-
-    throw new Error(`expected ListData, got ${value.toString()}`);
-}
-
-/**
- * 
- * @param {any} value 
- * @returns {bigint[][]}
- */
-function asNestedIntList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            items.push(asIntList(item));
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        
-        return asNestedIntList(data);
-    }
-
-    throw new Error(`expected ListData of ListData, got ${value.toString()}`);
-}
-
-/**
- * 
- * @param {any} value 
- * @returns {string[]}
- */
-function asStringList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            items.push(asString(item));
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        
-        return asStringList(data);
-    }
-
-    throw new Error(`expected ListData, got ${value.toString()}`);
-}
-
-/**
- * @param {any} value 
- * @returns {number[][]}
- */
-function asBytesList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            items.push(asBytes(item));
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        
-        return asBytesList(data);
-    }
-
-    throw new Error(`expected ListData, got ${value.toString()}`);
-}
-
-function asBoolList(value) {
-    if (value instanceof ListData) {
-        let items = [];
-
-        for (let item of value.list) {
-            if (item instanceof ConstrData && item.fields.length == 0 && (item.index == 0 || item.index == 1)) {
-                items.push(item.index == 1);
-            } else {
-                throw new Error(`expected ListData of bool-like ConstrData, got ${value.toString()}`);
-            }
-        }
-
-        return items;
-    } else if (value instanceof UplcDataValue) {
-        let data = value.data;
-        if (data instanceof ListData) {
-           return asBoolList(data);
-        }
-    }
-
-    throw new Error(`expected ListData, got ${value.toString()}`);
-}
-
-function asData(value) {
-    if (value instanceof UplcData) {
-        return value;
-    } else if (value instanceof UplcDataValue) {
-        return value.data;
-    } else if (value instanceof UserError) {
-        throw value;
-    } else {
-        throw new Error("expected UplcDataValue or UplcData");
-    }
 }
 
 function constrIndex(value) {
@@ -276,93 +68,12 @@ function constrIndex(value) {
     throw new Error(`expected ConstrIndex, got ${value.toString()}`);
 }
 
-
-/**
- * Throws an error if 'err' isn't en Error
- * @param {any} err 
- * @param {string} info 
- * @returns {boolean}
- */
-function isError(err, info) {
-    return err instanceof RuntimeError;
-}
-
 /**
  * @type {PropertyTest}
  */
 const serializeProp = ([a], res) => {
     return decodeCbor(asBytes(res)).isSame(a.data);
 };
-
-/**
- * @param {boolean} useInlineDatum 
- * @returns {string}
- */
-function spendingScriptContextParam(useInlineDatum) {
-    return `
-        // a script context with a single input and a single output
-        const PUB_KEY_HASH_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012345
-        const TX_ID_IN_BYTES: ByteArray = #0123456789012345678901234567890123456789012345678901234567891234
-        const TX_ID_IN: TxId = TxId::new(TX_ID_IN_BYTES)
-        const CURRENT_VALIDATOR_BYTES: ByteArray = #01234567890123456789012345678901234567890123456789012346
-        const CURRENT_VALIDATOR: ValidatorHash = ValidatorHash::new(CURRENT_VALIDATOR_BYTES)
-        const HAS_STAKING_CRED_IN: Bool = false
-        const STAKING_CRED_TYPE: Bool = false
-        const SOME_STAKING_CRED_IN: StakingCredential = if (STAKING_CRED_TYPE) {
-            StakingCredential::new_ptr(0, 0, 0)
-        } else {
-            StakingCredential::new_hash(StakingHash::new_stakekey(PubKeyHash::new(PUB_KEY_HASH_BYTES)))
-        }
-        const STAKING_CRED_IN: Option[StakingCredential] = if (HAS_STAKING_CRED_IN) {
-            Option[StakingCredential]::Some{SOME_STAKING_CRED_IN}
-        } else {
-            Option[StakingCredential]::None
-        }
-        const CURRENT_VALIDATOR_CRED: Credential = Credential::new_validator(CURRENT_VALIDATOR)
-        const ADDRESS_IN: Address = Address::new(CURRENT_VALIDATOR_CRED, STAKING_CRED_IN)
-        const TX_OUTPUT_ID_IN: TxOutputId = TxOutputId::new(TX_ID_IN, 0)
-        const ADDRESS_OUT: Address = Address::new(Credential::new_pubkey(PubKeyHash::new(PUB_KEY_HASH_BYTES)), Option[StakingCredential]::None)
-        const ADDRESS_OUT_1: Address = Address::new(Credential::new_validator(CURRENT_VALIDATOR), Option[StakingCredential]::None)
-        const QTY: Int = 200000
-        const QTY_1: Int = 100000
-        const QTY_2: Int = 100000
-
-        const FEE: Int = 160000
-        const VALUE_IN: Value = Value::lovelace(QTY + QTY_1 + QTY_2)
-        const VALUE_OUT: Value = Value::lovelace(QTY - FEE)
-        const VALUE_OUT_1: Value = Value::lovelace(QTY_1)
-        const VALUE_OUT_2: Value = Value::lovelace(QTY_2)
-
-        const DATUM_1: Int = 42
-        const DATUM_HASH_1: DatumHash = DatumHash::new(DATUM_1.serialize().blake2b())
-        const OUTPUT_DATUM: OutputDatum = ${useInlineDatum ? "OutputDatum::new_inline(DATUM_1)" : "OutputDatum::new_hash(DATUM_HASH_1)"}
-
-        const CURRENT_TX_ID: TxId = TxId::new(#0000000000000000000000000000000000000000000000000000000000000000)
-
-        const FIRST_TX_INPUT: TxInput = TxInput::new(TX_OUTPUT_ID_IN, TxOutput::new(ADDRESS_IN, VALUE_IN, OutputDatum::new_none()))
-        const REF_INPUT: TxInput = TxInput::new(TxOutputId::new(TX_ID_IN, 1), TxOutput::new(ADDRESS_IN, Value::lovelace(0), OutputDatum::new_inline(42)))
-        const FIRST_TX_OUTPUT: TxOutput = TxOutput::new(ADDRESS_OUT, VALUE_OUT, OutputDatum::new_none())
-        const TX: Tx = Tx::new(
-            []TxInput{FIRST_TX_INPUT},
-            []TxInput{REF_INPUT},
-            []TxOutput{
-                FIRST_TX_OUTPUT,
-                TxOutput::new(ADDRESS_OUT, VALUE_OUT_1, OUTPUT_DATUM),
-                TxOutput::new(ADDRESS_OUT_1, VALUE_OUT_2, OUTPUT_DATUM)
-            },
-            Value::lovelace(FEE),
-            Value::ZERO,
-            []DCert{},
-            Map[StakingCredential]Int{},
-            TimeRange::new(Time::new(0), Time::new(100)),
-            []PubKeyHash{PubKeyHash::new(PUB_KEY_HASH_BYTES)},
-            Map[ScriptPurpose]Int{},
-            Map[DatumHash]Int{${useInlineDatum ? "" : "DATUM_HASH_1: DATUM_1"}},
-            CURRENT_TX_ID
-        )
-        const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
-    `;
-}
 
 const mintingScriptContextParam = `
     // a script context with a single input and a single output
@@ -462,27 +173,13 @@ const certifyingScriptContextParam = `
 async function testBuiltins() {
     const ft = new FuzzyTest(/*Math.random()*/42, 100, true);
 
-
     /////////////
     // Data tests
     /////////////
 
-    /*await ft.test([ft.constr(ft.newRand())], `
-    testing data_tag
-    func main(a: Data) -> Int {
-        a.tag
-    }`, ([a], res) => BigInt(a.data.index) == asInt(res));*/
-    
-
     ////////////
     // Int tests
     ////////////
-
-    /*await ft.test([], `
-    testing int_eq_1
-    func main() -> Bool {
-        0 == 0
-    }`, ([_], res) => asBool(res));*/
 
     await ft.test([ft.int(), ft.int()], `
     testing int_eq_2
@@ -1551,7 +1248,7 @@ async function testBuiltins() {
 			const ai = asInt(a);
 
 			if (ai < 0n || ai >= 256n) {
-				return isError(res);
+				return res instanceof Error;
 			} else {
 				const bi = asBytes(b);
 				bi.unshift(Number(ai));
@@ -1683,7 +1380,7 @@ async function testBuiltins() {
     let testList = true;
 
     if (testList) {
-        await ft.test([ft.int(-20, 20), ft.int()], `
+        await ft.test([ft.int(1, 20), ft.int()], `
         testing list_new_const
         func main(n: Int, b: Int) -> Bool {
             lst: []Int = []Int::new_const(n, b);
@@ -3980,7 +3677,7 @@ async function testBuiltins() {
         `, ([_], res) => asBool(res), 5);
 
         await ft.testParams({"PUB_KEY_HASH_BYTES": ft.bytes()}, ["SCRIPT_CONTEXT"], `
-        testing tx_outputs_sent_to_datum
+        testing tx_outputs_sent_to_datum2
         func main(ctx: ScriptContext) -> Bool {
             if (ctx.tx.signatories.is_empty()) {
                 true

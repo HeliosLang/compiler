@@ -1,17 +1,14 @@
 # IR optimization
 
-Helios compiles a set of scripts in an Internal Representation. For production use, this IR is then optimized to create leaner UPLC.
+Helios compiles a set of scripts into an [Internal Representation](./ir.md). For production use, this IR is then optimized to create leaner UPLC.
 
-This optimization process isn't trivial and if done wrong can lead to critical bugs. This document describes how Helios performs this optimization and discusses some of the unobvious details.
+This optimization process isn't trivial and if done wrong can lead to critical bugs. This document describes how Helios performs this optimization in detail.
+
+Before applying optimization the IR AST is [evaluated](./ir-evaluation.md). The IR AST is re-evaluated when the optimization process changes it significantly.
 
 ## Optimization steps
 
-Before the main part of the optimization process is performed, unused top-level function definitions are eliminated, and `const` statements are evaluated as much as possible (some `const` statements can't be evaluated because they depend on runtime data).
-
-Should an error be thrown inside a `const` statements, then the compiler should throw an error as well stating that the resulting UPLC can never succeed.
-
-The main part of the optimization consists of two steps, that are repeated until no more changes are detected:
-  1. evaluate literals as much as possible
+  1. evaluation
   2. optimize topology (inlining, eliminating unused args, etc.)
 
 ## Evaluating literals

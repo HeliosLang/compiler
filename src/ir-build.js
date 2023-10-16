@@ -33,26 +33,49 @@ import {
 	IRVariable
 } from "./ir-context.js";
 
+/**
+ * @typedef {import("./ir-ast.js").IRExpr} IRExpr
+ */
+
 import {
-	IRConstExpr,
-    IRCoreCallExpr,
-    IRErrorCallExpr,
-    IRExpr,
     IRFuncExpr,
+	IRCallExpr,
+	IRErrorExpr,
     IRLiteralExpr,
-    IRNameExpr,
-    IRUserCallExpr
+    IRNameExpr
 } from "./ir-ast.js";
+
+/**
+ * @internal
+ */
+class IRExprTagger {
+	#tag;
+
+	constructor() {
+		this.#tag = 0;
+	}
+
+	genTag() {
+		this.#tag += 1;
+
+		return this.#tag;
+	}
+}
 
 /**
  * Build an Intermediate Representation expression
  * @param {Token[]} ts 
+ * @param {IRExprTagger | null} funcTagger // each IRFuncExpr needs a unique tag, so that hashing different IRFuncExprs with the same args and bodies leads to a different hash
  * @returns {IRExpr}
  * @internal
  */
-export function buildIRExpr(ts) {
+export function buildIRExpr(ts, funcTagger = null) {
 	/** @type {null | IRExpr} */
 	let expr = null;
+
+	if (funcTagger === null) {
+		funcTagger = new IRExprTagger();
+	}
 
 	while (ts.length > 0) {
 		let t = ts.shift();
@@ -61,17 +84,17 @@ export function buildIRExpr(ts) {
 			throw new Error("unexpected: no tokens");
 		} else {
 			if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
-				assert(expr === null, "should be preceded by expr (" + expr?.toString() + ")");
+				assert(expr === null, "shouldn't be preceded by an expr");
 
 				ts.unshift(t);
 
-				expr = buildIRFuncExpr(ts);
+				expr = buildIRFuncExpr(ts, funcTagger);
 			} else if (t.isGroup("(")) {
 				let group = assertDefined(t.assertGroup(), "should be a group");
 
 				if (expr === null) {
 					if (group.fields.length == 1) {
-						expr = buildIRExpr(group.fields[0])
+						expr = buildIRExpr(group.fields[0], funcTagger)
 					} else if (group.fields.length == 0) {
 						expr = new IRLiteralExpr(new UplcUnit(t.site));
 					} else {
@@ -80,18 +103,10 @@ export function buildIRExpr(ts) {
 				} else {
 					let args = [];
 					for (let f of group.fields) {
-						args.push(buildIRExpr(f));
+						args.push(buildIRExpr(f, funcTagger));
 					}
 
-					if (expr instanceof IRNameExpr && expr.name.startsWith("__core")) {
-						if (!IRScope.isBuiltin(expr.name)) {
-							throw expr.site.referenceError(`builtin '${expr.name}' undefined`);
-						}
-
-						expr = new IRCoreCallExpr(new Word(expr.site, expr.name), args, t.site);
-					} else {
-						expr = IRUserCallExpr.new(expr, args, t.site);
-					}
+					expr = new IRCallExpr(t.site, expr, args);
 				}
 			} else if (t.isSymbol("-")) {
 				// only makes sense next to IntegerLiterals
@@ -124,18 +139,6 @@ export function buildIRExpr(ts) {
 			} else if (t instanceof StringLiteral) {
 				assert(expr === null);
 				expr = new IRLiteralExpr(new UplcString(t.site, t.value));
-			} else if (t.isWord("const")) {
-				assert(expr === null, "unexpected expr before 'const'");
-
-				let maybeGroup = ts.shift();
-				if (maybeGroup === undefined) {
-					throw t.site.syntaxError("expected parens after const");
-				} else {
-					let parens = assertDefined(maybeGroup.assertGroup("(", 1), "expected parens with single entry after 'const'");
-					let pts = parens.fields[0];
-
-					expr = new IRConstExpr(t.site, buildIRExpr(pts));
-				}
 			} else if (t.isWord("error")) {
 				assert(expr === null, "unexpected expr before 'error'");
 
@@ -145,7 +148,7 @@ export function buildIRExpr(ts) {
 				} else {
 					assertDefined(maybeGroup.assertGroup("(", 0), "expected empty parens after 'error'");
 					
-					expr = new IRErrorCallExpr(t.site, "");
+					expr = new IRErrorExpr(t.site, "");
 				}
 			} else if (t.isWord()) {
 				const w = assertDefined(t.assertWord(), "expected word");
@@ -171,9 +174,10 @@ export function buildIRExpr(ts) {
 /**
  * Build an IR function expression
  * @param {Token[]} ts 
+ * @param {IRExprTagger} funcTagger
  * @returns {IRFuncExpr}
  */
-function buildIRFuncExpr(ts) {
+function buildIRFuncExpr(ts, funcTagger) {
 	let maybeParens = ts.shift();
 	if (maybeParens === undefined) {
 		throw new Error("empty func expr");
@@ -199,8 +203,8 @@ function buildIRFuncExpr(ts) {
 			throw braces.syntaxError("empty function body")
 		}
 
-		let bodyExpr = buildIRExpr(braces.fields[0]);
+		let bodyExpr = buildIRExpr(braces.fields[0], funcTagger);
 
-		return new IRFuncExpr(parens.site, argNames.map(a => new IRVariable(a)), bodyExpr)
+		return new IRFuncExpr(parens.site, argNames.map(a => new IRVariable(a)), bodyExpr, funcTagger.genTag());
 	}
 }

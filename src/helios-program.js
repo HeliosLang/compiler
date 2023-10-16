@@ -54,7 +54,7 @@ import {
 } from "./uplc-program.js";
 
 import {
-    tokenize
+    tokenize, tokenizeIR
 } from "./tokenization.js";
 
 /**
@@ -108,6 +108,18 @@ import {
 	buildScript, extractScriptPurposeAndName
 } from "./helios-ast-build.js";
 
+import { 
+	IRScope
+} from "./ir-context.js";
+
+import { 
+	buildIRExpr
+} from "./ir-build.js";
+
+import { 
+	IREvaluator,
+	annotateIR
+} from "./ir-evaluate.js";
 
 import {
     IRProgram,
@@ -862,18 +874,31 @@ const DEFAULT_PROGRAM_CONFIG = {
 
 		const path = constStatement.path;
 
-		const inner = new IR([
-			new IR("const"),
-			new IR("("),
-			new IR(path),
-			new IR(")")
-		]);
+		const inner = new IR(path);
 
 		const ir = this.wrapInner(ctx, inner, map);
 
-		const irProgram = IRProgram.new(ir, this.#purpose, true);
+		const [irSrc, codeMap] = ir.generateSource();
 
-		return new UplcDataValue(irProgram.site, irProgram.data);
+		const irTokens = tokenizeIR(irSrc, codeMap);
+
+		const expr = buildIRExpr(irTokens);
+
+		const scope = new IRScope(null, null);
+
+		expr.resolveNames(scope);
+
+		const evaluation = new IREvaluator();
+		
+		try {
+			const data = evaluation.evalConst(expr);
+
+			return new UplcDataValue(expr.site, data);
+		} catch (e) {
+			console.log(irSrc);
+
+			throw e;
+		}
 	}
 
 	/**
@@ -1356,6 +1381,18 @@ const DEFAULT_PROGRAM_CONFIG = {
 		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
 
 		return new Source(irProgram.toString(), this.name).pretty();
+	}
+
+	/**
+	 * @param {boolean} simplify 
+	 * @returns {string}
+	 */
+	annotateIR(simplify = false) {
+		const ir = this.toIR(new ToIRContext(simplify));
+
+		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
+
+		return new Source(irProgram.annotate(), this.name).pretty();
 	}
 
 	/**

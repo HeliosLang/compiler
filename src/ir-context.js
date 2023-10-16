@@ -11,12 +11,9 @@ import {
 } from "./tokens.js";
 
 import {
+	BUILTIN_PREFIX,
     UPLC_BUILTINS
 } from "./uplc-builtins.js";
-
-import {
-    UplcValue
-} from "./uplc-ast.js";
 
 /**
  * Scope for IR names.
@@ -70,7 +67,7 @@ export class IRScope {
 	 * @returns {boolean}
 	 */
 	static isBuiltin(name, strict = false) {
-		if (name.startsWith("__core")) {
+		if (name.startsWith(BUILTIN_PREFIX)) {
 			if (strict) {
 				void this.findBuiltin(name); // assert that builtin exists
 			}
@@ -87,7 +84,7 @@ export class IRScope {
 	 * @returns {number}
 	 */
 	static findBuiltin(name) {
-		let i = UPLC_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
+		let i = UPLC_BUILTINS.findIndex(info => { return BUILTIN_PREFIX + info.name == name });
 		assert(i != -1, `${name} is not a real builtin`);
 		return i;
 	}
@@ -138,6 +135,9 @@ export class IRVariable extends Token {
 		return this.#name.toString();
 	}
 
+	/**
+	 * @returns {string}
+	 */
 	toString() {
 		return this.name;
 	}
@@ -159,183 +159,5 @@ export class IRVariable extends Token {
 	 */
 	isAlwaysInlineable() {
 		return ALWAYS_INLINEABLE.findIndex((name_) => name_ == this.#name.value) != -1;
-	}
-}
-
-/**
- * @internal
- */
-export class IRValue {
-	constructor() {
-	}
-
-	/**
-	 * @param {IRValue[]} args 
-	 * @returns {?IRValue}
-	 */
-	call(args) {
-		throw new Error("not a function");
-	}
-
-	/**
-	 * @type {null | UplcValue}
-	 */
-	get value() {
-		throw new Error("not a literal value");
-	}
-}
-
-/**
- * @internal
- */
-export class IRFuncValue extends IRValue {
-	#callback;
-
-	/**
-	 * @param {(args: IRValue[]) => ?IRValue} callback
-	 */
-	constructor(callback) {
-		super();
-		this.#callback = callback;
-	}
-
-	/**
-	 * @param {IRValue[]} args 
-	 * @returns {?IRValue}
-	 */
-	call(args) {
-		return this.#callback(args);
-	}
-}
-
-/**
- * @internal
- */
-export class IRLiteralValue extends IRValue {
-	#value;
-
-	/**
-	 * @param {UplcValue} value 
-	 */
-	constructor(value) {
-		super();
-		this.#value = value;
-	}
-
-	/**
-	 * @type {UplcValue}
-	 */
-	get value() {
-		return this.#value;
-	}
-}
-
-/**
- * @internal
- */
-export class IRDeferredValue extends IRValue {
-    #deferred;
-
-    /**
-     * @type {undefined | null | IRValue}
-     */
-    #cache;
-
-    /**
-     * @param {() => ?IRValue} deferred
-     */
-    constructor(deferred) {
-        super();
-        this.#deferred = deferred;
-        this.#cache = undefined;
-    }
-    /**
-     * @param {IRValue[]} args 
-     * @returns {null | IRValue}
-     */
-    call(args) {
-        if (this.#cache === undefined) {
-            this.#cache = this.#deferred();
-        }
-        
-        if (this.#cache != null) {
-            return this.#cache.call(args);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * @type {null | UplcValue}
-     */
-    get value() {
-        if (this.#cache === undefined) {
-            this.#cache = this.#deferred();
-        }
-        
-        if (this.#cache !== undefined) {
-            return this.#cache?.value ?? null;
-        } else {
-            throw new Error("not a value");
-        }
-    }
-
-}
-
-/**
- * @internal
- */
-export class IRCallStack {
-	#throwRTErrors;
-	#parent;
-	#variable;
-	#value;
-
-	/**
-	 * @param {boolean} throwRTErrors
-	 * @param {?IRCallStack} parent 
-	 * @param {?IRVariable} variable 
-	 * @param {?IRValue} value 
-	 */
-	constructor(throwRTErrors, parent = null, variable = null, value = null) {
-		this.#throwRTErrors = throwRTErrors;
-		this.#parent = parent;
-		this.#variable = variable;
-		this.#value = value;
-	}
-
-	get throwRTErrors() {
-		return this.#throwRTErrors;
-	}
-
-	/**
-	 * @param {IRVariable} variable 
-	 * @returns {?IRValue}
-	 */
-	get(variable) {
-		if (this.#variable !== null && this.#variable === variable) {
-			return this.#value;
-		} else if (this.#parent !== null) {
-			return this.#parent.get(variable);
-		} else {
-			return new IRValue()
-			return null;
-		}
-	}
-
-	/**
-	 * @param {IRVariable} variable 
-	 * @param {IRValue} value 
-	 * @returns {IRCallStack}
-	 */
-	set(variable, value) {
-		return new IRCallStack(this.#throwRTErrors, this, variable, value);
-	}
-
-	/**
-	 * @returns {string[]}
-	 */
-	dump() {
-		return (this.#parent?.dump() ?? []).concat([this.#variable?.name ?? ""])
 	}
 }

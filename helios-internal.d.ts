@@ -480,7 +480,7 @@ declare module "helios" {
      * @param {CodeMap} codeMap
      * @returns {Token[]}
      */
-    export function tokenizeIR(rawSrc: string, codeMap: CodeMap): Token[];
+    export function tokenizeIR(rawSrc: string, codeMap?: CodeMap): Token[];
     /**
      * @template {HeliosData} T
      */
@@ -797,12 +797,49 @@ declare module "helios" {
      */
     export function extractScriptPurposeAndName(rawSrc: string): null | [ScriptPurpose, string];
     /**
+     * @internal
+     * @param {number | string | boolean} x
+     * @param {number} start
+     * @returns {number}
+     */
+    export function hashCode(x: number | string | boolean, start?: number): number;
+    /**
+     * @internal
+     * @param {IRExpr} root
+     * @param {{
+     *   nameExpr?: (expr: IRNameExpr) => void
+     *   errorExpr?: (expr: IRErrorExpr) => void
+     *   literalExpr?: (expr: IRLiteralExpr) => void
+     *   callExpr?: (expr: IRCallExpr) => void
+     *   funcExpr?: (expr: IRFuncExpr) => void
+     *   exit?: () => boolean
+     * }} callbacks
+     * @returns
+     */
+    export function loopIRExprs(root: IRExpr, callbacks: {
+        nameExpr?: ((expr: IRNameExpr) => void) | undefined;
+        errorExpr?: ((expr: IRErrorExpr) => void) | undefined;
+        literalExpr?: ((expr: IRLiteralExpr) => void) | undefined;
+        callExpr?: ((expr: IRCallExpr) => void) | undefined;
+        funcExpr?: ((expr: IRFuncExpr) => void) | undefined;
+        exit?: (() => boolean) | undefined;
+    }): void;
+    /**
      * Build an Intermediate Representation expression
      * @param {Token[]} ts
+     * @param {IRExprTagger | null} funcTagger // each IRFuncExpr needs a unique tag, so that hashing different IRFuncExprs with the same args and bodies leads to a different hash
      * @returns {IRExpr}
      * @internal
      */
-    export function buildIRExpr(ts: Token[]): IRExpr;
+    export function buildIRExpr(ts: Token[], funcTagger?: IRExprTagger | null): IRExpr;
+    /**
+     * Used to debug the result of IREvalation
+     * @internal
+     * @param {IREvaluator} evaluation
+     * @param {IRExpr} expr
+     * @returns {string}
+     */
+    export function annotateIR(evaluation: IREvaluator, expr: IRExpr): string;
     /**
      * Returns Uint8Array with the same length as the number of chars in the script.
      * Each resulting byte respresents a different syntax category.
@@ -1511,6 +1548,13 @@ declare module "helios" {
      * @internal
      */
     export class IR {
+        /**
+         * Can be used as a template literal tag function
+         * @param {string | TemplateStringsArray | IR[]} content
+         * @param  {...(Site | string | IR | IR[] | null | number)} args
+         * @returns {IR}
+         */
+        static new(content: string | TemplateStringsArray | IR[], ...args: (Site | string | IR | IR[] | null | number)[]): IR;
         /**
          * Wraps 'inner' IR source with some definitions (used for top-level statements and for builtins)
          * @internal
@@ -3505,6 +3549,14 @@ declare module "helios" {
      * @property {(params: NetworkParams, baseName: string) => CostModel} fromParams
      */
     /**
+     * @internal
+     */
+    export const BUILTIN_PREFIX: "__core__";
+    /**
+     * @internal
+     */
+    export const SAFE_BUILTIN_SUFFIX: "__safe";
+    /**
      * Cost-model configuration of UplcBuiltin.
      * Also specifies the number of times a builtin must be 'forced' before being callable.
      * @internal
@@ -4392,7 +4444,7 @@ declare module "helios" {
      */
     export class UplcBuiltin extends UplcTerm {
         /**
-         * Used by IRCoreCallExpr
+         * Used by IREvaluator
          * @internal
          * @param {Word} name
          * @param {UplcValue[]} args
@@ -4450,9 +4502,10 @@ declare module "helios" {
          * @param {UplcRte} rte
          * @param {Site} site
          * @param {UplcValue[]} args
+         * @param {boolean} syncTrace if true => don't call rte.print method (used by IREvaluator)
          * @returns {UplcValue | Promise<UplcValue>} // trace returns a Promise (async print), all the other builtins return a synchronous value
          */
-        evalBuiltin(rte: UplcRte, site: Site, args: UplcValue[]): UplcValue | Promise<UplcValue>;
+        evalBuiltin(rte: UplcRte, site: Site, args: UplcValue[], syncTrace?: boolean): UplcValue | Promise<UplcValue>;
         /**
          * @internal
          * @type {number}
@@ -8045,7 +8098,13 @@ declare module "helios" {
          * @internal
          * @returns {IR}
          */
-        fromDataFieldsCheckToIR(): IR;
+        testDataToIR(): IR;
+        /**
+         * @internal
+         * @param {string} path
+         * @returns {IR}
+         */
+        fromDataFieldsCheckToIR(path: string): IR;
         /**
          * Doesn't return anything, but sets its IRdef in the map
          * @param {ToIRContext} ctx
@@ -8238,6 +8297,10 @@ declare module "helios" {
          * @returns {number}
          */
         get nEnumMembers(): number;
+        /**
+         * @returns {IR}
+         */
+        testDataToIR(): IR;
         #private;
     }
     /**
@@ -8355,231 +8418,21 @@ declare module "helios" {
         #private;
     }
     /**
-     * @internal
-     */
-    export class IRValue {
-        /**
-         * @param {IRValue[]} args
-         * @returns {?IRValue}
-         */
-        call(args: IRValue[]): IRValue | null;
-        /**
-         * @type {null | UplcValue}
-         */
-        get value(): UplcValue | null;
-    }
-    /**
-     * @internal
-     */
-    export class IRFuncValue extends IRValue {
-        /**
-         * @param {(args: IRValue[]) => ?IRValue} callback
-         */
-        constructor(callback: (args: IRValue[]) => IRValue | null);
-        #private;
-    }
-    /**
-     * @internal
-     */
-    export class IRLiteralValue extends IRValue {
-        /**
-         * @param {UplcValue} value
-         */
-        constructor(value: UplcValue);
-        /**
-         * @type {UplcValue}
-         */
-        get value(): UplcValue;
-        #private;
-    }
-    /**
-     * @internal
-     */
-    export class IRDeferredValue extends IRValue {
-        /**
-         * @param {() => ?IRValue} deferred
-         */
-        constructor(deferred: () => IRValue | null);
-        #private;
-    }
-    /**
-     * @internal
-     */
-    export class IRCallStack {
-        /**
-         * @param {boolean} throwRTErrors
-         * @param {?IRCallStack} parent
-         * @param {?IRVariable} variable
-         * @param {?IRValue} value
-         */
-        constructor(throwRTErrors: boolean, parent?: IRCallStack | null, variable?: IRVariable | null, value?: IRValue | null);
-        get throwRTErrors(): boolean;
-        /**
-         * @param {IRVariable} variable
-         * @returns {?IRValue}
-         */
-        get(variable: IRVariable): IRValue | null;
-        /**
-         * @param {IRVariable} variable
-         * @param {IRValue} value
-         * @returns {IRCallStack}
-         */
-        set(variable: IRVariable, value: IRValue): IRCallStack;
-        /**
-         * @returns {string[]}
-         */
-        dump(): string[];
-        #private;
-    }
-    /**
-     * @internal
-     * @typedef {Map<IRVariable, IRLiteralExpr>} IRLiteralRegistry
-     */
-    /**
-     * A map from variables to variable references
-     * Scope-based
-     * @internal
-     */
-    export class IRNameExprRegistry {
-        /**
-         * @param {Map<IRVariable, Set<IRNameExpr>>} map
-         */
-        constructor(map?: Map<IRVariable, Set<IRNameExpr>>, maybeInsideLoop?: Set<any>);
-        /**
-         * @param {IRNameExpr} nameExpr
-         */
-        register(nameExpr: IRNameExpr): void;
-        /**
-         * Used to prevent inlining upon recursion
-         * @param {IRVariable} variable
-         */
-        registerVariable(variable: IRVariable): void;
-        /**
-         * @param {IRVariable} variable
-         * @returns {number}
-         */
-        countReferences(variable: IRVariable): number;
-        /**
-         * @param {IRVariable} variable
-         * @returns {boolean}
-         */
-        maybeInsideLoop(variable: IRVariable): boolean;
-        /**
-         * Called whenever recursion is detected
-         * @returns {IRNameExprRegistry}
-         */
-        resetVariables(): IRNameExprRegistry;
-        #private;
-    }
-    /**
-     * @internal
-     */
-    export class IRExprRegistry {
-        /**
-         * @param {IRNameExprRegistry} nameExprs
-         */
-        constructor(nameExprs: IRNameExprRegistry);
-        /**
-         * @param {IRVariable} variable
-         * @returns {number}
-         */
-        countReferences(variable: IRVariable): number;
-        /**
-         * @param {IRVariable} variable
-         * @returns {boolean}
-         */
-        maybeInsideLoop(variable: IRVariable): boolean;
-        /**
-         * @param {IRVariable} variable
-         * @returns {boolean}
-         */
-        isInlineable(variable: IRVariable): boolean;
-        /**
-         * @param {IRVariable} variable
-         * @returns {IRExpr}
-         */
-        getInlineable(variable: IRVariable): IRExpr;
-        /**
-         * @param {IRVariable} variable
-         * @param {IRExpr} expr
-         */
-        addInlineable(variable: IRVariable, expr: IRExpr): void;
-        #private;
-    }
-    /**
-     * Base class of all Intermediate Representation expressions
-     * @internal
-     */
-    export class IRExpr extends Token {
-        /**
-         * For pretty printing the IR
-         * @param {string} indent
-         * @returns {string}
-         */
-        toString(indent?: string): string;
-        /**
-         * Link IRNameExprs to variables
-         * @param {IRScope} scope
-         */
-        resolveNames(scope: IRScope): void;
-        /**
-         * Turns all IRConstExpr instances into IRLiteralExpr instances
-         * @param {IRCallStack} stack
-         * @returns {IRExpr}
-         */
-        evalConstants(stack: IRCallStack): IRExpr;
-        /**
-         * Evaluates an expression to something (hopefully) literal
-         * Returns null if it the result would be worse than the current expression
-         * Doesn't return an IRLiteral because the resulting expression might still be an improvement, even if it isn't a literal
-         * @param {IRCallStack} stack
-         * @returns {null | IRValue}
-         */
-        eval(stack: IRCallStack): null | IRValue;
-        /**
-         * Used to inline literals and to evaluate IRCoreCallExpr instances with only literal args.
-         * @param {IRLiteralRegistry} literals
-         * @returns {IRExpr}
-         */
-        simplifyLiterals(literals: IRLiteralRegistry): IRExpr;
-        /**
-         * Used before simplifyTopology
-         * @param {IRNameExprRegistry} nameExprs
-         */
-        registerNameExprs(nameExprs: IRNameExprRegistry): void;
-        /**
-         * Used during inlining/expansion to make sure multiple inlines of IRNameExpr don't interfere when setting the Debruijn index
-         * @param {Map<IRVariable, IRVariable>} newVars
-         * @returns {IRExpr}
-         */
-        copy(newVars: Map<IRVariable, IRVariable>): IRExpr;
-        /**
-         * @param {IRExprRegistry} registry
-         * @returns {IRExpr}
-         */
-        simplifyTopology(registry: IRExprRegistry): IRExpr;
-        /**
-         * @param {IRVariable} fnVar
-         * @param {number[]} remaining
-         * @returns {IRExpr}
-         */
-        simplifyUnusedRecursionArgs(fnVar: IRVariable, remaining: number[]): IRExpr;
-        /**
-         * @returns {UplcTerm}
-         */
-        toUplc(): UplcTerm;
-    }
-    /**
      * Intermediate Representation variable reference expression
      * @internal
+     * @implements {IRExpr}
      */
-    export class IRNameExpr extends IRExpr {
+    export class IRNameExpr implements IRExpr {
         /**
          * @param {Word} name
-         * @param {?IRVariable} variable
-         * @param {?IRValue} value
+         * @param {null | IRVariable} variable
          */
-        constructor(name: Word, variable?: IRVariable | null, value?: IRValue | null);
+        constructor(name: Word, variable?: null | IRVariable);
+        /**
+         * @readonly
+         * @type {Site}
+         */
+        readonly site: Site;
         /**
          * @type {string}
          */
@@ -8590,46 +8443,73 @@ declare module "helios" {
          */
         get variable(): IRVariable;
         /**
+         * Used when inlining
+         * @returns {IRNameExpr}
+         */
+        copy(): IRNameExpr;
+        /**
          * @internal
          * @returns {boolean}
          */
         isCore(): boolean;
+        /**
+         * @internal
+         * @returns {boolean}
+         */
+        isParam(): boolean;
         /**
          * @param {IRVariable} ref
          * @returns {boolean}
          */
         isVariable(ref: IRVariable): boolean;
         /**
-         * @param {IRVariable} fnVar
-         * @param {number[]} remaining
-         * @returns {IRExpr}
+         * @param {string} indent
+         * @returns {string}
          */
-        removeUnusedCallArgs(fnVar: IRVariable, remaining: number[]): IRExpr;
+        toString(indent?: string): string;
+        /**
+         * @param {IRScope} scope
+         */
+        resolveNames(scope: IRScope): void;
+        /**
+         * @returns {UplcTerm}
+         */
+        toUplc(): UplcTerm;
         #private;
     }
     /**
      * IR wrapper for UplcValues, representing literals
      * @internal
+     * @implements {IRExpr}
      */
-    export class IRLiteralExpr extends IRExpr {
+    export class IRLiteralExpr implements IRExpr {
         /**
          * @param {UplcValue} value
          */
         constructor(value: UplcValue);
         /**
+         * @readonly
+         * @type {Site}
+         */
+        readonly site: Site;
+        /**
          * @type {UplcValue}
          */
         get value(): UplcValue;
         /**
-         * @param {IRCallStack} stack
+         * @param {string} indent
+         * @returns {string}
          */
-        evalConstants(stack: IRCallStack): IRLiteralExpr;
+        toString(indent?: string): string;
         /**
-         * @param {IRVariable} fnVar
-         * @param {number[]} remaining
          * @returns {IRExpr}
          */
-        removeUnusedCallArgs(fnVar: IRVariable, remaining: number[]): IRExpr;
+        copy(): IRExpr;
+        /**
+         * Linking doesn't do anything for literals
+         * @param {IRScope} scope
+         */
+        resolveNames(scope: IRScope): void;
         /**
          * @returns {UplcConst}
          */
@@ -8637,111 +8517,69 @@ declare module "helios" {
         #private;
     }
     /**
-     * The IRExpr simplify methods aren't implemented because any IRConstExpr instances should've been eliminated during evalConstants.
-     * @internal
-     */
-    export class IRConstExpr extends IRExpr {
-        /**
-         * @param {Site} site
-         * @param {IRExpr} expr
-         */
-        constructor(site: Site, expr: IRExpr);
-        /**
-         * @param {IRVariable} fnVar
-         * @param {number[]} remaining
-         */
-        simplifyUnusedRecursionArgs(fnVar: IRVariable, remaining: number[]): IRConstExpr;
-        #private;
-    }
-    /**
      * IR function expression with some args, that act as the header, and a body expression
      * @internal
+     * @implements {IRExpr}
      */
-    export class IRFuncExpr extends IRExpr {
+    export class IRFuncExpr implements IRExpr {
         /**
          * @param {Site} site
          * @param {IRVariable[]} args
          * @param {IRExpr} body
+         * @param {number} tag
          */
-        constructor(site: Site, args: IRVariable[], body: IRExpr);
-        get args(): IRVariable[];
-        get body(): IRExpr;
+        constructor(site: Site, args: IRVariable[], body: IRExpr, tag: number);
+        /**
+         * @readonly
+         * @type {Site}
+         */
+        readonly site: Site;
+        /**
+         * Mutation is more convenient and much faster when applying some optimizations.
+         * @readwrite
+         * @type {IRVariable[]}
+         */
+        args: IRVariable[];
+        /**
+         * Mutation is more convenient and much faster when applying some optimizations.
+         * @readwrite
+         * @type {IRExpr}
+         */
+        body: IRExpr;
+        /**
+         * A unique tag, that distinguishes each IRFuncExpr from each other IRFuncExpr (used for hashing)
+         * @readonly
+         * @type {number}
+         */
+        readonly tag: number;
         /**
          * @returns {boolean}
          */
         hasOptArgs(): boolean;
         /**
-         * @param {IRCallStack} stack
+         * @param {string} indent
+         * @returns {string}
          */
-        evalConstants(stack: IRCallStack): IRFuncExpr;
-        #private;
+        toString(indent?: string): string;
+        /**
+         * @param {IRScope} scope
+         */
+        resolveNames(scope: IRScope): void;
+        /**
+         * @returns {IRExpr}
+         */
+        copy(): IRExpr;
+        /**
+         * @returns {UplcTerm}
+         */
+        toUplc(): UplcTerm;
     }
     /**
      * Base class of IRUserCallExpr and IRCoreCallExpr
      * @internal
+     * @implements {IRExpr}
      */
-    export class IRCallExpr extends IRExpr {
-        /**
-         * @param {Site} site
-         * @param {IRExpr[]} argExprs
-         * @param {Site} parensSite
-         */
-        constructor(site: Site, argExprs: IRExpr[], parensSite: Site);
-        get argExprs(): IRExpr[];
-        get parensSite(): Site;
-        /**
-         * @param {string} indent
-         * @returns {string}
-         */
-        argsToString(indent?: string): string;
-        /**
-         * @param {IRScope} scope
-         */
-        resolveNamesInArgs(scope: IRScope): void;
-        /**
-         * @param {IRCallStack} stack
-         * @returns {IRExpr[]}
-         */
-        evalConstantsInArgs(stack: IRCallStack): IRExpr[];
-        /**
-         * @param {IRCallStack} stack
-         * @returns {?IRValue[]}
-         */
-        evalArgs(stack: IRCallStack): IRValue[] | null;
-        /**
-         * @param {IRLiteralRegistry} literals
-         * @returns {IRExpr[]}
-         */
-        simplifyLiteralsInArgs(literals: IRLiteralRegistry): IRExpr[];
-        /**
-         * @param {IRNameExprRegistry} nameExprs
-         */
-        registerNameExprsInArgs(nameExprs: IRNameExprRegistry): void;
-        /**
-         * @param {IRExprRegistry} registry
-         * @returns {IRExpr[]}
-         */
-        simplifyTopologyInArgs(registry: IRExprRegistry): IRExpr[];
-        /**
-         * @param {UplcTerm} term
-         * @returns {UplcTerm}
-         */
-        toUplcCall(term: UplcTerm): UplcTerm;
-        #private;
-    }
-    /**
-     * IR function call of core functions
-     * @internal
-     */
-    export class IRCoreCallExpr extends IRCallExpr {
-        /**
-         * @param {Site} site
-         * @param {boolean} throwRTErrors
-         * @param {string} builtinName
-         * @param {IRValue[]} args
-         * @returns {?IRValue}
-         */
-        static evalValues(site: Site, throwRTErrors: boolean, builtinName: string, args: IRValue[]): IRValue | null;
+    export class IRCallExpr implements IRExpr {
         /**
          * @param {Site} site
          * @param {string} name - full name of builtin, including prefix
@@ -8749,126 +8587,798 @@ declare module "helios" {
          */
         static newUplcBuiltin(site: Site, name: string): UplcTerm;
         /**
-         * @param {Word} name
-         * @param {IRExpr[]} argExprs
-         * @param {Site} parensSite
+         * @param {Site} site
+         * @param {IRExpr} func
+         * @param {IRExpr[]} args
          */
-        constructor(name: Word, argExprs: IRExpr[], parensSite: Site);
-        get builtinName(): string;
+        constructor(site: Site, func: IRExpr, args: IRExpr[]);
+        /**
+         * @readonly
+         * @type {Site}
+         */
+        readonly site: Site;
+        /**
+         * Mutation is more convenient and much faster when applying some optimizations.
+         * @readwrite
+         * @type {IRExpr}
+         */
+        func: IRExpr;
+        /**
+         * Mutation is more convenient and much faster when applying some optimizations.
+         * @readwrite
+         * @type {IRExpr[]}
+         */
+        args: IRExpr[];
         /**
          * @returns {boolean}
          */
-        isCast(): boolean;
+        isSafeBuiltin(): boolean;
         /**
-         * @param {IRVariable} fnVar
-         * @param {number[]} remaining
+         * Returns an empty string this isn't a builtin
+         * @type {string}
          */
-        simplifyUnusedRecursionArgs(fnVar: IRVariable, remaining: number[]): IRCoreCallExpr;
-        #private;
-    }
-    /**
-     * IR function call of non-core function
-     * @internal
-     */
-    export class IRUserCallExpr extends IRCallExpr {
+        get builtinName(): string;
         /**
-         * Handles upgrade to more complicated IRExpr types
-         * @param {IRExpr} fnExpr
-         * @param {IRExpr[]} argExprs
-         * @param {Site} parensSite
-         * @returns {IRNestedAnonCallExpr | IRAnonCallExpr | IRFuncDefExpr | IRUserCallExpr}
+         * @param {string} indent
+         * @returns {string}
          */
-        static new(fnExpr: IRExpr, argExprs: IRExpr[], parensSite: Site): IRNestedAnonCallExpr | IRAnonCallExpr | IRFuncDefExpr | IRUserCallExpr;
+        argsToString(indent?: string): string;
         /**
-         * @param {IRExpr} fnExpr
-         * @param {IRExpr[]} argExprs
-         * @param {Site} parensSite
+         * @param {string} indent
+         * @returns {string}
          */
-        constructor(fnExpr: IRExpr, argExprs: IRExpr[], parensSite: Site);
+        toString(indent?: string): string;
         /**
-         * @readonly
-         * @type {IRExpr}
+         * @param {IRScope} scope
          */
-        readonly fnExpr: IRExpr;
+        resolveNamesInArgs(scope: IRScope): void;
         /**
-         * @param {IRLiteralRegistry} literals
-         * @returns {(IRExpr[] | IRLiteralExpr)}
+         * @param {IRScope} scope
          */
-        simplifyLiteralsInArgsAndTryEval(literals: IRLiteralRegistry): (IRExpr[] | IRLiteralExpr);
-    }
-    /**
-     * @internal
-     */
-    export class IRAnonCallExpr extends IRUserCallExpr {
+        resolveNames(scope: IRScope): void;
         /**
-         * Handles upgrade to IRFuncDefExpr, which is very important to avoid inlining expensive expressions into potentially recursive scopes
-         * @param {IRFuncExpr} fnExpr
-         * @param {IRExpr[]} argExprs
-         * @param {Site} parensSite
-         * @returns {IRAnonCallExpr | IRFuncDefExpr}
+         * @returns {IRExpr}
          */
-        static new(fnExpr: IRFuncExpr, argExprs: IRExpr[], parensSite: Site): IRAnonCallExpr | IRFuncDefExpr;
+        copy(): IRExpr;
         /**
-         * @param {IRFuncExpr} fnExpr
-         * @param {IRExpr[]} argExprs
-         * @param {Site} parensSite
+         * @param {UplcTerm} term
+         * @returns {UplcTerm}
          */
-        constructor(fnExpr: IRFuncExpr, argExprs: IRExpr[], parensSite: Site);
+        toUplcCall(term: UplcTerm): UplcTerm;
         /**
-         * Internal function
-         * @type {IRFuncExpr}
+         * @returns {UplcTerm}
          */
-        get anon(): IRFuncExpr;
-        /**
-         * @type {IRVariable[]}
-         */
-        get argVariables(): IRVariable[];
-        /**
-         * Add args to the stack as IRDeferredValue instances
-         * @param {IRCallStack} stack
-         */
-        evalConstants(stack: IRCallStack): any;
-        #private;
-    }
-    /**
-     * @internal
-     */
-    export class IRNestedAnonCallExpr extends IRUserCallExpr {
-        /**
-         * @param {IRAnonCallExpr} anon
-         * @param {IRExpr[]} outerArgExprs
-         * @param {Site} parensSite
-         */
-        constructor(anon: IRAnonCallExpr, outerArgExprs: IRExpr[], parensSite: Site);
-        #private;
-    }
-    /**
-     * @internal
-     */
-    export class IRFuncDefExpr extends IRAnonCallExpr {
-        /**
-         * @param {IRFuncExpr} anon
-         * @param {IRFuncExpr} defExpr
-         * @param {Site} parensSite
-         */
-        constructor(anon: IRFuncExpr, defExpr: IRFuncExpr, parensSite: Site);
-        /**
-         * @param {IRExprRegistry} registry
-         * @returns {[IRFuncExpr, IRExpr]}
-         */
-        simplifyRecursionArgs(registry: IRExprRegistry): [IRFuncExpr, IRExpr];
-        #private;
+        toUplc(): UplcTerm;
     }
     /**
      * Intermediate Representation error call (with optional literal error message)
      * @internal
+     * @implements {IRExpr}
      */
-    export class IRErrorCallExpr extends IRExpr {
+    export class IRErrorExpr implements IRExpr {
         /**
          * @param {Site} site
          * @param {string} msg
          */
         constructor(site: Site, msg?: string);
+        /**
+         * @readonly
+         * @type {Site}
+         */
+        readonly site: Site;
+        /**
+         * @param {string} indent
+         * @returns {string}
+         */
+        toString(indent?: string): string;
+        /**
+         * @param {IRScope} scope
+         */
+        resolveNames(scope: IRScope): void;
+        /**
+         * @returns {IRExpr}
+         */
+        copy(): IRExpr;
+        /**
+         * @returns {UplcTerm}
+         */
+        toUplc(): UplcTerm;
+        #private;
+    }
+    /**
+     * @internal
+     * @implements {IRValue}
+     */
+    export class IRLiteralValue implements IRValue {
+        /**
+         * @param {UplcValue} value
+         */
+        constructor(value: UplcValue);
+        /**
+         * @readonly
+         */
+        readonly value: UplcValue;
+        /**
+         * @returns {string}
+         */
+        toString(): string;
+        /**
+         * @returns {boolean}
+         */
+        isLiteral(): boolean;
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
+        dump(depth?: number): {
+            type: string;
+            value: string;
+            hash: number;
+        };
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+        /**
+         * TODO: code that takes Literal value into account (eg. `get codeWithLiterals()`)
+         * @type {number}
+         */
+        get code(): number;
+    }
+    /**
+     * @internal
+     * @implements {IRValue}
+     */
+    export class IRDataValue implements IRValue {
+        /**
+         * @returns {boolean}
+         */
+        isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
+        /**
+         * @type {number}
+         */
+        get code(): number;
+        /**
+         *
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+        /**
+         * @returns {string}
+         */
+        toString(): string;
+        dump(depth?: number): {
+            type: string;
+            hash: number;
+        };
+    }
+    /**
+     * @internal
+     * @implements {IRValue}
+     */
+    export class IRBuiltinValue implements IRValue {
+        /**
+         * @param {IRNameExpr} builtin
+         */
+        constructor(builtin: IRNameExpr);
+        /**
+         * @readonly
+         * @type {IRNameExpr}
+         */
+        readonly builtin: IRNameExpr;
+        /**
+         * @returns {string}
+         */
+        toString(): string;
+        /**
+         * @returns {boolean}
+         */
+        isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
+        /**
+         * @type {number}
+         */
+        get code(): number;
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+        dump(depth?: number): {
+            type: string;
+            name: string;
+            hash: number;
+        };
+    }
+    /**
+     * @internal
+     * @implements {IRValue}
+     */
+    export class IRFuncValue implements IRValue {
+        /**
+         * @param {IRFuncExpr} definition
+         * @param {IRStack} stack
+         * @returns {IRFuncValue}
+         */
+        static new(definition: IRFuncExpr, stack: IRStack): IRFuncValue;
+        /**
+         * @param {IRFuncExpr} definition
+         * @param {IRStack} stack
+         */
+        constructor(definition: IRFuncExpr, stack: IRStack);
+        /**
+         * @readonly
+         * @type {IRStack}
+         */
+        readonly stack: IRStack;
+        /**
+         * @readonly
+         * @type {IRFuncExpr}
+         */
+        readonly definition: IRFuncExpr;
+        /**
+         * @private
+         * @type {number}
+         */
+        private get internalCode();
+        /**
+         * @type {number}
+         */
+        get code(): number;
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+        /**
+         * @returns {boolean}
+         */
+        isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
+        dump(depth?: number): {
+            type: string;
+            definition: string;
+            hash: number;
+            hashes: number[];
+            stack: {
+                values?: any[] | undefined;
+                hash: number;
+                hashes: number[];
+                isLiteral: boolean;
+            };
+        };
+        /**
+         * @returns {string}
+         */
+        toString(): string;
+    }
+    /**
+     * @internal
+     * @implements {IRValue}
+     */
+    export class IRErrorValue implements IRValue {
+        /**
+         * @returns {boolean}
+         */
+        isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
+        /**
+         * @returns {string}
+         */
+        toString(): string;
+        dump(depth?: number): {
+            type: string;
+            hash: number;
+        };
+        /**
+         * @type {number}
+         */
+        get code(): number;
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+    }
+    /**
+     * Can be Data of any function
+     * Simply eliminated when encountered in an IRMultiValue
+     * @internal
+     * @implements {IRValue}
+     */
+    export class IRAnyValue implements IRValue {
+        /**
+         * @returns {boolean}
+         */
+        isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
+        /**
+         * Maybe this IRAnyValue instance represents an Error, we can't know for sure.
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
+        /**
+         * @returns {string}
+         */
+        toString(): string;
+        dump(depth?: number): {
+            type: string;
+            hash: number;
+        };
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+        /**
+         * @type {number}
+         */
+        get code(): number;
+    }
+    /**
+     * @internal
+     * @implements {IRValue}
+     */
+    export class IRMultiValue implements IRValue {
+        /**
+         * @param {IRValue[]} values
+         * @returns {IRValue}
+         */
+        static flatten(values: IRValue[]): IRValue;
+        /**
+         * @param {IRValue[]} values
+         * @returns {IRValue[][]}
+         */
+        static allPermutations(values: IRValue[]): IRValue[][];
+        /**
+         * @param {IRValue[]} values
+         */
+        constructor(values: IRValue[]);
+        /**
+         * @readonly
+         */
+        readonly values: IRValue[];
+        /**
+         * @param {boolean} maybe
+         * @returns {boolean}
+         */
+        hasError(maybe?: boolean): boolean;
+        /**
+         * @returns {boolean}
+         */
+        isLiteral(): boolean;
+        /**
+         * @returns {IRValue}
+         */
+        withoutLiterals(): IRValue;
+        /**
+         * @returns {boolean}
+         */
+        hasData(): boolean;
+        /**
+         * @returns {boolean}
+         */
+        hasLiteral(): boolean;
+        dump(depth?: number): {
+            type: string;
+            hash: number;
+            values: any[];
+        };
+        toString(): string;
+        /**
+         * @type {number}
+         */
+        get code(): number;
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+        /**
+         * @returns {IRValue}
+         */
+        withoutErrors(): IRValue;
+    }
+    /**
+     * @internal
+     */
+    export class IREvaluator {
+        /**
+         * @param {boolean} evalLiterals
+         */
+        constructor(evalLiterals?: boolean);
+        /**
+         * @type {IRFuncExpr[]}
+         */
+        get funcExprs(): IRFuncExpr[];
+        /**
+         * @param {IRExpr} expr
+         * @returns {undefined | IRValue}
+         */
+        getExprValue(expr: IRExpr): undefined | IRValue;
+        /**
+         * @param {IRVariable} v
+         * @returns {undefined | IRValue}
+         */
+        getVariableValue(v: IRVariable): undefined | IRValue;
+        /**
+         * @param {IRVariable} v
+         * @returns {number}
+         */
+        countVariableReferences(v: IRVariable): number;
+        /**
+         * @param {IRVariable} v
+         * @returns {IRNameExpr[]}
+         */
+        getVariableReferences(v: IRVariable): IRNameExpr[];
+        /**
+         * @param {IRFuncExpr} fn
+         * @returns {number}
+         */
+        countFuncCalls(fn: IRFuncExpr): number;
+        /**
+         * @param {IRExpr} expr
+         * @returns {boolean}
+         */
+        expectsError(expr: IRExpr): boolean;
+        /**
+         * @param {IRFuncExpr} fn
+         * @returns {number[]} indices
+         */
+        getUnusedFuncVariables(fn: IRFuncExpr): number[];
+        /**
+         * @param {IRFuncExpr} fn
+         * @returns {IRCallExpr[]}
+         */
+        getFuncCallExprs(fn: IRFuncExpr): IRCallExpr[];
+        /**
+         * @param {IRFuncExpr} fn
+         * @returns {boolean}
+         */
+        onlyDedicatedCallExprs(fn: IRFuncExpr): boolean;
+        /**
+         * @param {IRFuncExpr} fn
+         * @param {number[]} unused
+         * @returns {boolean}
+         */
+        noUnusedArgErrors(fn: IRFuncExpr, unused: number[]): boolean;
+        /**
+         * @param {IRFuncExpr} first
+         * @param {IRFuncExpr} second
+         */
+        onlyNestedCalls(first: IRFuncExpr, second: IRFuncExpr): boolean;
+        /**
+         * Push onto the computeStack, unwrapping IRCallExprs
+         * @private
+         * @param {IRStack} stack
+         * @param {IRExpr} expr
+         */
+        private pushExpr;
+        /**
+         * @param {IRExpr} expr
+         * @param {IRValue} value
+         */
+        setExprValue(expr: IRExpr, value: IRValue): void;
+        /**
+         * @param {null | IRExpr} owner
+         * @param {IRValue} value
+         */
+        pushReductionValue(owner: null | IRExpr, value: IRValue): void;
+        /**
+         * @private
+         * @param {IRStack} stack
+         * @param {IRNameExpr} nameExpr
+         * @returns {IRValue}
+         */
+        private getValue;
+        /**
+         * @private
+         * @param {IRExpr} owner
+         * @param {IRNameExpr} nameExpr
+         * @param {IRValue[]} args
+         */
+        private callBuiltin;
+        /**
+         * @param {IRFuncExpr} fn
+         */
+        incrCallCount(fn: IRFuncExpr): void;
+        /**
+         * @param {IRVariable[]} variables
+         * @param {IRValue[]} values
+         * @returns {[IRVariable, IRValue][]}
+         */
+        mapVarsToValues(variables: IRVariable[], values: IRValue[]): [IRVariable, IRValue][];
+        /**
+         * @private
+         * @param {IRStack} stack
+         * @param {null | IRExpr} owner
+         * @param {IRFuncExpr} fn
+         * @param {IRValue[]} args
+         */
+        private pushFuncCall;
+        /**
+         * @private
+         * @param {IRExpr} owner for entry point ths is the entry point IRFuncExpr, for all other calls this is the IRCallExpr
+         * @param {IRFuncValue} v
+         * @param {IRValue[]} args
+         */
+        private callFunc;
+        /**
+         * Call an unknown function (eg. returned at the deepest point of recursion)
+         * Make sure any arguments that are functions are also called so that all possible execution paths are touched (TODO: should we also called function values returned by those calls etc.?)
+         * Absorb the return values of these functions
+         * @private
+         * @param {IRExpr} owner
+         * @param {IRAnyValue} fn
+         * @param {IRValue[]} args
+         */
+        private callAnyFunc;
+        /**
+         * @private
+         * @param {IRCallExpr} expr
+         * @param {number} code
+         * @param {IRValue} value
+         */
+        private cacheValue;
+        /**
+         * @private
+         */
+        private evalInternal;
+        /**
+         * @param {IRExpr} expr entry point
+         * @returns {IRValue}
+         */
+        evalFirstPass(expr: IRExpr): IRValue;
+        /**
+         * @param {IRFuncValue} main
+         * @returns {IRValue}
+         */
+        evalSecondPass(main: IRFuncValue): IRValue;
+        /**
+         * @param {IRExpr} expr entry point
+         * @returns {IRValue}
+         */
+        eval(expr: IRExpr): IRValue;
+        /**
+         * @param {IRExpr} expr
+         * @returns {UplcData}
+         */
+        evalConst(expr: IRExpr): UplcData;
+        #private;
+    }
+    /**
+     * Recursive algorithm that performs the following optimizations.
+     *
+     * Optimizations performed in both `aggressive == false` and `aggressive == true` cases:
+     *   * replace `IRNameExpr` by `IRLiteralExpr` if the expected value is IRLiteralValue
+     *   * replace `IRCallExpr` by `IRLiteralExpr` if the expected value is IRLiteralValue
+     *
+     * Optimizations only performed in the `aggressive == true` case:
+     *   * replace `IRNameExpr` by `IRErrorExpr` if the expected value is IRErrorValue
+     *   * replace `IRCallExpr` by `IRErrorExpr` if the expected value is IRErrorValue
+     *   * replace `__core__addInteger(<expr>, 0)` or `__core__addInteger(0, <expr>)` by `<expr>`
+     *   * replace `__core__subtractInteger(<expr>, 0)` by `<expr>`
+     *   * replace `__core__multiplyInteger(<expr>, 1)` or `__core__multiplyInteger(1, <expr>)` by `<expr>`
+     *   * replace `__core__divideInteger(<expr>, 1)` by `<expr>`
+     *   * replace `__core__quotientInteger(<expr>, 1)` by `<expr>`
+     *   * replace `__core__appendByteString(<expr>, #)` or `__core__appendByteString(#, <expr>)` by `<expr>`
+     *   * replace `__core__appendString(<expr>, "")` or `__core__appendString("", <expr>)` by `<expr>`
+     *   * replace `__core__decodeUtf8(__core__encodeUtf8(<expr>))` by `<expr>`
+     *   * replace `__core__ifThenElse(true, <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
+     *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
+     *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
+     *   * replace `__core__ifThenElse(<cond-expr>, <expr-a>, <expr_a>)` by `<expr-a>` if `<cond-expr>` doesn't expect IRErrorValue
+     *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
+     *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
+     *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
+     *   * replace `__core__chooseList([...], <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
+     *   * replace `__core__chooseData(ConstrData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expressions expect IRErrorValue
+     *   * replace `__core__chooseData(__core__constrData(<index-expr>, <fields-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<C-expr>` if none of the other expressions expect IRErrorValue
+     *   * replace `__core__chooseData(MapData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(__core__mapData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<M-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(ListData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(__core__listData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<L-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(IntData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(__core__iData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<I-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(ByteArrayData, <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__chooseData(__core__bData(<data-expr>), <C-expr>, <M-expr>, <L-expr>, <I-expr>, <B-expr>)` by `<B-expr>` if none of the other expression expect IRErrorValue
+     *   * replace `__core__unMapData(__core__mapData(<expr>))` by `<expr>`
+     *   * replace `__core__unListData(__core__listData(<expr>))` by `<expr>`
+     *   * replace `__core__unIData(__core__iData(<expr>))` by `<expr>`
+     *   * replace `__core__unBData(__core__bData(<expr>))` by `<expr>`
+     *   * replace `__core__equalsData(__core__iData(<expr-a>), __core__iData(<expr-b>))` by `__core__equalsInteger(<expr-a>, <expr-b>)`
+     *   * replace `__core__equalsData(__core__bData(<expr-a>), __core__bData(<expr-b>))` by `__core__equalsByteString(<expr-a>, <expr-b>)`
+     *   * remove unused IRFuncExpr arg variables if none if the corresponding IRCallExpr args expect errors and if all the the IRCallExprs expect only this IRFuncExpr
+     *   * replace IRCallExpr args that are uncalled IRFuncExprs with `()`
+     *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
+     *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<name-expr>` if each var is only referenced once (i.e. only referenced in the call)
+     *   * replace `(<var>) -> {<var>}(<arg-expr>)` by `<arg-expr>`
+     *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each var is only referenced once (i.e. only referenced in the call)
+     *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
+     *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
+     *   * inline `<call-expr>` in `(<vars>) -> {...}(<call-expr>, ...)` if the corresponding var is only referenced once and if all the nested IRFuncExprs are only evaluated once and if the IRCallExpr doesn't expect an error
+     *   * replace `() -> {<expr>}()` by `<expr>`
+     *
+     * Optimizations that we have considered, but are NOT performed:
+     *   * replace `__core__subtractInteger(0, <expr>)` by `__core__multiplyInteger(<expr>, -1)`
+     *       reason: it is unclear if either method is cheaper for the majority of cases
+     *   * replace `__core__multiplyInteger(<expr>, -1)` by `__core__subtractInteger(0, <expr>)`
+     *       reason: it is unclear if either method is cheaper for the majority of cases
+     *
+     * @internal
+     * @param {IREvaluator} evaluation
+     * @param {IRExpr} expr
+     * @param {boolean} aggressive
+     * @returns {IRExpr}
+     */
+    export class IROptimizer {
+        /**
+         * @param {IRExpr} expr
+         */
+        static assertNoDuplicateExprs(expr: IRExpr): void;
+        /**
+         * @param {IRExpr} root
+         * @param {boolean} aggressive
+         */
+        constructor(root: IRExpr, aggressive?: boolean);
+        /**
+         * @param {IRExpr} expr
+         * @returns {boolean}
+         */
+        expectsError(expr: IRExpr): boolean;
+        /**
+         * @private
+         * @param {IRFuncExpr} fn
+         */
+        private countFuncCalls;
+        /**
+         * Makes sure the callCount is copied from IREvaluator
+         * @private
+         * @param {IRFuncExpr} old
+         * @param {IRVariable[]} args
+         * @param {IRExpr} body
+         * @returns {IRFuncExpr}
+         */
+        private newFuncExpr;
+        /**
+         * Apply optimizations that require access to the root:
+         *   * flatten nested IRFuncExpr where possible
+         *   * remove unused IRFuncExpr variables
+         * @private
+         */
+        private init;
+        /**
+         * Mutates
+         * @private
+         */
+        private removeUnusedArgs;
+        /**
+         * TODO: improve IREvaluator to make sure all possible IRFuncExpr calls are evaluated
+         * @private
+         */
+        private replaceUncalledArgsWithUnit;
+        /**
+         * In scope order, call func before call args
+         * @private
+         */
+        private collectFuncExprs;
+        /**
+         * @private
+         */
+        private flattenNestedFuncExprs;
+        /**
+         * @param {IRFuncExpr} start
+         * @param {IRNameExpr} nameExpr
+         * @returns {boolean}
+         */
+        isEvaluatedMoreThanOnce(start: IRFuncExpr, nameExpr: IRNameExpr): boolean;
+        /**
+         * @param {IRVariable} v
+         * @param {IRExpr} expr
+         */
+        inline(v: IRVariable, expr: IRExpr): void;
+        /**
+         * @private
+         * @param {IRNameExpr} expr
+         * @returns {IRExpr}
+         */
+        private optimizeNameExpr;
+        /**
+         * The optimizations are only performed in aggressive mode
+         * @private
+         * @param {IRCallExpr} expr
+         * @returns {IRExpr}
+         */
+        private optimizeBuiltinCallExpr;
+        /**
+         * @private
+         * @param {IRCallExpr} expr
+         * @returns {IRExpr}
+         */
+        private optimizeCallExpr;
+        /**
+         * @private
+         * @param {IRFuncExpr} expr
+         * @returns {IRExpr}
+         */
+        private optimizeFuncExpr;
+        /**
+         * @private
+         * @param {IRExpr} expr
+         */
+        private optimizeInternal;
+        /**
+         * @returns {IRExpr}
+         */
+        optimize(): IRExpr;
         #private;
     }
     /**
@@ -8896,25 +9406,19 @@ declare module "helios" {
          */
         static simplify(expr: IRExpr): IRExpr;
         /**
-         * @param {IRExpr} expr
-         * @returns {IRExpr}
-         */
-        static simplifyLiterals(expr: IRExpr): IRExpr;
-        /**
-         * @param {IRExpr} expr
-         * @returns {IRExpr}
-         */
-        static simplifyTopology(expr: IRExpr): IRExpr;
-        /**
          * @param {IRFuncExpr | IRCallExpr | IRLiteralExpr} expr
          * @param {ProgramProperties} properties
          */
         constructor(expr: IRFuncExpr | IRCallExpr | IRLiteralExpr, properties: ProgramProperties);
         /**
+         * @returns {string}
+         */
+        annotate(): string;
+        /**
          * @internal
          * @type {IRFuncExpr | IRCallExpr | IRLiteralExpr}
          */
-        get expr(): IRLiteralExpr | IRCallExpr | IRFuncExpr;
+        get expr(): IRCallExpr | IRLiteralExpr | IRFuncExpr;
         /**
          * @internal
          * @type {ProgramProperties}
@@ -9270,6 +9774,11 @@ declare module "helios" {
          * @returns {string}
          */
         prettyIR(simplify?: boolean): string;
+        /**
+         * @param {boolean} simplify
+         * @returns {string}
+         */
+        annotateIR(simplify?: boolean): string;
         /**
          * @param {boolean} simplify
          * @returns {UplcProgram}
@@ -12440,7 +12949,7 @@ declare module "helios" {
          * @param {number} runsPerTest
          * @param {boolean} simplify If true then also test the simplified program
          */
-        constructor(seed?: number, runsPerTest?: number, simplify?: boolean);
+        constructor(seed?: number, runsPerTest?: number, simplify?: boolean, printMessages?: boolean);
         reset(): void;
         /**
          * @returns {NumberGenerator}
@@ -12951,7 +13460,35 @@ declare module "helios" {
     export type ScriptTypes = {
         [name: string]: ScriptHashType;
     };
-    export type IRLiteralRegistry = Map<IRVariable, IRLiteralExpr>;
+    /**
+     * Interface for:
+     *   * IRErrorExpr
+     *   * IRCallExpr
+     *   * IRFuncExpr
+     *   * IRNameExpr
+     *   * IRLiteralExpr
+     *
+     * The copy() method is needed because inlining can't use the same IRNameExpr twice,
+     *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+     *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
+     */
+    export type IRExpr = {
+        site: Site;
+        resolveNames(scope: IRScope): void;
+        toString(indent?: string): string;
+        copy(): IRExpr;
+        toUplc(): UplcTerm;
+    };
+    export type IRValue = {
+        code: number;
+        hash(depth?: number): number[];
+        toString(): string;
+        isLiteral(): boolean;
+        hasError(maybe: boolean): boolean;
+        withoutLiterals(): IRValue;
+        withoutErrors(): IRValue;
+        dump(depth?: number): any;
+    };
     export type UserTypes = {
         [name: string]: any;
     };
@@ -13077,6 +13614,13 @@ declare module "helios" {
     export type PropertyTest = (args: UplcValue[], res: (UplcValue | RuntimeError), isSimplfied?: boolean) => (boolean | {
         [x: string]: boolean;
     });
+    /**
+     * @internal
+     */
+    class IRExprTagger {
+        genTag(): number;
+        #private;
+    }
     /**
      * UplcStack contains a value that can be retrieved using a Debruijn index.
      */
@@ -13304,6 +13848,66 @@ declare module "helios" {
          * If there isn't enough coverage then we can simply set the default case to void, so the other branches can be error, print or assert
          */
         setDefaultCaseToVoid(): void;
+        #private;
+    }
+    /**
+     * @internal
+     */
+    class IRStack {
+        /**
+         * @returns {IRStack}
+         */
+        static empty(): IRStack;
+        /**
+         * @param {[IRVariable, IRValue][]} values
+         * @param {boolean} isLiteral
+         */
+        constructor(values: [IRVariable, IRValue][], isLiteral: boolean);
+        dump(depth?: number): {
+            values?: any[] | undefined;
+            hash: number;
+            hashes: number[];
+            isLiteral: boolean;
+        };
+        /**
+         * @type {number}
+         */
+        get code(): number;
+        /**
+         * @param {number} depth
+         * @returns {number[]}
+         */
+        hash(depth?: number): number[];
+        /**
+         * @returns {boolean}
+         */
+        isLiteral(): boolean;
+        /**
+         * @return {IRStack}
+         */
+        withoutLiterals(): IRStack;
+        /**
+         * @param {IRVariable} v
+         * @returns {IRValue}
+         */
+        getValue(v: IRVariable): IRValue;
+        /**
+         * @param {[IRVariable, IRValue][]} args
+         * @returns {IRStack}
+         */
+        extend(args: [IRVariable, IRValue][]): IRStack;
+        /**
+         * @param {Set<IRVariable>} irVars
+         * @returns {IRStack}
+         */
+        filter(irVars: Set<IRVariable>): IRStack;
+        /**
+         * Both stack are expected to have the same shape
+         * TODO: get rid of this
+         * @param {IRStack} other
+         * @returns {IRStack}
+         */
+        merge(other: IRStack): IRStack;
         #private;
     }
     /**

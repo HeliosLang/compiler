@@ -26,6 +26,16 @@ import {
 } from "./uplc-costmodels.js";
 
 /**
+ * @internal
+ */
+export const BUILTIN_PREFIX = "__core__";
+
+/**
+ * @internal
+ */
+export const SAFE_BUILTIN_SUFFIX = "__safe"; // calls to builtins that are known not to throw errors (eg. tailList inside last branch of chooseList)
+
+/**
  * Cost-model configuration of UplcBuiltin.
  * Also specifies the number of times a builtin must be 'forced' before being callable.
  * @internal
@@ -232,7 +242,7 @@ export function dumpCostModels(networkParams) {
  * @returns 
  */
 export function findUplcBuiltin(name) {
-	let i = UPLC_BUILTINS.findIndex(info => { return "__core__" + info.name == name });
+	let i = UPLC_BUILTINS.findIndex(info => { return BUILTIN_PREFIX + info.name == name });
 	assert(i != -1, `${name} is not a real builtin`);
 	return i;
 }
@@ -245,7 +255,7 @@ export function findUplcBuiltin(name) {
  * @returns {boolean}
  */
 export function isUplcBuiltin(name, strict = false) {
-	if (name.startsWith("__core")) {
+	if (name.startsWith(BUILTIN_PREFIX)) {
 		if (strict) {
 			void this.findBuiltin(name); // assert that builtin exists
 		}

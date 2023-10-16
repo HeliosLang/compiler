@@ -2595,6 +2595,11 @@ export class Program {
     prettyIR(simplify?: boolean): string;
     /**
      * @param {boolean} simplify
+     * @returns {string}
+     */
+    annotateIR(simplify?: boolean): string;
+    /**
+     * @param {boolean} simplify
      * @returns {UplcProgram}
      */
     compile(simplify?: boolean): UplcProgram;
@@ -4490,7 +4495,7 @@ export class FuzzyTest {
      * @param {number} runsPerTest
      * @param {boolean} simplify If true then also test the simplified program
      */
-    constructor(seed?: number, runsPerTest?: number, simplify?: boolean);
+    constructor(seed?: number, runsPerTest?: number, simplify?: boolean, printMessages?: boolean);
     reset(): void;
     /**
      * @returns {NumberGenerator}
@@ -4793,6 +4798,18 @@ export type Profile = {
     result?: RuntimeError | UplcValue | undefined;
     messages?: string[] | undefined;
 };
+/**
+ * Interface for:
+ *   * IRErrorExpr
+ *   * IRCallExpr
+ *   * IRFuncExpr
+ *   * IRNameExpr
+ *   * IRLiteralExpr
+ *
+ * The copy() method is needed because inlining can't use the same IRNameExpr twice,
+ *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+ *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
+ */
 export type UserTypes = {
     [name: string]: any;
 };
