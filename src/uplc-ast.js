@@ -1143,6 +1143,7 @@ export class UplcInt extends UplcValueImpl {
 
 /**
  * Primitive equivalent of `ByteArrayData`.
+ * @implements {UplcValue}
  */
 export class UplcByteArray extends UplcValueImpl {
 	#bytes;
@@ -1289,6 +1290,7 @@ export class UplcByteArray extends UplcValueImpl {
 
 /**
  * Primitive string value.
+ * @implements {UplcValue}
  */
 export class UplcString extends UplcValueImpl {
 	#value;
@@ -1388,6 +1390,7 @@ export class UplcString extends UplcValueImpl {
 
 /**
  * Primitive unit value.
+ * @implements {UplcValue}
  */
 export class UplcUnit extends UplcValueImpl {
 	/**
@@ -1473,6 +1476,7 @@ export class UplcUnit extends UplcValueImpl {
 
 /**
  * JS/TS equivalent of the Helios language `Bool` type.
+ * @implements {UplcValue}
  */
 export class UplcBool extends UplcValueImpl {
 	#value;
@@ -1715,6 +1719,7 @@ export class UplcPair extends UplcValueImpl {
 /** 
  * Plutus-core list value class.
  * Only used during evaluation.
+ * @implements {UplcList}
 */
 export class UplcList extends UplcValueImpl {
 	#itemType;
@@ -1855,7 +1860,8 @@ export class UplcList extends UplcValueImpl {
 }
 
 /**
- *  Child type of `UplcValue` that wraps a `UplcData` instance.
+ * `UplcValue` that wraps a `UplcData` instance.
+ * @implements {UplcValue}
  */
 export class UplcDataValue extends UplcValueImpl {
 	#data;
