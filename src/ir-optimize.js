@@ -30,6 +30,10 @@ import {
     UplcUnit
 } from "./uplc-ast.js";
 
+import { 
+    IRVariable
+} from "./ir-context.js";
+
 /**
  * @typedef {import("./ir-ast.js").IRExpr} IRExpr
  */
@@ -47,10 +51,32 @@ import {
     IREvaluator,
     IRErrorValue,
     IRLiteralValue,
+    IRFuncValue,
     annotateIR
 } from "./ir-evaluate.js";
 
-import { IRVariable } from "./ir-context.js";
+/**
+ * Any IRFuncExpr that is smaller or equal to this number will be inlined.
+ * 
+ * Examples of helios builtin functions that should be inlined:
+ *   * __helios__bool__and 
+ *   * __helios__common__field_0
+ * 
+ * This is a number of bits/
+ */
+const INLINE_MAX_SIZE = 128;
+
+/**
+ * @param {IRExpr} func 
+ * @returns {boolean}
+ */
+function isIdentityFunc(func) {
+    if (func instanceof IRFuncExpr && func.args.length == 1 && func.body instanceof IRNameExpr && func.body.isVariable(func.args[0])) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
 /**
  * Recursive algorithm that performs the following optimizations.
@@ -74,7 +100,8 @@ import { IRVariable } from "./ir-context.js";
  *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
  *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
  *   * replace `__core__ifThenElse(<cond-expr>, <expr-a>, <expr_a>)` by `<expr-a>` if `<cond-expr>` doesn't expect IRErrorValue
- *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
+ *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>` (because `<expr>` is expected to return unit as well)
+ *   * replace `__core__chooseUnit((), <expr>)` by `<expr>`
  *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([...], <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
@@ -99,9 +126,11 @@ import { IRVariable } from "./ir-context.js";
  *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
  *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<name-expr>` if each var is only referenced once (i.e. only referenced in the call)
  *   * replace `(<var>) -> {<var>}(<arg-expr>)` by `<arg-expr>`
+ *   * replace `<name-expr>(<arg-expr>)` by `<arg-expr>` if the expected value of `<name-expr>` is the identity function
  *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each var is only referenced once (i.e. only referenced in the call)
  *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
  *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
+ *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if `<fn-expr>` has a Uplc flat size smaller than INLINE_MAX_SIZE
  *   * inline `<call-expr>` in `(<vars>) -> {...}(<call-expr>, ...)` if the corresponding var is only referenced once and if all the nested IRFuncExprs are only evaluated once and if the IRCallExpr doesn't expect an error
  *   * replace `() -> {<expr>}()` by `<expr>`
  * 
@@ -181,6 +210,8 @@ export class IROptimizer {
             body,
             old.tag
         );
+
+        this.#evaluator.notifyCopyExpr(old, funcExpr);
 
         this.#callCount.set(funcExpr, n);
 
@@ -414,7 +445,10 @@ export class IROptimizer {
 
             if (newExpr) {
                 // always copy to make sure any (nested) IRNameExpr is unique (=> unique DeBruijn index)
-                return newExpr.copy();
+                //  also so that functions that are inlined multiple times each get unique variables
+                return newExpr.copy((oldExpr, newExpr) => {
+                    this.#evaluator.notifyCopyExpr(oldExpr, newExpr);
+                }, new Map());
             }
         }
 
@@ -525,11 +559,15 @@ export class IROptimizer {
                 } else if (!this.expectsError(cond) && a.toString() == b.toString()) {
                     return a;
                 } else if (cond instanceof IRCallExpr && cond.func instanceof IRNameExpr && cond.builtinName == "nullList") {
-                    return new IRCallExpr(
+                    const newExpr = new IRCallExpr(
                         expr.site,
                         new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}chooseList`)),
                         [cond.args[0], a, b]
                     );
+
+                    this.#evaluator.notifyCopyExpr(expr, newExpr);
+
+                    return newExpr;
                 }
 
                 break;
@@ -537,7 +575,9 @@ export class IROptimizer {
             case "chooseUnit": {
                 const [a, b] = args;
 
-                if (b instanceof IRLiteralExpr && b.value instanceof UplcUnit) {
+                if (a instanceof IRLiteralExpr && a.value instanceof UplcUnit) {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value instanceof UplcUnit) {
                     return a;
                 }
 
@@ -545,7 +585,7 @@ export class IROptimizer {
             };
             case "trace": {
                 const [a, b] = args;
-
+                    
                 if (!this.expectsError(a)) {
                     return b;
                 }
@@ -639,12 +679,20 @@ export class IROptimizer {
                     a instanceof IRCallExpr && a.func instanceof IRNameExpr && a.builtinName == "iData" &&
                     b instanceof IRCallExpr && b.func instanceof IRNameExpr && b.builtinName == "iData"
                 ) {
-                    return new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsInteger`)), [a.args[0], b.args[0]]);
+                    const newExpr = new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsInteger`)), [a.args[0], b.args[0]]);
+
+                    this.#evaluator.notifyCopyExpr(expr, newExpr);
+
+                    return newExpr;
                 } else if (
                     a instanceof IRCallExpr && a.func instanceof IRNameExpr && a.builtinName == "bData" &&
                     b instanceof IRCallExpr && b.func instanceof IRNameExpr && b.builtinName == "bData"
                 ) {
-                    return new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsByteString`)), [a.args[0], b.args[0]]);
+                    const newExpr = new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsByteString`)), [a.args[0], b.args[0]]);
+
+                    this.#evaluator.notifyCopyExpr(expr, newExpr);
+
+                    return newExpr;
                 }
 
                 break;
@@ -674,10 +722,18 @@ export class IROptimizer {
         
         let args = expr.args.map(a => this.optimizeInternal(a));
 
-        if (func instanceof IRFuncExpr && func.args.length == 1 && func.body instanceof IRNameExpr && func.body.isVariable(func.args[0])) {
+        if (isIdentityFunc(func)) {
             assert(args.length == 1);
 
             return args[0];
+        } else if (func instanceof IRNameExpr) {
+            const v = this.#evaluator.getExprValue(func);
+
+            if (v instanceof IRFuncValue && isIdentityFunc(v.definition)) {
+                assert(args.length == 1);
+
+                return args[0];
+            }
         }
 
         // see if any arguments can be inlined
@@ -694,7 +750,7 @@ export class IROptimizer {
                     // inline all IRNameExprs
                     unused.add(i);
                     this.inline(v, a);
-                } else if (a instanceof IRFuncExpr && this.#evaluator.countVariableReferences(v) == 1) {
+                } else if (a instanceof IRFuncExpr && (this.#evaluator.countVariableReferences(v) == 1 || a.flatSize <= INLINE_MAX_SIZE)) {
                     // inline IRFuncExpr if it is only reference once
                     unused.add(i);
                     this.inline(v, a);
@@ -725,19 +781,21 @@ export class IROptimizer {
             return this.optimizeInternal(func.body);
         }
 
-        expr = new IRCallExpr(
+        const newExpr = new IRCallExpr(
             expr.site, 
             this.optimizeInternal(func),
             args
         );
 
-        const builtinName = expr.builtinName;
+        this.#evaluator.notifyCopyExpr(expr, newExpr);
+
+        const builtinName = newExpr.builtinName;
 
         if (builtinName != "" && this.#aggressive) {
-            return this.optimizeBuiltinCallExpr(expr);
+            return this.optimizeBuiltinCallExpr(newExpr);
         }
 
-        return expr;
+        return newExpr;
     }
 
     /**

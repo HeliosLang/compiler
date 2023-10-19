@@ -62,7 +62,7 @@ export const config = {
     /**
      * If true, `Address` instances are assumed to be for a Testnet when constructing from hashes or raw bytes, otherwise for mainnet.
      * 
-     * Defaults: `true`.
+     * Default: `true`.
      * @type {boolean}
      */
     IS_TESTNET: true,
@@ -93,7 +93,7 @@ export const config = {
 
 
     /**
-     * Lower offset wrt. the current system time when setting the validity range automatically.
+     * Lower offset wrt. the current system time when setting a transaction validity range automatically.
      * 
      * Defaut: 90 seconds.
      * @type {number} seconds
@@ -101,7 +101,7 @@ export const config = {
     VALIDITY_RANGE_START_OFFSET: 90,
 
     /**
-     * Upper offset wrt. the current system time when setting the validity range automatically.
+     * Upper offset wrt. the current system time when setting a transaction validity range automatically.
      * 
      * Default: 300 seconds.
      * @type {number} seconds
@@ -117,7 +117,7 @@ export const config = {
     IGNORE_UNEVALUATED_CONSTANTS: false,
 
     /**
-     * Check that `from_data` casts make sense during runtime. This ony impacts unsimplified UplcPrograms.
+     * Check that `from_data` casts make sense during runtime, printing a warning if it doesn't. This ony impacts unsimplified UplcPrograms.
      * 
      * Default: `false`.
      * @type {boolean}

@@ -598,7 +598,6 @@ export class BitReader {
 /**
  * BitWriter turns a string of '0's and '1's into a list of bytes.
  * Finalization pads the bits using '0*1' if not yet aligned with the byte boundary.
- * @internal
  */
 export class BitWriter {
 	/**

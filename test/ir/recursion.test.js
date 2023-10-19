@@ -11,7 +11,7 @@ export default async function main() {
 	const program = Program.new(src)
 
 
-	console.log(program.prettyIR(false))
+	console.log(program.dumpIR(false))
 
-	console.log(program.prettyIR(true))
+	console.log(program.dumpIR(true))
 }

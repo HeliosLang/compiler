@@ -98,7 +98,22 @@ class RawFunc {
 		} else {
 			for (let dep of this.#dependencies) {
 				if (!db.has(dep)) {
-					throw new Error(`InternalError: dependency ${dep} not found`);
+					if (IRParametricName.matches(dep)) {
+						const pName = IRParametricName.parse(dep);
+						const genericName = pName.toTemplate();
+
+						let fn = db.get(genericName);
+
+						if (fn) {
+							const ir = pName.replaceTemplateNames(fn.toIR());
+							fn = new RawFunc(dep, ir.toString());
+							fn.load(db, dst);
+						} else {
+							throw new Error(`InternalError: dependency ${dep} not found`);	
+						}
+					} else {
+						throw new Error(`InternalError: dependency ${dep} not found`);
+					}				
 				} else {
 					assertDefined(db.get(dep)).load(db, dst);
 				}
@@ -1060,7 +1075,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(self) -> {
 		() -> {
 			(recurse) -> {
-				__core__decodeUtf8(
+				__core__decodeUtf8__safe(
 					__core__ifThenElse(
 						__core__lessThanInteger(self, 0),
 						() -> {
@@ -2081,7 +2096,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										}(
 											__core__encodeUtf8(
 												__helios__int__to_hex(
-													__core__indexByteString(self, 0)
+													__core__indexByteString__safe(self, 0)
 												)()
 											)
 										)

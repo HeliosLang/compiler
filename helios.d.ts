@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.16.0";
+export const VERSION: "0.16.1";
 /**
  * Mutable global config properties.
  * @namespace
@@ -155,7 +155,7 @@ export namespace config {
     /**
      * If true, `Address` instances are assumed to be for a Testnet when constructing from hashes or raw bytes, otherwise for mainnet.
      * 
-     * Defaults: `true`.
+     * Default: `true`.
      * @type {boolean}
      */
     const IS_TESTNET: boolean;
@@ -182,14 +182,14 @@ export namespace config {
      */
     const AUTO_SET_VALIDITY_RANGE: boolean;
     /**
-     * Lower offset wrt. the current system time when setting the validity range automatically.
+     * Lower offset wrt. the current system time when setting a transaction validity range automatically.
      * 
      * Defaut: 90 seconds.
      * @type {number} seconds
      */
     const VALIDITY_RANGE_START_OFFSET: number;
     /**
-     * Upper offset wrt. the current system time when setting the validity range automatically.
+     * Upper offset wrt. the current system time when setting a transaction validity range automatically.
      * 
      * Default: 300 seconds.
      * @type {number} seconds
@@ -203,7 +203,7 @@ export namespace config {
      */
     const IGNORE_UNEVALUATED_CONSTANTS: boolean;
     /**
-     * Check that `from_data` casts make sense during runtime. This ony impacts unsimplified UplcPrograms.
+     * Check that `from_data` casts make sense during runtime, printing a warning if it doesn't. This ony impacts unsimplified UplcPrograms.
      * 
      * Default: `false`.
      * @type {boolean}
@@ -215,6 +215,19 @@ export namespace config {
      * Default: `undefined` (no limit).
      */
     const MAX_ASSETS_PER_CHANGE_OUTPUT: undefined;
+}
+/**
+ * BitWriter turns a string of '0's and '1's into a list of bytes.
+ * Finalization pads the bits using '0*1' if not yet aligned with the byte boundary.
+ */
+export class BitWriter {
+    /**
+     * Pop n bits of the end
+     * @param {number} n
+     * @returns {string}
+     */
+    pop(n: number): string;
+    #private;
 }
 /**
  * Function that generates a random number between 0 and 1
@@ -1806,18 +1819,50 @@ export class NetworkParams {
  * @typedef {"testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown"} ScriptPurpose
  */
 /**
- * a UplcValue is passed around by Plutus-core expressions.
+ * UplcValue is passed around by Plutus-core expressions.
+ * @interface
+ * @typedef {object} UplcValue
+ * @property {(other: TransferUplcAst) => any} transfer
+ * @property {bigint} int
+ * @property {number[]} bytes
+ * @property {string} string
+ * @property {boolean} bool
+ * @property {() => boolean} isPair
+ * @property {UplcValue} first
+ * @property {UplcValue} second
+ * @property {() => boolean} isList
+ * @property {UplcType} itemType
+ * @property {UplcValue[]} list
+ * @property {number} length only relevant for lists and maps
+ * @property {() => boolean} isData
+ * @property {UplcData} data
+ * @property {() => string} toString
+ * @property {(newSite: Site) => UplcValue} copy return a copy of the UplcValue at a different Site
+ * @property {Site} site
+ * @property {number} memSize size in words (8 bytes, 64 bits) occupied in target node
+ * @property {number} flatSize size taken up in serialized UPLC program (number of bits)
+ * @property {() => boolean} isAny
+ * @property {(bitWriter: BitWriter) => void} toFlatValue
+ * @property {(bitWriter: BitWriter) => void} toFlatValueInternal like toFlatValue(), but without the typebits
+ * @property {() => string} typeBits
+ * @property {() => UplcUnit} assertUnit
  */
-export class UplcValue {
+/**
+ * Base cass for UplcValue implementations.
+ */
+export class UplcValueImpl {
     /**
      * @param {Site} site
      */
     constructor(site: Site);
     /**
-     * @param {TransferUplcAst} other
-     * @returns {any}
+     * @type {Site}
      */
-    transfer(other: TransferUplcAst): any;
+    get site(): Site;
+    /**
+     * @type {number}
+     */
+    get length(): number;
     /**
      * @returns {boolean}
      */
@@ -1873,9 +1918,24 @@ export class UplcValue {
      */
     get data(): UplcData;
     /**
+     * @returns {UplcUnit}
+     */
+    assertUnit(): UplcUnit;
+    /**
      * @returns {string}
      */
-    toString(): string;
+    typeBits(): string;
+    /**
+     * Encodes value without type header
+     * @param {BitWriter} bitWriter
+     */
+    toFlatValueInternal(bitWriter: BitWriter): void;
+    /**
+     * Encodes value with plutus flat encoding.
+     * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
+     * @param {BitWriter} bitWriter
+     */
+    toFlatValue(bitWriter: BitWriter): void;
     #private;
 }
 /**
@@ -1941,8 +2001,9 @@ export class UplcType {
 export const DEFAULT_UPLC_RTE_CALLBACKS: UplcRTECallbacks;
 /**
  * Primitive equivalent of `IntData`.
+ * @implements {UplcValue}
  */
-export class UplcInt extends UplcValue {
+export class UplcInt extends UplcValueImpl implements UplcValue {
     /**
      * Constructs a UplcInt without requiring a Site
      * @param {bigint | number} value
@@ -1992,6 +2053,20 @@ export class UplcInt extends UplcValue {
      */
     readonly signed: boolean;
     /**
+     * @param {TransferUplcAst} other
+     * @returns {any}
+     */
+    transfer(other: TransferUplcAst): any;
+    /**
+     * @type {number}
+     */
+    get memSize(): number;
+    /**
+     * 4 for type, 7 for simple int, (7 + 1)*ceil(n/7) for large int
+     * @type {number}
+     */
+    get flatSize(): number;
+    /**
      * @param {Site} newSite
      * @returns {UplcInt}
      */
@@ -2022,18 +2097,37 @@ export class UplcInt extends UplcValue {
 /**
  * Primitive equivalent of `ByteArrayData`.
  */
-export class UplcByteArray extends UplcValue {
+export class UplcByteArray extends UplcValueImpl {
     /**
      * @param {Site} site
      * @param {number[]} bytes
      */
     constructor(site: Site, bytes: number[]);
+    /**
+     * @param {TransferUplcAst} other
+     * @returns {any}
+     */
+    transfer(other: TransferUplcAst): any;
+    /**
+     * @type {number}
+     */
+    get memSize(): number;
+    /**
+     * 4 for header, 8 bits per byte, 8 bits per chunk of 256 bytes, 8 bits final padding
+     * @type {number}
+     */
+    get flatSize(): number;
+    /**
+     * @param {Site} newSite
+     * @returns {UplcByteArray}
+     */
+    copy(newSite: Site): UplcByteArray;
     #private;
 }
 /**
  * Primitive string value.
  */
-export class UplcString extends UplcValue {
+export class UplcString extends UplcValueImpl {
     /**
      * Constructs a UplcStrin without requiring a Site
      * @param {string} value
@@ -2053,6 +2147,19 @@ export class UplcString extends UplcValue {
      */
     constructor(site: Site, value: string);
     /**
+     * @param {TransferUplcAst} other
+     * @returns {any}
+     */
+    transfer(other: TransferUplcAst): any;
+    /**
+     * @type {number}
+     */
+    get memSize(): number;
+    /**
+     * @type {number}
+     */
+    get flatSize(): number;
+    /**
      * @param {Site} newSite
      * @returns {UplcString}
      */
@@ -2062,7 +2169,7 @@ export class UplcString extends UplcValue {
 /**
  * Primitive unit value.
  */
-export class UplcUnit extends UplcValue {
+export class UplcUnit extends UplcValueImpl {
     /**
      * Constructs a UplcUnit without requiring a Site
      * @returns {UplcUnit}
@@ -2074,11 +2181,29 @@ export class UplcUnit extends UplcValue {
      * @returns {UplcConst}
      */
     static newTerm(site: Site): UplcConst;
+    /**
+     * @param {TransferUplcAst} other
+     * @returns {any}
+     */
+    transfer(other: TransferUplcAst): any;
+    /**
+     * @type {number}
+     */
+    get memSize(): number;
+    /**
+     * @type {number}
+     */
+    get flatSize(): number;
+    /**
+     * @param {Site} newSite
+     * @returns {UplcUnit}
+     */
+    copy(newSite: Site): UplcUnit;
 }
 /**
  * JS/TS equivalent of the Helios language `Bool` type.
  */
-export class UplcBool extends UplcValue {
+export class UplcBool extends UplcValueImpl {
     /**
      * Constructs a UplcBool without requiring a Site
      * @param {boolean} value
@@ -2098,6 +2223,20 @@ export class UplcBool extends UplcValue {
      */
     constructor(site: Site, value: boolean);
     /**
+     * @param {TransferUplcAst} other
+     * @returns {any}
+     */
+    transfer(other: TransferUplcAst): any;
+    /**
+     * @type {number}
+     */
+    get memSize(): number;
+    /**
+     * 4 for type, 1 for value
+     * @type {number}
+     */
+    get flatSize(): number;
+    /**
      * @param {Site} newSite
      * @returns {UplcBool}
      */
@@ -2106,8 +2245,9 @@ export class UplcBool extends UplcValue {
 }
 /**
  * Primitive pair value.
+ * @implements {UplcValue}
  */
-export class UplcPair extends UplcValue {
+export class UplcPair extends UplcValueImpl implements UplcValue {
     /**
      * Constructs a UplcPair without requiring a Site
      * @param {UplcValue} first
@@ -2130,10 +2270,23 @@ export class UplcPair extends UplcValue {
      */
     constructor(site: Site, first: UplcValue, second: UplcValue);
     /**
-     * @param {Site} newSite
-     * @returns {UplcPair}
+     * @param {TransferUplcAst} other
+     * @returns {any}
      */
-    copy(newSite: Site): UplcPair;
+    transfer(other: TransferUplcAst): any;
+    /**
+     * @type {number}
+     */
+    get memSize(): number;
+    /**
+     * 16 additional type bits on top of #first and #second bits
+     */
+    get flatSize(): number;
+    /**
+     * @param {Site} newSite
+     * @returns {UplcValue}
+     */
+    copy(newSite: Site): UplcValue;
     /**
      * @type {UplcData}
      */
@@ -2148,7 +2301,7 @@ export class UplcPair extends UplcValue {
  * Plutus-core list value class.
  * Only used during evaluation.
 */
-export class UplcList extends UplcValue {
+export class UplcList extends UplcValueImpl {
     /**
      * Constructs a UplcList without requiring a Site
      * @param {UplcType} type
@@ -2161,6 +2314,20 @@ export class UplcList extends UplcValue {
      * @param {UplcValue[]} items
      */
     constructor(site: Site, itemType: UplcType, items: UplcValue[]);
+    /**
+     * @param {TransferUplcAst} other
+     * @returns {any}
+     */
+    transfer(other: TransferUplcAst): any;
+    /**
+     * @type {number}
+     */
+    get memSize(): number;
+    /**
+     * 10 + nItemType type bits, value bits of each item (must be corrected by itemType)
+     * @type {number}
+     */
+    get flatSize(): number;
     /**
      * @param {Site} newSite
      * @returns {UplcList}
@@ -2179,7 +2346,7 @@ export class UplcList extends UplcValue {
 /**
  *  Child type of `UplcValue` that wraps a `UplcData` instance.
  */
-export class UplcDataValue extends UplcValue {
+export class UplcDataValue extends UplcValueImpl {
     /**
      * @param {UplcDataValue | UplcData} data
      * @returns {UplcData}
@@ -2190,6 +2357,20 @@ export class UplcDataValue extends UplcValue {
      * @param {UplcData} data
      */
     constructor(site: Site, data: UplcData);
+    /**
+     * @param {TransferUplcAst} other
+     * @returns {any}
+     */
+    transfer(other: TransferUplcAst): any;
+    /**
+     * @type {number}
+     */
+    get memSize(): number;
+    /**
+     * Same number of header bits as UplcByteArray
+     * @type {number}
+     */
+    get flatSize(): number;
     /**
      * @param {Site} newSite
      * @returns {UplcDataValue}
@@ -2307,6 +2488,7 @@ export class UplcConst extends UplcTerm {
      * @type {UplcValue}
      */
     readonly value: UplcValue;
+    get flatSize(): number;
 }
 /**
  * Plutus-core force term
@@ -2470,12 +2652,10 @@ export class UplcProgram {
      * Wrap the top-level term with consecutive UplcCall (not exported) terms.
      *
      * Returns a new UplcProgram instance, leaving the original untouched.
-     *
-     * Throws an error if you are trying to apply with an anon func.
-     * @param {(UplcValue | HeliosData)[]} args
+     * @param {UplcValue[]} args
      * @returns {UplcProgram} - a new UplcProgram instance
      */
-    apply(args: (UplcValue | HeliosData)[]): UplcProgram;
+    apply(args: UplcValue[]): UplcProgram;
     /**
      * @param {null | UplcValue[]} args - if null the top-level term is returned as a value
      * @param {UplcRTECallbacks} callbacks
@@ -2590,14 +2770,12 @@ export class Program {
         [name: string]: any;
     };
     /**
+     * Returns the Intermediate Representation AST of the program.
+     * @param {boolean} optimized if `true`, returns the IR of the optimized program
+     * @param {boolean} annotate add internal type information annotations to the returned AST
      * @returns {string}
      */
-    prettyIR(simplify?: boolean): string;
-    /**
-     * @param {boolean} simplify
-     * @returns {string}
-     */
-    annotateIR(simplify?: boolean): string;
+    dumpIR(optimized?: boolean, annotate?: boolean): string;
     /**
      * @param {boolean} simplify
      * @returns {UplcProgram}
@@ -3876,14 +4054,14 @@ export namespace CoinSelection {
  * An interface type for a wallet that manages a user's UTxOs and addresses.
  * @interface
  * @typedef {object} Wallet
-*  @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
-*  @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
-*  @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
-*  @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
-*  @property {Promise<TxInput[]>} collateral
-*  @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
-*  @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
-*/
+ * @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
+ * @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
+ * @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
+ * @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
+ * @property {Promise<TxInput[]>} collateral
+ * @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
+ * @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
+ */
 /**
  * Convenience type for browser plugin wallets supporting the CIP 30 dApp connector standard (eg. Eternl, Nami, ...).
  *
@@ -4754,6 +4932,50 @@ export type LiveSlotGetter = () => bigint;
  * A Helios/Uplc Program can have different purposes
  */
 export type ScriptPurpose = "testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown";
+/**
+ * UplcValue is passed around by Plutus-core expressions.
+ */
+export interface UplcValue  {
+    transfer: (other: TransferUplcAst) => any;
+    int: bigint;
+    bytes: number[];
+    string: string;
+    bool: boolean;
+    isPair: () => boolean;
+    first: UplcValue;
+    second: UplcValue;
+    isList: () => boolean;
+    itemType: UplcType;
+    list: UplcValue[];
+    /**
+     * only relevant for lists and maps
+     */
+    length: number;
+    isData: () => boolean;
+    data: UplcData;
+    toString: () => string;
+    /**
+     * return a copy of the UplcValue at a different Site
+     */
+    copy: (newSite: Site) => UplcValue;
+    site: Site;
+    /**
+     * size in words (8 bytes, 64 bits) occupied in target node
+     */
+    memSize: number;
+    /**
+     * size taken up in serialized UPLC program (number of bits)
+     */
+    flatSize: number;
+    isAny: () => boolean;
+    toFlatValue: (bitWriter: BitWriter) => void;
+    /**
+     * like toFlatValue(), but without the typebits
+     */
+    toFlatValueInternal: (bitWriter: BitWriter) => void;
+    typeBits: () => string;
+    assertUnit: () => UplcUnit;
+}
 export type UplcRawStack = [null | string, UplcValue][];
 export type UplcRTECallbacks = {
     onPrint: (msg: string) => Promise<void>;
@@ -4799,16 +5021,22 @@ export type Profile = {
     messages?: string[] | undefined;
 };
 /**
+ * The optimizer maps expressions to expected values, calling notifyCopy assures that that mapping isn't lost for copies (copying is necessary when inlining)
+ */
+/**
  * Interface for:
- *   * IRErrorExpr
- *   * IRCallExpr
- *   * IRFuncExpr
- *   * IRNameExpr
- *   * IRLiteralExpr
+ *   * `IRErrorExpr`
+ *   * `IRCallExpr`
+ *   * `IRFuncExpr`
+ *   * `IRNameExpr`
+ *   * `IRLiteralExpr`
  *
- * The copy() method is needed because inlining can't use the same IRNameExpr twice,
+ * The `copy()` method is needed because inlining can't use the same IRNameExpr twice,
  *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
  *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
+ *
+ * `flatSize` returns the number of bits occupied by the equivalent UplcTerm in the final serialized UPLC program
+ *   This is used to detect small IRFuncExprs and inline them
  */
 export type UserTypes = {
     [name: string]: any;

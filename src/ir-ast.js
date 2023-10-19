@@ -17,9 +17,14 @@ import {
 
 import {
 	BUILTIN_PREFIX,
+	MACRO_BUILTIN_PREFIX,
 	SAFE_BUILTIN_SUFFIX,
     UPLC_BUILTINS
 } from "./uplc-builtins.js";
+
+/**
+ * @typedef {import("./uplc-ast.js").UplcValue} UplcValue
+ */
 
 import {
     UplcBuiltin,
@@ -31,7 +36,6 @@ import {
     UplcInt,
     UplcLambda,
     UplcTerm,
-    UplcValue,
     UplcVariable
 } from "./uplc-ast.js";
 
@@ -42,68 +46,35 @@ import {
 
 
 /**
+ * The optimizer maps expressions to expected values, calling notifyCopy assures that that mapping isn't lost for copies (copying is necessary when inlining)
+ * @internal
+ * @typedef {(oldExpr: IRExpr, newExpr: IRExpr) => void} NotifyCopy
+ */
+
+/**
  * Interface for:
- *   * IRErrorExpr
- *   * IRCallExpr
- *   * IRFuncExpr
- *   * IRNameExpr
- *   * IRLiteralExpr
+ *   * `IRErrorExpr`
+ *   * `IRCallExpr`
+ *   * `IRFuncExpr`
+ *   * `IRNameExpr`
+ *   * `IRLiteralExpr`
  * 
- * The copy() method is needed because inlining can't use the same IRNameExpr twice, 
+ * The `copy()` method is needed because inlining can't use the same IRNameExpr twice, 
  *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
  *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
+ * 
+ * `flatSize` returns the number of bits occupied by the equivalent UplcTerm in the final serialized UPLC program
+ *   This is used to detect small IRFuncExprs and inline them
  * @internal
  * @typedef {{
  *   site: Site,
+ *   flatSize: number
  *   resolveNames(scope: IRScope): void,
  *   toString(indent?: string): string,
- *   copy(): IRExpr,
+ *   copy(notifyCopy: NotifyCopy, varMap: Map<IRVariable, IRVariable>): IRExpr,
  *   toUplc(): UplcTerm
  * }} IRExpr
  */
-
-const HASH_PRIME = 97;
-
-const MAX_HASH_NUMBER = 91910196476941; // prime closest to Math.floor(Number.MAX_SAFE_INTEGER/(HASH_PRIME + 1));
-/**
- * @internal
- * @param {number} start
- * @param {number} x
- * @returns {number}
- */
-function hashNumber(start, x) {
-	const res = (start*HASH_PRIME ^ x)%MAX_HASH_NUMBER;
-
-	if (Number.isNaN(res) || !Number.isFinite(res)) {
-		throw new Error("MAX_HASH_NUMBER too large");
-	}
-
-	return res;
-}
-
-/**
- * @internal
- * @param {number | string | boolean} x 
- * @param {number} start
- * @returns {number}
- */
-export function hashCode(x, start = 0) {
-    let c = start;
-
-    if (typeof x == "boolean") {
-        c = hashNumber(c, x ? 1 : 0);
-    } else if (typeof x == "number") {
-        c = hashNumber(c, x);
-    } else if (typeof x == "string") {
-        for (let i = 0; i < x.length; i++) {
-            c = hashNumber(c, x.charCodeAt(i));
-        }
-    } else {
-        throw new Error("unexpected type");
-    }
-
-    return c;
-}
 
 /**
  * Intermediate Representation variable reference expression
@@ -162,11 +133,41 @@ export class IRNameExpr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		if (this.isCore()) {
+			let nForce = 0;
+
+			let name = this.name;
+			if (!name.startsWith(MACRO_BUILTIN_PREFIX) && name.startsWith(BUILTIN_PREFIX)) {
+				if (name.endsWith(SAFE_BUILTIN_SUFFIX)) {
+					name = name.slice(0, name.length - SAFE_BUILTIN_SUFFIX.length);
+				}
+
+				nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
+			}
+
+			return 13 + 4*nForce; // 4 for header, 7 for builtin index, 4 per force
+		} else {
+			return 13; // 4 for term header, and assume DeBruijn index fits in 7 bits
+		}
+	}
+
+	/**
 	 * Used when inlining
+	 * @param {(oldExpr: IRExpr, newExpr: IRExpr) => void} notifyCopy
+	 * @param {Map<IRVariable, IRVariable>} varMap
 	 * @returns {IRNameExpr}
 	 */
-	copy() {
-		return new IRNameExpr(this.#name, this.#variable);
+	copy(notifyCopy, varMap) {
+		const variable = (this.#variable ? (varMap.get(this.#variable) ?? this.#variable) : this.#variable);
+
+		const newExpr = new IRNameExpr(this.#name, variable);
+
+		notifyCopy(this, newExpr);
+
+		return newExpr;
 	}
 
 	/**
@@ -275,6 +276,13 @@ export class IRLiteralExpr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		return (new UplcConst(this.#value)).flatSize;
+	}
+
+	/**
 	 * @param {string} indent 
 	 * @returns {string}
 	 */
@@ -283,9 +291,11 @@ export class IRLiteralExpr {
 	}
 
 	/**
+	 * @param {NotifyCopy} notifyCopy
+	 * @param {Map<IRVariable, IRVariable>} varMap
 	 * @returns {IRExpr}
 	 */
-	copy() {
+	copy(notifyCopy, varMap) {
 		return this;
 	}
 
@@ -351,6 +361,14 @@ export class IRFuncExpr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		const nArgs = this.args.length;
+		return 4 + (nArgs > 0 ? (nArgs - 1)*4 : 0) + this.body.flatSize;
+	}
+
+	/**
 	 * @returns {boolean}
 	 */
 	hasOptArgs() {
@@ -395,10 +413,17 @@ export class IRFuncExpr {
 	}
 
 	/**
+	 * @param {NotifyCopy} notifyCopy
+	 * @param {Map<IRVariable, IRVariable>} varMap
 	 * @returns {IRExpr}
 	 */
-	copy() {
-		return new IRFuncExpr(this.site, this.args, this.body.copy(), this.tag);
+	copy(notifyCopy, varMap) {
+		const args = this.args.map(a => a.copy(varMap));
+		const newExpr = new IRFuncExpr(this.site, args, this.body.copy(notifyCopy, varMap), this.tag);
+
+		notifyCopy(this, newExpr);
+
+		return newExpr;
 	}
 
 	/** 
@@ -486,6 +511,10 @@ export class IRCallExpr {
 		}
 	}
 
+	get flatSize() {
+		return 4 + this.args.reduce((prev, arg) => arg.flatSize + prev, 0) + this.func.flatSize;
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {string}
@@ -532,10 +561,16 @@ export class IRCallExpr {
 	}
 
 	/**
+	 * @param {NotifyCopy} notifyCopy
+	 * @param {Map<IRVariable, IRVariable>} varMap
 	 * @returns {IRExpr}
 	 */
-	copy() {
-		return new IRCallExpr(this.site, this.func.copy(), this.args.map(a => a.copy()));
+	copy(notifyCopy, varMap) {
+		const newExpr = new IRCallExpr(this.site, this.func.copy(notifyCopy, varMap), this.args.map(a => a.copy(notifyCopy, varMap)));
+
+		notifyCopy(this, newExpr);
+
+		return newExpr;
 	}
 
 	/**
@@ -624,6 +659,13 @@ export class IRErrorExpr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		return 4;
+	}
+
+	/**
 	 * @param {string} indent 
 	 * @returns {string}
 	 */
@@ -638,10 +680,15 @@ export class IRErrorExpr {
 	}
 
 	/**
+	 * @param {NotifyCopy} notifyCopy
 	 * @returns {IRExpr}
 	 */
-	copy() {
-		return new IRErrorExpr(this.site, this.#msg);
+	copy(notifyCopy) {
+		const newExpr = new IRErrorExpr(this.site, this.#msg);
+
+		notifyCopy(this, newExpr);
+
+		return newExpr;
 	}
 
 	/**

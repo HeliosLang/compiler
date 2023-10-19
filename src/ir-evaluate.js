@@ -32,6 +32,10 @@ import {
     SAFE_BUILTIN_SUFFIX
 } from "./uplc-builtins.js";
 
+/**
+ * @typedef {import('./uplc-ast.js').UplcValue} UplcValue
+ */
+
 import {
     UplcBool,
     UplcBuiltin,
@@ -42,7 +46,7 @@ import {
     UplcPair,
     UplcString,
     UplcUnit,
-    UplcValue
+    
 } from "./uplc-ast.js";
 
 import {
@@ -59,7 +63,6 @@ import {
     IRLiteralExpr,
     IRNameExpr,
     IRFuncExpr,
-    hashCode,
     loopIRExprs
 } from "./ir-ast.js";
 
@@ -67,108 +70,58 @@ import {
 /**
  * @internal
  * @typedef {{
- *   code: number
- *   hash(depth?: number): number[]
  *   toString(): string
  *   isLiteral(): boolean
  *   hasError(maybe: boolean): boolean
  *   withoutLiterals(): IRValue
  *   withoutErrors(): IRValue
- *   dump(depth?: number): any
+ *   dump(codeMapper: IRValueCodeMapper, depth?: number): any
  * }} IRValue
  */
 
-const HASH_DEPTH = 3
-
-const HASH_CODES = {
-    Data: hashCode("Data"),
-    Error: hashCode("Error"),
-    Any: hashCode("Any")
-}
 
 /**
  * @internal
  */
 class IRStack {
     /**
+     * @readonly
      * @type {[IRVariable, IRValue][]}
      */
-    #values;
+    values;
 
     #isLiteral;
-
-    /**
-     * First code is the shallowest (no nested stacks)
-     * Second code includes up to one nested stack
-     * @type {number[]}
-     */
-    #codes;
 
     /**
      * @param {[IRVariable, IRValue][]} values 
      * @param {boolean} isLiteral
      */
     constructor(values, isLiteral) {
-        this.#values = values;
+        this.values = values;
         this.#isLiteral = isLiteral || values.length == 0;
-        this.#codes = []; 
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRVariable} variable 
+     * @returns {boolean}
+     */
+    static isGlobal(variable) {
+        return variable.name.match(/^__(helios|const|module)__/) !== null;
+    }
+
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
-            hash: this.code,
-            hashes: this.hash(HASH_DEPTH),
             isLiteral: this.#isLiteral,
-            ...(depth > 0 ? {values: this.#values.map(([_, arg]) => {
-                return arg.dump(depth - 1)
+            codes: codeMapper.getCodes(this),
+            ...(depth > 0 ? {values: this.values.map(([_, arg]) => {
+                return arg.dump(codeMapper, depth - 1)
             })} : {})
         }
-    }
-
-    /**
-     * @type {number}
-     */
-    get code() {
-        if (this.#codes.length == HASH_DEPTH + 1) {
-            return this.#codes[HASH_DEPTH];
-        }
-
-        const codes = this.hash(HASH_DEPTH);
-
-        return codes[HASH_DEPTH];
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        if (depth < this.#codes.length) {
-            return this.#codes.slice(0, depth+1);
-        }
-
-        const valueCodes = this.#values.map(v => v[1].hash(HASH_DEPTH));
-
-        /**
-         * @type {number[]}
-         */
-        const lst = [];
-
-        for (let i = 0; i < HASH_DEPTH + 1; i++) {
-            const codes = valueCodes.map(vc => vc[i]);
-
-            let c = 0;
-
-            for (let co of codes) {
-                c = hashCode(co, c);
-            }
-
-            lst.push(c);
-        }
-
-        this.#codes = lst;
-
-        return this.#codes.slice(0, depth + 1);
     }
 
     /**
@@ -185,13 +138,13 @@ class IRStack {
         /**
          * @type {[IRVariable, IRValue][]}
          */
-        const varVals = this.#values.map(([vr, vl]) => {
-            /**
-             * @type {[IRVariable, IRValue]}
-             */
-            return [vr, vl.withoutLiterals()]
+        const varVals = this.values.map(([vr, vl]) => {
+            if (IRStack.isGlobal(vr)) {
+                return [vr, vl];
+            } else {
+                return [vr, vl.withoutLiterals()]
+            }
         });
-
 
         return new IRStack(
             varVals, 
@@ -204,10 +157,10 @@ class IRStack {
      * @returns {IRValue}
      */
     getValue(v) {
-        const j = this.#values.findIndex(([va]) => va == v)
+        const j = this.values.findIndex(([va]) => va == v)
 
         if (j != -1) {
-            return this.#values[j][1];
+            return this.values[j][1];
         }
 
         throw new Error(`${v.name} not found in IRStack`);
@@ -221,7 +174,7 @@ class IRStack {
         assert(args.every(([_, v]) => !(v instanceof IRErrorValue)));
 
         return new IRStack(
-            this.#values.concat(args),
+            this.values.concat(args),
             this.#isLiteral && args.every(([_, v]) => v.isLiteral())
         );
     }
@@ -231,7 +184,7 @@ class IRStack {
      * @returns {IRStack}
      */
     filter(irVars) {
-        const varVals = this.#values.filter(([v]) => irVars.has(v));
+        const varVals = this.values.filter(([v]) => irVars.has(v));
         return new IRStack(varVals, varVals.every(([_, v]) => v.isLiteral()));
     }
 
@@ -249,15 +202,15 @@ class IRStack {
      * @returns {IRStack}
      */
     merge(other) {
-        const n = this.#values.length;
+        const n = this.values.length;
 
-        assert(n == other.#values.length);
+        assert(n == other.values.length);
 
         let stack = IRStack.empty();
 
         for (let i = 0; i < n; i++) {
-            const a = this.#values[i];
-            const b = other.#values[i];
+            const a = this.values[i];
+            const b = other.values[i];
 
             if (a == b) {
                 stack = stack.extend([a]);
@@ -327,28 +280,17 @@ export class IRLiteralValue {
         return this;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Literal",
-            value: this.toString(),
-            hash: this.code
+            code: codeMapper.getCode(this),
+            value: this.toString()
         }
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        return (new Array(depth+1)).fill(hashCode(this.toString()));
-    }
-
-    /**
-     * TODO: code that takes Literal value into account (eg. `get codeWithLiterals()`)
-     * @type {number}
-     */
-    get code() {
-        return this.hash(0)[0];
     }
 }
 
@@ -387,32 +329,21 @@ export class IRDataValue {
     }
 
     /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.toString());
-    }
-
-    /**
-     * 
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        return (new Array(depth + 1)).fill(HASH_CODES.Data);
-    }
-
-    /**
      * @returns {string}
      */
     toString() {
         return `Data`;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns 
+     */
+    dump(codeMapper, depth = 0) {
         return {
-            type: "Data",
-            hash: this.code
+            code: codeMapper.getCode(this),
+            type: "Data"
         }
     }
 }
@@ -459,6 +390,19 @@ export class IRBuiltinValue {
     }
 
     /**
+     * @type {string}
+     */
+    get builtinName() {
+        let name = this.builtin.name.slice(BUILTIN_PREFIX.length);
+
+        if (name.endsWith(SAFE_BUILTIN_SUFFIX)) {
+            name = name.slice(0, name.length - SAFE_BUILTIN_SUFFIX.length);
+        }
+
+        return name;
+    }
+
+    /**
      * @returns {string}
      */
     toString() {
@@ -495,25 +439,15 @@ export class IRBuiltinValue {
     }
 
     /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.builtin.toString());
-    }
-
-    /**
+     * @param {IRValueCodeMapper} codeMapper 
      * @param {number} depth 
-     * @returns {number[]}
+     * @returns {any}
      */
-    hash(depth = 0) {
-        return (new Array(depth + 1)).fill(hashCode(this.builtin.toString()));
-    }
-
-    dump(depth = 0) {
+    dump(codeMapper, depth = 0) {
         return {
             type: "Builtin",
-            name: this.builtin.name,
-            hash: this.code
+            code: codeMapper.getCode(this),
+            name: this.builtin.name
         }
     }
 }
@@ -555,42 +489,6 @@ export class IRFuncValue {
     }
 
     /**
-     * @private
-     * @type {number}
-     */
-    get internalCode() {
-        return this.definition.tag;
-    }
-
-    /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.stack.code, this.internalCode);
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        const c = this.internalCode;
-
-        const codes = [];
-        const stackCodes = depth > 0 ? this.stack.hash(depth - 1) : [];
-
-        for (let i = 0; i < depth + 1; i++) {
-            if (i == 0) {
-                codes.push(c);
-            } else {
-                codes.push(hashCode(stackCodes[i-1], c))
-            }
-        }
-
-        return codes;
-    }
-
-    /**
      * @returns {boolean}
      */
     isLiteral() {
@@ -619,13 +517,18 @@ export class IRFuncValue {
         return this;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Fn",
+            tag: this.definition.tag,
+            codes: codeMapper.getCodes(this),
             definition: this.definition.toString(),
-            hash: this.code,
-            hashes: this.hash(HASH_DEPTH),
-            stack: this.stack.dump(depth)
+            stack: this.stack.dump(codeMapper, depth)
         }
     }
 
@@ -633,7 +536,7 @@ export class IRFuncValue {
      * @returns {string}
      */
     toString() {
-        return `Fn`;
+        return `Fn${this.definition.tag}`;
     }
 }
 
@@ -678,26 +581,16 @@ export class IRErrorValue {
         return `Error`;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Error",
-            hash: this.code
+            code: codeMapper.getCode(this)
         }
-    }
-
-    /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.toString());
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        return (new Array(depth + 1)).fill(HASH_CODES.Error);
     }
 }
 
@@ -745,26 +638,16 @@ export class IRAnyValue {
         return `Any`;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Any",
-            hash: this.code
+            code: codeMapper.getCode(this)
         }
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        return (new Array(depth + 1)).fill(HASH_CODES.Any);
-    }
-
-    /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.toString());
     }
 }
 
@@ -822,11 +705,16 @@ export class IRMultiValue {
         return this.values.some(v => v instanceof IRLiteralValue);
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Multi",
-            hash: this.code,
-            values: this.values.slice().sort((a, b) => a.code - b.code).map(v => v.dump(depth))
+            code: codeMapper.getCode(this),
+            values: this.values.slice().map(v => v.dump(codeMapper, depth))
         }
     }
 
@@ -865,50 +753,6 @@ export class IRMultiValue {
         return `(${parts.join(" | ")})`;
     }
 
-    /**
-     * @type {number}
-     */
-    get code() {
-        const valueCodes = this.values.map(v => v.code)
-
-        valueCodes.sort()
-
-        let c = 0;
-
-        for (let vc of valueCodes) {
-            c = hashCode(vc, c)
-        }
-
-        return c;
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        const valueCodes = this.values.map(v => v.hash(depth));
-
-        /**
-         * @type {number[]}
-         */
-        const lst = [];
-
-        for (let i = 0; i < depth + 1; i++) {
-            const codes = valueCodes.map(vc => vc[i]).sort();
-
-            let c = 0;
-
-            for (let co of codes) {
-                c = hashCode(co, c);
-            }
-
-            lst.push(c);
-        }
-
-        return lst;
-    }
-
 	/**
 	 * @param {IRValue[]} values 
 	 * @returns {IRValue}
@@ -929,7 +773,7 @@ export class IRMultiValue {
 
         if (values.length == 1) {
             return values[0];
-        } else if (values.every((v, i) => v instanceof IRLiteralValue && ((i == 0) || (v.code == values[0].code)))) {
+        } else if (values.every((v, i) => v instanceof IRLiteralValue && ((i == 0) || (v.toString() == values[0].toString())))) {
             return values[0];
         }
         
@@ -1043,6 +887,176 @@ export class IRMultiValue {
     }
 }
 
+/**
+ * Codes are used to combine multiple IRValues (including nested IRStacks that are part of IRFuncValues) into a single number.
+ * 
+ * We can't have however use the full depth of IRStack values because there could be callback-recursion.
+ * @internal
+ */
+class IRValueCodeMapper {
+    /**
+     * @type {number}
+     */
+    #nextUnused;
+
+    /**
+     * @type {Map<string, number>}
+     */
+    #usedCodes;
+
+    /**
+     * @type {Map<IRValue | IRStack, number[]>}
+     */
+    #valueCodes;
+
+    constructor() {
+        this.#usedCodes = new Map([
+            ["Any", 0],
+            ["Data", 1],
+            ["Error", 2]
+        ]);
+        this.#nextUnused = 3;
+        this.#valueCodes = new Map();
+    }
+
+    static get maxDepth() {
+        return 10;
+    }
+
+    /**
+     * @private
+     * @param {string} key 
+     * @returns {number}
+     */
+    genCode(key) {
+        let code = this.#usedCodes.get(key);
+
+        if (code !== undefined) {
+            return code;
+        }
+
+        code = this.#nextUnused;
+        this.#nextUnused += 1;
+
+        this.#usedCodes.set(key, code);
+
+        return code;
+    }
+
+    /**
+     * @private
+     * @param {IRValue | IRStack} v 
+     * @returns {number[]}
+     */
+    genCodes(v) {
+        if (v instanceof IRBuiltinValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode(v.builtinName));
+        } else if (v instanceof IRDataValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode("Data"));
+        } else if (v instanceof IRErrorValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode("Error"));
+        } else if (v instanceof IRAnyValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode("Any"));
+        } else if (v instanceof IRLiteralValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode(v.value.toString()));
+        } else if (v instanceof IRFuncValue) {
+            const tag = `Fn${assertDefined(v.definition.tag)}`;
+            const stackCodes = this.getCodes(v.stack);
+
+            /**
+             * @type {number[]}
+             */
+            const codes = [];
+
+            for (let i = 0; i < IRValueCodeMapper.maxDepth; i++) {
+                const key = i == 0 ? tag : `${tag}(${stackCodes[i-1]})`;
+
+                codes.push(this.genCode(key));
+            }
+
+            return codes;
+        } else if (v instanceof IRStack) {
+            const valueCodes = v.values.map(([_, v]) => this.getCodes(v));
+
+            /**
+             * @type {number[]}
+             */
+            const codes = [];
+
+            for (let i = 0; i < IRValueCodeMapper.maxDepth - 1; i++) {
+                const key = `[${valueCodes.map(vc => vc[i]).join(",")}]`;
+                codes.push(this.genCode(key));
+            }
+
+            return codes;
+        } else if (v instanceof IRMultiValue) {
+            const valueCodes = v.values.map(v => this.getCodes(v));
+
+            /**
+             * @type {number[]}
+             */
+            const codes = [];
+
+            for (let i = 0; i < IRValueCodeMapper.maxDepth; i++) {
+                const key = `{${valueCodes.map(vc => vc[i]).sort().join(",")}}`;
+                codes.push(this.genCode(key));
+            }
+
+            return codes;
+        } else {
+            throw new Error("unhandled");
+        }
+    }
+
+    /**
+     * @param {IRValue | IRStack} v 
+     * @returns {number[]}
+     */
+    getCodes(v) {
+        const cached = this.#valueCodes.get(v);
+
+        if (cached) {
+            return cached;
+        }
+
+        const codes = this.genCodes(v);
+
+        this.#valueCodes.set(v, codes);
+
+        return codes;
+    }
+
+    /**
+     * @param {IRValue} v
+     * @returns {number}
+     */
+    getCode(v) {
+        const codes = this.getCodes(v);
+
+        return codes[IRValueCodeMapper.maxDepth-1];
+    }
+
+    /**
+     * @param {IRValue} fn 
+     * @param {IRValue[]} args 
+     */
+    getCallCode(fn, args) {
+        const key = `${assertDefined(this.getCode(fn))}(${args.map(a => this.getCode(a)).join(",")})`;
+        return this.genCode(key);
+    }
+
+    /**
+     * @param {IRValue} a 
+     * @param {IRValue} b 
+     * @returns {boolean}
+     */
+    eq(a, b) {
+        const ca = this.getCode(a);
+        const cb = this.getCode(b);
+
+        return ca == cb;
+    }
+}
 
 /**
  * @internal
@@ -1380,7 +1394,6 @@ export class IREvaluator {
      */
     #variableValues;
 
-
     /**
      * @type {Map<IRFuncExpr, number>}
      */
@@ -1598,6 +1611,28 @@ export class IREvaluator {
     }
 
     /**
+     * The newExpr should evaluate to exactly the same values etc. as the oldExpr
+     * @param {IRExpr} oldExpr 
+     * @param {IRExpr} newExpr 
+     */
+    notifyCopyExpr(oldExpr, newExpr) {
+        if (oldExpr instanceof IRFuncExpr && newExpr instanceof IRFuncExpr) {
+            const oldCallCount = this.#callCount.get(oldExpr);
+
+            if (oldCallCount !== undefined) {
+                this.#callCount.set(newExpr, oldCallCount);
+            }
+
+            // don't update the funcCallExprs
+        }
+
+        const oldValue = this.#exprValues.get(oldExpr);
+        if (oldValue) {
+            this.#exprValues.set(newExpr, oldValue);
+        }
+    }
+
+    /**
      * Push onto the computeStack, unwrapping IRCallExprs
      * @private
      * @param {IRStack} stack
@@ -1624,6 +1659,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {IRExpr} expr 
      * @param {IRValue} value 
      */
@@ -1638,6 +1674,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {null | IRExpr} owner 
      * @param {IRValue} value 
      */
@@ -1718,6 +1755,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {IRFuncExpr} fn 
      */
     incrCallCount(fn) {
@@ -1731,6 +1769,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {IRVariable[]} variables 
      * @param {IRValue[]} values 
      * @returns {[IRVariable, IRValue][]}
@@ -1883,6 +1922,8 @@ export class IREvaluator {
      * @private
      */
     evalInternal() {
+        const codeMapper = new IRValueCodeMapper();
+
         let head = this.#compute.pop();
 
 		while (head) {
@@ -1904,15 +1945,13 @@ export class IREvaluator {
                     // don't allow partial literal args (could lead to infinite recursion where the partial literal keeps updating)
                     //  except when calling builtins (partial literals are important: eg. in divideInteger(<data>, 10) we know that the callExpr doesn't return an error)
                     const allLiteral = fn.isLiteral() && args.every(a => a.isLiteral());
-                    if (!allLiteral && !(fn instanceof IRBuiltinValue)) {
+
+                    if (!allLiteral && !(fn instanceof IRBuiltinValue) && !(fn instanceof IRFuncValue && fn.definition.args.length == 1 && IRStack.isGlobal(fn.definition.args[0]))) {
                         fn = fn.withoutLiterals();
                         args = args.map(a => a.withoutLiterals());
                     } 
 
-                    let code = fn.code;
-                    args.forEach(a => {
-                        code = hashCode(a.code, code);
-                    });
+                    const code = codeMapper.getCallCode(fn, args);
 
                     const cached = this.#cachedCalls.get(expr)?.get(code);
                     const fns = fn instanceof IRMultiValue ? fn.values : [fn];
@@ -2020,6 +2059,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {IRExpr} expr entry point
      * @returns {IRValue}
      */
@@ -2036,12 +2076,16 @@ export class IREvaluator {
             return res;
         } else if (res instanceof IRLiteralValue) {
             return res; // used by const
+        } else if (res instanceof IRMultiValue && res.values.some(v => v instanceof IRAnyValue)) {
+            return res;
         } else {
+            console.log(annotateIR(this, expr));
             throw new Error(`expected entry point function, got ${res.toString()}`);
         }
     }
 
     /**
+     * @private
      * @param {IRFuncValue} main
      * @returns {IRValue}
      */
@@ -2171,7 +2215,7 @@ export function annotateIR(evaluation, expr) {
                 countStr = count.toString();
             }
 
-            return `${expr.tag}(${expr.args.map(a => {
+            return `Fn${expr.tag}(${expr.args.map(a => {
                 const v = evaluation.getVariableValue(a);
 
                 if (v) {

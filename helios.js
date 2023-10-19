@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.16.0
+// Version:       0.16.1
 // Last update:   October 2023
 // License type:  BSD-3-Clause
 //
@@ -112,19 +112,20 @@
 //                                           SumArgSizesCost, ArgSizeDiffCost, ArgSizeProdCost, 
 //                                           ArgSizeDiagCost
 //
-//     Section 9: Uplc built-in functions    BUILTIN_PREFIX, SAFE_BUILTIN_SUFFIX, UPLC_BUILTINS, 
+//     Section 9: Uplc built-in functions    BUILTIN_PREFIX, SAFE_BUILTIN_SUFFIX, 
+//                                           MACRO_BUILTIN_PREFIX, UPLC_BUILTINS, 
 //                                           UPLC_MACROS_OFFSET, UPLC_MACROS, dumpCostModels, 
 //                                           findUplcBuiltin, isUplcBuiltin
 //
-//     Section 10: Uplc AST                  UplcValue, UplcType, DEFAULT_UPLC_RTE_CALLBACKS, 
-//                                           UplcRte, UplcStack, UplcAny, UplcDelayedValue, 
-//                                           UplcInt, UplcByteArray, UplcString, UplcUnit, 
-//                                           UplcBool, UplcPair, UplcList, UplcDataValue, 
-//                                           UplcTerm, UplcVariable, UplcDelay, UplcLambda, 
-//                                           UplcCall, UplcConst, UplcForce, UplcError, 
-//                                           UplcBuiltin, UplcFrame, ForceFrame, PreCallFrame, 
-//                                           CallFrame, UplcTermWithEnv, UplcLambdaWithEnv, 
-//                                           UplcDelayWithEnv, UplcAnonValue, AppliedUplcBuiltin
+//     Section 10: Uplc AST                  UplcValueImpl, UplcType, DEFAULT_UPLC_RTE_CALLBACKS, 
+//                                           UplcRte, UplcStack, UplcAny, UplcInt, UplcByteArray, 
+//                                           UplcString, UplcUnit, UplcBool, UplcPair, UplcList, 
+//                                           UplcDataValue, UplcTerm, UplcVariable, UplcDelay, 
+//                                           UplcLambda, UplcCall, UplcConst, UplcForce, 
+//                                           UplcError, UplcBuiltin, UplcFrame, ForceFrame, 
+//                                           PreCallFrame, CallFrame, UplcTermWithEnv, 
+//                                           UplcLambdaWithEnv, UplcDelayWithEnv, UplcAnonValue, 
+//                                           AppliedUplcBuiltin
 //
 //     Section 11: Uplc program              UPLC_VERSION_COMPONENTS, UPLC_VERSION, 
 //                                           PLUTUS_SCRIPT_VERSION, UPLC_TAG_WIDTHS, 
@@ -246,18 +247,18 @@
 //
 //     Section 27: IR Context objects        IRScope, ALWAYS_INLINEABLE, IRVariable
 //
-//     Section 28: IR AST objects            HASH_PRIME, MAX_HASH_NUMBER, hashNumber, hashCode, 
-//                                           IRNameExpr, IRLiteralExpr, IRFuncExpr, IRCallExpr, 
+//     Section 28: IR AST objects            IRNameExpr, IRLiteralExpr, IRFuncExpr, IRCallExpr, 
 //                                           IRErrorExpr, loopIRExprs
 //
 //     Section 29: IR AST build functions    IRExprTagger, buildIRExpr, buildIRFuncExpr
 //
-//     Section 30: IR pseudo evaluation      HASH_DEPTH, HASH_CODES, IRStack, IRLiteralValue, 
-//                                           IRDataValue, collectIRVariables, IRBuiltinValue, 
-//                                           IRFuncValue, IRErrorValue, IRAnyValue, IRMultiValue, 
-//                                           IR_BUILTIN_CALLBACKS, IREvaluator, annotateIR
+//     Section 30: IR pseudo evaluation      IRStack, IRLiteralValue, IRDataValue, 
+//                                           collectIRVariables, IRBuiltinValue, IRFuncValue, 
+//                                           IRErrorValue, IRAnyValue, IRMultiValue, 
+//                                           IRValueCodeMapper, IR_BUILTIN_CALLBACKS, IREvaluator, 
+//                                           annotateIR
 //
-//     Section 31: IR optimization           IROptimizer
+//     Section 31: IR optimization           INLINE_MAX_SIZE, isIdentityFunc, IROptimizer
 //
 //     Section 32: IR Program                IRProgram, IRParametricProgram
 //
@@ -305,7 +306,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.16.0";
+export const VERSION = "0.16.1";
 
 /**
  * A tab used for indenting of the IR.
@@ -368,7 +369,7 @@ export const config = {
     /**
      * If true, `Address` instances are assumed to be for a Testnet when constructing from hashes or raw bytes, otherwise for mainnet.
      * 
-     * Defaults: `true`.
+     * Default: `true`.
      * @type {boolean}
      */
     IS_TESTNET: true,
@@ -399,7 +400,7 @@ export const config = {
 
 
     /**
-     * Lower offset wrt. the current system time when setting the validity range automatically.
+     * Lower offset wrt. the current system time when setting a transaction validity range automatically.
      * 
      * Defaut: 90 seconds.
      * @type {number} seconds
@@ -407,7 +408,7 @@ export const config = {
     VALIDITY_RANGE_START_OFFSET: 90,
 
     /**
-     * Upper offset wrt. the current system time when setting the validity range automatically.
+     * Upper offset wrt. the current system time when setting a transaction validity range automatically.
      * 
      * Default: 300 seconds.
      * @type {number} seconds
@@ -423,7 +424,7 @@ export const config = {
     IGNORE_UNEVALUATED_CONSTANTS: false,
 
     /**
-     * Check that `from_data` casts make sense during runtime. This ony impacts unsimplified UplcPrograms.
+     * Check that `from_data` casts make sense during runtime, printing a warning if it doesn't. This ony impacts unsimplified UplcPrograms.
      * 
      * Default: `false`.
      * @type {boolean}
@@ -1039,7 +1040,6 @@ export class BitReader {
 /**
  * BitWriter turns a string of '0's and '1's into a list of bytes.
  * Finalization pads the bits using '0*1' if not yet aligned with the byte boundary.
- * @internal
  */
 export class BitWriter {
 	/**
@@ -1579,9 +1579,9 @@ export class Site {
 	 * @param {string} info 
 	 */
 	static new(type, src, startPos, endPos, info = "") {
-		let line = src.posToLine(startPos);
+		let [line, col] = src.posToLineAndCol(startPos);
 
-		let msg = `${type} on line ${line + 1}`;
+		let msg = `(${src.name}:${line+1}:${col+1}) ${type}`;
 		if (info != "") {
 			msg += `: ${info}`;
 		}
@@ -10704,9 +10704,16 @@ export class ArgSizeDiagCost extends LinearCost {
 export const BUILTIN_PREFIX = "__core__";
 
 /**
+ * Calls to builtins that are known not to throw errors (eg. tailList inside last branch of chooseList)
  * @internal
  */
-export const SAFE_BUILTIN_SUFFIX = "__safe"; // calls to builtins that are known not to throw errors (eg. tailList inside last branch of chooseList)
+export const SAFE_BUILTIN_SUFFIX = "__safe"; 
+
+/**
+ * Special off-chain builtins like network.get()
+ * @internal
+ */
+export const MACRO_BUILTIN_PREFIX = "__core__macro";
 
 /**
  * Cost-model configuration of UplcBuiltin.
@@ -10948,10 +10955,40 @@ export function isUplcBuiltin(name, strict = false) {
  * @typedef {"testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown"} ScriptPurpose
  */
 
-/** 
- * a UplcValue is passed around by Plutus-core expressions.
+/**
+ * UplcValue is passed around by Plutus-core expressions.
+ * @interface
+ * @typedef {object} UplcValue
+ * @property {(other: TransferUplcAst) => any} transfer
+ * @property {bigint} int
+ * @property {number[]} bytes
+ * @property {string} string
+ * @property {boolean} bool
+ * @property {() => boolean} isPair
+ * @property {UplcValue} first
+ * @property {UplcValue} second
+ * @property {() => boolean} isList
+ * @property {UplcType} itemType
+ * @property {UplcValue[]} list
+ * @property {number} length only relevant for lists and maps
+ * @property {() => boolean} isData
+ * @property {UplcData} data
+ * @property {() => string} toString
+ * @property {(newSite: Site) => UplcValue} copy return a copy of the UplcValue at a different Site
+ * @property {Site} site
+ * @property {number} memSize size in words (8 bytes, 64 bits) occupied in target node
+ * @property {number} flatSize size taken up in serialized UPLC program (number of bits)
+ * @property {() => boolean} isAny
+ * @property {(bitWriter: BitWriter) => void} toFlatValue
+ * @property {(bitWriter: BitWriter) => void} toFlatValueInternal like toFlatValue(), but without the typebits
+ * @property {() => string} typeBits
+ * @property {() => UplcUnit} assertUnit
  */
-export class UplcValue {
+
+/** 
+ * Base cass for UplcValue implementations.
+ */
+export class UplcValueImpl {
 	#site;
 
 	/**
@@ -10962,26 +10999,7 @@ export class UplcValue {
 		this.#site = site;
 	}
 
-	/**
-	 * @param {TransferUplcAst} other 
-	 * @returns {any}
-	 */
-	transfer(other) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Return a copy of the UplcValue at a different Site.
-     * @internal
-	 * @param {Site} newSite 
-	 * @returns {UplcValue}
-	 */
-	copy(newSite) {
-		throw new Error("not implemented");
-	}
-
     /**
-     * @internal
      * @type {Site}
      */
 	get site() {
@@ -10989,20 +11007,10 @@ export class UplcValue {
 	}
 
 	/**
-	 * @internal
 	 * @type {number}
 	 */
 	get length() {
 		throw new Error("not a list nor a map");
-	}
-
-	/**
-	 * Size in words (8 bytes, 64 bits) occupied in target node
-     * @internal
-	 * @type {number}
-	 */
-	get memSize() {
-		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -11099,15 +11107,6 @@ export class UplcValue {
 	}
 
 	/**
-     * @internal
-	 * @returns {Promise<UplcValue>}
-	 */
-	force() {
-		throw this.site.typeError(`expected delayed value, got '${this.toString()}'`);
-	}
-
-	/**
-     * @internal
 	 * @returns {UplcUnit}
 	 */
 	assertUnit() {
@@ -11117,21 +11116,12 @@ export class UplcValue {
 	/**
 	 * @returns {string}
 	 */
-	toString() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-     * @internal
-	 * @returns {string}
-	 */
 	typeBits() {
 		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * Encodes value without type header
-     * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValueInternal(bitWriter) {
@@ -11141,7 +11131,6 @@ export class UplcValue {
 	/**
 	 * Encodes value with plutus flat encoding.
 	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
-     * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValue(bitWriter) {
@@ -11723,8 +11712,9 @@ class UplcStack {
 /**
  * Allows doing a dummy eval of a UplcProgram in order to determine some non-changing properties (eg. the address fetched via the network in an EndpointProgram)
  * @internal
+ * @implements {UplcValue}
  */
-export class UplcAny extends UplcValue {
+export class UplcAny extends UplcValueImpl {
 	/**
 	 * @param {Site} site 
 	 */
@@ -11749,8 +11739,15 @@ export class UplcAny extends UplcValue {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		throw new Error("UplcAny shouldn't be part of Ast");
+	}
+
+	/**
 	 * @param {Site} newSite 
-	 * @returns {UplcAny}
+	 * @returns {UplcValue}
 	 */
 	copy(newSite) {
 		return new UplcAny(
@@ -11781,14 +11778,6 @@ export class UplcAny extends UplcValue {
 
 	/**
      * @internal
-	 * @returns {Promise<UplcValue>}
-	 */
-	force() {
-		return new Promise((resolve, _) => resolve(this));
-	}
-
-	/**
-     * @internal
 	 * @returns {UplcUnit}
 	 */
 	assertUnit() {
@@ -11804,81 +11793,10 @@ export class UplcAny extends UplcValue {
 }
 
 /**
- * @internal
- */
-export class UplcDelayedValue extends UplcValue {
-	#evaluator;
-
-	/**
-	 * @param {Site} site
-	 * @param {() => (UplcValue | Promise<UplcValue>)} evaluator
-	 */
-	constructor(site, evaluator) {
-		super(site);
-		this.#evaluator = evaluator;
-	}
-
-	/**
-	 * Should never be part of ast
-	 * @param {TransferUplcAst} other 
-	 * @returns {any}
-	 */
-	transfer(other) {
-		throw new Error("not expected to be part of uplc ast");
-	}
-
-	get memSize() {
-		return 1;
-	}
-
-	/**
-	 * @param {Site} newSite 
-	 * @returns {UplcValue}
-	 */
-	copy(newSite) {
-		return new UplcDelayedValue(newSite, this.#evaluator);
-	}
-
-	/**
-	 * @return {Promise<UplcValue>}
-	 */
-	force() {
-		let res = this.#evaluator();
-
-		if (res instanceof Promise) {
-			return res;
-		} else {
-			return new Promise((resolve, _) => {
-				resolve(res);
-			});
-		}
-	}
-
-	toString() {
-		return `delay`;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	typeBits() {
-		throw new Error("a UplcDelayedValue value doesn't have a literal representation");
-	}
-
-	/**
-	 * Encodes value with plutus flat encoding.
-	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
-	 * @param {BitWriter} bitWriter
-	 */
-	toFlatValue(bitWriter) {
-		throw new Error("a UplcDelayedValue value doesn't have a literal representation");
-	}
-}
-
-/**
  * Primitive equivalent of `IntData`.
+ * @implements {UplcValue}
  */
-export class UplcInt extends UplcValue {
+export class UplcInt extends UplcValueImpl {
 	/**
 	 * @readonly
 	 * @type {bigint}
@@ -11917,6 +11835,8 @@ export class UplcInt extends UplcValue {
 		}
 	}
 
+	
+
 	/**
 	 * @param {TransferUplcAst} other 
 	 * @returns {any}
@@ -11944,6 +11864,15 @@ export class UplcInt extends UplcValue {
 	 */
 	get memSize() {
         return IntData.memSizeInternal(this.value);
+	}
+
+	/**
+	 * 4 for type, 7 for simple int, (7 + 1)*ceil(n/7) for large int
+	 * @type {number}
+	 */
+	get flatSize() {
+		const n = this.toUnsigned().value.toString(2).length;
+		return 4 + ((n <= 7) ? 7 : Math.ceil(n / 7)*8);
 	}
 
 	/**
@@ -12112,7 +12041,7 @@ export class UplcInt extends UplcValue {
 /**
  * Primitive equivalent of `ByteArrayData`.
  */
-export class UplcByteArray extends UplcValue {
+export class UplcByteArray extends UplcValueImpl {
 	#bytes;
 
 	/**
@@ -12121,11 +12050,7 @@ export class UplcByteArray extends UplcValue {
 	 */
 	constructor(site, bytes) {
 		super(site);
-		assert(bytes != undefined);
 		this.#bytes = bytes;
-		for (let b of this.#bytes) {
-			assert(typeof b == 'number');
-		}
 	}
 
 	/**
@@ -12168,7 +12093,16 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
-	 * @internal
+	 * 4 for header, 8 bits per byte, 8 bits per chunk of 256 bytes, 8 bits final padding
+	 * @type {number}
+	 */
+	get flatSize() {
+		const n = this.#bytes.length;
+
+		return 4 + n*8 + Math.ceil(n/256)*8 + 8;
+	}
+
+	/**
 	 * @param {Site} newSite 
 	 * @returns {UplcByteArray}
 	 */
@@ -12253,7 +12187,7 @@ export class UplcByteArray extends UplcValue {
 /**
  * Primitive string value.
  */
-export class UplcString extends UplcValue {
+export class UplcString extends UplcValueImpl {
 	#value;
 
 	/**
@@ -12303,6 +12237,14 @@ export class UplcString extends UplcValue {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		const bytes = Array.from((new TextEncoder()).encode(this.#value));
+		return (new UplcByteArray(Site.dummy(), bytes)).flatSize
+	}
+
+	/**
 	 * @param {Site} newSite 
 	 * @returns {UplcString}
 	 */
@@ -12344,7 +12286,7 @@ export class UplcString extends UplcValue {
 /**
  * Primitive unit value.
  */
-export class UplcUnit extends UplcValue {
+export class UplcUnit extends UplcValueImpl {
 	/**
 	 * @param {Site} site 
 	 */
@@ -12387,6 +12329,13 @@ export class UplcUnit extends UplcValue {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		return 4;
+	}
+
+	/**
 	 * @param {Site} newSite 
 	 * @returns {UplcUnit}
 	 */
@@ -12422,7 +12371,7 @@ export class UplcUnit extends UplcValue {
 /**
  * JS/TS equivalent of the Helios language `Bool` type.
  */
-export class UplcBool extends UplcValue {
+export class UplcBool extends UplcValueImpl {
 	#value;
 
 	/**
@@ -12469,6 +12418,14 @@ export class UplcBool extends UplcValue {
 	 */
 	get memSize() {
 		return 1;
+	}
+
+	/**
+	 * 4 for type, 1 for value
+	 * @type {number}
+	 */
+	get flatSize() {
+		return 5;
 	}
 
 	/**
@@ -12521,8 +12478,9 @@ export class UplcBool extends UplcValue {
 
 /**
  * Primitive pair value.
+ * @implements {UplcValue}
  */
-export class UplcPair extends UplcValue {
+export class UplcPair extends UplcValueImpl {
 	#first;
 	#second;
 
@@ -12578,8 +12536,15 @@ export class UplcPair extends UplcValue {
 	}
 
 	/**
+	 * 16 additional type bits on top of #first and #second bits
+	 */
+	get flatSize() {
+		return 16 + this.#first.flatSize + this.#second.flatSize;
+	}
+
+	/**
 	 * @param {Site} newSite 
-	 * @returns {UplcPair}
+	 * @returns {UplcValue}
 	 */
 	copy(newSite) {
 		return new UplcPair(newSite, this.#first, this.#second);
@@ -12648,7 +12613,7 @@ export class UplcPair extends UplcValue {
  * Plutus-core list value class.
  * Only used during evaluation.
 */
-export class UplcList extends UplcValue {
+export class UplcList extends UplcValueImpl {
 	#itemType;
 	#items;
 
@@ -12702,6 +12667,16 @@ export class UplcList extends UplcValue {
 		}
 
 		return sum;
+	}
+
+	/**
+	 * 10 + nItemType type bits, value bits of each item (must be corrected by itemType)
+	 * @type {number}
+	 */
+	get flatSize() {
+		const nItemType = this.#itemType.typeBits.length;
+
+		return 10 + nItemType + this.#items.reduce((prev, item) => item.flatSize - nItemType + prev, 0);
 	}
 
 	/**
@@ -12779,7 +12754,7 @@ export class UplcList extends UplcValue {
 /**
  *  Child type of `UplcValue` that wraps a `UplcData` instance.
  */
-export class UplcDataValue extends UplcValue {
+export class UplcDataValue extends UplcValueImpl {
 	#data;
 
 	/**
@@ -12808,6 +12783,16 @@ export class UplcDataValue extends UplcValue {
 	 */
 	get memSize() {
 		return this.#data.memSize;
+	}
+
+	/**
+	 * Same number of header bits as UplcByteArray
+	 * @type {number}
+	 */
+	get flatSize() {
+		const bytes = this.#data.toCbor();
+
+		return (new UplcByteArray(Site.dummy(), bytes)).flatSize;
 	}
 
 	/**
@@ -13177,6 +13162,7 @@ export class UplcCall extends UplcTerm {
 			bitWriter.write('1011');
 			
 			const site = this.site.codeMapSite;
+
 			(new UplcInt(site, BigInt(assertDefined(codeMapFileIndices.get(site.src.name))), false)).toFlatUnsigned(bitWriter);
 			(new UplcInt(site, BigInt(site.startPos), false)).toFlatUnsigned(bitWriter);
 		} else {
@@ -13223,6 +13209,10 @@ export class UplcConst extends UplcTerm {
 		if (value instanceof UplcInt) {
 			assert(value.signed);
 		}
+	}
+
+	get flatSize() {
+		return 4 + this.value.flatSize;
 	}
 
 	/**
@@ -13808,7 +13798,7 @@ export class UplcBuiltin extends UplcTerm {
 				if (a.isAny() || syncTrace) {
 					return b;
 				} else {
-					return rte.print(a.string.split("\n").map(l => `INFO  (${site.toString()}) ${l}`)).then(() => {
+					return rte.print(a.string.split("\n").map(l => `INFO (${site.toString()}) ${l}`)).then(() => {
 						return b;
 					});
 				}
@@ -14314,8 +14304,9 @@ class UplcDelayWithEnv extends UplcTermWithEnv {
 
 /**
  * @internal
+ * @implements {UplcValue}
  */
-class UplcAnonValue extends UplcValue {
+class UplcAnonValue extends UplcValueImpl {
     /**
      * @readonly
      * @type {AppliedUplcBuiltin | UplcLambdaWithEnv | UplcDelayWithEnv}
@@ -14331,12 +14322,35 @@ class UplcAnonValue extends UplcValue {
         this.term = term;
     }
 
+	/**
+	 * @param {TransferUplcAst} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		throw new Error("shouldn't be part of AST");
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {UplcValue}
+	 */
+	copy(newSite) {
+		throw new Error("shouldn't be part of AST");
+	}
+
     /**
      * @type {number}
      */
     get memSize() {
         return 1;
     }
+
+	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		throw new Error("shouldn't be part of AST");
+	}
 
 	/**
 	 * @returns {string}
@@ -14521,7 +14535,6 @@ class AppliedUplcBuiltin {
 	}
 
 	/**
-	 * 
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ReducingState} state 
@@ -14919,20 +14932,14 @@ const UPLC_TAG_WIDTHS = {
 	 * Wrap the top-level term with consecutive UplcCall (not exported) terms.
 	 * 
 	 * Returns a new UplcProgram instance, leaving the original untouched.
-	 * 
-	 * Throws an error if you are trying to apply with an anon func.
-	 * @param {(UplcValue | HeliosData)[]} args
+	 * @param {UplcValue[]} args
 	 * @returns {UplcProgram} - a new UplcProgram instance
 	 */
 	apply(args) {
 		let expr = this.expr;
 
 		for (let arg of args) {
-			if (arg instanceof UplcValue) {
-				expr = new UplcCall(arg.site, expr, new UplcConst(arg));
-			} else if (arg instanceof HeliosData) {
-				expr = new UplcCall(Site.dummy(), expr, new UplcConst(new UplcDataValue(Site.dummy(), arg._toUplcData())));
-			}
+			expr = new UplcCall(arg.site, expr, new UplcConst(arg));
 		}
 
 		return new UplcProgram(expr, this.#properties, this.#version);
@@ -22546,7 +22553,22 @@ class RawFunc {
 		} else {
 			for (let dep of this.#dependencies) {
 				if (!db.has(dep)) {
-					throw new Error(`InternalError: dependency ${dep} not found`);
+					if (IRParametricName.matches(dep)) {
+						const pName = IRParametricName.parse(dep);
+						const genericName = pName.toTemplate();
+
+						let fn = db.get(genericName);
+
+						if (fn) {
+							const ir = pName.replaceTemplateNames(fn.toIR());
+							fn = new RawFunc(dep, ir.toString());
+							fn.load(db, dst);
+						} else {
+							throw new Error(`InternalError: dependency ${dep} not found`);	
+						}
+					} else {
+						throw new Error(`InternalError: dependency ${dep} not found`);
+					}				
 				} else {
 					assertDefined(db.get(dep)).load(db, dst);
 				}
@@ -23508,7 +23530,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(self) -> {
 		() -> {
 			(recurse) -> {
-				__core__decodeUtf8(
+				__core__decodeUtf8__safe(
 					__core__ifThenElse(
 						__core__lessThanInteger(self, 0),
 						() -> {
@@ -24529,7 +24551,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										}(
 											__core__encodeUtf8(
 												__helios__int__to_hex(
-													__core__indexByteString(self, 0)
+													__core__indexByteString__safe(self, 0)
 												)()
 											)
 										)
@@ -40238,68 +40260,35 @@ export class IRVariable extends Token {
 
 
 /**
+ * The optimizer maps expressions to expected values, calling notifyCopy assures that that mapping isn't lost for copies (copying is necessary when inlining)
+ * @internal
+ * @typedef {(oldExpr: IRExpr, newExpr: IRExpr) => void} NotifyCopy
+ */
+
+/**
  * Interface for:
- *   * IRErrorExpr
- *   * IRCallExpr
- *   * IRFuncExpr
- *   * IRNameExpr
- *   * IRLiteralExpr
+ *   * `IRErrorExpr`
+ *   * `IRCallExpr`
+ *   * `IRFuncExpr`
+ *   * `IRNameExpr`
+ *   * `IRLiteralExpr`
  * 
- * The copy() method is needed because inlining can't use the same IRNameExpr twice, 
+ * The `copy()` method is needed because inlining can't use the same IRNameExpr twice, 
  *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
  *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
+ * 
+ * `flatSize` returns the number of bits occupied by the equivalent UplcTerm in the final serialized UPLC program
+ *   This is used to detect small IRFuncExprs and inline them
  * @internal
  * @typedef {{
  *   site: Site,
+ *   flatSize: number
  *   resolveNames(scope: IRScope): void,
  *   toString(indent?: string): string,
- *   copy(): IRExpr,
+ *   copy(notifyCopy: NotifyCopy, varMap: Map<IRVariable, IRVariable>): IRExpr,
  *   toUplc(): UplcTerm
  * }} IRExpr
  */
-
-const HASH_PRIME = 97;
-
-const MAX_HASH_NUMBER = 91910196476941; // prime closest to Math.floor(Number.MAX_SAFE_INTEGER/(HASH_PRIME + 1));
-/**
- * @internal
- * @param {number} start
- * @param {number} x
- * @returns {number}
- */
-function hashNumber(start, x) {
-	const res = (start*HASH_PRIME ^ x)%MAX_HASH_NUMBER;
-
-	if (Number.isNaN(res) || !Number.isFinite(res)) {
-		throw new Error("MAX_HASH_NUMBER too large");
-	}
-
-	return res;
-}
-
-/**
- * @internal
- * @param {number | string | boolean} x 
- * @param {number} start
- * @returns {number}
- */
-export function hashCode(x, start = 0) {
-    let c = start;
-
-    if (typeof x == "boolean") {
-        c = hashNumber(c, x ? 1 : 0);
-    } else if (typeof x == "number") {
-        c = hashNumber(c, x);
-    } else if (typeof x == "string") {
-        for (let i = 0; i < x.length; i++) {
-            c = hashNumber(c, x.charCodeAt(i));
-        }
-    } else {
-        throw new Error("unexpected type");
-    }
-
-    return c;
-}
 
 /**
  * Intermediate Representation variable reference expression
@@ -40358,11 +40347,41 @@ export class IRNameExpr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		if (this.isCore()) {
+			let nForce = 0;
+
+			let name = this.name;
+			if (!name.startsWith(MACRO_BUILTIN_PREFIX) && name.startsWith(BUILTIN_PREFIX)) {
+				if (name.endsWith(SAFE_BUILTIN_SUFFIX)) {
+					name = name.slice(0, name.length - SAFE_BUILTIN_SUFFIX.length);
+				}
+
+				nForce = UPLC_BUILTINS[IRScope.findBuiltin(name)].forceCount;
+			}
+
+			return 13 + 4*nForce; // 4 for header, 7 for builtin index, 4 per force
+		} else {
+			return 13; // 4 for term header, and assume DeBruijn index fits in 7 bits
+		}
+	}
+
+	/**
 	 * Used when inlining
+	 * @param {(oldExpr: IRExpr, newExpr: IRExpr) => void} notifyCopy
+	 * @param {Map<IRVariable, IRVariable>} varMap
 	 * @returns {IRNameExpr}
 	 */
-	copy() {
-		return new IRNameExpr(this.#name, this.#variable);
+	copy(notifyCopy, varMap) {
+		const variable = (this.#variable ? (varMap.get(this.#variable) ?? this.#variable) : this.#variable);
+
+		const newExpr = new IRNameExpr(this.#name, variable);
+
+		notifyCopy(this, newExpr);
+
+		return newExpr;
 	}
 
 	/**
@@ -40471,6 +40490,13 @@ export class IRLiteralExpr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		return (new UplcConst(this.#value)).flatSize;
+	}
+
+	/**
 	 * @param {string} indent 
 	 * @returns {string}
 	 */
@@ -40479,9 +40505,11 @@ export class IRLiteralExpr {
 	}
 
 	/**
+	 * @param {NotifyCopy} notifyCopy
+	 * @param {Map<IRVariable, IRVariable>} varMap
 	 * @returns {IRExpr}
 	 */
-	copy() {
+	copy(notifyCopy, varMap) {
 		return this;
 	}
 
@@ -40547,6 +40575,14 @@ export class IRFuncExpr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		const nArgs = this.args.length;
+		return 4 + (nArgs > 0 ? (nArgs - 1)*4 : 0) + this.body.flatSize;
+	}
+
+	/**
 	 * @returns {boolean}
 	 */
 	hasOptArgs() {
@@ -40591,10 +40627,17 @@ export class IRFuncExpr {
 	}
 
 	/**
+	 * @param {NotifyCopy} notifyCopy
+	 * @param {Map<IRVariable, IRVariable>} varMap
 	 * @returns {IRExpr}
 	 */
-	copy() {
-		return new IRFuncExpr(this.site, this.args, this.body.copy(), this.tag);
+	copy(notifyCopy, varMap) {
+		const args = this.args.map(a => a.copy(varMap));
+		const newExpr = new IRFuncExpr(this.site, args, this.body.copy(notifyCopy, varMap), this.tag);
+
+		notifyCopy(this, newExpr);
+
+		return newExpr;
 	}
 
 	/** 
@@ -40682,6 +40725,10 @@ export class IRCallExpr {
 		}
 	}
 
+	get flatSize() {
+		return 4 + this.args.reduce((prev, arg) => arg.flatSize + prev, 0) + this.func.flatSize;
+	}
+
 	/**
 	 * @param {string} indent 
 	 * @returns {string}
@@ -40728,10 +40775,16 @@ export class IRCallExpr {
 	}
 
 	/**
+	 * @param {NotifyCopy} notifyCopy
+	 * @param {Map<IRVariable, IRVariable>} varMap
 	 * @returns {IRExpr}
 	 */
-	copy() {
-		return new IRCallExpr(this.site, this.func.copy(), this.args.map(a => a.copy()));
+	copy(notifyCopy, varMap) {
+		const newExpr = new IRCallExpr(this.site, this.func.copy(notifyCopy, varMap), this.args.map(a => a.copy(notifyCopy, varMap)));
+
+		notifyCopy(this, newExpr);
+
+		return newExpr;
 	}
 
 	/**
@@ -40820,6 +40873,13 @@ export class IRErrorExpr {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		return 4;
+	}
+
+	/**
 	 * @param {string} indent 
 	 * @returns {string}
 	 */
@@ -40834,10 +40894,15 @@ export class IRErrorExpr {
 	}
 
 	/**
+	 * @param {NotifyCopy} notifyCopy
 	 * @returns {IRExpr}
 	 */
-	copy() {
-		return new IRErrorExpr(this.site, this.#msg);
+	copy(notifyCopy) {
+		const newExpr = new IRErrorExpr(this.site, this.#msg);
+
+		notifyCopy(this, newExpr);
+
+		return newExpr;
 	}
 
 	/**
@@ -41083,108 +41148,58 @@ function buildIRFuncExpr(ts, funcTagger) {
 /**
  * @internal
  * @typedef {{
- *   code: number
- *   hash(depth?: number): number[]
  *   toString(): string
  *   isLiteral(): boolean
  *   hasError(maybe: boolean): boolean
  *   withoutLiterals(): IRValue
  *   withoutErrors(): IRValue
- *   dump(depth?: number): any
+ *   dump(codeMapper: IRValueCodeMapper, depth?: number): any
  * }} IRValue
  */
 
-const HASH_DEPTH = 3
-
-const HASH_CODES = {
-    Data: hashCode("Data"),
-    Error: hashCode("Error"),
-    Any: hashCode("Any")
-}
 
 /**
  * @internal
  */
 class IRStack {
     /**
+     * @readonly
      * @type {[IRVariable, IRValue][]}
      */
-    #values;
+    values;
 
     #isLiteral;
-
-    /**
-     * First code is the shallowest (no nested stacks)
-     * Second code includes up to one nested stack
-     * @type {number[]}
-     */
-    #codes;
 
     /**
      * @param {[IRVariable, IRValue][]} values 
      * @param {boolean} isLiteral
      */
     constructor(values, isLiteral) {
-        this.#values = values;
+        this.values = values;
         this.#isLiteral = isLiteral || values.length == 0;
-        this.#codes = []; 
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRVariable} variable 
+     * @returns {boolean}
+     */
+    static isGlobal(variable) {
+        return variable.name.match(/^__(helios|const|module)__/) !== null;
+    }
+
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
-            hash: this.code,
-            hashes: this.hash(HASH_DEPTH),
             isLiteral: this.#isLiteral,
-            ...(depth > 0 ? {values: this.#values.map(([_, arg]) => {
-                return arg.dump(depth - 1)
+            codes: codeMapper.getCodes(this),
+            ...(depth > 0 ? {values: this.values.map(([_, arg]) => {
+                return arg.dump(codeMapper, depth - 1)
             })} : {})
         }
-    }
-
-    /**
-     * @type {number}
-     */
-    get code() {
-        if (this.#codes.length == HASH_DEPTH + 1) {
-            return this.#codes[HASH_DEPTH];
-        }
-
-        const codes = this.hash(HASH_DEPTH);
-
-        return codes[HASH_DEPTH];
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        if (depth < this.#codes.length) {
-            return this.#codes.slice(0, depth+1);
-        }
-
-        const valueCodes = this.#values.map(v => v[1].hash(HASH_DEPTH));
-
-        /**
-         * @type {number[]}
-         */
-        const lst = [];
-
-        for (let i = 0; i < HASH_DEPTH + 1; i++) {
-            const codes = valueCodes.map(vc => vc[i]);
-
-            let c = 0;
-
-            for (let co of codes) {
-                c = hashCode(co, c);
-            }
-
-            lst.push(c);
-        }
-
-        this.#codes = lst;
-
-        return this.#codes.slice(0, depth + 1);
     }
 
     /**
@@ -41201,13 +41216,13 @@ class IRStack {
         /**
          * @type {[IRVariable, IRValue][]}
          */
-        const varVals = this.#values.map(([vr, vl]) => {
-            /**
-             * @type {[IRVariable, IRValue]}
-             */
-            return [vr, vl.withoutLiterals()]
+        const varVals = this.values.map(([vr, vl]) => {
+            if (IRStack.isGlobal(vr)) {
+                return [vr, vl];
+            } else {
+                return [vr, vl.withoutLiterals()]
+            }
         });
-
 
         return new IRStack(
             varVals, 
@@ -41220,10 +41235,10 @@ class IRStack {
      * @returns {IRValue}
      */
     getValue(v) {
-        const j = this.#values.findIndex(([va]) => va == v)
+        const j = this.values.findIndex(([va]) => va == v)
 
         if (j != -1) {
-            return this.#values[j][1];
+            return this.values[j][1];
         }
 
         throw new Error(`${v.name} not found in IRStack`);
@@ -41237,7 +41252,7 @@ class IRStack {
         assert(args.every(([_, v]) => !(v instanceof IRErrorValue)));
 
         return new IRStack(
-            this.#values.concat(args),
+            this.values.concat(args),
             this.#isLiteral && args.every(([_, v]) => v.isLiteral())
         );
     }
@@ -41247,7 +41262,7 @@ class IRStack {
      * @returns {IRStack}
      */
     filter(irVars) {
-        const varVals = this.#values.filter(([v]) => irVars.has(v));
+        const varVals = this.values.filter(([v]) => irVars.has(v));
         return new IRStack(varVals, varVals.every(([_, v]) => v.isLiteral()));
     }
 
@@ -41265,15 +41280,15 @@ class IRStack {
      * @returns {IRStack}
      */
     merge(other) {
-        const n = this.#values.length;
+        const n = this.values.length;
 
-        assert(n == other.#values.length);
+        assert(n == other.values.length);
 
         let stack = IRStack.empty();
 
         for (let i = 0; i < n; i++) {
-            const a = this.#values[i];
-            const b = other.#values[i];
+            const a = this.values[i];
+            const b = other.values[i];
 
             if (a == b) {
                 stack = stack.extend([a]);
@@ -41343,28 +41358,17 @@ export class IRLiteralValue {
         return this;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Literal",
-            value: this.toString(),
-            hash: this.code
+            code: codeMapper.getCode(this),
+            value: this.toString()
         }
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        return (new Array(depth+1)).fill(hashCode(this.toString()));
-    }
-
-    /**
-     * TODO: code that takes Literal value into account (eg. `get codeWithLiterals()`)
-     * @type {number}
-     */
-    get code() {
-        return this.hash(0)[0];
     }
 }
 
@@ -41403,32 +41407,21 @@ export class IRDataValue {
     }
 
     /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.toString());
-    }
-
-    /**
-     * 
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        return (new Array(depth + 1)).fill(HASH_CODES.Data);
-    }
-
-    /**
      * @returns {string}
      */
     toString() {
         return `Data`;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns 
+     */
+    dump(codeMapper, depth = 0) {
         return {
-            type: "Data",
-            hash: this.code
+            code: codeMapper.getCode(this),
+            type: "Data"
         }
     }
 }
@@ -41475,6 +41468,19 @@ export class IRBuiltinValue {
     }
 
     /**
+     * @type {string}
+     */
+    get builtinName() {
+        let name = this.builtin.name.slice(BUILTIN_PREFIX.length);
+
+        if (name.endsWith(SAFE_BUILTIN_SUFFIX)) {
+            name = name.slice(0, name.length - SAFE_BUILTIN_SUFFIX.length);
+        }
+
+        return name;
+    }
+
+    /**
      * @returns {string}
      */
     toString() {
@@ -41511,25 +41517,15 @@ export class IRBuiltinValue {
     }
 
     /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.builtin.toString());
-    }
-
-    /**
+     * @param {IRValueCodeMapper} codeMapper 
      * @param {number} depth 
-     * @returns {number[]}
+     * @returns {any}
      */
-    hash(depth = 0) {
-        return (new Array(depth + 1)).fill(hashCode(this.builtin.toString()));
-    }
-
-    dump(depth = 0) {
+    dump(codeMapper, depth = 0) {
         return {
             type: "Builtin",
-            name: this.builtin.name,
-            hash: this.code
+            code: codeMapper.getCode(this),
+            name: this.builtin.name
         }
     }
 }
@@ -41571,42 +41567,6 @@ export class IRFuncValue {
     }
 
     /**
-     * @private
-     * @type {number}
-     */
-    get internalCode() {
-        return this.definition.tag;
-    }
-
-    /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.stack.code, this.internalCode);
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        const c = this.internalCode;
-
-        const codes = [];
-        const stackCodes = depth > 0 ? this.stack.hash(depth - 1) : [];
-
-        for (let i = 0; i < depth + 1; i++) {
-            if (i == 0) {
-                codes.push(c);
-            } else {
-                codes.push(hashCode(stackCodes[i-1], c))
-            }
-        }
-
-        return codes;
-    }
-
-    /**
      * @returns {boolean}
      */
     isLiteral() {
@@ -41635,13 +41595,18 @@ export class IRFuncValue {
         return this;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Fn",
+            tag: this.definition.tag,
+            codes: codeMapper.getCodes(this),
             definition: this.definition.toString(),
-            hash: this.code,
-            hashes: this.hash(HASH_DEPTH),
-            stack: this.stack.dump(depth)
+            stack: this.stack.dump(codeMapper, depth)
         }
     }
 
@@ -41649,7 +41614,7 @@ export class IRFuncValue {
      * @returns {string}
      */
     toString() {
-        return `Fn`;
+        return `Fn${this.definition.tag}`;
     }
 }
 
@@ -41694,26 +41659,16 @@ export class IRErrorValue {
         return `Error`;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Error",
-            hash: this.code
+            code: codeMapper.getCode(this)
         }
-    }
-
-    /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.toString());
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        return (new Array(depth + 1)).fill(HASH_CODES.Error);
     }
 }
 
@@ -41761,26 +41716,16 @@ export class IRAnyValue {
         return `Any`;
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Any",
-            hash: this.code
+            code: codeMapper.getCode(this)
         }
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        return (new Array(depth + 1)).fill(HASH_CODES.Any);
-    }
-
-    /**
-     * @type {number}
-     */
-    get code() {
-        return hashCode(this.toString());
     }
 }
 
@@ -41838,11 +41783,16 @@ export class IRMultiValue {
         return this.values.some(v => v instanceof IRLiteralValue);
     }
 
-    dump(depth = 0) {
+    /**
+     * @param {IRValueCodeMapper} codeMapper 
+     * @param {number} depth 
+     * @returns {any}
+     */
+    dump(codeMapper, depth = 0) {
         return {
             type: "Multi",
-            hash: this.code,
-            values: this.values.slice().sort((a, b) => a.code - b.code).map(v => v.dump(depth))
+            code: codeMapper.getCode(this),
+            values: this.values.slice().map(v => v.dump(codeMapper, depth))
         }
     }
 
@@ -41881,50 +41831,6 @@ export class IRMultiValue {
         return `(${parts.join(" | ")})`;
     }
 
-    /**
-     * @type {number}
-     */
-    get code() {
-        const valueCodes = this.values.map(v => v.code)
-
-        valueCodes.sort()
-
-        let c = 0;
-
-        for (let vc of valueCodes) {
-            c = hashCode(vc, c)
-        }
-
-        return c;
-    }
-
-    /**
-     * @param {number} depth 
-     * @returns {number[]}
-     */
-    hash(depth = 0) {
-        const valueCodes = this.values.map(v => v.hash(depth));
-
-        /**
-         * @type {number[]}
-         */
-        const lst = [];
-
-        for (let i = 0; i < depth + 1; i++) {
-            const codes = valueCodes.map(vc => vc[i]).sort();
-
-            let c = 0;
-
-            for (let co of codes) {
-                c = hashCode(co, c);
-            }
-
-            lst.push(c);
-        }
-
-        return lst;
-    }
-
 	/**
 	 * @param {IRValue[]} values 
 	 * @returns {IRValue}
@@ -41945,7 +41851,7 @@ export class IRMultiValue {
 
         if (values.length == 1) {
             return values[0];
-        } else if (values.every((v, i) => v instanceof IRLiteralValue && ((i == 0) || (v.code == values[0].code)))) {
+        } else if (values.every((v, i) => v instanceof IRLiteralValue && ((i == 0) || (v.toString() == values[0].toString())))) {
             return values[0];
         }
         
@@ -42059,6 +41965,176 @@ export class IRMultiValue {
     }
 }
 
+/**
+ * Codes are used to combine multiple IRValues (including nested IRStacks that are part of IRFuncValues) into a single number.
+ * 
+ * We can't have however use the full depth of IRStack values because there could be callback-recursion.
+ * @internal
+ */
+class IRValueCodeMapper {
+    /**
+     * @type {number}
+     */
+    #nextUnused;
+
+    /**
+     * @type {Map<string, number>}
+     */
+    #usedCodes;
+
+    /**
+     * @type {Map<IRValue | IRStack, number[]>}
+     */
+    #valueCodes;
+
+    constructor() {
+        this.#usedCodes = new Map([
+            ["Any", 0],
+            ["Data", 1],
+            ["Error", 2]
+        ]);
+        this.#nextUnused = 3;
+        this.#valueCodes = new Map();
+    }
+
+    static get maxDepth() {
+        return 10;
+    }
+
+    /**
+     * @private
+     * @param {string} key 
+     * @returns {number}
+     */
+    genCode(key) {
+        let code = this.#usedCodes.get(key);
+
+        if (code !== undefined) {
+            return code;
+        }
+
+        code = this.#nextUnused;
+        this.#nextUnused += 1;
+
+        this.#usedCodes.set(key, code);
+
+        return code;
+    }
+
+    /**
+     * @private
+     * @param {IRValue | IRStack} v 
+     * @returns {number[]}
+     */
+    genCodes(v) {
+        if (v instanceof IRBuiltinValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode(v.builtinName));
+        } else if (v instanceof IRDataValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode("Data"));
+        } else if (v instanceof IRErrorValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode("Error"));
+        } else if (v instanceof IRAnyValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode("Any"));
+        } else if (v instanceof IRLiteralValue) {
+            return (new Array(IRValueCodeMapper.maxDepth)).fill(this.genCode(v.value.toString()));
+        } else if (v instanceof IRFuncValue) {
+            const tag = `Fn${assertDefined(v.definition.tag)}`;
+            const stackCodes = this.getCodes(v.stack);
+
+            /**
+             * @type {number[]}
+             */
+            const codes = [];
+
+            for (let i = 0; i < IRValueCodeMapper.maxDepth; i++) {
+                const key = i == 0 ? tag : `${tag}(${stackCodes[i-1]})`;
+
+                codes.push(this.genCode(key));
+            }
+
+            return codes;
+        } else if (v instanceof IRStack) {
+            const valueCodes = v.values.map(([_, v]) => this.getCodes(v));
+
+            /**
+             * @type {number[]}
+             */
+            const codes = [];
+
+            for (let i = 0; i < IRValueCodeMapper.maxDepth - 1; i++) {
+                const key = `[${valueCodes.map(vc => vc[i]).join(",")}]`;
+                codes.push(this.genCode(key));
+            }
+
+            return codes;
+        } else if (v instanceof IRMultiValue) {
+            const valueCodes = v.values.map(v => this.getCodes(v));
+
+            /**
+             * @type {number[]}
+             */
+            const codes = [];
+
+            for (let i = 0; i < IRValueCodeMapper.maxDepth; i++) {
+                const key = `{${valueCodes.map(vc => vc[i]).sort().join(",")}}`;
+                codes.push(this.genCode(key));
+            }
+
+            return codes;
+        } else {
+            throw new Error("unhandled");
+        }
+    }
+
+    /**
+     * @param {IRValue | IRStack} v 
+     * @returns {number[]}
+     */
+    getCodes(v) {
+        const cached = this.#valueCodes.get(v);
+
+        if (cached) {
+            return cached;
+        }
+
+        const codes = this.genCodes(v);
+
+        this.#valueCodes.set(v, codes);
+
+        return codes;
+    }
+
+    /**
+     * @param {IRValue} v
+     * @returns {number}
+     */
+    getCode(v) {
+        const codes = this.getCodes(v);
+
+        return codes[IRValueCodeMapper.maxDepth-1];
+    }
+
+    /**
+     * @param {IRValue} fn 
+     * @param {IRValue[]} args 
+     */
+    getCallCode(fn, args) {
+        const key = `${assertDefined(this.getCode(fn))}(${args.map(a => this.getCode(a)).join(",")})`;
+        return this.genCode(key);
+    }
+
+    /**
+     * @param {IRValue} a 
+     * @param {IRValue} b 
+     * @returns {boolean}
+     */
+    eq(a, b) {
+        const ca = this.getCode(a);
+        const cb = this.getCode(b);
+
+        return ca == cb;
+    }
+}
 
 /**
  * @internal
@@ -42396,7 +42472,6 @@ export class IREvaluator {
      */
     #variableValues;
 
-
     /**
      * @type {Map<IRFuncExpr, number>}
      */
@@ -42614,6 +42689,28 @@ export class IREvaluator {
     }
 
     /**
+     * The newExpr should evaluate to exactly the same values etc. as the oldExpr
+     * @param {IRExpr} oldExpr 
+     * @param {IRExpr} newExpr 
+     */
+    notifyCopyExpr(oldExpr, newExpr) {
+        if (oldExpr instanceof IRFuncExpr && newExpr instanceof IRFuncExpr) {
+            const oldCallCount = this.#callCount.get(oldExpr);
+
+            if (oldCallCount !== undefined) {
+                this.#callCount.set(newExpr, oldCallCount);
+            }
+
+            // don't update the funcCallExprs
+        }
+
+        const oldValue = this.#exprValues.get(oldExpr);
+        if (oldValue) {
+            this.#exprValues.set(newExpr, oldValue);
+        }
+    }
+
+    /**
      * Push onto the computeStack, unwrapping IRCallExprs
      * @private
      * @param {IRStack} stack
@@ -42640,6 +42737,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {IRExpr} expr 
      * @param {IRValue} value 
      */
@@ -42654,6 +42752,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {null | IRExpr} owner 
      * @param {IRValue} value 
      */
@@ -42734,6 +42833,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {IRFuncExpr} fn 
      */
     incrCallCount(fn) {
@@ -42747,6 +42847,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {IRVariable[]} variables 
      * @param {IRValue[]} values 
      * @returns {[IRVariable, IRValue][]}
@@ -42899,6 +43000,8 @@ export class IREvaluator {
      * @private
      */
     evalInternal() {
+        const codeMapper = new IRValueCodeMapper();
+
         let head = this.#compute.pop();
 
 		while (head) {
@@ -42920,15 +43023,13 @@ export class IREvaluator {
                     // don't allow partial literal args (could lead to infinite recursion where the partial literal keeps updating)
                     //  except when calling builtins (partial literals are important: eg. in divideInteger(<data>, 10) we know that the callExpr doesn't return an error)
                     const allLiteral = fn.isLiteral() && args.every(a => a.isLiteral());
-                    if (!allLiteral && !(fn instanceof IRBuiltinValue)) {
+
+                    if (!allLiteral && !(fn instanceof IRBuiltinValue) && !(fn instanceof IRFuncValue && fn.definition.args.length == 1 && IRStack.isGlobal(fn.definition.args[0]))) {
                         fn = fn.withoutLiterals();
                         args = args.map(a => a.withoutLiterals());
                     } 
 
-                    let code = fn.code;
-                    args.forEach(a => {
-                        code = hashCode(a.code, code);
-                    });
+                    const code = codeMapper.getCallCode(fn, args);
 
                     const cached = this.#cachedCalls.get(expr)?.get(code);
                     const fns = fn instanceof IRMultiValue ? fn.values : [fn];
@@ -43036,6 +43137,7 @@ export class IREvaluator {
     }
 
     /**
+     * @private
      * @param {IRExpr} expr entry point
      * @returns {IRValue}
      */
@@ -43052,12 +43154,16 @@ export class IREvaluator {
             return res;
         } else if (res instanceof IRLiteralValue) {
             return res; // used by const
+        } else if (res instanceof IRMultiValue && res.values.some(v => v instanceof IRAnyValue)) {
+            return res;
         } else {
+            console.log(annotateIR(this, expr));
             throw new Error(`expected entry point function, got ${res.toString()}`);
         }
     }
 
     /**
+     * @private
      * @param {IRFuncValue} main
      * @returns {IRValue}
      */
@@ -43187,7 +43293,7 @@ export function annotateIR(evaluation, expr) {
                 countStr = count.toString();
             }
 
-            return `${expr.tag}(${expr.args.map(a => {
+            return `Fn${expr.tag}(${expr.args.map(a => {
                 const v = evaluation.getVariableValue(a);
 
                 if (v) {
@@ -43223,6 +43329,29 @@ export function annotateIR(evaluation, expr) {
 //////////////////////////////
 
 /**
+ * Any IRFuncExpr that is smaller or equal to this number will be inlined.
+ * 
+ * Examples of helios builtin functions that should be inlined:
+ *   * __helios__bool__and 
+ *   * __helios__common__field_0
+ * 
+ * This is a number of bits/
+ */
+const INLINE_MAX_SIZE = 128;
+
+/**
+ * @param {IRExpr} func 
+ * @returns {boolean}
+ */
+function isIdentityFunc(func) {
+    if (func instanceof IRFuncExpr && func.args.length == 1 && func.body instanceof IRNameExpr && func.body.isVariable(func.args[0])) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
  * Recursive algorithm that performs the following optimizations.
  * 
  * Optimizations performed in both `aggressive == false` and `aggressive == true` cases:
@@ -43244,7 +43373,8 @@ export function annotateIR(evaluation, expr) {
  *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
  *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
  *   * replace `__core__ifThenElse(<cond-expr>, <expr-a>, <expr_a>)` by `<expr-a>` if `<cond-expr>` doesn't expect IRErrorValue
- *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
+ *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>` (because `<expr>` is expected to return unit as well)
+ *   * replace `__core__chooseUnit((), <expr>)` by `<expr>`
  *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
  *   * replace `__core__chooseList([...], <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
@@ -43269,9 +43399,11 @@ export function annotateIR(evaluation, expr) {
  *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
  *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<name-expr>` if each var is only referenced once (i.e. only referenced in the call)
  *   * replace `(<var>) -> {<var>}(<arg-expr>)` by `<arg-expr>`
+ *   * replace `<name-expr>(<arg-expr>)` by `<arg-expr>` if the expected value of `<name-expr>` is the identity function
  *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each var is only referenced once (i.e. only referenced in the call)
  *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
  *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
+ *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if `<fn-expr>` has a Uplc flat size smaller than INLINE_MAX_SIZE
  *   * inline `<call-expr>` in `(<vars>) -> {...}(<call-expr>, ...)` if the corresponding var is only referenced once and if all the nested IRFuncExprs are only evaluated once and if the IRCallExpr doesn't expect an error
  *   * replace `() -> {<expr>}()` by `<expr>`
  * 
@@ -43351,6 +43483,8 @@ export class IROptimizer {
             body,
             old.tag
         );
+
+        this.#evaluator.notifyCopyExpr(old, funcExpr);
 
         this.#callCount.set(funcExpr, n);
 
@@ -43584,7 +43718,10 @@ export class IROptimizer {
 
             if (newExpr) {
                 // always copy to make sure any (nested) IRNameExpr is unique (=> unique DeBruijn index)
-                return newExpr.copy();
+                //  also so that functions that are inlined multiple times each get unique variables
+                return newExpr.copy((oldExpr, newExpr) => {
+                    this.#evaluator.notifyCopyExpr(oldExpr, newExpr);
+                }, new Map());
             }
         }
 
@@ -43601,6 +43738,7 @@ export class IROptimizer {
         const builtinName = expr.builtinName;
 
         const args = expr.args;
+
 
         switch (builtinName) {
             case "addInteger": {
@@ -43695,11 +43833,15 @@ export class IROptimizer {
                 } else if (!this.expectsError(cond) && a.toString() == b.toString()) {
                     return a;
                 } else if (cond instanceof IRCallExpr && cond.func instanceof IRNameExpr && cond.builtinName == "nullList") {
-                    return new IRCallExpr(
+                    const newExpr = new IRCallExpr(
                         expr.site,
                         new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}chooseList`)),
                         [cond.args[0], a, b]
                     );
+
+                    this.#evaluator.notifyCopyExpr(expr, newExpr);
+
+                    return newExpr;
                 }
 
                 break;
@@ -43707,7 +43849,9 @@ export class IROptimizer {
             case "chooseUnit": {
                 const [a, b] = args;
 
-                if (b instanceof IRLiteralExpr && b.value instanceof UplcUnit) {
+                if (a instanceof IRLiteralExpr && a.value instanceof UplcUnit) {
+                    return b;
+                } else if (b instanceof IRLiteralExpr && b.value instanceof UplcUnit) {
                     return a;
                 }
 
@@ -43715,7 +43859,7 @@ export class IROptimizer {
             };
             case "trace": {
                 const [a, b] = args;
-
+                    
                 if (!this.expectsError(a)) {
                     return b;
                 }
@@ -43809,12 +43953,20 @@ export class IROptimizer {
                     a instanceof IRCallExpr && a.func instanceof IRNameExpr && a.builtinName == "iData" &&
                     b instanceof IRCallExpr && b.func instanceof IRNameExpr && b.builtinName == "iData"
                 ) {
-                    return new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsInteger`)), [a.args[0], b.args[0]]);
+                    const newExpr = new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsInteger`)), [a.args[0], b.args[0]]);
+
+                    this.#evaluator.notifyCopyExpr(expr, newExpr);
+
+                    return newExpr;
                 } else if (
                     a instanceof IRCallExpr && a.func instanceof IRNameExpr && a.builtinName == "bData" &&
                     b instanceof IRCallExpr && b.func instanceof IRNameExpr && b.builtinName == "bData"
                 ) {
-                    return new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsByteString`)), [a.args[0], b.args[0]]);
+                    const newExpr = new IRCallExpr(expr.site, new IRNameExpr(new Word(expr.site, `${BUILTIN_PREFIX}equalsByteString`)), [a.args[0], b.args[0]]);
+
+                    this.#evaluator.notifyCopyExpr(expr, newExpr);
+
+                    return newExpr;
                 }
 
                 break;
@@ -43844,10 +43996,18 @@ export class IROptimizer {
         
         let args = expr.args.map(a => this.optimizeInternal(a));
 
-        if (func instanceof IRFuncExpr && func.args.length == 1 && func.body instanceof IRNameExpr && func.body.isVariable(func.args[0])) {
+        if (isIdentityFunc(func)) {
             assert(args.length == 1);
 
             return args[0];
+        } else if (func instanceof IRNameExpr) {
+            const v = this.#evaluator.getExprValue(func);
+
+            if (v instanceof IRFuncValue && isIdentityFunc(v.definition)) {
+                assert(args.length == 1);
+
+                return args[0];
+            }
         }
 
         // see if any arguments can be inlined
@@ -43864,7 +44024,7 @@ export class IROptimizer {
                     // inline all IRNameExprs
                     unused.add(i);
                     this.inline(v, a);
-                } else if (a instanceof IRFuncExpr && this.#evaluator.countVariableReferences(v) == 1) {
+                } else if (a instanceof IRFuncExpr && (this.#evaluator.countVariableReferences(v) == 1 || a.flatSize <= INLINE_MAX_SIZE)) {
                     // inline IRFuncExpr if it is only reference once
                     unused.add(i);
                     this.inline(v, a);
@@ -43895,19 +44055,21 @@ export class IROptimizer {
             return this.optimizeInternal(func.body);
         }
 
-        expr = new IRCallExpr(
+        const newExpr = new IRCallExpr(
             expr.site, 
             this.optimizeInternal(func),
             args
         );
 
-        const builtinName = expr.builtinName;
+        this.#evaluator.notifyCopyExpr(expr, newExpr);
+
+        const builtinName = newExpr.builtinName;
 
         if (builtinName != "" && this.#aggressive) {
-            return this.optimizeBuiltinCallExpr(expr);
+            return this.optimizeBuiltinCallExpr(newExpr);
         }
 
-        return expr;
+        return newExpr;
     }
 
     /**
@@ -45506,26 +45668,21 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * Returns the Intermediate Representation AST of the program.
+	 * @param {boolean} optimized if `true`, returns the IR of the optimized program
+	 * @param {boolean} annotate add internal type information annotations to the returned AST 
 	 * @returns {string}
 	 */
-	prettyIR(simplify = false) {
-		const ir = this.toIR(new ToIRContext(simplify));
+	dumpIR(optimized = false, annotate = false) {
+		const ir = this.toIR(new ToIRContext(optimized));
 
-		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
+		const irProgram = IRProgram.new(ir, this.#purpose, optimized);
 
-		return new Source(irProgram.toString(), this.name).pretty();
-	}
-
-	/**
-	 * @param {boolean} simplify 
-	 * @returns {string}
-	 */
-	annotateIR(simplify = false) {
-		const ir = this.toIR(new ToIRContext(simplify));
-
-		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
-
-		return new Source(irProgram.annotate(), this.name).pretty();
+		if (!annotate) {
+			return new Source(irProgram.toString(), this.name).pretty();
+		} else {
+			return new Source(irProgram.annotate(), this.name).pretty();
+		}
 	}
 
 	/**
@@ -52679,14 +52836,14 @@ export const CoinSelection = {
  * An interface type for a wallet that manages a user's UTxOs and addresses.
  * @interface
  * @typedef {object} Wallet
-*  @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
-*  @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
-*  @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
-*  @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
-*  @property {Promise<TxInput[]>} collateral
-*  @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
-*  @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
-*/
+ * @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
+ * @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
+ * @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
+ * @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
+ * @property {Promise<TxInput[]>} collateral
+ * @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
+ * @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
+ */
 
 /**
  * Convenience type for browser plugin wallets supporting the CIP 30 dApp connector standard (eg. Eternl, Nami, ...).
@@ -55732,7 +55889,7 @@ export class FuzzyTest {
 				
 					let obj = propTest(args, result, simplify);
 
-					if (result instanceof UplcValue) {
+					if (!(result instanceof RuntimeError)) {
 						totalCost.mem += cost.mem;
 						totalCost.cpu += cost.cpu;
 						nonErrorRuns += 1;
@@ -55740,21 +55897,21 @@ export class FuzzyTest {
 
 					if (typeof obj == "boolean") {
 						if (!obj) {
-							console.log(program.annotateIR(simplify));
+							console.log(program.dumpIR(simplify, true));
 							throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 						}
 					} else {
 						// check for failures
 						for (let key in obj) {
 							if (!obj[key]) {
-								console.log(program.annotateIR(simplify));
+								console.log(program.dumpIR(simplify, true));
 								throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 							}
 						}
 					}
 				} catch (e) {
-					console.log("UNSIMPLIFIED:", program.annotateIR(false));
-					console.log("SIMPLIFIED:", program.annotateIR(true));
+					console.log("UNSIMPLIFIED:", program.dumpIR(false, true));
+					console.log("SIMPLIFIED:", program.dumpIR(true, true));
 					
 					throw e;
 				}
@@ -55811,7 +55968,7 @@ export class FuzzyTest {
 
 				if (typeof obj == "boolean") {
 					if (!obj) {
-						console.log(program.annotateIR(simplify));
+						console.log(program.dumpIR(simplify, true));
 
 						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 					}
@@ -55819,7 +55976,7 @@ export class FuzzyTest {
 					// check for failures
 					for (let key in obj) {
 						if (!obj[key]) {
-							console.log(program.annotateIR(simplify));
+							console.log(program.dumpIR(simplify, true));
 
 							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 						}

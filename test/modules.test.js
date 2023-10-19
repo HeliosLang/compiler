@@ -26,8 +26,8 @@ async function test1() {
 
     let program = Program.new(mainSrc, [moduleSrc]);
 
-    console.log(program.prettyIR());
-    console.log(program.prettyIR(true));
+    console.log(program.dumpIR(false));
+    console.log(program.dumpIR(true));
 
     // also test the transfer() function
     let uplcProgram = program.compile(false).transfer(UplcProgram);
@@ -64,8 +64,8 @@ async function test2() {
 
     let program = Program.new(main, [module1, module2]);
 
-    console.log(program.prettyIR());
-    console.log(program.prettyIR(true));
+    console.log(program.dumpIR(false));
+    console.log(program.dumpIR(true));
 
     // also test transfer() function
     let uplcProgram = program.compile(false).transfer(UplcProgram);
@@ -95,7 +95,7 @@ async function test3() {
 
     let program = Program.new(main, [moduleSrc]);
 
-    console.log(program.prettyIR());
+    console.log(program.dumpIR());
 }
 
 async function test4() {
@@ -124,7 +124,7 @@ async function test4() {
         Program.new(main, [module1, module2]);
     } catch (e) {
         if (e instanceof UserError) {
-            if (e.message.split(":")[1].trim() == "circular import detected") {
+            if (e.message.includes("circular import detected")) {
                 return;
             }
         }
@@ -185,8 +185,8 @@ async function test6() {
 
     let program = Program.new(main, [module1, module2]);
 
-    console.log(program.prettyIR());
-    console.log(program.prettyIR(true));
+    console.log(program.dumpIR());
+    console.log(program.dumpIR(true));
 
     // also test the transfer() function
     let uplcProgram = program.compile(false).transfer(UplcProgram);

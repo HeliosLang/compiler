@@ -33,14 +33,14 @@ import {
  * An interface type for a wallet that manages a user's UTxOs and addresses.
  * @interface
  * @typedef {object} Wallet
-*  @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
-*  @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
-*  @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
-*  @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
-*  @property {Promise<TxInput[]>} collateral
-*  @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
-*  @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
-*/
+ * @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
+ * @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
+ * @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
+ * @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
+ * @property {Promise<TxInput[]>} collateral
+ * @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
+ * @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
+ */
 
 /**
  * Convenience type for browser plugin wallets supporting the CIP 30 dApp connector standard (eg. Eternl, Nami, ...).

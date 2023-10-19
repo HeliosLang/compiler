@@ -58,10 +58,40 @@ import {
  * @typedef {"testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown"} ScriptPurpose
  */
 
-/** 
- * a UplcValue is passed around by Plutus-core expressions.
+/**
+ * UplcValue is passed around by Plutus-core expressions.
+ * @interface
+ * @typedef {object} UplcValue
+ * @property {(other: TransferUplcAst) => any} transfer
+ * @property {bigint} int
+ * @property {number[]} bytes
+ * @property {string} string
+ * @property {boolean} bool
+ * @property {() => boolean} isPair
+ * @property {UplcValue} first
+ * @property {UplcValue} second
+ * @property {() => boolean} isList
+ * @property {UplcType} itemType
+ * @property {UplcValue[]} list
+ * @property {number} length only relevant for lists and maps
+ * @property {() => boolean} isData
+ * @property {UplcData} data
+ * @property {() => string} toString
+ * @property {(newSite: Site) => UplcValue} copy return a copy of the UplcValue at a different Site
+ * @property {Site} site
+ * @property {number} memSize size in words (8 bytes, 64 bits) occupied in target node
+ * @property {number} flatSize size taken up in serialized UPLC program (number of bits)
+ * @property {() => boolean} isAny
+ * @property {(bitWriter: BitWriter) => void} toFlatValue
+ * @property {(bitWriter: BitWriter) => void} toFlatValueInternal like toFlatValue(), but without the typebits
+ * @property {() => string} typeBits
+ * @property {() => UplcUnit} assertUnit
  */
-export class UplcValue {
+
+/** 
+ * Base cass for UplcValue implementations.
+ */
+export class UplcValueImpl {
 	#site;
 
 	/**
@@ -72,26 +102,7 @@ export class UplcValue {
 		this.#site = site;
 	}
 
-	/**
-	 * @param {TransferUplcAst} other 
-	 * @returns {any}
-	 */
-	transfer(other) {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-	 * Return a copy of the UplcValue at a different Site.
-     * @internal
-	 * @param {Site} newSite 
-	 * @returns {UplcValue}
-	 */
-	copy(newSite) {
-		throw new Error("not implemented");
-	}
-
     /**
-     * @internal
      * @type {Site}
      */
 	get site() {
@@ -99,20 +110,10 @@ export class UplcValue {
 	}
 
 	/**
-	 * @internal
 	 * @type {number}
 	 */
 	get length() {
 		throw new Error("not a list nor a map");
-	}
-
-	/**
-	 * Size in words (8 bytes, 64 bits) occupied in target node
-     * @internal
-	 * @type {number}
-	 */
-	get memSize() {
-		throw new Error("not yet implemented");
 	}
 
 	/**
@@ -209,15 +210,6 @@ export class UplcValue {
 	}
 
 	/**
-     * @internal
-	 * @returns {Promise<UplcValue>}
-	 */
-	force() {
-		throw this.site.typeError(`expected delayed value, got '${this.toString()}'`);
-	}
-
-	/**
-     * @internal
 	 * @returns {UplcUnit}
 	 */
 	assertUnit() {
@@ -227,21 +219,12 @@ export class UplcValue {
 	/**
 	 * @returns {string}
 	 */
-	toString() {
-		throw new Error("not yet implemented");
-	}
-
-	/**
-     * @internal
-	 * @returns {string}
-	 */
 	typeBits() {
 		throw new Error("not yet implemented");
 	}
 
 	/**
 	 * Encodes value without type header
-     * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValueInternal(bitWriter) {
@@ -251,7 +234,6 @@ export class UplcValue {
 	/**
 	 * Encodes value with plutus flat encoding.
 	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
-     * @internal
 	 * @param {BitWriter} bitWriter
 	 */
 	toFlatValue(bitWriter) {
@@ -833,8 +815,9 @@ class UplcStack {
 /**
  * Allows doing a dummy eval of a UplcProgram in order to determine some non-changing properties (eg. the address fetched via the network in an EndpointProgram)
  * @internal
+ * @implements {UplcValue}
  */
-export class UplcAny extends UplcValue {
+export class UplcAny extends UplcValueImpl {
 	/**
 	 * @param {Site} site 
 	 */
@@ -859,8 +842,15 @@ export class UplcAny extends UplcValue {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		throw new Error("UplcAny shouldn't be part of Ast");
+	}
+
+	/**
 	 * @param {Site} newSite 
-	 * @returns {UplcAny}
+	 * @returns {UplcValue}
 	 */
 	copy(newSite) {
 		return new UplcAny(
@@ -891,14 +881,6 @@ export class UplcAny extends UplcValue {
 
 	/**
      * @internal
-	 * @returns {Promise<UplcValue>}
-	 */
-	force() {
-		return new Promise((resolve, _) => resolve(this));
-	}
-
-	/**
-     * @internal
 	 * @returns {UplcUnit}
 	 */
 	assertUnit() {
@@ -914,81 +896,10 @@ export class UplcAny extends UplcValue {
 }
 
 /**
- * @internal
- */
-export class UplcDelayedValue extends UplcValue {
-	#evaluator;
-
-	/**
-	 * @param {Site} site
-	 * @param {() => (UplcValue | Promise<UplcValue>)} evaluator
-	 */
-	constructor(site, evaluator) {
-		super(site);
-		this.#evaluator = evaluator;
-	}
-
-	/**
-	 * Should never be part of ast
-	 * @param {TransferUplcAst} other 
-	 * @returns {any}
-	 */
-	transfer(other) {
-		throw new Error("not expected to be part of uplc ast");
-	}
-
-	get memSize() {
-		return 1;
-	}
-
-	/**
-	 * @param {Site} newSite 
-	 * @returns {UplcValue}
-	 */
-	copy(newSite) {
-		return new UplcDelayedValue(newSite, this.#evaluator);
-	}
-
-	/**
-	 * @return {Promise<UplcValue>}
-	 */
-	force() {
-		let res = this.#evaluator();
-
-		if (res instanceof Promise) {
-			return res;
-		} else {
-			return new Promise((resolve, _) => {
-				resolve(res);
-			});
-		}
-	}
-
-	toString() {
-		return `delay`;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	typeBits() {
-		throw new Error("a UplcDelayedValue value doesn't have a literal representation");
-	}
-
-	/**
-	 * Encodes value with plutus flat encoding.
-	 * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
-	 * @param {BitWriter} bitWriter
-	 */
-	toFlatValue(bitWriter) {
-		throw new Error("a UplcDelayedValue value doesn't have a literal representation");
-	}
-}
-
-/**
  * Primitive equivalent of `IntData`.
+ * @implements {UplcValue}
  */
-export class UplcInt extends UplcValue {
+export class UplcInt extends UplcValueImpl {
 	/**
 	 * @readonly
 	 * @type {bigint}
@@ -1027,6 +938,8 @@ export class UplcInt extends UplcValue {
 		}
 	}
 
+	
+
 	/**
 	 * @param {TransferUplcAst} other 
 	 * @returns {any}
@@ -1054,6 +967,15 @@ export class UplcInt extends UplcValue {
 	 */
 	get memSize() {
         return IntData.memSizeInternal(this.value);
+	}
+
+	/**
+	 * 4 for type, 7 for simple int, (7 + 1)*ceil(n/7) for large int
+	 * @type {number}
+	 */
+	get flatSize() {
+		const n = this.toUnsigned().value.toString(2).length;
+		return 4 + ((n <= 7) ? 7 : Math.ceil(n / 7)*8);
 	}
 
 	/**
@@ -1222,7 +1144,7 @@ export class UplcInt extends UplcValue {
 /**
  * Primitive equivalent of `ByteArrayData`.
  */
-export class UplcByteArray extends UplcValue {
+export class UplcByteArray extends UplcValueImpl {
 	#bytes;
 
 	/**
@@ -1231,11 +1153,7 @@ export class UplcByteArray extends UplcValue {
 	 */
 	constructor(site, bytes) {
 		super(site);
-		assert(bytes != undefined);
 		this.#bytes = bytes;
-		for (let b of this.#bytes) {
-			assert(typeof b == 'number');
-		}
 	}
 
 	/**
@@ -1278,7 +1196,16 @@ export class UplcByteArray extends UplcValue {
 	}
 
 	/**
-	 * @internal
+	 * 4 for header, 8 bits per byte, 8 bits per chunk of 256 bytes, 8 bits final padding
+	 * @type {number}
+	 */
+	get flatSize() {
+		const n = this.#bytes.length;
+
+		return 4 + n*8 + Math.ceil(n/256)*8 + 8;
+	}
+
+	/**
 	 * @param {Site} newSite 
 	 * @returns {UplcByteArray}
 	 */
@@ -1363,7 +1290,7 @@ export class UplcByteArray extends UplcValue {
 /**
  * Primitive string value.
  */
-export class UplcString extends UplcValue {
+export class UplcString extends UplcValueImpl {
 	#value;
 
 	/**
@@ -1413,6 +1340,14 @@ export class UplcString extends UplcValue {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		const bytes = Array.from((new TextEncoder()).encode(this.#value));
+		return (new UplcByteArray(Site.dummy(), bytes)).flatSize
+	}
+
+	/**
 	 * @param {Site} newSite 
 	 * @returns {UplcString}
 	 */
@@ -1454,7 +1389,7 @@ export class UplcString extends UplcValue {
 /**
  * Primitive unit value.
  */
-export class UplcUnit extends UplcValue {
+export class UplcUnit extends UplcValueImpl {
 	/**
 	 * @param {Site} site 
 	 */
@@ -1497,6 +1432,13 @@ export class UplcUnit extends UplcValue {
 	}
 
 	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		return 4;
+	}
+
+	/**
 	 * @param {Site} newSite 
 	 * @returns {UplcUnit}
 	 */
@@ -1532,7 +1474,7 @@ export class UplcUnit extends UplcValue {
 /**
  * JS/TS equivalent of the Helios language `Bool` type.
  */
-export class UplcBool extends UplcValue {
+export class UplcBool extends UplcValueImpl {
 	#value;
 
 	/**
@@ -1579,6 +1521,14 @@ export class UplcBool extends UplcValue {
 	 */
 	get memSize() {
 		return 1;
+	}
+
+	/**
+	 * 4 for type, 1 for value
+	 * @type {number}
+	 */
+	get flatSize() {
+		return 5;
 	}
 
 	/**
@@ -1631,8 +1581,9 @@ export class UplcBool extends UplcValue {
 
 /**
  * Primitive pair value.
+ * @implements {UplcValue}
  */
-export class UplcPair extends UplcValue {
+export class UplcPair extends UplcValueImpl {
 	#first;
 	#second;
 
@@ -1688,8 +1639,15 @@ export class UplcPair extends UplcValue {
 	}
 
 	/**
+	 * 16 additional type bits on top of #first and #second bits
+	 */
+	get flatSize() {
+		return 16 + this.#first.flatSize + this.#second.flatSize;
+	}
+
+	/**
 	 * @param {Site} newSite 
-	 * @returns {UplcPair}
+	 * @returns {UplcValue}
 	 */
 	copy(newSite) {
 		return new UplcPair(newSite, this.#first, this.#second);
@@ -1758,7 +1716,7 @@ export class UplcPair extends UplcValue {
  * Plutus-core list value class.
  * Only used during evaluation.
 */
-export class UplcList extends UplcValue {
+export class UplcList extends UplcValueImpl {
 	#itemType;
 	#items;
 
@@ -1812,6 +1770,16 @@ export class UplcList extends UplcValue {
 		}
 
 		return sum;
+	}
+
+	/**
+	 * 10 + nItemType type bits, value bits of each item (must be corrected by itemType)
+	 * @type {number}
+	 */
+	get flatSize() {
+		const nItemType = this.#itemType.typeBits.length;
+
+		return 10 + nItemType + this.#items.reduce((prev, item) => item.flatSize - nItemType + prev, 0);
 	}
 
 	/**
@@ -1889,7 +1857,7 @@ export class UplcList extends UplcValue {
 /**
  *  Child type of `UplcValue` that wraps a `UplcData` instance.
  */
-export class UplcDataValue extends UplcValue {
+export class UplcDataValue extends UplcValueImpl {
 	#data;
 
 	/**
@@ -1918,6 +1886,16 @@ export class UplcDataValue extends UplcValue {
 	 */
 	get memSize() {
 		return this.#data.memSize;
+	}
+
+	/**
+	 * Same number of header bits as UplcByteArray
+	 * @type {number}
+	 */
+	get flatSize() {
+		const bytes = this.#data.toCbor();
+
+		return (new UplcByteArray(Site.dummy(), bytes)).flatSize;
 	}
 
 	/**
@@ -2287,6 +2265,7 @@ export class UplcCall extends UplcTerm {
 			bitWriter.write('1011');
 			
 			const site = this.site.codeMapSite;
+
 			(new UplcInt(site, BigInt(assertDefined(codeMapFileIndices.get(site.src.name))), false)).toFlatUnsigned(bitWriter);
 			(new UplcInt(site, BigInt(site.startPos), false)).toFlatUnsigned(bitWriter);
 		} else {
@@ -2333,6 +2312,10 @@ export class UplcConst extends UplcTerm {
 		if (value instanceof UplcInt) {
 			assert(value.signed);
 		}
+	}
+
+	get flatSize() {
+		return 4 + this.value.flatSize;
 	}
 
 	/**
@@ -2918,7 +2901,7 @@ export class UplcBuiltin extends UplcTerm {
 				if (a.isAny() || syncTrace) {
 					return b;
 				} else {
-					return rte.print(a.string.split("\n").map(l => `INFO  (${site.toString()}) ${l}`)).then(() => {
+					return rte.print(a.string.split("\n").map(l => `INFO (${site.toString()}) ${l}`)).then(() => {
 						return b;
 					});
 				}
@@ -3424,8 +3407,9 @@ class UplcDelayWithEnv extends UplcTermWithEnv {
 
 /**
  * @internal
+ * @implements {UplcValue}
  */
-class UplcAnonValue extends UplcValue {
+class UplcAnonValue extends UplcValueImpl {
     /**
      * @readonly
      * @type {AppliedUplcBuiltin | UplcLambdaWithEnv | UplcDelayWithEnv}
@@ -3441,12 +3425,35 @@ class UplcAnonValue extends UplcValue {
         this.term = term;
     }
 
+	/**
+	 * @param {TransferUplcAst} other 
+	 * @returns {any}
+	 */
+	transfer(other) {
+		throw new Error("shouldn't be part of AST");
+	}
+
+	/**
+	 * @param {Site} newSite 
+	 * @returns {UplcValue}
+	 */
+	copy(newSite) {
+		throw new Error("shouldn't be part of AST");
+	}
+
     /**
      * @type {number}
      */
     get memSize() {
         return 1;
     }
+
+	/**
+	 * @type {number}
+	 */
+	get flatSize() {
+		throw new Error("shouldn't be part of AST");
+	}
 
 	/**
 	 * @returns {string}
@@ -3631,7 +3638,6 @@ class AppliedUplcBuiltin {
 	}
 
 	/**
-	 * 
 	 * @param {UplcRte} rte 
 	 * @param {UplcFrame[]} stack 
 	 * @param {ReducingState} state 

@@ -195,9 +195,9 @@ export class Site {
 	 * @param {string} info 
 	 */
 	static new(type, src, startPos, endPos, info = "") {
-		let line = src.posToLine(startPos);
+		let [line, col] = src.posToLineAndCol(startPos);
 
-		let msg = `${type} on line ${line + 1}`;
+		let msg = `(${src.name}:${line+1}:${col+1}) ${type}`;
 		if (info != "") {
 			msg += `: ${info}`;
 		}

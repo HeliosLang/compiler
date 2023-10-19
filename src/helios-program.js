@@ -8,7 +8,6 @@ import {
 
 import {
     Source,
-	assert,
 	assertClass,
     assertDefined,
 	assertNonEmpty
@@ -40,9 +39,12 @@ import {
  * @typedef {import("./helios-data.js").HeliosDataClass<T>} HeliosDataClass
  */
 
+/**
+ * @typedef {import("./uplc-ast.js").UplcValue} UplcValue
+ */
+
 import {
-    UplcDataValue,
-    UplcValue
+    UplcDataValue
 } from "./uplc-ast.js";
 
 /**
@@ -117,8 +119,7 @@ import {
 } from "./ir-build.js";
 
 import { 
-	IREvaluator,
-	annotateIR
+	IREvaluator
 } from "./ir-evaluate.js";
 
 import {
@@ -1373,26 +1374,21 @@ const DEFAULT_PROGRAM_CONFIG = {
 	}
 
 	/**
+	 * Returns the Intermediate Representation AST of the program.
+	 * @param {boolean} optimized if `true`, returns the IR of the optimized program
+	 * @param {boolean} annotate add internal type information annotations to the returned AST 
 	 * @returns {string}
 	 */
-	prettyIR(simplify = false) {
-		const ir = this.toIR(new ToIRContext(simplify));
+	dumpIR(optimized = false, annotate = false) {
+		const ir = this.toIR(new ToIRContext(optimized));
 
-		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
+		const irProgram = IRProgram.new(ir, this.#purpose, optimized);
 
-		return new Source(irProgram.toString(), this.name).pretty();
-	}
-
-	/**
-	 * @param {boolean} simplify 
-	 * @returns {string}
-	 */
-	annotateIR(simplify = false) {
-		const ir = this.toIR(new ToIRContext(simplify));
-
-		const irProgram = IRProgram.new(ir, this.#purpose, simplify);
-
-		return new Source(irProgram.annotate(), this.name).pretty();
+		if (!annotate) {
+			return new Source(irProgram.toString(), this.name).pretty();
+		} else {
+			return new Source(irProgram.annotate(), this.name).pretty();
+		}
 	}
 
 	/**

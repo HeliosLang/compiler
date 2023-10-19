@@ -798,13 +798,6 @@ declare module "helios" {
     export function extractScriptPurposeAndName(rawSrc: string): null | [ScriptPurpose, string];
     /**
      * @internal
-     * @param {number | string | boolean} x
-     * @param {number} start
-     * @returns {number}
-     */
-    export function hashCode(x: number | string | boolean, start?: number): number;
-    /**
-     * @internal
      * @param {IRExpr} root
      * @param {{
      *   nameExpr?: (expr: IRNameExpr) => void
@@ -875,7 +868,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.16.0";
+    export const VERSION: "0.16.1";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
@@ -958,7 +951,6 @@ declare module "helios" {
     /**
      * BitWriter turns a string of '0's and '1's into a list of bytes.
      * Finalization pads the bits using '0*1' if not yet aligned with the byte boundary.
-     * @internal
      */
     export class BitWriter {
         /**
@@ -3553,9 +3545,15 @@ declare module "helios" {
      */
     export const BUILTIN_PREFIX: "__core__";
     /**
+     * Calls to builtins that are known not to throw errors (eg. tailList inside last branch of chooseList)
      * @internal
      */
     export const SAFE_BUILTIN_SUFFIX: "__safe";
+    /**
+     * Special off-chain builtins like network.get()
+     * @internal
+     */
+    export const MACRO_BUILTIN_PREFIX: "__core__macro";
     /**
      * Cost-model configuration of UplcBuiltin.
      * Also specifies the number of times a builtin must be 'forced' before being callable.
@@ -3612,41 +3610,50 @@ declare module "helios" {
      * @typedef {"testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown"} ScriptPurpose
      */
     /**
-     * a UplcValue is passed around by Plutus-core expressions.
+     * UplcValue is passed around by Plutus-core expressions.
+     * @interface
+     * @typedef {object} UplcValue
+     * @property {(other: TransferUplcAst) => any} transfer
+     * @property {bigint} int
+     * @property {number[]} bytes
+     * @property {string} string
+     * @property {boolean} bool
+     * @property {() => boolean} isPair
+     * @property {UplcValue} first
+     * @property {UplcValue} second
+     * @property {() => boolean} isList
+     * @property {UplcType} itemType
+     * @property {UplcValue[]} list
+     * @property {number} length only relevant for lists and maps
+     * @property {() => boolean} isData
+     * @property {UplcData} data
+     * @property {() => string} toString
+     * @property {(newSite: Site) => UplcValue} copy return a copy of the UplcValue at a different Site
+     * @property {Site} site
+     * @property {number} memSize size in words (8 bytes, 64 bits) occupied in target node
+     * @property {number} flatSize size taken up in serialized UPLC program (number of bits)
+     * @property {() => boolean} isAny
+     * @property {(bitWriter: BitWriter) => void} toFlatValue
+     * @property {(bitWriter: BitWriter) => void} toFlatValueInternal like toFlatValue(), but without the typebits
+     * @property {() => string} typeBits
+     * @property {() => UplcUnit} assertUnit
      */
-    export class UplcValue {
+    /**
+     * Base cass for UplcValue implementations.
+     */
+    export class UplcValueImpl {
         /**
          * @param {Site} site
          */
         constructor(site: Site);
         /**
-         * @param {TransferUplcAst} other
-         * @returns {any}
-         */
-        transfer(other: TransferUplcAst): any;
-        /**
-         * Return a copy of the UplcValue at a different Site.
-         * @internal
-         * @param {Site} newSite
-         * @returns {UplcValue}
-         */
-        copy(newSite: Site): UplcValue;
-        /**
-         * @internal
          * @type {Site}
          */
         get site(): Site;
         /**
-         * @internal
          * @type {number}
          */
         get length(): number;
-        /**
-         * Size in words (8 bytes, 64 bits) occupied in target node
-         * @internal
-         * @type {number}
-         */
-        get memSize(): number;
         /**
          * @returns {boolean}
          */
@@ -3702,34 +3709,21 @@ declare module "helios" {
          */
         get data(): UplcData;
         /**
-         * @internal
-         * @returns {Promise<UplcValue>}
-         */
-        force(): Promise<UplcValue>;
-        /**
-         * @internal
          * @returns {UplcUnit}
          */
         assertUnit(): UplcUnit;
         /**
          * @returns {string}
          */
-        toString(): string;
-        /**
-         * @internal
-         * @returns {string}
-         */
         typeBits(): string;
         /**
          * Encodes value without type header
-         * @internal
          * @param {BitWriter} bitWriter
          */
         toFlatValueInternal(bitWriter: BitWriter): void;
         /**
          * Encodes value with plutus flat encoding.
          * Member function not named 'toFlat' as not to confuse with 'toFlat' member of terms.
-         * @internal
          * @param {BitWriter} bitWriter
          */
         toFlatValue(bitWriter: BitWriter): void;
@@ -3903,24 +3897,34 @@ declare module "helios" {
     /**
      * Allows doing a dummy eval of a UplcProgram in order to determine some non-changing properties (eg. the address fetched via the network in an EndpointProgram)
      * @internal
+     * @implements {UplcValue}
      */
-    export class UplcAny extends UplcValue {
-    }
-    /**
-     * @internal
-     */
-    export class UplcDelayedValue extends UplcValue {
+    export class UplcAny extends UplcValueImpl implements UplcValue {
         /**
-         * @param {Site} site
-         * @param {() => (UplcValue | Promise<UplcValue>)} evaluator
+         * Should never be part of the uplc ast
+         * @param {TransferUplcAst} other
+         * @returns {any}
          */
-        constructor(site: Site, evaluator: () => (UplcValue | Promise<UplcValue>));
-        #private;
+        transfer(other: TransferUplcAst): any;
+        /**
+         * @type {number}
+         */
+        get memSize(): number;
+        /**
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
+         * @param {Site} newSite
+         * @returns {UplcValue}
+         */
+        copy(newSite: Site): UplcValue;
     }
     /**
      * Primitive equivalent of `IntData`.
+     * @implements {UplcValue}
      */
-    export class UplcInt extends UplcValue {
+    export class UplcInt extends UplcValueImpl implements UplcValue {
         /**
          * Constructs a UplcInt without requiring a Site
          * @param {bigint | number} value
@@ -3970,6 +3974,20 @@ declare module "helios" {
          */
         readonly signed: boolean;
         /**
+         * @param {TransferUplcAst} other
+         * @returns {any}
+         */
+        transfer(other: TransferUplcAst): any;
+        /**
+         * @type {number}
+         */
+        get memSize(): number;
+        /**
+         * 4 for type, 7 for simple int, (7 + 1)*ceil(n/7) for large int
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
          * @param {Site} newSite
          * @returns {UplcInt}
          */
@@ -4013,7 +4031,7 @@ declare module "helios" {
     /**
      * Primitive equivalent of `ByteArrayData`.
      */
-    export class UplcByteArray extends UplcValue {
+    export class UplcByteArray extends UplcValueImpl {
         /**
          * Construct a UplcByteArray without requiring a Site
          * @internal
@@ -4045,7 +4063,20 @@ declare module "helios" {
          */
         constructor(site: Site, bytes: number[]);
         /**
-         * @internal
+         * @param {TransferUplcAst} other
+         * @returns {any}
+         */
+        transfer(other: TransferUplcAst): any;
+        /**
+         * @type {number}
+         */
+        get memSize(): number;
+        /**
+         * 4 for header, 8 bits per byte, 8 bits per chunk of 256 bytes, 8 bits final padding
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
          * @param {Site} newSite
          * @returns {UplcByteArray}
          */
@@ -4055,7 +4086,7 @@ declare module "helios" {
     /**
      * Primitive string value.
      */
-    export class UplcString extends UplcValue {
+    export class UplcString extends UplcValueImpl {
         /**
          * Constructs a UplcStrin without requiring a Site
          * @param {string} value
@@ -4075,6 +4106,19 @@ declare module "helios" {
          */
         constructor(site: Site, value: string);
         /**
+         * @param {TransferUplcAst} other
+         * @returns {any}
+         */
+        transfer(other: TransferUplcAst): any;
+        /**
+         * @type {number}
+         */
+        get memSize(): number;
+        /**
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
          * @param {Site} newSite
          * @returns {UplcString}
          */
@@ -4084,7 +4128,7 @@ declare module "helios" {
     /**
      * Primitive unit value.
      */
-    export class UplcUnit extends UplcValue {
+    export class UplcUnit extends UplcValueImpl {
         /**
          * Constructs a UplcUnit without requiring a Site
          * @returns {UplcUnit}
@@ -4096,11 +4140,29 @@ declare module "helios" {
          * @returns {UplcConst}
          */
         static newTerm(site: Site): UplcConst;
+        /**
+         * @param {TransferUplcAst} other
+         * @returns {any}
+         */
+        transfer(other: TransferUplcAst): any;
+        /**
+         * @type {number}
+         */
+        get memSize(): number;
+        /**
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
+         * @param {Site} newSite
+         * @returns {UplcUnit}
+         */
+        copy(newSite: Site): UplcUnit;
     }
     /**
      * JS/TS equivalent of the Helios language `Bool` type.
      */
-    export class UplcBool extends UplcValue {
+    export class UplcBool extends UplcValueImpl {
         /**
          * Constructs a UplcBool without requiring a Site
          * @param {boolean} value
@@ -4120,6 +4182,20 @@ declare module "helios" {
          */
         constructor(site: Site, value: boolean);
         /**
+         * @param {TransferUplcAst} other
+         * @returns {any}
+         */
+        transfer(other: TransferUplcAst): any;
+        /**
+         * @type {number}
+         */
+        get memSize(): number;
+        /**
+         * 4 for type, 1 for value
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
          * @param {Site} newSite
          * @returns {UplcBool}
          */
@@ -4128,8 +4204,9 @@ declare module "helios" {
     }
     /**
      * Primitive pair value.
+     * @implements {UplcValue}
      */
-    export class UplcPair extends UplcValue {
+    export class UplcPair extends UplcValueImpl implements UplcValue {
         /**
          * Constructs a UplcPair without requiring a Site
          * @param {UplcValue} first
@@ -4152,10 +4229,23 @@ declare module "helios" {
          */
         constructor(site: Site, first: UplcValue, second: UplcValue);
         /**
-         * @param {Site} newSite
-         * @returns {UplcPair}
+         * @param {TransferUplcAst} other
+         * @returns {any}
          */
-        copy(newSite: Site): UplcPair;
+        transfer(other: TransferUplcAst): any;
+        /**
+         * @type {number}
+         */
+        get memSize(): number;
+        /**
+         * 16 additional type bits on top of #first and #second bits
+         */
+        get flatSize(): number;
+        /**
+         * @param {Site} newSite
+         * @returns {UplcValue}
+         */
+        copy(newSite: Site): UplcValue;
         /**
          * @type {UplcData}
          */
@@ -4170,7 +4260,7 @@ declare module "helios" {
      * Plutus-core list value class.
      * Only used during evaluation.
     */
-    export class UplcList extends UplcValue {
+    export class UplcList extends UplcValueImpl {
         /**
          * Constructs a UplcList without requiring a Site
          * @param {UplcType} type
@@ -4183,6 +4273,20 @@ declare module "helios" {
          * @param {UplcValue[]} items
          */
         constructor(site: Site, itemType: UplcType, items: UplcValue[]);
+        /**
+         * @param {TransferUplcAst} other
+         * @returns {any}
+         */
+        transfer(other: TransferUplcAst): any;
+        /**
+         * @type {number}
+         */
+        get memSize(): number;
+        /**
+         * 10 + nItemType type bits, value bits of each item (must be corrected by itemType)
+         * @type {number}
+         */
+        get flatSize(): number;
         /**
          * @param {Site} newSite
          * @returns {UplcList}
@@ -4201,7 +4305,7 @@ declare module "helios" {
     /**
      *  Child type of `UplcValue` that wraps a `UplcData` instance.
      */
-    export class UplcDataValue extends UplcValue {
+    export class UplcDataValue extends UplcValueImpl {
         /**
          * @param {UplcDataValue | UplcData} data
          * @returns {UplcData}
@@ -4212,6 +4316,20 @@ declare module "helios" {
          * @param {UplcData} data
          */
         constructor(site: Site, data: UplcData);
+        /**
+         * @param {TransferUplcAst} other
+         * @returns {any}
+         */
+        transfer(other: TransferUplcAst): any;
+        /**
+         * @type {number}
+         */
+        get memSize(): number;
+        /**
+         * Same number of header bits as UplcByteArray
+         * @type {number}
+         */
+        get flatSize(): number;
         /**
          * @param {Site} newSite
          * @returns {UplcDataValue}
@@ -4373,6 +4491,7 @@ declare module "helios" {
          * @type {UplcValue}
          */
         readonly value: UplcValue;
+        get flatSize(): number;
         /**
          * @internal
          * @param {UplcRte} rte
@@ -4751,12 +4870,10 @@ declare module "helios" {
          * Wrap the top-level term with consecutive UplcCall (not exported) terms.
          *
          * Returns a new UplcProgram instance, leaving the original untouched.
-         *
-         * Throws an error if you are trying to apply with an anon func.
-         * @param {(UplcValue | HeliosData)[]} args
+         * @param {UplcValue[]} args
          * @returns {UplcProgram} - a new UplcProgram instance
          */
-        apply(args: (UplcValue | HeliosData)[]): UplcProgram;
+        apply(args: UplcValue[]): UplcProgram;
         /**
          * @param {null | UplcValue[]} args - if null the top-level term is returned as a value
          * @param {UplcRTECallbacks} callbacks
@@ -8418,6 +8535,35 @@ declare module "helios" {
         #private;
     }
     /**
+     * The optimizer maps expressions to expected values, calling notifyCopy assures that that mapping isn't lost for copies (copying is necessary when inlining)
+     * @internal
+     * @typedef {(oldExpr: IRExpr, newExpr: IRExpr) => void} NotifyCopy
+     */
+    /**
+     * Interface for:
+     *   * `IRErrorExpr`
+     *   * `IRCallExpr`
+     *   * `IRFuncExpr`
+     *   * `IRNameExpr`
+     *   * `IRLiteralExpr`
+     *
+     * The `copy()` method is needed because inlining can't use the same IRNameExpr twice,
+     *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
+     *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
+     *
+     * `flatSize` returns the number of bits occupied by the equivalent UplcTerm in the final serialized UPLC program
+     *   This is used to detect small IRFuncExprs and inline them
+     * @internal
+     * @typedef {{
+     *   site: Site,
+     *   flatSize: number
+     *   resolveNames(scope: IRScope): void,
+     *   toString(indent?: string): string,
+     *   copy(notifyCopy: NotifyCopy, varMap: Map<IRVariable, IRVariable>): IRExpr,
+     *   toUplc(): UplcTerm
+     * }} IRExpr
+     */
+    /**
      * Intermediate Representation variable reference expression
      * @internal
      * @implements {IRExpr}
@@ -8443,10 +8589,16 @@ declare module "helios" {
          */
         get variable(): IRVariable;
         /**
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
          * Used when inlining
+         * @param {(oldExpr: IRExpr, newExpr: IRExpr) => void} notifyCopy
+         * @param {Map<IRVariable, IRVariable>} varMap
          * @returns {IRNameExpr}
          */
-        copy(): IRNameExpr;
+        copy(notifyCopy: (oldExpr: IRExpr, newExpr: IRExpr) => void, varMap: Map<IRVariable, IRVariable>): IRNameExpr;
         /**
          * @internal
          * @returns {boolean}
@@ -8497,14 +8649,20 @@ declare module "helios" {
          */
         get value(): UplcValue;
         /**
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
          * @param {string} indent
          * @returns {string}
          */
         toString(indent?: string): string;
         /**
+         * @param {NotifyCopy} notifyCopy
+         * @param {Map<IRVariable, IRVariable>} varMap
          * @returns {IRExpr}
          */
-        copy(): IRExpr;
+        copy(notifyCopy: NotifyCopy, varMap: Map<IRVariable, IRVariable>): IRExpr;
         /**
          * Linking doesn't do anything for literals
          * @param {IRScope} scope
@@ -8553,6 +8711,10 @@ declare module "helios" {
          */
         readonly tag: number;
         /**
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
          * @returns {boolean}
          */
         hasOptArgs(): boolean;
@@ -8566,9 +8728,11 @@ declare module "helios" {
          */
         resolveNames(scope: IRScope): void;
         /**
+         * @param {NotifyCopy} notifyCopy
+         * @param {Map<IRVariable, IRVariable>} varMap
          * @returns {IRExpr}
          */
-        copy(): IRExpr;
+        copy(notifyCopy: NotifyCopy, varMap: Map<IRVariable, IRVariable>): IRExpr;
         /**
          * @returns {UplcTerm}
          */
@@ -8618,6 +8782,7 @@ declare module "helios" {
          * @type {string}
          */
         get builtinName(): string;
+        get flatSize(): number;
         /**
          * @param {string} indent
          * @returns {string}
@@ -8637,9 +8802,11 @@ declare module "helios" {
          */
         resolveNames(scope: IRScope): void;
         /**
+         * @param {NotifyCopy} notifyCopy
+         * @param {Map<IRVariable, IRVariable>} varMap
          * @returns {IRExpr}
          */
-        copy(): IRExpr;
+        copy(notifyCopy: NotifyCopy, varMap: Map<IRVariable, IRVariable>): IRExpr;
         /**
          * @param {UplcTerm} term
          * @returns {UplcTerm}
@@ -8667,6 +8834,10 @@ declare module "helios" {
          */
         readonly site: Site;
         /**
+         * @type {number}
+         */
+        get flatSize(): number;
+        /**
          * @param {string} indent
          * @returns {string}
          */
@@ -8676,9 +8847,10 @@ declare module "helios" {
          */
         resolveNames(scope: IRScope): void;
         /**
+         * @param {NotifyCopy} notifyCopy
          * @returns {IRExpr}
          */
-        copy(): IRExpr;
+        copy(notifyCopy: NotifyCopy): IRExpr;
         /**
          * @returns {UplcTerm}
          */
@@ -8719,21 +8891,12 @@ declare module "helios" {
          * @returns {IRValue}
          */
         withoutErrors(): IRValue;
-        dump(depth?: number): {
-            type: string;
-            value: string;
-            hash: number;
-        };
         /**
+         * @param {IRValueCodeMapper} codeMapper
          * @param {number} depth
-         * @returns {number[]}
+         * @returns {any}
          */
-        hash(depth?: number): number[];
-        /**
-         * TODO: code that takes Literal value into account (eg. `get codeWithLiterals()`)
-         * @type {number}
-         */
-        get code(): number;
+        dump(codeMapper: IRValueCodeMapper, depth?: number): any;
     }
     /**
      * @internal
@@ -8758,22 +8921,17 @@ declare module "helios" {
          */
         withoutErrors(): IRValue;
         /**
-         * @type {number}
-         */
-        get code(): number;
-        /**
-         *
-         * @param {number} depth
-         * @returns {number[]}
-         */
-        hash(depth?: number): number[];
-        /**
          * @returns {string}
          */
         toString(): string;
-        dump(depth?: number): {
+        /**
+         * @param {IRValueCodeMapper} codeMapper
+         * @param {number} depth
+         * @returns
+         */
+        dump(codeMapper: IRValueCodeMapper, depth?: number): {
+            code: number;
             type: string;
-            hash: number;
         };
     }
     /**
@@ -8790,6 +8948,10 @@ declare module "helios" {
          * @type {IRNameExpr}
          */
         readonly builtin: IRNameExpr;
+        /**
+         * @type {string}
+         */
+        get builtinName(): string;
         /**
          * @returns {string}
          */
@@ -8812,19 +8974,11 @@ declare module "helios" {
          */
         withoutErrors(): IRValue;
         /**
-         * @type {number}
-         */
-        get code(): number;
-        /**
+         * @param {IRValueCodeMapper} codeMapper
          * @param {number} depth
-         * @returns {number[]}
+         * @returns {any}
          */
-        hash(depth?: number): number[];
-        dump(depth?: number): {
-            type: string;
-            name: string;
-            hash: number;
-        };
+        dump(codeMapper: IRValueCodeMapper, depth?: number): any;
     }
     /**
      * @internal
@@ -8853,20 +9007,6 @@ declare module "helios" {
          */
         readonly definition: IRFuncExpr;
         /**
-         * @private
-         * @type {number}
-         */
-        private get internalCode();
-        /**
-         * @type {number}
-         */
-        get code(): number;
-        /**
-         * @param {number} depth
-         * @returns {number[]}
-         */
-        hash(depth?: number): number[];
-        /**
          * @returns {boolean}
          */
         isLiteral(): boolean;
@@ -8883,18 +9023,12 @@ declare module "helios" {
          * @returns {IRValue}
          */
         withoutErrors(): IRValue;
-        dump(depth?: number): {
-            type: string;
-            definition: string;
-            hash: number;
-            hashes: number[];
-            stack: {
-                values?: any[] | undefined;
-                hash: number;
-                hashes: number[];
-                isLiteral: boolean;
-            };
-        };
+        /**
+         * @param {IRValueCodeMapper} codeMapper
+         * @param {number} depth
+         * @returns {any}
+         */
+        dump(codeMapper: IRValueCodeMapper, depth?: number): any;
         /**
          * @returns {string}
          */
@@ -8926,19 +9060,12 @@ declare module "helios" {
          * @returns {string}
          */
         toString(): string;
-        dump(depth?: number): {
-            type: string;
-            hash: number;
-        };
         /**
-         * @type {number}
-         */
-        get code(): number;
-        /**
+         * @param {IRValueCodeMapper} codeMapper
          * @param {number} depth
-         * @returns {number[]}
+         * @returns {any}
          */
-        hash(depth?: number): number[];
+        dump(codeMapper: IRValueCodeMapper, depth?: number): any;
     }
     /**
      * Can be Data of any function
@@ -8969,19 +9096,12 @@ declare module "helios" {
          * @returns {string}
          */
         toString(): string;
-        dump(depth?: number): {
-            type: string;
-            hash: number;
-        };
         /**
+         * @param {IRValueCodeMapper} codeMapper
          * @param {number} depth
-         * @returns {number[]}
+         * @returns {any}
          */
-        hash(depth?: number): number[];
-        /**
-         * @type {number}
-         */
-        get code(): number;
+        dump(codeMapper: IRValueCodeMapper, depth?: number): any;
     }
     /**
      * @internal
@@ -9027,21 +9147,13 @@ declare module "helios" {
          * @returns {boolean}
          */
         hasLiteral(): boolean;
-        dump(depth?: number): {
-            type: string;
-            hash: number;
-            values: any[];
-        };
-        toString(): string;
         /**
-         * @type {number}
-         */
-        get code(): number;
-        /**
+         * @param {IRValueCodeMapper} codeMapper
          * @param {number} depth
-         * @returns {number[]}
+         * @returns {any}
          */
-        hash(depth?: number): number[];
+        dump(codeMapper: IRValueCodeMapper, depth?: number): any;
+        toString(): string;
         /**
          * @returns {IRValue}
          */
@@ -9116,6 +9228,12 @@ declare module "helios" {
          */
         onlyNestedCalls(first: IRFuncExpr, second: IRFuncExpr): boolean;
         /**
+         * The newExpr should evaluate to exactly the same values etc. as the oldExpr
+         * @param {IRExpr} oldExpr
+         * @param {IRExpr} newExpr
+         */
+        notifyCopyExpr(oldExpr: IRExpr, newExpr: IRExpr): void;
+        /**
          * Push onto the computeStack, unwrapping IRCallExprs
          * @private
          * @param {IRStack} stack
@@ -9123,15 +9241,17 @@ declare module "helios" {
          */
         private pushExpr;
         /**
+         * @private
          * @param {IRExpr} expr
          * @param {IRValue} value
          */
-        setExprValue(expr: IRExpr, value: IRValue): void;
+        private setExprValue;
         /**
+         * @private
          * @param {null | IRExpr} owner
          * @param {IRValue} value
          */
-        pushReductionValue(owner: null | IRExpr, value: IRValue): void;
+        private pushReductionValue;
         /**
          * @private
          * @param {IRStack} stack
@@ -9147,15 +9267,17 @@ declare module "helios" {
          */
         private callBuiltin;
         /**
+         * @private
          * @param {IRFuncExpr} fn
          */
-        incrCallCount(fn: IRFuncExpr): void;
+        private incrCallCount;
         /**
+         * @private
          * @param {IRVariable[]} variables
          * @param {IRValue[]} values
          * @returns {[IRVariable, IRValue][]}
          */
-        mapVarsToValues(variables: IRVariable[], values: IRValue[]): [IRVariable, IRValue][];
+        private mapVarsToValues;
         /**
          * @private
          * @param {IRStack} stack
@@ -9193,15 +9315,17 @@ declare module "helios" {
          */
         private evalInternal;
         /**
+         * @private
          * @param {IRExpr} expr entry point
          * @returns {IRValue}
          */
-        evalFirstPass(expr: IRExpr): IRValue;
+        private evalFirstPass;
         /**
+         * @private
          * @param {IRFuncValue} main
          * @returns {IRValue}
          */
-        evalSecondPass(main: IRFuncValue): IRValue;
+        private evalSecondPass;
         /**
          * @param {IRExpr} expr entry point
          * @returns {IRValue}
@@ -9236,7 +9360,8 @@ declare module "helios" {
      *   * replace `__core__ifThenElse(false, <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
      *   * replace `__core__ifThenElse(__core__nullList(<lst-expr>), <expr-a>, <expr-b>)` by `__core__chooseList(<lst-expr>, <expr-a>, <expr-b>)`
      *   * replace `__core__ifThenElse(<cond-expr>, <expr-a>, <expr_a>)` by `<expr-a>` if `<cond-expr>` doesn't expect IRErrorValue
-     *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>`
+     *   * replace `__core__chooseUnit(<expr>, ())` by `<expr>` (because `<expr>` is expected to return unit as well)
+     *   * replace `__core__chooseUnit((), <expr>)` by `<expr>`
      *   * replace `__core__trace(<msg-expr>, <ret-expr>)` by `<ret_expr>` if `<msg-expr>` doesn't expect IRErrorValue
      *   * replace `__core__chooseList([], <expr-a>, <expr-b>)` by `<expr-a>` if `<expr-b>` doesn't expect IRErrorValue
      *   * replace `__core__chooseList([...], <expr-a>, <expr-b>)` by `<expr-b>` if `<expr-a>` doesn't expect IRErrorValue
@@ -9261,9 +9386,11 @@ declare module "helios" {
      *   * flatten nested IRFuncExprs if the correspondng IRCallExprs always call them in succession
      *   * replace `(<vars>) -> {<name-expr>(<vars>)}` by `<name-expr>` if each var is only referenced once (i.e. only referenced in the call)
      *   * replace `(<var>) -> {<var>}(<arg-expr>)` by `<arg-expr>`
+     *   * replace `<name-expr>(<arg-expr>)` by `<arg-expr>` if the expected value of `<name-expr>` is the identity function
      *   * replace `(<vars>) -> {<func-expr>(<vars>)}` by `<func-expr>` if each var is only referenced once (i.e. only referenced in the call)
      *   * inline (copies) of `<name-expr>` in `(<vars>) -> {...}(<name-expr>, ...)`
      *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if the corresponding var is only referenced once
+     *   * inline `<fn-expr>` in `(<vars>) -> {...}(<fn-expr>, ...)` if `<fn-expr>` has a Uplc flat size smaller than INLINE_MAX_SIZE
      *   * inline `<call-expr>` in `(<vars>) -> {...}(<call-expr>, ...)` if the corresponding var is only referenced once and if all the nested IRFuncExprs are only evaluated once and if the IRCallExpr doesn't expect an error
      *   * replace `() -> {<expr>}()` by `<expr>`
      *
@@ -9771,14 +9898,12 @@ declare module "helios" {
          */
         get requiredParameters(): [string, Type][];
         /**
+         * Returns the Intermediate Representation AST of the program.
+         * @param {boolean} optimized if `true`, returns the IR of the optimized program
+         * @param {boolean} annotate add internal type information annotations to the returned AST
          * @returns {string}
          */
-        prettyIR(simplify?: boolean): string;
-        /**
-         * @param {boolean} simplify
-         * @returns {string}
-         */
-        annotateIR(simplify?: boolean): string;
+        dumpIR(optimized?: boolean, annotate?: boolean): string;
         /**
          * @param {boolean} simplify
          * @returns {UplcProgram}
@@ -11622,14 +11747,14 @@ declare module "helios" {
      * An interface type for a wallet that manages a user's UTxOs and addresses.
      * @interface
      * @typedef {object} Wallet
-    *  @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
-    *  @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
-    *  @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
-    *  @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
-    *  @property {Promise<TxInput[]>} collateral
-    *  @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
-    *  @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
-    */
+     * @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
+     * @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
+     * @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
+     * @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
+     * @property {Promise<TxInput[]>} collateral
+     * @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
+     * @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
+     */
     /**
      * Convenience type for browser plugin wallets supporting the CIP 30 dApp connector standard (eg. Eternl, Nami, ...).
      *
@@ -13382,6 +13507,50 @@ declare module "helios" {
      * A Helios/Uplc Program can have different purposes
      */
     export type ScriptPurpose = "testing" | "minting" | "spending" | "staking" | "endpoint" | "module" | "unknown";
+    /**
+     * UplcValue is passed around by Plutus-core expressions.
+     */
+    export type UplcValue = {
+        transfer: (other: TransferUplcAst) => any;
+        int: bigint;
+        bytes: number[];
+        string: string;
+        bool: boolean;
+        isPair: () => boolean;
+        first: UplcValue;
+        second: UplcValue;
+        isList: () => boolean;
+        itemType: UplcType;
+        list: UplcValue[];
+        /**
+         * only relevant for lists and maps
+         */
+        length: number;
+        isData: () => boolean;
+        data: UplcData;
+        toString: () => string;
+        /**
+         * return a copy of the UplcValue at a different Site
+         */
+        copy: (newSite: Site) => UplcValue;
+        site: Site;
+        /**
+         * size in words (8 bytes, 64 bits) occupied in target node
+         */
+        memSize: number;
+        /**
+         * size taken up in serialized UPLC program (number of bits)
+         */
+        flatSize: number;
+        isAny: () => boolean;
+        toFlatValue: (bitWriter: BitWriter) => void;
+        /**
+         * like toFlatValue(), but without the typebits
+         */
+        toFlatValueInternal: (bitWriter: BitWriter) => void;
+        typeBits: () => string;
+        assertUnit: () => UplcUnit;
+    };
     export type UplcRawStack = [null | string, UplcValue][];
     export type UplcRTECallbacks = {
         onPrint: (msg: string) => Promise<void>;
@@ -13461,33 +13630,39 @@ declare module "helios" {
         [name: string]: ScriptHashType;
     };
     /**
+     * The optimizer maps expressions to expected values, calling notifyCopy assures that that mapping isn't lost for copies (copying is necessary when inlining)
+     */
+    export type NotifyCopy = (oldExpr: IRExpr, newExpr: IRExpr) => void;
+    /**
      * Interface for:
-     *   * IRErrorExpr
-     *   * IRCallExpr
-     *   * IRFuncExpr
-     *   * IRNameExpr
-     *   * IRLiteralExpr
+     *   * `IRErrorExpr`
+     *   * `IRCallExpr`
+     *   * `IRFuncExpr`
+     *   * `IRNameExpr`
+     *   * `IRLiteralExpr`
      *
-     * The copy() method is needed because inlining can't use the same IRNameExpr twice,
+     * The `copy()` method is needed because inlining can't use the same IRNameExpr twice,
      *   so any inlineable expression is copied upon inlining to assure each nested IRNameExpr is unique.
      *   This is important to do even the the inlined expression is only called once, because it might still be inlined into multiple other locations that are eliminated in the next iteration.
+     *
+     * `flatSize` returns the number of bits occupied by the equivalent UplcTerm in the final serialized UPLC program
+     *   This is used to detect small IRFuncExprs and inline them
      */
     export type IRExpr = {
         site: Site;
+        flatSize: number;
         resolveNames(scope: IRScope): void;
         toString(indent?: string): string;
-        copy(): IRExpr;
+        copy(notifyCopy: NotifyCopy, varMap: Map<IRVariable, IRVariable>): IRExpr;
         toUplc(): UplcTerm;
     };
     export type IRValue = {
-        code: number;
-        hash(depth?: number): number[];
         toString(): string;
         isLiteral(): boolean;
         hasError(maybe: boolean): boolean;
         withoutLiterals(): IRValue;
         withoutErrors(): IRValue;
-        dump(depth?: number): any;
+        dump(codeMapper: IRValueCodeMapper, depth?: number): any;
     };
     export type UserTypes = {
         [name: string]: any;
@@ -13797,7 +13972,6 @@ declare module "helios" {
          */
         reduceForceFrame(rte: UplcRte, stack: UplcFrame[], frame: ForceFrame): Promise<CekState>;
         /**
-         *
          * @param {UplcRte} rte
          * @param {UplcFrame[]} stack
          * @param {ReducingState} state
@@ -13851,9 +14025,68 @@ declare module "helios" {
         #private;
     }
     /**
+     * Codes are used to combine multiple IRValues (including nested IRStacks that are part of IRFuncValues) into a single number.
+     *
+     * We can't have however use the full depth of IRStack values because there could be callback-recursion.
+     * @internal
+     */
+    class IRValueCodeMapper {
+        static get maxDepth(): number;
+        /**
+         * @private
+         * @param {string} key
+         * @returns {number}
+         */
+        private genCode;
+        /**
+         * @private
+         * @param {IRValue | IRStack} v
+         * @returns {number[]}
+         */
+        private genCodes;
+        /**
+         * @param {IRValue | IRStack} v
+         * @returns {number[]}
+         */
+        getCodes(v: IRValue | IRStack): number[];
+        /**
+         * @param {IRValue} v
+         * @returns {number}
+         */
+        getCode(v: IRValue): number;
+        /**
+         * @param {IRValue} fn
+         * @param {IRValue[]} args
+         */
+        getCallCode(fn: IRValue, args: IRValue[]): number;
+        /**
+         * @param {IRValue} a
+         * @param {IRValue} b
+         * @returns {boolean}
+         */
+        eq(a: IRValue, b: IRValue): boolean;
+        #private;
+    }
+    /**
+     * @internal
+     * @typedef {{
+     *   toString(): string
+     *   isLiteral(): boolean
+     *   hasError(maybe: boolean): boolean
+     *   withoutLiterals(): IRValue
+     *   withoutErrors(): IRValue
+     *   dump(codeMapper: IRValueCodeMapper, depth?: number): any
+     * }} IRValue
+     */
+    /**
      * @internal
      */
     class IRStack {
+        /**
+         * @param {IRVariable} variable
+         * @returns {boolean}
+         */
+        static isGlobal(variable: IRVariable): boolean;
         /**
          * @returns {IRStack}
          */
@@ -13863,21 +14096,17 @@ declare module "helios" {
          * @param {boolean} isLiteral
          */
         constructor(values: [IRVariable, IRValue][], isLiteral: boolean);
-        dump(depth?: number): {
-            values?: any[] | undefined;
-            hash: number;
-            hashes: number[];
-            isLiteral: boolean;
-        };
         /**
-         * @type {number}
+         * @readonly
+         * @type {[IRVariable, IRValue][]}
          */
-        get code(): number;
+        readonly values: [IRVariable, IRValue][];
         /**
+         * @param {IRValueCodeMapper} codeMapper
          * @param {number} depth
-         * @returns {number[]}
+         * @returns {any}
          */
-        hash(depth?: number): number[];
+        dump(codeMapper: IRValueCodeMapper, depth?: number): any;
         /**
          * @returns {boolean}
          */

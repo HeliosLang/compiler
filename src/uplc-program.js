@@ -75,6 +75,10 @@ import {
  * @typedef {import("./uplc-ast.js").UplcRTECallbacks} UplcRTECallbacks
  */
 
+/**
+ * @typedef {import("./uplc-ast.js").UplcValue} UplcValue
+ */
+
 import {
     DEFAULT_UPLC_RTE_CALLBACKS,
     UplcBool,
@@ -84,7 +88,6 @@ import {
     UplcConst,
     UplcDataValue,
     UplcDelay,
-    UplcDelayedValue,
     UplcError,
     UplcForce,
     UplcInt,
@@ -96,7 +99,6 @@ import {
     UplcTerm,
 	UplcType,
     UplcUnit,
-    UplcValue,
     UplcVariable,
 	evalCek
 } from "./uplc-ast.js";
@@ -320,20 +322,14 @@ const UPLC_TAG_WIDTHS = {
 	 * Wrap the top-level term with consecutive UplcCall (not exported) terms.
 	 * 
 	 * Returns a new UplcProgram instance, leaving the original untouched.
-	 * 
-	 * Throws an error if you are trying to apply with an anon func.
-	 * @param {(UplcValue | HeliosData)[]} args
+	 * @param {UplcValue[]} args
 	 * @returns {UplcProgram} - a new UplcProgram instance
 	 */
 	apply(args) {
 		let expr = this.expr;
 
 		for (let arg of args) {
-			if (arg instanceof UplcValue) {
-				expr = new UplcCall(arg.site, expr, new UplcConst(arg));
-			} else if (arg instanceof HeliosData) {
-				expr = new UplcCall(Site.dummy(), expr, new UplcConst(new UplcDataValue(Site.dummy(), arg._toUplcData())));
-			}
+			expr = new UplcCall(arg.site, expr, new UplcConst(arg));
 		}
 
 		return new UplcProgram(expr, this.#properties, this.#version);

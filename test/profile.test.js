@@ -28,7 +28,7 @@ async function profile(src, argNames, expected = null) {
 
     console.log("ARGS: ", args.map(a => a.toString()));
 	
-	console.log("IR: ", program.annotateIR(true));
+	console.log("IR: ", program.dumpIR(true, true));
 	
 	// also test the transfer() function
 	let profileResult = await program.compile(true).transfer(UplcProgram).profile(args, networkParams);

@@ -31,10 +31,13 @@ import {
 	NetworkParams,
 } from "./uplc-costmodels.js";
 
+/**
+ * @typedef {import("./uplc-ast.js").UplcValue} UplcValue
+ */
+
 import {
 	DEFAULT_UPLC_RTE_CALLBACKS,
-    UplcDataValue,
-    UplcValue
+    UplcDataValue
 } from "./uplc-ast.js";
 
 import {
@@ -484,7 +487,7 @@ export class FuzzyTest {
 				
 					let obj = propTest(args, result, simplify);
 
-					if (result instanceof UplcValue) {
+					if (!(result instanceof RuntimeError)) {
 						totalCost.mem += cost.mem;
 						totalCost.cpu += cost.cpu;
 						nonErrorRuns += 1;
@@ -492,21 +495,21 @@ export class FuzzyTest {
 
 					if (typeof obj == "boolean") {
 						if (!obj) {
-							console.log(program.annotateIR(simplify));
+							console.log(program.dumpIR(simplify, true));
 							throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 						}
 					} else {
 						// check for failures
 						for (let key in obj) {
 							if (!obj[key]) {
-								console.log(program.annotateIR(simplify));
+								console.log(program.dumpIR(simplify, true));
 								throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 							}
 						}
 					}
 				} catch (e) {
-					console.log("UNSIMPLIFIED:", program.annotateIR(false));
-					console.log("SIMPLIFIED:", program.annotateIR(true));
+					console.log("UNSIMPLIFIED:", program.dumpIR(false, true));
+					console.log("SIMPLIFIED:", program.dumpIR(true, true));
 					
 					throw e;
 				}
@@ -563,7 +566,7 @@ export class FuzzyTest {
 
 				if (typeof obj == "boolean") {
 					if (!obj) {
-						console.log(program.annotateIR(simplify));
+						console.log(program.dumpIR(simplify, true));
 
 						throw new Error(`property test '${testName}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 					}
@@ -571,7 +574,7 @@ export class FuzzyTest {
 					// check for failures
 					for (let key in obj) {
 						if (!obj[key]) {
-							console.log(program.annotateIR(simplify));
+							console.log(program.dumpIR(simplify, true));
 
 							throw new Error(`property test '${testName}:${key}' failed (info: (${args.map(a => a.toString()).join(', ')}) => ${result.toString()})`);
 						}

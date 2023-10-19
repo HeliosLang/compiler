@@ -31,9 +31,16 @@ import {
 export const BUILTIN_PREFIX = "__core__";
 
 /**
+ * Calls to builtins that are known not to throw errors (eg. tailList inside last branch of chooseList)
  * @internal
  */
-export const SAFE_BUILTIN_SUFFIX = "__safe"; // calls to builtins that are known not to throw errors (eg. tailList inside last branch of chooseList)
+export const SAFE_BUILTIN_SUFFIX = "__safe"; 
+
+/**
+ * Special off-chain builtins like network.get()
+ * @internal
+ */
+export const MACRO_BUILTIN_PREFIX = "__core__macro";
 
 /**
  * Cost-model configuration of UplcBuiltin.

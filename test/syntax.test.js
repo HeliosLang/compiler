@@ -10,7 +10,6 @@ import {
   UplcBool,
   UplcDataValue,
   UplcProgram,
-  UplcValue,
   UserError,
   assert,
   assertClass,
@@ -81,8 +80,8 @@ async function testTrue(src, simplify = false) {
         await testTrue(src, true);
     }
   } catch (e) {
-    console.log(program.prettyIR(simplify));
-    console.log(program.annotateIR(simplify));
+    console.log(program.dumpIR(simplify, false));
+    console.log(program.dumpIR(simplify, true));
 
     throw e;
   }
@@ -136,7 +135,7 @@ async function test0() {
 
     const program = Program.new(src);
 
-    console.log(program.prettyIR(true));
+    console.log(program.dumpIR(true));
 }
 
 async function test1() {
@@ -212,7 +211,7 @@ async function test2() {
 
     let program = Program.new(src);
 
-    console.log(program.prettyIR(false));
+    console.log(program.dumpIR(false));
     
     program.parameters = {
       DISBURSEMENTS: [
@@ -270,7 +269,7 @@ async function test4() {
 
   let program = Program.new(src);
 
-  console.log(program.prettyIR());
+  console.log(program.dumpIR());
 
   // also test the transfer function
   let uplcProgram = program.compile().transfer(UplcProgram);
@@ -386,11 +385,15 @@ async function test8() {
 
   const data = program.evalParam("DATA");
 
-  console.log(program.prettyIR(true));
+  console.log(program.dumpIR(true));
 
   let res = await program.compile(true).run([data]);
 
-  console.log(bytesToText(assertDefined(assertClass(res, UplcValue).data.bytes)));
+  if (res instanceof RuntimeError) {
+    throw new Error("unexpected");
+  } else {
+    console.log(bytesToText(assertDefined(res.data.bytes)));
+  }
 }
 
 async function test9() {
@@ -433,8 +436,8 @@ async function test11() {
 
   const program = Program.new(src);
 
-  console.log(program.prettyIR(false));
-  console.log(program.prettyIR(true));
+  console.log(program.dumpIR(false));
+  console.log(program.dumpIR(true));
 
   const uplcProgram = program.compile();
 
@@ -473,11 +476,15 @@ async function test12() {
 
   const data = program.evalParam("DATA");
 
-  console.log(program.prettyIR(true));
+  console.log(program.dumpIR(true));
 
   let res = await program.compile(true).run([data]);
 
-  console.log(bytesToText(assertDefined(assertClass(res, UplcValue).data).bytes));
+  if (res instanceof RuntimeError) {
+    throw new Error("unexpected"); 
+  } else {
+    console.log(bytesToText(assertDefined(res.data).bytes));
+  }
 }
 
 async function test13() {
@@ -502,7 +509,7 @@ async function test13() {
 
   let program = Program.new(src);
 
-  console.log(program.prettyIR(false));
+  console.log(program.dumpIR(false));
 
   let [res, messages] = await program.compile(false).runWithPrint([]);
 
@@ -616,8 +623,8 @@ async function test18() {
 
       console.log(result.toString(), messages);
     } catch (e) {
-      console.log(program.prettyIR(simplify));
-      console.log(program.annotateIR(simplify));
+      console.log(program.dumpIR(simplify, false));
+      console.log(program.dumpIR(simplify, true));
 
       throw e;
     }
@@ -705,7 +712,7 @@ async function test22() {
   }
   `
 
-  console.log(Program.new(src).prettyIR(false))
+  console.log(Program.new(src).dumpIR(false))
 }
 
 async function test23() {

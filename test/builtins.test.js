@@ -8,16 +8,11 @@ import {
     ConstrData,
     FuzzyTest,
     IntData,
-    ListData,
     MapData,
     RuntimeError,
-    UplcBool,
     UplcData,
     UplcDataValue,
-    UserError,
-    UplcValue,
     config,
-    assertClass,
     bytesToBigInt,
     bytesToHex,
     bytesToText,
@@ -2809,10 +2804,12 @@ async function testBuiltins() {
     func main(a: Option[Int]) -> Option[Int] {
         a.map((x: Int) -> {x*2})
     }`, ([a], res) => {
-        if (a.data.index == 1) {
-            return assertClass(res, UplcValue).data.index == 1;
+        if (res instanceof RuntimeError) {
+            return false
+        } else if (a.data.index == 1) {
+            return res.data.index == 1;
         } else {
-            return asInt(assertClass(res, UplcValue).data.fields[0]) == 2n*asInt(a.data.fields[0])
+            return asInt(res.data.fields[0]) == 2n*asInt(a.data.fields[0])
         }
     });
 
@@ -2821,10 +2818,12 @@ async function testBuiltins() {
     func main(a: Option[Int]) -> Option[Bool] {
         a.map((x: Int) -> {x > 0})
     }`, ([a], res) => {
-        if (a.data.index == 1) {
-            return assertClass(res, UplcValue).data.index == 1;
+        if (res instanceof RuntimeError) {
+            return false;
+        } else if (a.data.index == 1) {
+            return res.data.index == 1;
         } else {
-            return asBool(assertClass(res, UplcValue).data.fields[0]) == (asInt(a.data.fields[0]) > 0n)
+            return asBool(res.data.fields[0]) == (asInt(a.data.fields[0]) > 0n)
         }
     });
 
@@ -3178,10 +3177,10 @@ async function testBuiltins() {
             v: Value = Value::new(AssetClass::new(MintingPolicyHash::new(#1234), #1234), a) + Value::lovelace(a*2);
             v.get_assets()
         }`, ([a], res) => {
-            if (res instanceof UplcValue) {
-                return res.data.map.length == 1 && res.data.map[0][1].map[0][1].int == asInt(a);
-            } else {
+            if (res instanceof RuntimeError) {
                 return false;
+            } else {
+                return res.data.map.length == 1 && res.data.map[0][1].map[0][1].int == asInt(a);
             }
         });
 
