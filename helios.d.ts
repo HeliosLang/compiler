@@ -2096,8 +2096,9 @@ export class UplcInt extends UplcValueImpl implements UplcValue {
 }
 /**
  * Primitive equivalent of `ByteArrayData`.
+ * @implements {UplcValue}
  */
-export class UplcByteArray extends UplcValueImpl {
+export class UplcByteArray extends UplcValueImpl implements UplcValue {
     /**
      * @param {Site} site
      * @param {number[]} bytes
@@ -2126,8 +2127,9 @@ export class UplcByteArray extends UplcValueImpl {
 }
 /**
  * Primitive string value.
+ * @implements {UplcValue}
  */
-export class UplcString extends UplcValueImpl {
+export class UplcString extends UplcValueImpl implements UplcValue {
     /**
      * Constructs a UplcStrin without requiring a Site
      * @param {string} value
@@ -2168,8 +2170,9 @@ export class UplcString extends UplcValueImpl {
 }
 /**
  * Primitive unit value.
+ * @implements {UplcValue}
  */
-export class UplcUnit extends UplcValueImpl {
+export class UplcUnit extends UplcValueImpl implements UplcValue {
     /**
      * Constructs a UplcUnit without requiring a Site
      * @returns {UplcUnit}
@@ -2202,8 +2205,9 @@ export class UplcUnit extends UplcValueImpl {
 }
 /**
  * JS/TS equivalent of the Helios language `Bool` type.
+ * @implements {UplcValue}
  */
-export class UplcBool extends UplcValueImpl {
+export class UplcBool extends UplcValueImpl implements UplcValue {
     /**
      * Constructs a UplcBool without requiring a Site
      * @param {boolean} value
@@ -2300,8 +2304,9 @@ export class UplcPair extends UplcValueImpl implements UplcValue {
 /**
  * Plutus-core list value class.
  * Only used during evaluation.
+ * @implements {UplcList}
 */
-export class UplcList extends UplcValueImpl {
+export class UplcList extends UplcValueImpl implements UplcList {
     /**
      * Constructs a UplcList without requiring a Site
      * @param {UplcType} type
@@ -2344,9 +2349,10 @@ export class UplcList extends UplcValueImpl {
     #private;
 }
 /**
- *  Child type of `UplcValue` that wraps a `UplcData` instance.
+ * `UplcValue` that wraps a `UplcData` instance.
+ * @implements {UplcValue}
  */
-export class UplcDataValue extends UplcValueImpl {
+export class UplcDataValue extends UplcValueImpl implements UplcValue {
     /**
      * @param {UplcDataValue | UplcData} data
      * @returns {UplcData}

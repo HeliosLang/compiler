@@ -4030,8 +4030,9 @@ declare module "helios" {
     }
     /**
      * Primitive equivalent of `ByteArrayData`.
+     * @implements {UplcValue}
      */
-    export class UplcByteArray extends UplcValueImpl {
+    export class UplcByteArray extends UplcValueImpl implements UplcValue {
         /**
          * Construct a UplcByteArray without requiring a Site
          * @internal
@@ -4085,8 +4086,9 @@ declare module "helios" {
     }
     /**
      * Primitive string value.
+     * @implements {UplcValue}
      */
-    export class UplcString extends UplcValueImpl {
+    export class UplcString extends UplcValueImpl implements UplcValue {
         /**
          * Constructs a UplcStrin without requiring a Site
          * @param {string} value
@@ -4127,8 +4129,9 @@ declare module "helios" {
     }
     /**
      * Primitive unit value.
+     * @implements {UplcValue}
      */
-    export class UplcUnit extends UplcValueImpl {
+    export class UplcUnit extends UplcValueImpl implements UplcValue {
         /**
          * Constructs a UplcUnit without requiring a Site
          * @returns {UplcUnit}
@@ -4161,8 +4164,9 @@ declare module "helios" {
     }
     /**
      * JS/TS equivalent of the Helios language `Bool` type.
+     * @implements {UplcValue}
      */
-    export class UplcBool extends UplcValueImpl {
+    export class UplcBool extends UplcValueImpl implements UplcValue {
         /**
          * Constructs a UplcBool without requiring a Site
          * @param {boolean} value
@@ -4259,8 +4263,9 @@ declare module "helios" {
     /**
      * Plutus-core list value class.
      * Only used during evaluation.
+     * @implements {UplcList}
     */
-    export class UplcList extends UplcValueImpl {
+    export class UplcList extends UplcValueImpl implements UplcList {
         /**
          * Constructs a UplcList without requiring a Site
          * @param {UplcType} type
@@ -4303,9 +4308,10 @@ declare module "helios" {
         #private;
     }
     /**
-     *  Child type of `UplcValue` that wraps a `UplcData` instance.
+     * `UplcValue` that wraps a `UplcData` instance.
+     * @implements {UplcValue}
      */
-    export class UplcDataValue extends UplcValueImpl {
+    export class UplcDataValue extends UplcValueImpl implements UplcValue {
         /**
          * @param {UplcDataValue | UplcData} data
          * @returns {UplcData}
@@ -6399,12 +6405,6 @@ declare module "helios" {
      * @type {Parametric}
      */
     export const MapType: Parametric;
-    /**
-     * Builtin option type
-     * @internal
-     * @type {Parametric}
-     */
-    export const OptionType: Parametric;
     /**
      * Builtin Duration type
      * @internal

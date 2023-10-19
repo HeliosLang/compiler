@@ -385,7 +385,7 @@ export function MapType$(keyType, valueType) {
  * @internal
  * @type {Parametric}
  */
-export const OptionType = new ParametricType({
+const OptionType = new ParametricType({
 	name: "Option",
 	offChainType: Option,
 	parameters: [new Parameter("SomeType", `${TTPP}0`, new DefaultTypeClass())],

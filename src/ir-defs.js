@@ -7199,11 +7199,11 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											}
 										)()
 									)
-								}(__helios__bytearray__from_data(__core__fstPair(pair)), __helios__int__from_data(__core__sndPair(pair)))
+								}(__core__unBData__safe(__core__fstPair(pair)), __core__unIData__safe(__core__sndPair(pair)))
 							},
 							prev
 						)
-					}(__helios__mintingpolicyhash__from_data(__core__fstPair(pair)), __core__unMapData(__core__sndPair(pair)))
+					}(__core__unBData__safe(__core__fstPair(pair)), __core__unMapData__safe(__core__sndPair(pair)))
 				},
 				""
 			)

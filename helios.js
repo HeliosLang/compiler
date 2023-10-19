@@ -12040,6 +12040,7 @@ export class UplcInt extends UplcValueImpl {
 
 /**
  * Primitive equivalent of `ByteArrayData`.
+ * @implements {UplcValue}
  */
 export class UplcByteArray extends UplcValueImpl {
 	#bytes;
@@ -12186,6 +12187,7 @@ export class UplcByteArray extends UplcValueImpl {
 
 /**
  * Primitive string value.
+ * @implements {UplcValue}
  */
 export class UplcString extends UplcValueImpl {
 	#value;
@@ -12285,6 +12287,7 @@ export class UplcString extends UplcValueImpl {
 
 /**
  * Primitive unit value.
+ * @implements {UplcValue}
  */
 export class UplcUnit extends UplcValueImpl {
 	/**
@@ -12370,6 +12373,7 @@ export class UplcUnit extends UplcValueImpl {
 
 /**
  * JS/TS equivalent of the Helios language `Bool` type.
+ * @implements {UplcValue}
  */
 export class UplcBool extends UplcValueImpl {
 	#value;
@@ -12612,6 +12616,7 @@ export class UplcPair extends UplcValueImpl {
 /** 
  * Plutus-core list value class.
  * Only used during evaluation.
+ * @implements {UplcList}
 */
 export class UplcList extends UplcValueImpl {
 	#itemType;
@@ -12752,7 +12757,8 @@ export class UplcList extends UplcValueImpl {
 }
 
 /**
- *  Child type of `UplcValue` that wraps a `UplcData` instance.
+ * `UplcValue` that wraps a `UplcData` instance.
+ * @implements {UplcValue}
  */
 export class UplcDataValue extends UplcValueImpl {
 	#data;
@@ -20390,7 +20396,7 @@ export function MapType$(keyType, valueType) {
  * @internal
  * @type {Parametric}
  */
-export const OptionType = new ParametricType({
+const OptionType = new ParametricType({
 	name: "Option",
 	offChainType: Option,
 	parameters: [new Parameter("SomeType", `${TTPP}0`, new DefaultTypeClass())],
@@ -29654,11 +29660,11 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 											}
 										)()
 									)
-								}(__helios__bytearray__from_data(__core__fstPair(pair)), __helios__int__from_data(__core__sndPair(pair)))
+								}(__core__unBData__safe(__core__fstPair(pair)), __core__unIData__safe(__core__sndPair(pair)))
 							},
 							prev
 						)
-					}(__helios__mintingpolicyhash__from_data(__core__fstPair(pair)), __core__unMapData(__core__sndPair(pair)))
+					}(__core__unBData__safe(__core__fstPair(pair)), __core__unMapData__safe(__core__sndPair(pair)))
 				},
 				""
 			)
@@ -43738,7 +43744,6 @@ export class IROptimizer {
         const builtinName = expr.builtinName;
 
         const args = expr.args;
-
 
         switch (builtinName) {
             case "addInteger": {

@@ -3,7 +3,6 @@
 
 import {
     assert,
-    assertClass,
     assertDefined
 } from "./utils.js";
 
@@ -23,10 +22,6 @@ import {
 /**
  * @typedef {import("./uplc-costmodels.js")}
  */
-import { 
-	NetworkParams
-} from "./uplc-costmodels.js";
-
 
 /**
  * @template {HeliosData} T
