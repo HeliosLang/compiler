@@ -121,26 +121,26 @@ export class IRProgram {
 		
 		try {
 			expr.resolveNames(scope);
+		
+			if (simplify) {
+				// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
+				expr = IRProgram.simplify(expr);
+			}
+
+			// make sure the debruijn indices are correct (doesn't matter for simplication because names are converted into unique IRVariables, but is very important before converting to UPLC)
+			expr.resolveNames(scope);
+
+			const program = new IRProgram(IRProgram.assertValidRoot(expr), {
+				purpose: purpose,
+				callsTxTimeRange: callsTxTimeRange
+			});
+
+			return program;
 		} catch (e) {
 			console.log((new Source(irSrc, "")).pretty());
 
 			throw e;
 		}
-
-		if (simplify) {
-			// inline literals and evaluate core expressions with only literal args (some can be evaluated with only partial literal args)
-			expr = IRProgram.simplify(expr);
-		}
-
-		// make sure the debruijn indices are correct (doesn't matter for simplication because names are converted into unique IRVariables, but is very important before converting to UPLC)
-		expr.resolveNames(scope);
-
-		const program = new IRProgram(IRProgram.assertValidRoot(expr), {
-			purpose: purpose,
-			callsTxTimeRange: callsTxTimeRange
-		});
-
-		return program;
 	}
 
 	/**

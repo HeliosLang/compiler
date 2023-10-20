@@ -9244,6 +9244,7 @@ declare module "helios" {
          * @private
          * @param {IRExpr} expr
          * @param {IRValue} value
+         * @returns {IRValue} combined value
          */
         private setExprValue;
         /**
@@ -9310,6 +9311,12 @@ declare module "helios" {
          * @param {IRValue} value
          */
         private cacheValue;
+        /**
+         * @private
+         * @param {IRCallExpr} expr
+         * @param {number} code
+         */
+        private prepareCacheValue;
         /**
          * @private
          */

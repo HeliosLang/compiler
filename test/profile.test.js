@@ -20,15 +20,16 @@ config.set({CHECK_CASTS: true});
  * @param {string} src 
  * @param {string[]} argNames 
  * @param {null | any} expected 
+ * @param {boolean} simplify
  */
-async function profile(src, argNames, expected = null) {
+async function profile(src, argNames, expected = null, simplify = true) {
     let program = Program.new(src);
 
     let args = argNames.map(name => program.evalParam(name));
 
     console.log("ARGS: ", args.map(a => a.toString()));
 	
-	console.log("IR: ", program.dumpIR(true, true));
+	console.log("IR: ", program.dumpIR(simplify, true));
 	
 	// also test the transfer() function
 	let profileResult = await program.compile(true).transfer(UplcProgram).profile(args, networkParams);
@@ -272,15 +273,101 @@ async function test3() {
 
 	const LIST: []Int = ${LIST}
 	`, ["LIST"]);
+
+	await profile(`
+	testing multi_return_callback
+	
+	func head_tail(list: []Int) -> (Int, []Int) {
+		(list.head, list.tail)
+	}
+
+	func main(list: []Int) -> []Int {
+		(head: Int, tail: []Int) = head_tail(list);
+
+		tail.prepend(head)
+	}
+	
+	const LIST: []Int = ${LIST}
+	`, ["LIST"]);
+
+	await profile(`
+	testing multi_return_tuple
+	
+	struct Tuple {
+		head: Int
+		tail: []Int
+	}
+	func head_tail(list: []Int) -> Tuple {
+		Tuple{list.head, list.tail}
+	}
+
+	func main(list: []Int) -> []Int {
+		Tuple{head, tail} = head_tail(list);
+
+		tail.prepend(head)
+	}
+	
+	const LIST: []Int = ${LIST}
+	`, ["LIST"]);
 }
 
+async function test4() {
+	await profile(`
+	testing list_sum_max_callback
+
+	func sum_max(list: []Int) -> (Int, Int) {
+		if (list.is_empty()) {
+			(0, 0)
+		} else {
+			(prev_sum: Int, prev_max: Int) = sum_max(list.tail);
+			head: Int = list.head;
+			(prev_sum + head, Int::max(prev_max, head))
+		}
+	}
+
+	func main(list: []Int) -> Int {
+		(sum: Int, max: Int) = sum_max(list);
+		sum + max
+	}
+
+	const LIST: []Int = []Int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	`, ["LIST"], null);
+
+	await profile(`
+	testing list_sum_max_data
+
+	struct Pair{
+		a: Int
+		b: Int
+	}
+
+	func sum_max(list: []Int) -> Pair {
+		if (list.is_empty()) {
+			Pair{0, 0}
+		} else {
+			Pair{prev_sum, prev_max} = sum_max(list.tail);
+			head: Int = list.head;
+			Pair{prev_sum + head, Int::max(prev_max, head)}
+		}
+	}
+
+	func main(list: []Int) -> Int {
+		Pair{sum, max} = sum_max(list);
+		sum + max
+	}
+
+	const LIST: []Int = []Int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	`, ["LIST"]);	
+}
 
 export default async function main() {
+	// exbudget/size used to be: {mem: 51795n, cpu: 31933326n, size: 367} (when get_policy().all_values(...) was being used). TODO: become that good again
 	await test1();
 
 	await test2();
 
 	await test3();
 
-	// exbudget/size used to be: {mem: 51795n, cpu: 31933326n, size: 367} (when get_policy().all_values(...) was being used). TODO: become that good again
+	await test4();
+
 }

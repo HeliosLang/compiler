@@ -406,7 +406,7 @@ export class IRBuiltinValue {
      * @returns {string}
      */
     toString() {
-        return `Builtin`;
+        return `Builtin__${this.builtinName}`;
     }
 
     /**
@@ -1372,7 +1372,8 @@ export class IREvaluator {
      *   {fn: IRFuncExpr, owner: null | IRExpr, stack: IRStack} | 
      *   {multi: number, owner: null | IRExpr} | 
      *   {value: IRValue, owner: null | IRExpr} |
-     *   {ignore: number, owner: null | IRExpr}
+     *   {ignore: number, owner: null | IRExpr} | 
+     *   {cacheExpr: IRCallExpr, code: number, value: IRValue}
      * )[]}
      */
     #compute;
@@ -1662,14 +1663,18 @@ export class IREvaluator {
      * @private
      * @param {IRExpr} expr 
      * @param {IRValue} value 
+     * @returns {IRValue} combined value
      */
     setExprValue(expr, value) {
         const outputs = this.#exprValues.get(expr);
 
         if (outputs) {
-            this.#exprValues.set(expr, IRMultiValue.flatten([outputs, value]));
+            const combined = IRMultiValue.flatten([outputs, value]);
+            this.#exprValues.set(expr, combined);
+            return combined;
         } else {
             this.#exprValues.set(expr, value);
+            return value;
         }
     }
 
@@ -1680,7 +1685,11 @@ export class IREvaluator {
      */
     pushReductionValue(owner, value) {
         if (owner) {
-            this.setExprValue(owner, value);
+            const combined = this.setExprValue(owner, value);
+
+            if (value instanceof IRAnyValue || (value instanceof IRMultiValue && value.values.some(v => v instanceof IRAnyValue))) {
+                value = combined;
+            }
         }
 
         this.#reduce.push(value);
@@ -1920,6 +1929,15 @@ export class IREvaluator {
 
     /**
      * @private
+     * @param {IRCallExpr} expr 
+     * @param {number} code 
+     */
+    prepareCacheValue(expr, code) {
+        this.#compute.push({value: new IRAnyValue(), cacheExpr: expr, code: code});
+    }
+
+    /**
+     * @private
      */
     evalInternal() {
         const codeMapper = new IRValueCodeMapper();
@@ -1927,7 +1945,9 @@ export class IREvaluator {
         let head = this.#compute.pop();
 
 		while (head) {
-            if ("expr" in head) {
+            if ("cacheExpr" in head) {
+                this.cacheValue(head.cacheExpr, head.code, head.value);
+            } else if ("expr" in head) {
                 const expr = head.expr;
 
                 if (expr instanceof IRCallExpr) {
@@ -1949,38 +1969,41 @@ export class IREvaluator {
                     if (!allLiteral && !(fn instanceof IRBuiltinValue) && !(fn instanceof IRFuncValue && fn.definition.args.length == 1 && IRStack.isGlobal(fn.definition.args[0]))) {
                         fn = fn.withoutLiterals();
                         args = args.map(a => a.withoutLiterals());
-                    } 
+                    }
 
-                    const code = codeMapper.getCallCode(fn, args);
-
-                    const cached = this.#cachedCalls.get(expr)?.get(code);
                     const fns = fn instanceof IRMultiValue ? fn.values : [fn];
-                    if (cached) {
-                        this.pushReductionValue(expr, cached);
-                        
-                        // increment the call count even though we are using a cached value
-                        for (let fn of fns) {
-                            if (fn instanceof IRFuncValue) {
-                                this.incrCallCount(fn.definition);
+
+                    if (fns.length > 1) {
+                        this.#compute.push({multi: fns.length, owner: expr});
+                    }
+
+                    for (let fn of fns) {
+                        const code = codeMapper.getCallCode(fn, args);
+                        const cached = this.#cachedCalls.get(expr)?.get(code);
+
+                        if (cached) {
+                            this.pushReductionValue(expr, cached);
+                            
+                            // increment the call count even though we are using a cached value
+                            for (let fn of fns) {
+                                if (fn instanceof IRFuncValue) {
+                                    this.incrCallCount(fn.definition);
+                                }
                             }
-                        }
-                    } else {
-                        this.cacheValue(expr, code, new IRAnyValue());
-                        this.#compute.push({calling: expr, code: code, args: args});
+                        } else {
+                            this.#compute.push({calling: expr, code: code, args: args});
+                            //this.cacheValue(expr, code, new IRAnyValue());
 
-                        if (fns.length > 1) {
-                            this.#compute.push({multi: fns.length, owner: expr});
-                        }
-
-                        for (let fn of fns) {
                             if (fn instanceof IRAnyValue) {///} || fn instanceof IRDataValue) {
                                 this.callAnyFunc(expr, fn, args);
                             } else if (fn instanceof IRErrorValue) {
                                 this.pushReductionValue(expr, new IRErrorValue());
                             } else if (fn instanceof IRFuncValue) {
                                 this.callFunc(expr, fn, args);
+                                this.prepareCacheValue(expr, code);
                             } else if (fn instanceof IRBuiltinValue) {
                                 this.callBuiltin(expr, fn.builtin, args);
+                                this.prepareCacheValue(expr, code);
                             } else {
                                 console.log(expr.toString());
                                 throw expr.site.typeError("unable to call " + fn.toString());

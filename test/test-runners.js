@@ -60,7 +60,8 @@ export async function runTestScriptWithArgs(src, argNames, expectedResult, expec
         [result, messages] = await program.compile(true).transfer(UplcProgram).runWithPrint(args);
 
         if (messages.length != 0) {
-            throw new Error("unexpected messages");
+            console.log(program.dumpIR(true, true));
+            throw new Error("unexpected messages:" + messages.join(","));
         }
 
         checkResult(result, true);
