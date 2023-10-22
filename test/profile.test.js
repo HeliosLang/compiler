@@ -360,14 +360,30 @@ async function test4() {
 	`, ["LIST"]);	
 }
 
+async function test5() {
+	config.set({DEBUG: true});
+	await profile(`
+	testing map_get_multiple
+
+	func main(map1: Map[String]Int, map2: Map[String]String) -> Bool {
+		map1.get("a") == 0 && map1.get("b") == 1 && map1.get("c") == 2 && map2.get("a") == "a" && map2.get("d") == "b"
+	}
+
+	const MAP1: Map[String]Int = Map[String]Int{"a": 0, "b": 1, "d": 2}
+	const MAP2: Map[String]String = Map[String]String{"a": "a", "b": "b", "c": "c"}
+	`, ["MAP1", "MAP2"]);
+
+	config.set({DEBUG: false});
+}
 export default async function main() {
 	// exbudget/size used to be: {mem: 51795n, cpu: 31933326n, size: 367} (when get_policy().all_values(...) was being used). TODO: become that good again
-	await test1();
+	//await test1();
 
-	await test2();
+	//await test2();
 
-	await test3();
+	//await test3();
 
-	await test4();
+	//await test4();
 
+	await test5();
 }

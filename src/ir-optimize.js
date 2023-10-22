@@ -190,7 +190,7 @@ export class IROptimizer {
      * @param {IRFuncExpr} fn 
      */
     countFuncCalls(fn) {
-        return this.#callCount.get(fn) ?? this.#evaluator.countFuncCalls(fn);
+        return this.#evaluator.countFuncCalls(fn);
     }
 
     /**
@@ -202,8 +202,6 @@ export class IROptimizer {
      * @returns {IRFuncExpr}
      */
     newFuncExpr(old, args, body) {
-        const n = this.countFuncCalls(old);
-
         const funcExpr = new IRFuncExpr(
             old.site,
             args,
@@ -212,8 +210,6 @@ export class IROptimizer {
         );
 
         this.#evaluator.notifyCopyExpr(old, funcExpr);
-
-        this.#callCount.set(funcExpr, n);
 
         return funcExpr;
     }

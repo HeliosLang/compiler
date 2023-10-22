@@ -42478,7 +42478,8 @@ export class IREvaluator {
     #variableValues;
 
     /**
-     * @type {Map<IRFuncExpr, number>}
+     * IRFuncExpr tag as key
+     * @type {Map<number, number>}
      */
     #callCount;
 
@@ -42560,7 +42561,7 @@ export class IREvaluator {
      * @returns {number}
      */
     countFuncCalls(fn) {
-        return this.#callCount.get(fn) ?? 0;
+        return this.#callCount.get(fn.tag) ?? 0;
     }
 
     /**
@@ -42699,16 +42700,6 @@ export class IREvaluator {
      * @param {IRExpr} newExpr 
      */
     notifyCopyExpr(oldExpr, newExpr) {
-        if (oldExpr instanceof IRFuncExpr && newExpr instanceof IRFuncExpr) {
-            const oldCallCount = this.#callCount.get(oldExpr);
-
-            if (oldCallCount !== undefined) {
-                this.#callCount.set(newExpr, oldCallCount);
-            }
-
-            // don't update the funcCallExprs
-        }
-
         const oldValue = this.#exprValues.get(oldExpr);
         if (oldValue) {
             this.#exprValues.set(newExpr, oldValue);
@@ -42850,12 +42841,12 @@ export class IREvaluator {
      * @param {IRFuncExpr} fn 
      */
     incrCallCount(fn) {
-        const prev = this.#callCount.get(fn);
+        const prev = this.#callCount.get(fn.tag);
 
         if (prev) {
-            this.#callCount.set(fn, Math.min(prev + 1, Number.MAX_SAFE_INTEGER));
+            this.#callCount.set(fn.tag, Math.min(prev + 1, Number.MAX_SAFE_INTEGER));
         } else {
-            this.#callCount.set(fn, 1);
+            this.#callCount.set(fn.tag, 1);
         }
     }
 
@@ -43490,7 +43481,7 @@ export class IROptimizer {
      * @param {IRFuncExpr} fn 
      */
     countFuncCalls(fn) {
-        return this.#callCount.get(fn) ?? this.#evaluator.countFuncCalls(fn);
+        return this.#evaluator.countFuncCalls(fn);
     }
 
     /**
@@ -43502,8 +43493,6 @@ export class IROptimizer {
      * @returns {IRFuncExpr}
      */
     newFuncExpr(old, args, body) {
-        const n = this.countFuncCalls(old);
-
         const funcExpr = new IRFuncExpr(
             old.site,
             args,
@@ -43512,8 +43501,6 @@ export class IROptimizer {
         );
 
         this.#evaluator.notifyCopyExpr(old, funcExpr);
-
-        this.#callCount.set(funcExpr, n);
 
         return funcExpr;
     }
