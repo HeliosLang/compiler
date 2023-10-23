@@ -4869,6 +4869,12 @@ export type Metadata = {
  * Function that generates a random number between 0 and 1
  */
 export type NumberGenerator = () => number;
+/**
+ * TODO: switch to using UInt64Fast instead of UInt64 everywhere
+ * First entry: high
+ * Second entry: low
+ */
+export type UInt64Fast = [number, number];
 export type CurvePoint<T extends CurvePoint<T>> = {
     add(other: T): T;
     mul(scalar: bigint): T;

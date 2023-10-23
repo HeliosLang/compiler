@@ -13431,6 +13431,12 @@ declare module "helios" {
     export type NumberGenerator = () => number;
     export type CodeMap = [number, Site][];
     export type IRDefinitions = Map<string, IR>;
+    /**
+     * TODO: switch to using UInt64Fast instead of UInt64 everywhere
+     * First entry: high
+     * Second entry: low
+     */
+    export type UInt64Fast = [number, number];
     export type CurvePoint<T extends CurvePoint<T>> = {
         add(other: T): T;
         mul(scalar: bigint): T;

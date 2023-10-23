@@ -8,7 +8,9 @@ import {
 	Program,
 	UplcProgram,
 	UserError,
-	assert
+	assert,
+	Crypto,
+	textToBytes
 } from "helios"
 
 const networkParams = new NetworkParams(JSON.parse(fs.readFileSync("./network-parameters-preview.json").toString()));
@@ -375,15 +377,30 @@ async function test5() {
 
 	config.set({DEBUG: false});
 }
+
+async function test6() {
+	const msg = textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu");
+
+	const start = Date.now();
+
+	for (let iter = 0; iter < 1000; iter++) {
+		Crypto.sha2_512(msg);
+	}
+
+	console.log(`${Date.now() - start}ms`);
+}
+
 export default async function main() {
 	// exbudget/size used to be: {mem: 51795n, cpu: 31933326n, size: 367} (when get_policy().all_values(...) was being used). TODO: become that good again
-	//await test1();
+	await test1();
 
-	//await test2();
+	await test2();
 
-	//await test3();
+	await test3();
 
-	//await test4();
+	await test4();
 
 	await test5();
+
+	await test6();
 }
