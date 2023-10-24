@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.16.1
+// Version:       0.16.2
 // Last update:   October 2023
 // License type:  BSD-3-Clause
 //
@@ -309,7 +309,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.16.1";
+export const VERSION = "0.16.2";
 
 /**
  * A tab used for indenting of the IR.
