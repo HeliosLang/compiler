@@ -3,6 +3,7 @@
 import fs from "fs"
 
 import {
+	bytesToHex,
 	config,
 	NetworkParams,
 	Program,
@@ -381,13 +382,13 @@ async function test5() {
 async function test6() {
 	const msg = textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu");
 
-	const start = Date.now();
+	let tick = Date.now();
 
 	for (let iter = 0; iter < 1000; iter++) {
 		Crypto.sha2_512(msg);
 	}
 
-	console.log(`${Date.now() - start}ms`);
+	console.log(`${Date.now() - tick}ms`);
 }
 
 export default async function main() {

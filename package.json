@@ -44,5 +44,8 @@
   ],
   "devDependencies": {
     "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "js-sha512": "^0.8.0"
   }
 }
