@@ -2960,6 +2960,14 @@ async function testBuiltins() {
     }`, ([a], res) => a.data.isSame(asData(res)));
 
     await ft.test([ft.bytes(), ft.bytes()], `
+    testing assetclass_show
+    func main(a: ByteArray, b: ByteArray) -> String {
+        AssetClass::new(MintingPolicyHash::new(a), b).show()
+    }`, ([a, b], res) => {
+        return asString(res) == `${bytesToHex(asBytes(a))}.${bytesToHex(asBytes(b))}`;
+    });
+
+    await ft.test([ft.bytes(), ft.bytes()], `
     testing assetclass_serialize
     func main(a: ByteArray, b: ByteArray) -> ByteArray {
         AssetClass::new(MintingPolicyHash::new(a), b).serialize()

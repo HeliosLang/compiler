@@ -1519,7 +1519,7 @@ export class DataDefinition {
 		} else {
 			const isConstr = constrIndex != -1;
 
-			const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
+			const getterBaseName = isConstr ? "__helios__common__enum_field" : "__helios__common__struct_field";
 
 			if (this.fields.length == 1 && !isConstr) {
 				const f = this.fields[0];
@@ -1871,7 +1871,7 @@ export class StructStatement extends Statement {
 				map.set(`${this.path}__from_data`, IR.new`__helios__common__identity${this.site}`);
 			}
 		} else {
-			const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
+			const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__struct";
 
 			map.set(`${this.path}____eq`, IR.new`${implPath}____eq${this.site}`);
 			map.set(`${this.path}____neq`, IR.new`${implPath}____neq${this.site}`);

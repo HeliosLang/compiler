@@ -248,7 +248,7 @@
 //                                           buildStructLiteralNamedField, 
 //                                           buildStructLiteralUnnamedField, buildValuePathExpr
 //
-//     Section 27: IR Context objects        IRScope, ALWAYS_INLINEABLE, IRVariable
+//     Section 27: IR Context objects        IRScope, IRVariable
 //
 //     Section 28: IR AST objects            IRNameExpr, IRLiteralExpr, IRFuncExpr, IRCallExpr, 
 //                                           IRErrorExpr, loopIRExprs
@@ -22710,7 +22710,7 @@ export class ModuleScope extends Scope {
 /////////////////////////////
 /**
  * For collecting test coverage statistics
- * @type {?((name: string, count: number) => void)}
+ * @type {null | ((name: string, count: number) => void)}
  */
 var onNotifyRawUsage = null;
 
@@ -23413,38 +23413,38 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			() -> {false}
 		)()
 	}`));
-	add(new RawFunc("__helios__common__fields", 
+	add(new RawFunc("__helios__common__enum_fields", 
 	`(self) -> {
 		__core__sndPair(__core__unConstrData(self))
 	}`));
-	add(new RawFunc("__helios__common__field_0", 
+	add(new RawFunc("__helios__common__enum_field_0", 
 	`(self) -> {
-		__core__headList(__helios__common__fields(self))
+		__core__headList(__helios__common__enum_fields(self))
 	}`));
-	add(new RawFunc("__helios__common__fields_after_0",
+	add(new RawFunc("__helios__common__enum_fields_after_0",
 	`(self) -> {
-		__core__tailList(__helios__common__fields(self))
+		__core__tailList(__helios__common__enum_fields(self))
 	}`));
 	for (let i = 1; i < 20; i++) {
-		add(new RawFunc(`__helios__common__field_${i.toString()}`,
+		add(new RawFunc(`__helios__common__enum_field_${i.toString()}`,
 	`(self) -> {
-		__core__headList(__helios__common__fields_after_${(i-1).toString()}(self))
+		__core__headList(__helios__common__enum_fields_after_${(i-1).toString()}(self))
 	}`));
-		add(new RawFunc(`__helios__common__fields_after_${i.toString()}`,
+		add(new RawFunc(`__helios__common__enum_fields_after_${i.toString()}`,
 	`(self) -> {
-		__core__tailList(__helios__common__fields_after_${(i-1).toString()}(self))
+		__core__tailList(__helios__common__enum_fields_after_${(i-1).toString()}(self))
 	}`));
 	}
-	add(new RawFunc("__helios__common__tuple_field_0", "__core__headList"));
-	add(new RawFunc("__helios__common__tuple_fields_after_0", "__core__tailList"));
+	add(new RawFunc("__helios__common__struct_field_0", "__core__headList"));
+	add(new RawFunc("__helios__common__struct_fields_after_0", "__core__tailList"));
 	for (let i = 1; i < 20; i++) {
-		add(new RawFunc(`__helios__common__tuple_field_${i.toString()}`,
+		add(new RawFunc(`__helios__common__struct_field_${i.toString()}`,
 	`(self) -> {
-		__core__headList(__helios__common__tuple_fields_after_${(i-1).toString()}(self))
+		__core__headList(__helios__common__struct_fields_after_${(i-1).toString()}(self))
 	}`));
-		add(new RawFunc(`__helios__common__tuple_fields_after_${i.toString()}`,
+		add(new RawFunc(`__helios__common__struct_fields_after_${i.toString()}`,
 	`(self) -> {
-		__core__tailList(__helios__common__tuple_fields_after_${(i-1).toString()}(self))
+		__core__tailList(__helios__common__struct_fields_after_${(i-1).toString()}(self))
 	}`));
 	}
 	add(new RawFunc("__helios__common__list_0", "__core__mkNilData(())"));
@@ -25251,12 +25251,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	}
 
 
-	// Tuple (list of data, which is used by structs which have more than 1 field)
-	addSerializeFunc("__helios__tuple");
-	addNeqFunc("__helios__tuple");
-	addDataLikeEqFunc("__helios__tuple");
-	add(new RawFunc("__helios__tuple__from_data", "__core__unListData"));
-	add(new RawFunc("__helios__tuple____to_data", "__core__listData"));
+	// Struct (list of data, which is used by structs which have more than 1 field, otherwise the internal of that single field is used directly)
+	addSerializeFunc("__helios__struct");
+	addNeqFunc("__helios__struct");
+	addDataLikeEqFunc("__helios__struct");
+	add(new RawFunc("__helios__struct__from_data", "__core__unListData"));
+	add(new RawFunc("__helios__struct____to_data", "__core__listData"));
 
 
 	// List builtins
@@ -26858,7 +26858,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc(`__helios__option[${TTPP}0]__unwrap`, 
 	`(self) -> {
 		() -> {
-			${TTPP}0__from_data(__helios__common__field_0(self))
+			${TTPP}0__from_data(__helios__common__enum_field_0(self))
 		}
 	}`));
 
@@ -26876,7 +26876,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	}`));
 	add(new RawFunc(`__helios__option[${TTPP}0]__some__some`, 
 	`(self) -> {
-		${TTPP}0__from_data(__helios__common__field_0(self))
+		${TTPP}0__from_data(__helios__common__enum_field_0(self))
 	}`));
 	add(new RawFunc(`__helios__option__is_some`,
 	`(data) -> {
@@ -26974,8 +26974,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			__core__constrData(3, __helios__common__list_1(dcert))
 		))
 	}`));
-	add(new RawFunc("__helios__scriptcontext__tx", "__helios__common__field_0"));
-	add(new RawFunc("__helios__scriptcontext__purpose", "__helios__common__field_1"));
+	add(new RawFunc("__helios__scriptcontext__tx", "__helios__common__enum_field_0"));
+	add(new RawFunc("__helios__scriptcontext__purpose", "__helios__common__enum_field_1"));
 	add(new RawFunc("__helios__scriptcontext__get_current_input",
 	`(self) -> {
 		() -> {
@@ -27032,7 +27032,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc("__helios__scriptcontext__get_spending_purpose_output_id",
 	`(self) -> {
 		() -> {
-			__helios__common__field_0(__helios__common__field_1(self))
+			__helios__common__enum_field_0(__helios__common__enum_field_1(self))
 		}
 	}`));
 	add(new RawFunc("__helios__scriptcontext__get_current_validator_hash",
@@ -27109,13 +27109,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Wallet builtin
 	addDataFuncs("__helios__wallet");
-	add(new RawFunc("__helios__wallet__address", `(self) -> {__helios__common__field_1(self)}`));
+	add(new RawFunc("__helios__wallet__address", `(self) -> {__helios__common__enum_field_1(self)}`));
 	add(new RawFunc("__helios__wallet__hash", 
 	`(self) -> {
 		__helios__credential__pubkey__hash(
 			__helios__credential__pubkey__cast(
 				__helios__address__credential(
-					__helios__common__field_0(self)
+					__helios__common__enum_field_0(self)
 				)
 			)
 		)
@@ -27123,7 +27123,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc("__helios__wallet__pick", 
 	`(self) -> {
 		(value) -> {
-			__core__macro__pick(__helios__common__field_0(self), __helios__value____to_data(value), ())
+			__core__macro__pick(__helios__common__enum_field_0(self), __helios__value____to_data(value), ())
 		}
 	}`));
 
@@ -27147,12 +27147,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// StakingPurpose::Rewarding builtins
 	addEnumDataFuncs("__helios__stakingpurpose__rewarding", 2);
-	add(new RawFunc("__helios__stakingpurpose__rewarding__credential", "__helios__common__field_0"));
+	add(new RawFunc("__helios__stakingpurpose__rewarding__credential", "__helios__common__enum_field_0"));
 
 	
 	// StakingPurpose::Certifying builtins
 	addEnumDataFuncs("__helios__stakingpurpose__certifying", 3);
-	add(new RawFunc("__helios__stakingpurpose__certifying__dcert", "__helios__common__field_0"));
+	add(new RawFunc("__helios__stakingpurpose__certifying__dcert", "__helios__common__enum_field_0"));
 
 
 	// ScriptPurpose builtins
@@ -27193,23 +27193,23 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addEnumDataFuncs("__helios__scriptpurpose__minting", 0);
 	add(new RawFunc("__helios__scriptpurpose__minting__policy_hash", 
 	`(self) -> {
-		__helios__mintingpolicyhash__from_data(__helios__common__field_0(self))
+		__helios__mintingpolicyhash__from_data(__helios__common__enum_field_0(self))
 	}`));
 
 	
 	// ScriptPurpose::Spending builtins
 	addEnumDataFuncs("__helios__scriptpurpose__spending", 1);
-	add(new RawFunc("__helios__scriptpurpose__spending__output_id", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptpurpose__spending__output_id", "__helios__common__enum_field_0"));
 
 	
 	// ScriptPurpose::Rewarding builtins
 	addEnumDataFuncs("__helios__scriptpurpose__rewarding", 2);
-	add(new RawFunc("__helios__scriptpurpose__rewarding__credential", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptpurpose__rewarding__credential", "__helios__common__enum_field_0"));
 
 	
 	// ScriptPurpose::Certifying builtins
 	addEnumDataFuncs("__helios__scriptpurpose__certifying", 3);
-	add(new RawFunc("__helios__scriptpurpose__certifying__dcert", "__helios__common__field_0"));
+	add(new RawFunc("__helios__scriptpurpose__certifying__dcert", "__helios__common__enum_field_0"));
 
 
 	// DCert builtins
@@ -27252,20 +27252,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// DCert::Register builtins
 	addEnumDataFuncs("__helios__dcert__register", 0);
-	add(new RawFunc("__helios__dcert__register__credential", "__helios__common__field_0"));
+	add(new RawFunc("__helios__dcert__register__credential", "__helios__common__enum_field_0"));
 
 
 	// DCert::Deregister builtins
 	addEnumDataFuncs("__helios__dcert__deregister", 1);
-	add(new RawFunc("__helios__dcert__deregister__credential", "__helios__common__field_0"));
+	add(new RawFunc("__helios__dcert__deregister__credential", "__helios__common__enum_field_0"));
 
 
 	// DCert::Delegate builtins
 	addEnumDataFuncs("__helios__dcert__delegate", 2);
-	add(new RawFunc("__helios__dcert__delegate__delegator", "__helios__common__field_0"));
+	add(new RawFunc("__helios__dcert__delegate__delegator", "__helios__common__enum_field_0"));
 	add(new RawFunc("__helios__dcert__delegate__pool_id", 
 	`(self) -> {
-		__helios__pubkeyhash__from_data(__helios__common__field_1(self))
+		__helios__pubkeyhash__from_data(__helios__common__enum_field_1(self))
 	}`));
 
 
@@ -27273,11 +27273,11 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addEnumDataFuncs("__helios__dcert__registerpool", 3);
 	add(new RawFunc("__helios__dcert__registerpool__pool_id", 
 	`(self) -> {
-		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
+		__helios__pubkeyhash__from_data(__helios__common__enum_field_0(self))
 	}`));
 	add(new RawFunc("__helios__dcert__registerpool__pool_vrf", 
 	`(self) -> {
-		__helios__pubkeyhash__from_data(__helios__common__field_1(self))
+		__helios__pubkeyhash__from_data(__helios__common__enum_field_1(self))
 	}`));
 
 
@@ -27285,11 +27285,11 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addEnumDataFuncs("__helios__dcert__retirepool", 4);
 	add(new RawFunc("__helios__dcert__retirepool__pool_id", 
 	`(self) -> {
-		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
+		__helios__pubkeyhash__from_data(__helios__common__enum_field_0(self))
 	}`));
 	add(new RawFunc("__helios__dcert__retirepool__epoch", 
 	`(self) -> {
-		__helios__int__from_data(__helios__common__field_1(self))
+		__helios__int__from_data(__helios__common__enum_field_1(self))
 	}`));
 
 
@@ -27678,46 +27678,46 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	}`));
 	add(new RawFunc("__helios__tx__inputs", 
 	`(self) -> {
-		__core__unListData(__helios__common__field_0(self))
+		__core__unListData(__helios__common__enum_field_0(self))
 	}`));
 	add(new RawFunc("__helios__tx__ref_inputs", 
 	`(self) -> {
-		__core__unListData(__helios__common__field_1(self))
+		__core__unListData(__helios__common__enum_field_1(self))
 	}`))
 	add(new RawFunc("__helios__tx__outputs", 
 	`(self) -> {
-		__core__unListData(__helios__common__field_2(self))
+		__core__unListData(__helios__common__enum_field_2(self))
 	}`));
 	add(new RawFunc("__helios__tx__fee", 
 	`(self) -> {
-		__core__unMapData(__helios__common__field_3(self))
+		__core__unMapData(__helios__common__enum_field_3(self))
 	}`));
 	add(new RawFunc("__helios__tx__minted", 
 	`(self) -> {
-		__core__unMapData(__helios__common__field_4(self))
+		__core__unMapData(__helios__common__enum_field_4(self))
 	}`));
 	add(new RawFunc("__helios__tx__dcerts", 
 	`(self) -> {
-		__core__unListData(__helios__common__field_5(self))
+		__core__unListData(__helios__common__enum_field_5(self))
 	}`));
 	add(new RawFunc("__helios__tx__withdrawals", 
 	`(self) -> {
-		__core__unMapData(__helios__common__field_6(self))
+		__core__unMapData(__helios__common__enum_field_6(self))
 	}`));
-	add(new RawFunc("__helios__tx__time_range", "__helios__common__field_7"));
+	add(new RawFunc("__helios__tx__time_range", "__helios__common__enum_field_7"));
 	add(new RawFunc("__helios__tx__signatories", 
 	`(self) -> {
-		__core__unListData(__helios__common__field_8(self))
+		__core__unListData(__helios__common__enum_field_8(self))
 	}`));
 	add(new RawFunc("__helios__tx__redeemers", 
 	`(self) -> {
-		__core__unMapData(__helios__common__field_9(self))
+		__core__unMapData(__helios__common__enum_field_9(self))
 	}`));
 	add(new RawFunc("__helios__tx__datums", 
 	`(self) -> {
-		__core__unMapData(__helios__common__field_10(self))
+		__core__unMapData(__helios__common__enum_field_10(self))
 	}`));
-	add(new RawFunc("__helios__tx__id", "__helios__common__field_11"));
+	add(new RawFunc("__helios__tx__id", "__helios__common__enum_field_11"));
 	add(new RawFunc(`__helios__tx__find_datum_hash[${FTPP}0]`,
 	`(self) -> {
 		(datum) -> {
@@ -28027,8 +28027,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(output_id, output) -> {
 		__core__constrData(0, __helios__common__list_2(output_id, output))
 	}`));
-	add(new RawFunc("__helios__txinput__output_id", "__helios__common__field_0"));
-	add(new RawFunc("__helios__txinput__output", "__helios__common__field_1"));
+	add(new RawFunc("__helios__txinput__output_id", "__helios__common__enum_field_0"));
+	add(new RawFunc("__helios__txinput__output", "__helios__common__enum_field_1"));
 	add(new RawFunc("__helios__txinput__address",
 	`(self) -> {
 		__helios__txoutput__address(__helios__txinput__output(self))
@@ -28063,12 +28063,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(address, value, datum) -> {
 		__core__constrData(0, __helios__common__list_4(address, __core__mapData(value), datum, __helios__option__NONE))
 	}`));
-	add(new RawFunc("__helios__txoutput__address", "__helios__common__field_0"));
+	add(new RawFunc("__helios__txoutput__address", "__helios__common__enum_field_0"));
 	add(new RawFunc("__helios__txoutput__value", `(self) -> {
-		__core__unMapData(__helios__common__field_1(self))
+		__core__unMapData(__helios__common__enum_field_1(self))
 	}`));
-	add(new RawFunc("__helios__txoutput__datum", "__helios__common__field_2"));
-	add(new RawFunc("__helios__txoutput__ref_script_hash", "__helios__common__field_3"));
+	add(new RawFunc("__helios__txoutput__datum", "__helios__common__enum_field_2"));
+	add(new RawFunc("__helios__txoutput__ref_script_hash", "__helios__common__enum_field_3"));
 	add(new RawFunc("__helios__txoutput__get_datum_hash",
 	`(self) -> {
 		() -> {
@@ -28217,13 +28217,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addEnumDataFuncs("__helios__outputdatum__hash", 1);
 	add(new RawFunc("__helios__outputdatum__hash__hash", 
 	`(self) -> {
-		__helios__datumhash__from_data(__helios__common__field_0(self))
+		__helios__datumhash__from_data(__helios__common__enum_field_0(self))
 	}`));
 
 
 	// OutputDatum::Inline
 	addEnumDataFuncs("__helios__outputdatum__inline", 2);
-	add(new RawFunc("__helios__outputdatum__inline__data", "__helios__common__field_0"));
+	add(new RawFunc("__helios__outputdatum__inline__data", "__helios__common__enum_field_0"));
 
 
 	// RawData
@@ -28241,10 +28241,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(data) -> {
 		__helios__common__test_constr_data_2(data, 0, __helios__txid__test_data, __helios__int__test_data)
 	}`));
-	add(new RawFunc("__helios__txoutputid__tx_id", "__helios__common__field_0"));
+	add(new RawFunc("__helios__txoutputid__tx_id", "__helios__common__enum_field_0"));
 	add(new RawFunc("__helios__txoutputid__index", 
 	`(self) -> {
-		__helios__int__from_data(__helios__common__field_1(self))
+		__helios__int__from_data(__helios__common__enum_field_1(self))
 	}`));
 	add(new RawFunc("__helios__txoutputid__comp", 
 	`(a, b, comp_txid, comp_index) -> {
@@ -28583,12 +28583,12 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`() -> {
 		__core__constrData(0, __helios__common__list_2(__helios__credential__new_pubkey(#), __helios__option__NONE))
 	}`))
-	add(new RawFunc("__helios__address__credential", "__helios__common__field_0"));
-	add(new RawFunc("__helios__address__staking_credential", "__helios__common__field_1"));
+	add(new RawFunc("__helios__address__credential", "__helios__common__enum_field_0"));
+	add(new RawFunc("__helios__address__staking_credential", "__helios__common__enum_field_1"));
 	add(new RawFunc("__helios__address__is_staked",
 	`(self) -> {
 		() -> {
-			__core__equalsInteger(__core__fstPair(__core__unConstrData(__helios__common__field_1(self))), 0)
+			__core__equalsInteger(__core__fstPair(__core__unConstrData(__helios__common__enum_field_1(self))), 0)
 		}
 	}`));
 
@@ -28686,7 +28686,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	}`));
 	add(new RawFunc("__helios__credential__pubkey__hash", 
 	`(self) -> {
-		__helios__pubkeyhash__from_data(__helios__common__field_0(self))
+		__helios__pubkeyhash__from_data(__helios__common__enum_field_0(self))
 	}`));
 
 
@@ -28699,7 +28699,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	}`));
 	add(new RawFunc("__helios__credential__validator__hash", 
 	`(self) -> {
-		__helios__validatorhash__from_data(__helios__common__field_0(self))
+		__helios__validatorhash__from_data(__helios__common__enum_field_0(self))
 	}`));
 
 
@@ -28766,7 +28766,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	
 	// StakingCredential::Hash builtins
 	addEnumDataFuncs("__helios__stakingcredential__hash", 0);
-	add(new RawFunc("__helios__stakingcredential__hash__hash", "__helios__common__field_0"));
+	add(new RawFunc("__helios__stakingcredential__hash__hash", "__helios__common__enum_field_0"));
 
 
 	// StakingCredential::Ptr builtins
@@ -28915,8 +28915,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							}
 						)()
 					}(__core__fstPair(__core__unConstrData(extended)))
-				}(__helios__common__field_0(upper), __helios__bool__from_data(__helios__common__field_1(upper)))
-			}(__helios__common__field_1(self))
+				}(__helios__common__enum_field_0(upper), __helios__bool__from_data(__helios__common__enum_field_1(upper)))
+			}(__helios__common__enum_field_1(self))
 		}
 	}`));
 	add(new RawFunc("__helios__timerange__is_after",
@@ -28943,8 +28943,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							}
 						)()
 					}(__core__fstPair(__core__unConstrData(extended)))
-				}(__helios__common__field_0(lower), __helios__bool__from_data(__helios__common__field_1(lower)))
-			}(__helios__common__field_0(self))
+				}(__helios__common__enum_field_0(lower), __helios__bool__from_data(__helios__common__enum_field_1(lower)))
+			}(__helios__common__enum_field_0(self))
 		}
 	}`));
 	add(new RawFunc("__helios__timerange__contains",
@@ -29000,20 +29000,20 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										}
 									)()
 								}(__core__fstPair(__core__unConstrData(extended)))
-							}(__helios__common__field_0(upper), __helios__bool__from_data(__helios__common__field_1(upper)))
-						}(__helios__common__field_1(self))
+							}(__helios__common__enum_field_0(upper), __helios__bool__from_data(__helios__common__enum_field_1(upper)))
+						}(__helios__common__enum_field_1(self))
 					})
-				}(__helios__common__field_0(lower), __helios__bool__from_data(__helios__common__field_1(lower)))
-			}(__helios__common__field_0(self))
+				}(__helios__common__enum_field_0(lower), __helios__bool__from_data(__helios__common__enum_field_1(lower)))
+			}(__helios__common__enum_field_0(self))
 		}
 	}`));
 	add(new RawFunc("__helios__timerange__start",
 	`(self) -> {
-		__helios__time__from_data(__helios__common__field_0(__helios__common__field_0(__helios__common__field_0(self))))
+		__helios__time__from_data(__helios__common__enum_field_0(__helios__common__enum_field_0(__helios__common__enum_field_0(self))))
 	}`));
 	add(new RawFunc("__helios__timerange__end",
 	`(self) -> {
-		__helios__time__from_data(__helios__common__field_0(__helios__common__field_0(__helios__common__field_1(self))))
+		__helios__time__from_data(__helios__common__enum_field_0(__helios__common__enum_field_0(__helios__common__enum_field_1(self))))
 	}`));
 	add(new RawFunc("__helios__timerange__show",
 	`(self) -> {
@@ -29026,8 +29026,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__ifThenElse(closed, "[", "("),
 								show_extended(extended)
 							)
-						}(__helios__common__field_0(lower), __helios__bool__from_data(__helios__common__field_1(lower)))
-					}(__helios__common__field_0(self)),
+						}(__helios__common__enum_field_0(lower), __helios__bool__from_data(__helios__common__enum_field_1(lower)))
+					}(__helios__common__enum_field_0(self)),
 					__helios__string____add(
 						",",
 						(upper) -> {
@@ -29036,8 +29036,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 									show_extended(extended),
 									__core__ifThenElse(closed, "]", ")")
 								)
-							}(__helios__common__field_0(upper), __helios__bool__from_data(__helios__common__field_1(upper)))
-						}(__helios__common__field_1(self))
+							}(__helios__common__enum_field_0(upper), __helios__bool__from_data(__helios__common__enum_field_1(upper)))
+						}(__helios__common__enum_field_1(self))
 					)
 				)
 			}(
@@ -29083,12 +29083,74 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	}`));
 	add(new RawFunc("__helios__assetclass__mph", 
 	`(self) -> {
-		__helios__mintingpolicyhash__from_data(__helios__common__field_0(self))
+		__helios__mintingpolicyhash__from_data(__helios__common__enum_field_0(self))
 	}`));
 	add(new RawFunc("__helios__assetclass__token_name", 
 	`(self) -> {
-		__helios__bytearray__from_data(__helios__common__field_1(self))
+		__helios__bytearray__from_data(__helios__common__enum_field_1(self))
 	}`));
+	add(new RawFunc("__helios__assetclass__show",
+	`(self) -> {
+		__core__chooseData(
+			self,
+			() -> {
+				(fields) -> {
+					__core__chooseList(
+						fields,
+						() -> {
+							"N/A"
+						},
+						() -> {
+							(mph) -> {
+								__core__appendString(
+									__core__chooseData(
+										mph,
+										() -> {"N/A"},
+										() -> {"N/A"},
+										() -> {"N/A"},
+										() -> {"N/A"},
+										() -> {
+											__helios__bytearray__show(__core__unBData__safe(mph))()
+										}
+									)(),
+									__core__appendString(
+										".",
+										(fields) -> {
+											__core__chooseList(
+												fields,
+												() -> {
+													"N/A"
+												},
+												() -> {
+													(token_name) -> {
+														__core__chooseData(
+															token_name,
+															() -> {"N/A"},
+															() -> {"N/A"},
+															() -> {"N/A"},
+															() -> {"N/A"},
+															() -> {
+																__helios__bytearray__show(__core__unBData__safe(token_name))()
+															}
+														)()
+													}(__core__headList__safe(fields))
+												}
+											)()
+										}(__core__tailList__safe(fields))
+										
+									)
+								)
+							}(__core__headList__safe(fields))
+						}
+					)()
+				}(__core__sndPair(__core__unConstrData__safe(self)))
+			},
+			() -> {"N/A"},
+			() -> {"N/A"},
+			() -> {"N/A"},
+			() -> {"N/A"}
+		)
+	}`))
 	add(new RawFunc("__helios__assetclass____lt",
 	`(a, b) -> {
 		(mpha, mphb) -> {
@@ -29156,18 +29218,6 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				}
 			)()
 		}(__helios__assetclass__mph(a), __helios__assetclass__mph(b))
-	}`));
-	add(new RawFunc("__helios__assetclass__show",
-	`(self) -> {
-		() -> {
-			__helios__string____add(
-				__helios__mintingpolicyhash__show(__helios__assetclass__mph(self))(),
-				__helios__string____add(
-					".",
-					__helios__bytearray__show(__helios__assetclass__token_name(self))()
-				)
-			)
-		}
 	}`));
 
 
@@ -29297,7 +29347,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						), 
 						__core__mkNilPairData(())
 					)
-				}(__helios__common__field_0(assetClass), __helios__common__field_1(assetClass))
+				}(__helios__common__enum_field_0(assetClass), __helios__common__enum_field_1(assetClass))
 			}
 		)()
 	}`));
@@ -29727,7 +29777,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						)()
 					}
 				)
-			}(__helios__common__field_0(assetClass), __helios__common__field_1(assetClass))
+			}(__helios__common__enum_field_0(assetClass), __helios__common__enum_field_1(assetClass))
 		}
 	}`));
 	add(new RawFunc("__helios__value__get_safe",
@@ -29767,7 +29817,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 						)()
 					}
 				)
-			}(__helios__common__field_0(assetClass), __helios__common__field_1(assetClass))
+			}(__helios__common__enum_field_0(assetClass), __helios__common__enum_field_1(assetClass))
 		}
 	}`));
 	add(new RawFunc("__helios__value__get_lovelace",
@@ -35788,7 +35838,7 @@ export class DataDefinition {
 		} else {
 			const isConstr = constrIndex != -1;
 
-			const getterBaseName = isConstr ? "__helios__common__field" : "__helios__common__tuple_field";
+			const getterBaseName = isConstr ? "__helios__common__enum_field" : "__helios__common__struct_field";
 
 			if (this.fields.length == 1 && !isConstr) {
 				const f = this.fields[0];
@@ -36140,7 +36190,7 @@ export class StructStatement extends Statement {
 				map.set(`${this.path}__from_data`, IR.new`__helios__common__identity${this.site}`);
 			}
 		} else {
-			const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__tuple";
+			const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__struct";
 
 			map.set(`${this.path}____eq`, IR.new`${implPath}____eq${this.site}`);
 			map.set(`${this.path}____neq`, IR.new`${implPath}____neq${this.site}`);
@@ -40410,29 +40460,6 @@ export class IRScope {
 	}
 }
 
-const ALWAYS_INLINEABLE = [
-	"__helios__int____to_data",
-	"__helios__common__identity",
-	"__helios__int____neg",
-	"__helios__common__fields",
-	"__helios__common__fields_after_0",
-	"__helios__common__field_0",
-	"__helios__common__field_1",
-	"__helios__bool__trace",
-	"__helios__bool__and",
-	"__helios__print",
-	"__helios__assert",
-	"__helios__error",
-	"__helios__assetclass__new",
-	"__helios__common__assert_constr_index",
-	"__helios__real__floor",
-	"__helios__real__ceil",
-	"__helios__real____div",
-	"__helios__real____mul",
-	"__helios__int__to_real",
-	"__helios__int____geq"
-];
-
 /**
  * IR class that represents function arguments
  * @internal
@@ -40472,13 +40499,6 @@ export class IRVariable extends Token {
 		newVars.set(this, newVar);
 
 		return newVar;
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isAlwaysInlineable() {
-		return ALWAYS_INLINEABLE.findIndex((name_) => name_ == this.#name.value) != -1;
 	}
 }
 
@@ -43576,7 +43596,7 @@ export function annotateIR(evaluation, expr) {
  * 
  * Examples of helios builtin functions that should be inlined:
  *   * __helios__bool__and 
- *   * __helios__common__field_0
+ *   * __helios__common__enum_field_0
  * 
  * This is a number of bits/
  */

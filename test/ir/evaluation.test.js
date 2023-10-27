@@ -339,11 +339,11 @@ export default async function test() {
     console.log(compileAndAnnotate(`(__helios__common__list_0) -> {
       (__helios__bool____to_data) -> {
       (__helios__int__from_data) -> {
-      (__helios__common__fields) -> {
-      (__helios__common__field_0) -> {
+      (__helios__common__enum_fields) -> {
+      (__helios__common__enum_field_0) -> {
       (__helios__bool__from_data) -> {
-      (__helios__common__fields_after_0) -> {
-      (__helios__common__field_1) -> {
+      (__helios__common__enum_fields_after_0) -> {
+      (__helios__common__enum_field_1) -> {
       (__helios__timerange__contains) -> {
       (__helios__common__list_1) -> {
       (__helios__common__list_2) -> {
@@ -440,18 +440,18 @@ export default async function test() {
                         }
                       )()
                     }(__core__fstPair(__core__unConstrData(extended)))
-                  }(__helios__common__field_0(upper), __helios__bool__from_data(__helios__common__field_1(upper)))
-                }(__helios__common__field_1(self))
+                  }(__helios__common__enum_field_0(upper), __helios__bool__from_data(__helios__common__enum_field_1(upper)))
+                }(__helios__common__enum_field_1(self))
               })
-            }(__helios__common__field_0(lower), __helios__bool__from_data(__helios__common__field_1(lower)))
-          }(__helios__common__field_0(self))
+            }(__helios__common__enum_field_0(lower), __helios__bool__from_data(__helios__common__enum_field_1(lower)))
+          }(__helios__common__enum_field_0(self))
         }
       })
       }((self) -> {
-        __core__headList(__helios__common__fields_after_0(self))
+        __core__headList(__helios__common__enum_fields_after_0(self))
       })
       }((self) -> {
-        __core__tailList(__helios__common__fields(self))
+        __core__tailList(__helios__common__enum_fields(self))
       })
       }((d) -> {
         __core__ifThenElse(
@@ -461,7 +461,7 @@ export default async function test() {
         )
       })
       }((self) -> {
-        __core__headList(__helios__common__fields(self))
+        __core__headList(__helios__common__enum_fields(self))
       })
       }((self) -> {
         __core__sndPair(__core__unConstrData(self))

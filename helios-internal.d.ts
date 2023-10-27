@@ -8528,10 +8528,6 @@ declare module "helios" {
          * @returns {IRVariable}
          */
         copy(newVars: Map<IRVariable, IRVariable>): IRVariable;
-        /**
-         * @returns {boolean}
-         */
-        isAlwaysInlineable(): boolean;
         #private;
     }
     /**

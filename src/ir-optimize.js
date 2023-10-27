@@ -60,7 +60,7 @@ import {
  * 
  * Examples of helios builtin functions that should be inlined:
  *   * __helios__bool__and 
- *   * __helios__common__field_0
+ *   * __helios__common__enum_field_0
  * 
  * This is a number of bits/
  */

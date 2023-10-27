@@ -90,29 +90,6 @@ export class IRScope {
 	}
 }
 
-const ALWAYS_INLINEABLE = [
-	"__helios__int____to_data",
-	"__helios__common__identity",
-	"__helios__int____neg",
-	"__helios__common__fields",
-	"__helios__common__fields_after_0",
-	"__helios__common__field_0",
-	"__helios__common__field_1",
-	"__helios__bool__trace",
-	"__helios__bool__and",
-	"__helios__print",
-	"__helios__assert",
-	"__helios__error",
-	"__helios__assetclass__new",
-	"__helios__common__assert_constr_index",
-	"__helios__real__floor",
-	"__helios__real__ceil",
-	"__helios__real____div",
-	"__helios__real____mul",
-	"__helios__int__to_real",
-	"__helios__int____geq"
-];
-
 /**
  * IR class that represents function arguments
  * @internal
@@ -152,12 +129,5 @@ export class IRVariable extends Token {
 		newVars.set(this, newVar);
 
 		return newVar;
-	}
-
-	/**
-	 * @returns {boolean}
-	 */
-	isAlwaysInlineable() {
-		return ALWAYS_INLINEABLE.findIndex((name_) => name_ == this.#name.value) != -1;
 	}
 }
