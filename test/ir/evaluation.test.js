@@ -33,7 +33,7 @@ function compileAndAnnotate(src) {
 }
 
 export default async function test() {
-    /*console.log(compileAndAnnotate(
+    console.log(compileAndAnnotate(
         `(a, b) -> {
             a
         }`
@@ -482,7 +482,7 @@ export default async function test() {
           if (a.length == 0) {
               true
           } else {
-              a.to_iterator().head() == a.get(0)
+              a.to_iterator().head == a.get(0)
           }
       }`))
 
@@ -539,7 +539,7 @@ export default async function test() {
               () -> {(sa_ + x, sb_ + x)}
           }, () -> {(0, 0)})();
           (sa + sb)/2
-      }`))*/
+      }`))
 
       console.log(compileAndAnnotate(`(arg0) -> {
         __core__iData((recurse) -> {
@@ -568,5 +568,4 @@ export default async function test() {
           __core__divideInteger(__core__addInteger(sa, sb), 2)
         }))
       }`))
-
 }

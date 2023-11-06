@@ -36,7 +36,7 @@ function optimizeHelios(src, n = 1) {
 }
 
 export default async function test() {
-    /*console.log(optimize(`
+    console.log(optimize(`
     (a, b) -> {
         __core__multiplyInteger(__core__addInteger(a, b), 0)
     }
@@ -73,9 +73,9 @@ export default async function test() {
                 }
             }
         )
-    }`))*/
+    }`))
 
-    /*console.log(optimize(`
+    console.log(optimize(`
     (a, b) -> {
         (fn) -> {
             __core__addInteger(
@@ -295,7 +295,7 @@ export default async function test() {
             .get_singleton()
     }`, 3));
 
-    /*console.log(optimizeHelios(`
+    console.log(optimizeHelios(`
     testing list_split_at
     func main(a: []Int, b: Int) -> []Int {
       (c: []Int, d: []Int) = a.split_at(b);
@@ -335,7 +335,7 @@ export default async function test() {
         []ByteArray{#70, #71, #72, #73, #74, #75, #76, #77, #78, #79, #7a, #7b, #7c, #7d, #7e, #7f}.any((ba: ByteArray) -> Bool {
             PubKeyHash::new(ba) == a
         })
-    }`))*/
+    }`))
 
     console.log(optimizeHelios(`testing list_fold2_verbose
     func main(a: []Int) -> Int {
