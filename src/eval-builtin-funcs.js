@@ -17,10 +17,6 @@ import {
  */
 
 /**
- * @typedef {import("./eval-common.js").Multi} Multi
- */
-
-/**
  * @typedef {import("./eval-common.js").Named} Named
  */
 
@@ -120,7 +116,7 @@ export class BuiltinFunc extends Common {
 	 * @param {Site} site 
 	 * @param {Typed[]} args 
 	 * @param {{[name: string]: Typed}} namedArgs
-	 * @returns {null | Typed | Multi}
+	 * @returns {null | Typed}
 	 */
 	call(site, args, namedArgs = {}) {
 		const res = this.#type.checkCall(site, args, namedArgs);
@@ -128,7 +124,7 @@ export class BuiltinFunc extends Common {
 		if (!res) {
 			return null
 		} else {
-			return Common.toTyped(res);
+			return res.toTyped();
 		}
 	}
 

@@ -19,6 +19,12 @@ import {
 	HeliosData
 } from "./helios-data.js";
 
+// the following is an ugly import, because eval-containers.js depends on this file
+// TODO: clean this up
+import { 
+	getTupleItemTypes
+} from "./eval-containers.js";
+
 /**
  * @typedef {import("./uplc-costmodels.js")}
  */
@@ -132,7 +138,6 @@ import {
  *   asEnumMemberType: (null | EnumMemberType)
  *   asFunc:           (null | Func)
  *   asInstance:       (null | Instance)
- *   asMulti:          (null | Multi)
  *   asNamed:          (null | Named)
  *   asNamespace:      (null | Namespace)
  *   asParametric:     (null | Parametric)
@@ -148,7 +153,7 @@ import {
  * @typedef {Typed & {
  *   asFunc: Func
  * 	 funcType: FuncType
- *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (null | Typed | Multi)
+ *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (null | Typed)
  * }} Func
  */
 
@@ -159,14 +164,6 @@ import {
  *   fieldNames:      string[]
  *   instanceMembers: InstanceMembers
  * }} Instance
- */
-
-/**
- * @internal
- * @typedef {EvalEntity & {
- *	 asMulti: Multi
- *   values:  Typed[]
- * }} Multi
  */
 
 /**
@@ -283,30 +280,6 @@ export class Common {
         return t.isBaseOf(i.type);
     }
 
-    /**
-     * @param {Type | Type[]} type 
-     * @returns {Typed | Multi}
-     */
-    static toTyped(type) {
-        if (Array.isArray(type)) {
-            if (type.length === 1) {
-                return Common.toTyped(type[0]);
-            } else {
-                return new MultiEntity(type.map(t => {
-                    const typed = Common.toTyped(t).asTyped;
-                    
-                    if (!typed) {
-                        throw new Error("unexpected nested Multi");
-                    } else {
-                        return typed;
-                    }
-                }));
-            }
-        } else {
-			return type.toTyped();
-        }
-    }
-
 	/**
 	 * Compares two types. Throws an error if neither is a Type.
 	 * @example
@@ -406,13 +379,6 @@ export class Common {
 	get asInstance() {
 		return null;
 	}
-
-    /**
-     * @type {null | Multi}
-     */
-    get asMulti() {
-        return null;
-    }
 
     /**
      * @type {null | Named}
@@ -871,24 +837,20 @@ export class FuncType extends Common {
 	#argTypes;
 
 	/**
-	 * @type {Type[]}
+	 * @type {Type}
 	 */
-	#retTypes;
+	#retType;
 
 	/**
 	 * @param {Type[] | ArgType[]} argTypes 
-	 * @param {Type | Type[]} retTypes 
+	 * @param {Type} retType 
 	 */
-	constructor(argTypes, retTypes) {
+	constructor(argTypes, retType) {
         super();
 
 		this.#argTypes = argTypes.map(at => (at instanceof ArgType) ? at : new ArgType(null, at));
 
-		if (!Array.isArray(retTypes)) {
-			retTypes = [retTypes];
-		}
-
-		this.#retTypes = retTypes;
+		this.#retType = retType;
 	}
 
     /**
@@ -927,10 +889,10 @@ export class FuncType extends Common {
 	}
 
     /**
-	 * @type {Type[]}
+	 * @type {Type}
 	 */
-	get retTypes() {
-		return this.#retTypes;
+	get retType() {
+		return this.#retType;
 	}
 
     /**
@@ -947,16 +909,56 @@ export class FuncType extends Common {
 		return this;
     }
 
+	/**
+	 * Expand tuples in posArgs, if that matches argTypes better
+	 * @param {Typed[]} posArgs 
+	 * @returns {Typed[]}
+	 */
+	expandTuplesInPosArgs(posArgs) {
+		posArgs = posArgs.slice();
+		let arg = posArgs.shift();
 
+		/**
+		 * @type {Typed[]}
+		 */
+		let result = [];
+		
+		let i = 0;
+		
+		while (arg) {
+			if (i < this.#argTypes.length && Common.instanceOf(arg, this.#argTypes[i].type)) {
+				result.push(arg);
+				i++;
+			} else {
+				const tupleItemTypes = getTupleItemTypes(arg.type);
+
+				if (tupleItemTypes && tupleItemTypes.every((tit, j) => (i+j < this.#argTypes.length) && Common.instanceOf(tit.toTyped(), this.#argTypes[i+j].type))) {
+					result = result.concat(tupleItemTypes.map(tit => tit.toTyped()));
+					i += tupleItemTypes.length;
+				} else {
+					// mismatched type, but don't throw error here because better error will be thrown later
+					result.push(arg);
+					i++;
+				}
+			}
+
+			arg = posArgs.shift();
+		}
+
+		return result;
+	}
+	
 	/**
 	 * Checks if arg types are valid.
 	 * Throws errors if not valid. Returns the return type if valid. 
 	 * @param {Site} site 
 	 * @param {Typed[]} posArgs
 	 * @param {{[name: string]: Typed}} namedArgs
-	 * @returns {null | Type[]}
+	 * @returns {null | Type}
 	 */
 	checkCall(site, posArgs, namedArgs = {}) {
+		posArgs = this.expandTuplesInPosArgs(posArgs); 
+
 		if (posArgs.length < this.nNonOptArgs) {
 			// check if each nonOptArg is covered by the named args
 			for (let i = 0; i < this.nNonOptArgs; i++) {
@@ -1002,7 +1004,7 @@ export class FuncType extends Common {
 			}
 		}
 
-		return this.#retTypes;
+		return this.#retType;
 	}
 
     /**
@@ -1016,13 +1018,13 @@ export class FuncType extends Common {
 		if (!type) {
 			return new FuncType(
 				this.#argTypes.map(at => at.infer(site, map, null)),
-				this.#retTypes.map(rt=> rt.infer(site, map, null))
+				this.#retType.infer(site, map, null)
 			);
 		} else if (type instanceof FuncType) {
-			if (type.argTypes.length == this.#argTypes.length && type.retTypes.length == this.#retTypes.length) {
+			if (type.argTypes.length == this.#argTypes.length) {
 				return new FuncType(
 					this.#argTypes.map((at, i) => at.infer(site, map, type.argTypes[i])),
-					this.#retTypes.map((rt, i) => rt.infer(site, map, type.retTypes[i]))
+					this.#retType.infer(site, map, type.retType)
 				);
 			}
 		}
@@ -1041,7 +1043,7 @@ export class FuncType extends Common {
 		if (argTypes.length == this.argTypes.length) {
 			return new FuncType(
 				this.#argTypes.map((at, i) => at.infer(site, map, argTypes[i])),
-				this.#retTypes.map(rt => rt.infer(site, map, null))
+				this.#retType.infer(site, map, null)
 			)
 		}
 
@@ -1062,10 +1064,8 @@ export class FuncType extends Common {
 			}
 		}
 
-		for (let rt of this.#retTypes) {
-			if (Common.typesEq(type, rt)) {
-				return true;
-			}
+		if (Common.typesEq(type, this.#retType)) {
+			return true;
 		}
 
 		return false;
@@ -1090,17 +1090,11 @@ export class FuncType extends Common {
 					}
 				}
 
-				if (this.#retTypes.length === other.#retTypes.length) {
-					for (let i = 0; i < this.#retTypes.length; i++) {
-						if (!this.#retTypes[i].isBaseOf(other.#retTypes[i])) {
-							return false;
-						}
-					}
-
-					return true;
-				} else {
+				if (!this.#retType.isBaseOf(other.#retType)) {
 					return false;
 				}
+
+				return true;
 			}
 
 		} else {
@@ -1128,11 +1122,7 @@ export class FuncType extends Common {
 	 * @returns {string}
 	 */
 	toString() {
-		if (this.#retTypes.length === 1) {
-			return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> ${this.#retTypes.toString()}`;
-		} else {
-			return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> (${this.#retTypes.map(t => t.toString()).join(", ")})`;
-		}
+		return `(${this.#argTypes.map(a => a.toString()).join(", ")}) -> ${this.#retType.toString()}`;
 	}
 	
 	/**
@@ -1844,13 +1834,6 @@ export class NamedEntity {
 	get asInstance() {
 		return this.#entity.asInstance;
 	}
-	
-	/**
-	 * @type {null | Multi}
-	 */
-	get asMulti() {
-		return this.#entity.asMulti;
-	}
 
 	/**
 	 * @type {Named}
@@ -1971,15 +1954,15 @@ export class FuncEntity extends Common {
 	 * @param {Site} site 
 	 * @param {Typed[]} args 
 	 * @param {{[name: string]: Typed}} namedArgs
-	 * @returns {null | Typed | Multi}
+	 * @returns {null | Typed}
 	 */
 	call(site, args, namedArgs = {}) {
-		const types = this.#type.checkCall(site, args, namedArgs);
+		const type = this.#type.checkCall(site, args, namedArgs);
 
-		if (types === null) {
+		if (type === null) {
 			return null;
 		} else {
-			return Common.toTyped(types);
+			return type.toTyped();
 		}
 	}
 
@@ -1990,68 +1973,6 @@ export class FuncEntity extends Common {
 	toString() {
 		return this.#type.toString();
 	}
-}
-
-/**
- * Wraps multiple return values
- * @internal
- * @implements {Multi}
- */
-export class MultiEntity extends Common {
-	#values;
-
-	/**
-	 * @param {Typed[]} values 
-	 */
-	constructor(values) {
-        super();
-
-		this.#values = values;
-	}
-
-    /**
-	 * @param {(Typed | Multi)[]} vals
-	 * @returns {Typed[]}
-	 */
-    static flatten(vals) {
-        /**
-         * @type {Typed[]}
-         */
-        let result = [];
-
-        for (let v of vals) {
-            if (v.asMulti) {
-                result = result.concat(v.asMulti.values);
-            } else if (v.asTyped) {
-                result.push(v.asTyped);
-            } else {
-				throw new Error("unexpected");
-			}
-        }
-
-        return result;
-    }
-
-	/**
-	 * @type {Typed[]}
-	 */
-	get values() {
-		return this.#values;
-	}
-
-    /**
-	 * @type {Multi}
-	 */
-	get asMulti() {
-		return this;
-	}
-
-	/**
-	 * @returns {string}
-	 */
-	toString() {
-		return `(${this.#values.map(v => v.toString()).join(", ")})`;
-	}	
 }
 
 /**
