@@ -1514,7 +1514,7 @@ async function testBuiltins() {
             if (a.length == 0) {
                 true
             } else {
-                a.to_iterator().head() == a.get(0)
+                a.to_iterator().head == a.get(0)
             }
         }`, ([a], res) => asBool(res));
 
@@ -2177,7 +2177,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_head_key_alt
         func main(a: Map[Int]Int) -> Int {
-            (k: Int, _) = a.head(); k
+            (k: Int, _) = a.head; k
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {
@@ -2203,7 +2203,7 @@ async function testBuiltins() {
         await ft.test([ft.map(ft.int(), ft.int())], `
         testing map_head_value_alt
         func main(a: Map[Int]Int) -> Int {
-            (_, v: Int) = a.head(); v
+            (_, v: Int) = a.head; v
         }
         `, ([a], res) => {
             if (a.data.map.length == 0) {

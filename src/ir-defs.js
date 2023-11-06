@@ -2171,13 +2171,11 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 		add(new RawFunc(`${basePath}__head`,
 	`(self) -> {
-		() -> {
-			self(
-				(is_null, ${head}, next_iterator) -> {
-					${returnHead}
-				}
-			)
-		}
+		self(
+			(is_null, ${head}, next_iterator) -> {
+				${returnHead}
+			}
+		)
 	}`
 		));
 
@@ -3580,10 +3578,8 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__head`,
 	`(self) -> {
 		(head) -> {
-			() -> {
-				(callback) -> {
-					callback(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head)))
-				}
+			(callback) -> {
+				callback(${TTPP}0__from_data(__core__fstPair(head)), ${TTPP}1__from_data(__core__sndPair(head)))
 			}
 		}(__core__headList(self))
 	}`));

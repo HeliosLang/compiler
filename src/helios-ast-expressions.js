@@ -42,7 +42,6 @@ import {
 	ErrorType,
 	FuncEntity,
 	FuncType,
-	MultiEntity,
 	VoidEntity,
 	VoidType
 
@@ -62,10 +61,6 @@ import {
 
 /**
  * @typedef {import("./eval-common.js").Instance} Instance
- */
-
-/**
- * @typedef {import("./eval-common.js").Multi} Multi
  */
 
 /**
@@ -102,7 +97,10 @@ import {
 	ListType$,
 	MapType$,
 	OptionType$,
-	IteratorType$
+	IteratorType$,
+	TupleType$,
+	TupleType,
+	getTupleItemTypes
 } from "./eval-containers.js";
 
 import {
@@ -227,27 +225,6 @@ export class Expr extends Token {
 
 		return result;
 	}
-
-	/**
-	 * @param {Scope} scope 
-	 * @returns {null | Typed | Multi}
-	 */
-	evalAsTypedOrMulti(scope) {
-		const r  = this.eval(scope);
-
-		if (!r) {
-			return null;
-		}
-
-		if (r.asTyped) {
-			return r.asTyped;
-		} else if (r.asMulti) {
-			return r.asMulti;
-		} else {
-			this.typeError(`${r.toString()} isn't a value`);
-			return null;
-		}
-	}	
 
 	/**
 	 * @returns {boolean}
@@ -690,6 +667,64 @@ export class VoidTypeExpr extends Expr {
 /**
  * @internal
  */
+export class TupleTypeExpr extends Expr {
+	#itemTypeExprs;
+
+	/**
+	 * @param {Site} site
+	 * @param {Expr[]} itemTypeExprs
+	 */
+	constructor(site, itemTypeExprs) {
+		super(site);
+		this.#itemTypeExprs = itemTypeExprs;
+	}
+
+	/**
+	 * @param {Scope} scope
+	 * @returns {null | EvalEntity}
+	 */
+	evalInternal(scope) {
+		const itemTypes_ = this.#itemTypeExprs.map(ite => {
+			const ite_ = ite.eval(scope);
+
+			if (!ite_) {
+				return null;
+			}
+
+			const itemType = ite_.asType;
+
+			if (!itemType) {
+				ite.typeError("not a type");
+				return null;
+			}
+
+			return itemType;
+		});
+
+		const itemTypes = reduceNull(itemTypes_);
+		if (itemTypes === null) {
+			return null;
+		}
+
+		if (itemTypes.length > 10) {
+			this.site.typeError("too many Type type args (limited to 10)");
+			return null;
+		}
+
+		return TupleType$(itemTypes);
+	}
+
+	/**
+	 * @returns {string}
+	 */
+	toString() {
+		return `(${this.#itemTypeExprs.map(ite => ite.toString()).join(", ")})`;
+	}
+}
+
+/**
+ * @internal
+ */
 export class FuncArgTypeExpr extends Token {
 	#name;
 	#typeExpr;
@@ -760,17 +795,17 @@ export class FuncArgTypeExpr extends Token {
  */
 export class FuncTypeExpr extends Expr {
 	#argTypeExprs;
-	#retTypeExprs;
+	#retTypeExpr;
 
 	/**
 	 * @param {Site} site
 	 * @param {FuncArgTypeExpr[]} argTypeExprs 
-	 * @param {Expr[]} retTypeExprs 
+	 * @param {Expr} retTypeExpr 
 	 */
-	constructor(site, argTypeExprs, retTypeExprs) {
+	constructor(site, argTypeExprs, retTypeExpr) {
 		super(site);
 		this.#argTypeExprs = argTypeExprs;
-		this.#retTypeExprs = retTypeExprs;
+		this.#retTypeExpr = retTypeExpr;
 	}
 
 	/**
@@ -780,21 +815,17 @@ export class FuncTypeExpr extends Expr {
 	evalInternal(scope) {
 		const argTypes_ = this.#argTypeExprs.map(a => a.eval(scope));
 
-		const retTypes_ = this.#retTypeExprs.map(e => {
-			const retType_ = e.eval(scope);
+		const retType_ = this.#retTypeExpr.eval(scope);
 
-			if (!retType_) {
-				return null;
-			}
+		if (!retType_) {
+			return null;
+		}
 
-			const retType = retType_.asType;
-			if (!retType) {
-				e.typeError("return type isn't a type");
-				return null;
-			}
-
-			return retType;
-		});
+		const retType = retType_.asType;
+		if (!retType) {
+			this.#retTypeExpr.typeError("return type isn't a type");
+			return null;
+		}
 
 		const argTypes = reduceNull(argTypes_);
 
@@ -802,24 +833,14 @@ export class FuncTypeExpr extends Expr {
 			return null;
 		}
 
-		const retTypes = reduceNull(retTypes_);
-
-		if (retTypes === null) {
-			return null;
-		}
-
-		return new FuncType(argTypes, retTypes);
+		return new FuncType(argTypes, retType);
 	}
 
 	/**
 	 * @returns {string}
 	 */
 	toString() {
-		if (this.#retTypeExprs.length === 1) {
-			return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExprs.toString()}`;
-		} else {
-			return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => e.toString()).join(", ")})`;
-		}
+		return `(${this.#argTypeExprs.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExpr.toString()}`;
 	}
 }
 
@@ -899,18 +920,20 @@ export class ChainExpr extends Expr {
  * @internal
  */
 export class AssignExpr extends ChainExpr {
-	#nameTypes;
+	/**
+	 * @type {DestructExpr}
+	 */
+	#nameType;
 
 	/**
 	 * @param {Site} site 
-	 * @param {DestructExpr[]} nameTypes 
+	 * @param {DestructExpr} nameType 
 	 * @param {Expr} upstreamExpr 
 	 * @param {Expr} downstreamExpr 
 	 */
-	constructor(site, nameTypes, upstreamExpr, downstreamExpr) {
+	constructor(site, nameType, upstreamExpr, downstreamExpr) {
 		super(site, assertDefined(upstreamExpr), assertDefined(downstreamExpr));
-		assert(nameTypes.length > 0);
-		this.#nameTypes = nameTypes;
+		this.#nameType = assertDefined(nameType);
 	}
 
 	/**
@@ -922,28 +945,10 @@ export class AssignExpr extends ChainExpr {
 
 		let upstreamVal = this.upstreamExpr.eval(scope);
 
-		if (this.#nameTypes.length > 1) {
-			if (upstreamVal && !upstreamVal.asMulti) {
-				this.typeError("rhs ins't a multi-value");
-			} else if (upstreamVal && upstreamVal.asMulti) {
-				const vals = upstreamVal.asMulti.values;
-
-				if (this.#nameTypes.length != vals.length) {
-					this.typeError(`expected ${this.#nameTypes.length} rhs in multi-assign, got ${vals.length}`);
-				} else {
-					this.#nameTypes.forEach((nt, i) => {
-						nt.evalInAssignExpr(subScope, assertDefined(vals[i].type.asType), i)
-					});
-				}
-			} else {
-				this.#nameTypes.forEach((nt, i) => {
-					nt.evalInAssignExpr(subScope, null, i)
-				});
-			}
-		} else if (upstreamVal && upstreamVal.asTyped) {
-			if (this.#nameTypes[0].hasType()) {
-				this.#nameTypes[0].evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asType), 0);
-			} else if (this.upstreamExpr.isLiteral() || scope.has(this.#nameTypes[0].name)) {
+		if (upstreamVal && upstreamVal.asTyped) {
+			if (this.#nameType.hasType() || this.#nameType.isTuple()) {
+				this.#nameType.evalInAssignExpr(subScope, assertDefined(upstreamVal.asTyped.type.asType), 0);
+			} else if (this.upstreamExpr.isLiteral() || scope.has(this.#nameType.name)) {
 				// enum variant type resulting from a constructor-like associated function must be cast back into its enum type
 				if ((this.upstreamExpr instanceof CallExpr &&
 					this.upstreamExpr.fnExpr instanceof PathExpr) || 
@@ -957,15 +962,15 @@ export class AssignExpr extends ChainExpr {
 					}
 				}
 
-				subScope.set(this.#nameTypes[0].name, upstreamVal);
+				subScope.set(this.#nameType.name, upstreamVal);
 			} else {
 				this.typeError("unable to infer type of assignment rhs");
 			}
-		} else if (this.#nameTypes[0].hasType()) {
-			this.#nameTypes[0].evalInAssignExpr(subScope, null, 0);
+		} else if (this.#nameType.hasType()) {
+			this.#nameType.evalInAssignExpr(subScope, null, 0);
 		} else {
 			this.upstreamExpr.typeError("rhs isn't an instance");
-			subScope.set(this.#nameTypes[0].name, new DataEntity(new AnyType()));
+			subScope.set(this.#nameType.name, new DataEntity(new AnyType()));
 		}
 		
 		const downstreamVal = this.downstreamExpr.eval(subScope);
@@ -981,53 +986,35 @@ export class AssignExpr extends ChainExpr {
 	 * @returns {IR}
 	 */
 	toIR(ctx) {
-		if (this.#nameTypes.length === 1) {
-			let inner = this.downstreamExpr.toIR(ctx.tab());
+		let inner = this.downstreamExpr.toIR(ctx.tab());
 
-			inner = this.#nameTypes[0].wrapDestructIR(ctx, inner, 0);
+		inner = this.#nameType.wrapDestructIR(ctx, inner, 0);
 
-			let upstream = this.upstreamExpr.toIR(ctx);
+		let upstream = this.upstreamExpr.toIR(ctx);
 
-			// enum member run-time error IR
-			if (this.#nameTypes[0].hasType()) {
-				const t = assertDefined(this.#nameTypes[0].type);
+		// enum member run-time error IR
+		if (this.#nameType.hasType()) {
+			const t = assertDefined(this.#nameType.type);
 
-				if (t.asEnumMemberType) {
-					upstream = new IR([
-						new IR("__helios__common__assert_constr_index("),
-						upstream,
-						new IR(`, ${t.asEnumMemberType.constrIndex})`)
-					]);
-				}
+			if (t.asEnumMemberType) {
+				upstream = new IR([
+					new IR("__helios__common__assert_constr_index("),
+					upstream,
+					new IR(`, ${t.asEnumMemberType.constrIndex})`)
+				]);
 			}
-
-			return new IR([
-				new IR("("),
-				this.#nameTypes[0].toNameIR(0),
-				new IR(") "),
-				new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}`),
-				inner,
-				new IR(`\n${ctx.indent}}(`),
-				upstream,
-				new IR(")")
-			]);
-		} else {
-			let inner = this.downstreamExpr.toIR(ctx.tab().tab());
-
-			for (let i = this.#nameTypes.length - 1; i >= 0; i--) {
-				// internally generates enum-member error IR
-				inner = this.#nameTypes[i].wrapDestructIR(ctx, inner, i);
-			}
-
-			const ir = new IR([
-				this.upstreamExpr.toIR(ctx),
-				new IR(`(\n${ctx.indent + TAB}(`), new IR(this.#nameTypes.map((nt, i) => nt.toNameIR(i))).join(", "), new IR(") ->", this.site), new IR(` {\n${ctx.indent}${TAB}${TAB}`),
-				inner,
-				new IR(`\n${ctx.indent + TAB}}\n${ctx.indent})`)
-			]);
-
-			return ir;
 		}
+
+		return new IR([
+			new IR("("),
+			this.#nameType.toNameIR(0), // wrapDestructIR depends on this name
+			new IR(") "),
+			new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}`),
+			inner,
+			new IR(`\n${ctx.indent}}(`),
+			upstream,
+			new IR(")")
+		]);
 	}
 
 	/**
@@ -1037,11 +1024,7 @@ export class AssignExpr extends ChainExpr {
 		let downstreamStr = this.downstreamExpr.toString();
 		assert(downstreamStr != undefined);
 
-		if (this.#nameTypes.length === 1) {
-			return `${this.#nameTypes.toString()} = ${this.upstreamExpr.toString()}; ${downstreamStr}`;
-		} else {
-			return `(${this.#nameTypes.map(nt => nt.toString()).join(", ")}) = ${this.upstreamExpr.toString()}; ${downstreamStr}`;
-		}
+		return `${this.#nameType.toString()} = ${this.upstreamExpr.toString()}; ${downstreamStr}`;
 	}
 }
 
@@ -1974,19 +1957,19 @@ export class FuncArg extends NameTypePair {
  */
 export class FuncLiteralExpr extends Expr {
 	#args;
-	#retTypeExprs;
+	#retTypeExpr;
 	#bodyExpr;
 
 	/**
 	 * @param {Site} site
 	 * @param {FuncArg[]} args 
-	 * @param {(null | Expr)[]} retTypeExprs 
+	 * @param {null | Expr} retTypeExpr 
 	 * @param {Expr} bodyExpr 
 	 */
-	constructor(site, args, retTypeExprs, bodyExpr) {
+	constructor(site, args, retTypeExpr, bodyExpr) {
 		super(site);
 		this.#args = args;
-		this.#retTypeExprs = retTypeExprs;
+		this.#retTypeExpr = retTypeExpr;
 		this.#bodyExpr = bodyExpr;
 	}
 
@@ -2032,16 +2015,14 @@ export class FuncLiteralExpr extends Expr {
 	}
 
 	/**
-	 * @type {Type[]}
+	 * @type {Type}
 	 */
-	get retTypes() {
-		return this.#retTypeExprs.map(e => {
-			if (e == null) {
-				return new AllType();
-			} else {
-				return assertDefined(e.cache?.asType);
-			}
-		});
+	get retType() {
+		if (this.#retTypeExpr === null) {
+			return new AllType();
+		} else {
+			return assertDefined(this.#retTypeExpr.cache?.asType);
+		}
 	}
 	
 	/**
@@ -2063,19 +2044,13 @@ export class FuncLiteralExpr extends Expr {
 
 		const argTypes = reduceNull(args.map(a => a.evalArgType(scope)));
 
-		const retTypes = reduceNull(this.#retTypeExprs.map(e => {
-			if (e == null) {
-				return new AllType();
-			} else {
-				return e.evalAsType(scope);
-			}
-		}));
+		const retType = this.#retTypeExpr ? this.#retTypeExpr.evalAsType(scope) : new AllType();
 
-		if (argTypes === null || retTypes === null) {
+		if (argTypes === null || retType === null) {
 			return null;
 		}
 
-		return new FuncType(argTypes, retTypes);
+		return new FuncType(argTypes, retType);
 	}
 
 	/**
@@ -2108,53 +2083,21 @@ export class FuncLiteralExpr extends Expr {
 			return null;
 		}
 
-		if (this.#retTypeExprs.length === 1) {
-			if (this.#retTypeExprs[0] == null) {
-				if (bodyVal.asMulti) {
-					return new FuncEntity(new FuncType(fnType.argTypes, bodyVal.asMulti.values.map(v => v.type)));
-				} else if (bodyVal.asTyped) {
-					return new FuncEntity(new FuncType(fnType.argTypes, bodyVal.asTyped.type));
-				} else {
-					this.#bodyExpr.typeError("expect multi or typed");
-					return null;
-				}
-			} else if (bodyVal.asMulti) {
-				this.#retTypeExprs[0].typeError("unexpected multi-value body");
-				return null;
-			} else if (bodyVal.asTyped) {
-				if (!fnType.retTypes[0].isBaseOf(bodyVal.asTyped.type)) {
-					this.#retTypeExprs[0].typeError(`wrong return type, expected ${fnType.retTypes[0].toString()} but got ${bodyVal.asTyped.type.toString()}`);
-					return null;
-				}
+		if (this.#retTypeExpr == null) {
+			if (bodyVal.asTyped) {
+				return new FuncEntity(new FuncType(fnType.argTypes, bodyVal.asTyped.type));
 			} else {
 				this.#bodyExpr.typeError("expect multi or typed");
 				return null;
 			}
-		} else {
-			if (bodyVal.asMulti) {
-				/** 
-				 * @type {Typed[]} 
-				 */
-				let bodyVals = bodyVal.asMulti.values;
-
-				if (bodyVals.length !== this.#retTypeExprs.length) {
-					this.#bodyExpr.typeError(`expected multi-value function body with ${this.#retTypeExprs.length} values, but got ${bodyVals.length} values`);
-					return null;
-				} else {
-					for (let i = 0; i < bodyVals.length; i++) {
-						let v = bodyVals[i];
-
-						let retTypeExpr = assertDefined(this.#retTypeExprs[i]);
-						if (!fnType.retTypes[i].isBaseOf(v.type)) {
-							retTypeExpr.typeError(`wrong return type for value ${i}, expected ${fnType.retTypes[i].toString()} but got ${v.type.toString()}`);
-							return null;
-						}
-					}
-				}
-			} else {
-				this.#bodyExpr.typeError(`expected multi-value function body, but got ${this.#bodyExpr.toString()}`);
+		} else if (bodyVal.asTyped) {
+			if (!fnType.retType.isBaseOf(bodyVal.asTyped.type)) {
+				this.#retTypeExpr.typeError(`wrong return type, expected ${fnType.retType.toString()} but got ${bodyVal.asTyped.type.toString()}`);
 				return null;
 			}
+		} else {
+			this.#bodyExpr.typeError("expect multi or typed");
+			return null;
 		}
 
 		subScope.assertAllUsed();
@@ -2243,15 +2186,10 @@ export class FuncLiteralExpr extends Expr {
 	 * @returns {string}
 	 */
 	toString() {
-		if (this.#retTypeExprs.length === 1) {
-			let retTypeExpr = this.#retTypeExprs[0];
-			if (retTypeExpr == null) {
-				return `(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
-			} else {
-				return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
-			}
+		if (this.#retTypeExpr == null) {
+			return `(${this.#args.map(a => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`;
 		} else {
-			return `(${this.#args.map(a => a.toString()).join(", ")}) -> (${this.#retTypeExprs.map(e => assertDefined(e).toString()).join(", ")}) {${this.#bodyExpr.toString()}}`;
+			return `(${this.#args.map(a => a.toString()).join(", ")}) -> ${this.#retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`;
 		}
 	}
 }
@@ -2634,6 +2572,13 @@ export class ParensExpr extends Expr {
 	}
 
 	/**
+	 * @returns {boolean}
+	 */
+	isLiteral() {
+		return this.#exprs.every(e => e.isLiteral());
+	}
+
+	/**
 	 * @param {Scope} scope 
 	 * @returns {null | EvalEntity}
 	 */
@@ -2658,14 +2603,16 @@ export class ParensExpr extends Expr {
 					return null;
 				}
 
-				return v;
+				return v.type;
 			}));
 
 			if (entries === null) {
 				return null;
 			}
 
-			return new MultiEntity(entries);
+			//return new MultiEntity(entries);
+
+			return TupleType$(entries).toTyped();
 		}
 	}
 
@@ -2830,7 +2777,7 @@ export class CallExpr extends Expr {
 				return null;
 			}
 			
-			const av = av_.asTyped ?? av_.asMulti;
+			const av = av_.asTyped;
 
 			if (!av) {
 				ae.typeError(`arg ${i+1} not an instance`);
@@ -2845,20 +2792,15 @@ export class CallExpr extends Expr {
 		}
 
 		/**
-		 * @type {(Typed | Multi)[]}
+		 * @type {Typed[]}
 		 */
-		const posArgVals_ = [];
+		const posArgVals = [];
 
 		this.#argExprs.forEach((argExpr, i) => {
 			if (!argExpr.isNamed()) {
-				posArgVals_.push(argVals[i]);
+				posArgVals.push(argVals[i]);
 			}
 		});
-
-		/**
-		 * @type {Typed[]}
-		 */
-		const posArgVals = MultiEntity.flatten(posArgVals_);
 
 		/**
 		 * @type {{[name: string]: Typed}}
@@ -2869,11 +2811,7 @@ export class CallExpr extends Expr {
 			if (argExpr.isNamed()) {
 				const val = argVals[i];
 
-				// can't be multi instance
-				if (val.asMulti) {
-					argExpr.typeError("can't use multiple return values as named argument");
-					return;
-				} else if (val.asTyped) {
+				if (val.asTyped) {
 					namedArgVals[argExpr.name] = val.asTyped;
 				} else {
 					throw new Error("unexpected");
@@ -2983,6 +2921,53 @@ export class CallExpr extends Expr {
 	}
 
 	/**
+	 * @private
+	 * @param {Expr[]} posExprs 
+	 * @returns {Map<Expr, number>}
+	 */
+	detectExpandedTuples(posExprs) {
+		/**
+		 * @type {Map<Expr, number>}
+		 */
+		const result = new Map();
+
+		const posArgs = reduceNull(posExprs.map(e => e.cache?.asTyped ?? null));
+
+		if (!posArgs) {
+			posExprs.forEach(e => {
+				result.set(e, 0);
+			})
+
+			return result;
+		}
+
+		const expandedPosArgs = this.fn.expandTuplesInPosArgs(posArgs);
+
+		let j = 0;
+
+		for (let i = 0; i < posArgs.length; i++) {
+			if (j >= expandedPosArgs.length) {
+				throw new Error("unexpected");
+			}
+
+			if (posArgs[i] == expandedPosArgs[j]) {
+				result.set(posExprs[i], 0);
+				j++;
+			} else {
+				const tupleItemTypes = getTupleItemTypes(posArgs[i].type);
+				if (!tupleItemTypes) {
+					throw new Error("unexpected");
+				}
+
+				result.set(posExprs[i], tupleItemTypes.length);
+				j += tupleItemTypes.length;
+			}
+		}
+
+		return result;
+	}
+
+	/**
 	 * @param {ToIRContext} ctx
 	 * @returns {IR}
 	 */
@@ -2999,25 +2984,27 @@ export class CallExpr extends Expr {
 		 * First step is to eliminate the named args
 		 * @type {[Expr[], IR[]]}
 		 */
-		const [positional, namedOptional] = this.expandArgs(ctx);
+		const [posExprs, namedOptExprs] = this.expandArgs(ctx);
 
 		// some multiValued args (always positional)
-		if (positional.some(e => (!e.isLiteral()) && (e.cache?.asMulti))) {
+		const isExpandedTuple = this.detectExpandedTuples(posExprs);
+
+		if (posExprs.some(e => (isExpandedTuple.get(e) ?? 0) > 0 )) {
 			// count the number of final args
 			let n = 0;
 
-			positional.forEach((e, i) => {
-				if ((!e.isLiteral()) && (e.cache?.asMulti)) {
-					n += e.cache.asMulti.values.length;
+			posExprs.forEach((e, i) => {
+				if ((isExpandedTuple.get(e) ?? 0) > 0) {
+					n += assertDefined(isExpandedTuple.get(e));
 				} else {
 					n += 1;
 				}
 			});
 
-			n += namedOptional.length;
+			n += namedOptExprs.length;
 
 			if (n > fn.nArgs) {
-				namedOptional.splice(0, n - fn.nArgs);
+				namedOptExprs.splice(0, n - fn.nArgs);
 			}
 
 			let names = [];
@@ -3037,7 +3024,7 @@ export class CallExpr extends Expr {
 				new IR(")", this.site)
 			]);
 
-			for (let namedIR of namedOptional.slice().reverse()) {
+			for (let namedIR of namedOptExprs.slice().reverse()) {
 				const n2 = assertDefined(names.pop());
 				const n1 = assertDefined(names.pop());
 				assert(n1.startsWith("__useopt__"));
@@ -3055,11 +3042,11 @@ export class CallExpr extends Expr {
 				]);
 			}
 
-			for (let i = positional.length - 1; i >= 0; i--) {
-				const e = positional[i];
+			for (let i = posExprs.length - 1; i >= 0; i--) {
+				const e = posExprs[i];
 
-				if ((!e.isLiteral()) && (e.cache?.asMulti)) {
-					const nMulti = e.cache.asMulti.values.length;
+				if ((isExpandedTuple.get(e) ?? 0) > 0) {
+					const nMulti = assertDefined(isExpandedTuple.get(e));
 					const multiNames = [];
 					const multiOpt = [];
 
@@ -3117,11 +3104,11 @@ export class CallExpr extends Expr {
 
 			return ir;
 		} else /* no multivalued args */ {
-			if (positional.length + namedOptional.length > fn.nArgs) {
-				namedOptional.splice(0, positional.length + namedOptional.length - fn.nArgs);
+			if (posExprs.length + namedOptExprs.length > fn.nArgs) {
+				namedOptExprs.splice(0, posExprs.length + namedOptExprs.length - fn.nArgs);
 			}
 
-			let args = positional.map((a, i) => {
+			let args = posExprs.map((a, i) => {
 				let ir = a.toIR(ctx);
 
 				if (i >= fn.nNonOptArgs) {
@@ -3132,7 +3119,7 @@ export class CallExpr extends Expr {
 				}
 
 				return ir;
-			}).concat(namedOptional);
+			}).concat(namedOptExprs);
 
 			return new IR([
 				fnIR,
@@ -3304,26 +3291,21 @@ export class IfElseExpr extends Expr {
 
 	/**
 	 * @param {Site} site
-	 * @param {null | Type[]} prevTypes
-	 * @param {Typed | Multi} newValue
-	 * @returns {null | Type[]}
+	 * @param {null | Type} prevType
+	 * @param {Typed} newValue
+	 * @returns {null | Type}
 	 */
-	static reduceBranchMultiType(site, prevTypes, newValue) {
-		if (!newValue.asMulti && newValue.asTyped && (new ErrorType()).isBaseOf(newValue.asTyped.type)) {
-			return prevTypes;
+	static reduceBranchMultiType(site, prevType, newValue) {
+		if (newValue.asTyped && (new ErrorType()).isBaseOf(newValue.asTyped.type)) {
+			return prevType;
 		}
 
-		const newTypes = (newValue.asMulti) ?
-			newValue.asMulti.values.map(v => v.type) :
-			[assertDefined(newValue.asTyped).type];
+		const newType = assertDefined(newValue.asTyped).type;
 
-		if (prevTypes === null) {
-			return newTypes;
-		} else if (prevTypes.length !== newTypes.length) {
-			site.typeError("inconsistent number of multi-value types");
-			return null;
+		if (prevType === null) {
+			return newType;
 		} else {
-			return reduceNull(prevTypes.map((pt, i) => IfElseExpr.reduceBranchType(site, pt, newTypes[i])));
+			return IfElseExpr.reduceBranchType(site, prevType, newType);
 		}
 	}
 
@@ -3347,8 +3329,7 @@ export class IfElseExpr extends Expr {
 		}
 
 		/**
-		 * Supports multiple return values
-		 * @type {null | Type[]}
+		 * @type {null | Type}
 		 */
 		let branchMultiType = null;
 
@@ -3356,7 +3337,7 @@ export class IfElseExpr extends Expr {
 			// don't allow shadowing
 			const branchScope = new Scope(scope, false);
 
-			const branchVal = b.evalAsTypedOrMulti(branchScope);
+			const branchVal = b.evalAsTyped(branchScope);
 
 			if (!branchVal) {
 				continue;
@@ -3373,7 +3354,7 @@ export class IfElseExpr extends Expr {
 			// i.e. every branch throws an error
 			return new ErrorEntity();
 		} else  {
-			return Common.toTyped(branchMultiType);
+			return branchMultiType.toTyped();
 		}
 	}
 
@@ -3410,6 +3391,7 @@ export class IfElseExpr extends Expr {
 
 /**
  * DestructExpr is for the lhs-side of assignments and for switch cases
+ * `NameExpr [':' TypeExpr ['{' ... '}']]`
  * @internal
  */
 export class DestructExpr {
@@ -3429,16 +3411,27 @@ export class DestructExpr {
 	#destructExprs;
 
 	/**
+	 * @type {boolean}
+	 */
+	#isTuple;
+
+	/**
 	 * @param {Word} name - use an underscore as a sink
 	 * @param {null | Expr} typeExpr 
 	 * @param {DestructExpr[]} destructExprs
+	 * @param {boolean} isTuple typeExpr must be `null` if isTuple is `true` and `destructExpr.length` must be `> 0`
 	 */
-	constructor(name, typeExpr, destructExprs = []) {
-		this.#name = name;
+	constructor(name, typeExpr, destructExprs = [], isTuple = false) {
+		this.#name = assertDefined(name);
 		this.#typeExpr = typeExpr;
 		this.#destructExprs = destructExprs;
+		this.#isTuple = isTuple;
 
-		assert (!(this.#typeExpr == null && this.#destructExprs.length > 0));
+		if (isTuple) {
+			assert(this.#destructExprs.length > 0 && this.#typeExpr == null);
+		} else {
+			assert(!(this.#typeExpr == null && this.#destructExprs.length > 0), `unexpected syntax: ${this.toString()}`);
+		}
 	}
 
 	/**
@@ -3458,10 +3451,20 @@ export class DestructExpr {
 	/**
 	 * @returns {boolean}
 	 */
+	isTuple() {
+		return this.#isTuple;
+	}
+
+	/**
+	 * @returns {boolean}
+	 */
 	hasDestructExprs() {
 		return this.#destructExprs.length > 0;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isIgnored() {
 		return this.name.value === "_";
 	}
@@ -3479,7 +3482,16 @@ export class DestructExpr {
 	 */
 	get type() {
 		if (this.#typeExpr === null) {
-			if (this.isIgnored()) {
+			if (this.#isTuple) {
+				const nestedTypes = reduceNull(this.#destructExprs.map(e => e.type));
+
+				if (!nestedTypes) {
+					this.site.typeError(`invalid nested tuple in in destruct expression`);
+					return null;
+				}
+
+				return TupleType$(nestedTypes);
+			} else if (this.isIgnored()) {
 				return new AllType();
 			} else {
 				return null;
@@ -3510,7 +3522,11 @@ export class DestructExpr {
 	 */
 	toString() {
 		if (this.#typeExpr === null) {
-			return this.name.toString();
+			if (this.#destructExprs.length > 0 && this.#isTuple) {
+				return `${this.name.toString()}: (${this.#destructExprs.map(de => de.toString()).join(", ")})`;
+			} else {
+				return this.name.toString();
+			}
 		} else {
 			let destructStr = "";
 
@@ -3529,17 +3545,34 @@ export class DestructExpr {
 	/**
 	 * Evaluates the type, used by FuncLiteralExpr and DataDefinition
 	 * @param {Scope} scope 
+	 * @param {null | Type} upstreamType
 	 * @returns {null | Type}
 	 */
-	evalType(scope) {
+	evalType(scope, upstreamType = null) {
 		if (this.#typeExpr === null) {
-			if (this.isIgnored()) {
+			if (this.#isTuple) {
+				const upstreamItemTypes = upstreamType ? getTupleItemTypes(upstreamType) : null;
+				const nestedTypes = reduceNull(this.#destructExprs.map((e, i) => e.evalType(scope, upstreamItemTypes ? upstreamItemTypes[i] : null)));
+
+				if (!nestedTypes) {
+					this.site.typeError(`invalid nested tuple in in destruct expression`);
+					return null;
+				}
+
+				return TupleType$(nestedTypes);
+			} else if (this.isIgnored()) {
 				return new AllType();
 			} else {
 				throw new Error("typeExpr not set in " + this.site.src.raw.split("\n")[0]);
 			}
 		} else {
-			return this.#typeExpr.evalAsType(scope);
+			const t = this.#typeExpr.evalAsType(scope);
+
+			if (t && upstreamType && !upstreamType.asEnumMemberType && t.asEnumMemberType) {
+				return t.asEnumMemberType.parentType;
+			} else {
+				return t;
+			}
 		}
 	}
 
@@ -3549,25 +3582,46 @@ export class DestructExpr {
 	 */
 	evalDestructExprs(scope, upstreamType) {
 		if (this.#destructExprs.length > 0) {
-			if (!upstreamType.asDataType) {
-				this.site.typeError("can't destruct a function");
-				return;
-			}
+			if (this.#isTuple) {
+				const tupleItemTypes = getTupleItemTypes(upstreamType);
 
-			const upstreamFieldNames = upstreamType.asDataType.fieldNames;
+				if (!tupleItemTypes) {
+					this.site.typeError("upstream value isn't a tuple, can't destruct");
+					return;
+				}
 
-			if (upstreamFieldNames.length != this.#destructExprs.length) {
-				this.site.typeError(`wrong number of destruct fields, expected ${upstreamFieldNames.length}, got ${this.#destructExprs.length}`);
-				return;
-			}
+				if (tupleItemTypes.length != this.#destructExprs.length) {
+					this.site.typeError(`wrong number of destruct tuple fields, expected ${tupleItemTypes.length}, got ${this.#destructExprs.length}`);
+					return;
+				}
 
-			for (let i = 0; i < this.#destructExprs.length; i++) {
+				for (let i = 0; i < this.#destructExprs.length; i++) {
+					this.#destructExprs[i].evalInternal(
+						scope, 
+						tupleItemTypes[i], 
+						i
+					);
+				}
+			} else {
+				if (!upstreamType.asDataType) {
+					this.site.typeError("can't destruct a function");
+					return;
+				}
 
-				this.#destructExprs[i].evalInternal(
-					scope, 
-					assertDefined(upstreamType.instanceMembers[upstreamFieldNames[i]].asDataType), 
-					i
-				);
+				const upstreamFieldNames = upstreamType.asDataType.fieldNames;
+
+				if (upstreamFieldNames.length != this.#destructExprs.length) {
+					this.site.typeError(`wrong number of destruct fields, expected ${upstreamFieldNames.length}, got ${this.#destructExprs.length}`);
+					return;
+				}
+
+				for (let i = 0; i < this.#destructExprs.length; i++) {
+					this.#destructExprs[i].evalInternal(
+						scope, 
+						assertDefined(upstreamType.instanceMembers[upstreamFieldNames[i]].asDataType), // we `asDataType` because methods can't be destructed
+						i
+					);
+				}
 			}
 		}
 	}
@@ -3579,14 +3633,8 @@ export class DestructExpr {
 	 */
 	evalInternal(scope, upstreamType, i) {
 		if (this.hasType()) {
-			const t_ = this.evalType(scope);
-			if (!t_) {
-				return;
-			}
-
-			const t = t_.asDataType;
+			const t = this.evalType(scope);
 			if (!t) {
-				this.site.typeError("not a data type");
 				return;
 			}
 
@@ -3641,37 +3689,6 @@ export class DestructExpr {
 	 * @param {number} i
 	 */
 	evalInAssignExpr(scope, upstreamType, i) {
-		/**
-		 * @param {null | Type} t 
-		 */
-		const checkType = (t) => {
-			if (!t) {
-				this.site.typeError("not a type");
-				return;
-			}
-
-			// differs from upstreamType because can be enum parent
-			let checkType = t;
-
-			if (upstreamType) {
-				// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
-				if (t.asEnumMemberType && !upstreamType.asEnumMemberType) {
-					checkType = t.asEnumMemberType.parentType;
-				}
-
-				if (!checkType.isBaseOf(upstreamType)) {
-					this.site.typeError(`expected ${checkType.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
-				}
-			}
-
-			if (!this.isIgnored()) {
-				// TODO: take into account ghost type parameters
-				scope.set(this.name, t.toTyped());
-			}
-
-			this.evalDestructExprs(scope, t);
-		}
-
 		const t = this.evalType(scope);
 
 		if (!t) {
@@ -3679,18 +3696,23 @@ export class DestructExpr {
 			return;
 		}
 
-		if (t.asType) {
-			checkType(t.asType);
-		} else if (t.asMulti) {
-			if (i >= t.asMulti.values.length) {
-				this.site.typeError(`expected multi instace with only ${t.asMulti.values.length} items`);
-				return null;
-			}
+		// differs from upstreamType because can be enum parent
+		// if t is enum variant, get parent instead (exact variant is checked at runtime instead)
+		// also do this for nested as well
+		const checkType = this.evalType(scope, upstreamType);
 
-			checkType(t.asMulti.values[i].type.asDataType);
-		} else {
-			throw new Error("unexpected");
+		if (checkType && upstreamType) {
+			if (!checkType.isBaseOf(upstreamType)) {
+				this.site.typeError(`expected ${checkType.toString()} for rhs ${i+1}, got ${upstreamType.toString()}`);
+			}
 		}
+
+		if (!this.isIgnored()) {
+			// TODO: take into account ghost type parameters
+			scope.set(this.name, t.toTyped());
+		}
+
+		this.evalDestructExprs(scope, t);
 	}
 
 	/**
@@ -3720,24 +3742,37 @@ export class DestructExpr {
 	}
 
 	/**
+	 * @private
 	 * @param {ToIRContext} ctx
 	 * @param {IR} inner 
 	 * @param {string} objName 
 	 * @param {number} fieldIndex 
-	 * @param {string} fieldFn
+	 * @param {string} fieldGetter
 	 * @returns {IR}
 	 */
-	wrapDestructIRInternal(ctx, inner, objName, fieldIndex, fieldFn) {
+	wrapDestructIRInternal(ctx, inner, objName, fieldIndex, fieldGetter) {
 		if (this.isIgnored() && this.#destructExprs.length == 0) {
 			return inner;
 		} else {
 			const baseName = this.isIgnored() ? `${objName}_${fieldIndex}` : this.#name.toString();
 
 			for (let i = this.#destructExprs.length - 1; i >= 0; i--) {
-				inner = this.#destructExprs[i].wrapDestructIRInternal(ctx.tab(), inner, baseName, i, this.getFieldFn(i));
+				const de = this.#destructExprs[i];
+
+				const innerGetter = this.#isTuple ? de.toNameIR(i).toString() : `${this.getFieldFn(i)}(${baseName})`;
+
+				inner = de.wrapDestructIRInternal(ctx.tab(), inner, baseName, i, innerGetter);
 			}
 
-			let getter = `${fieldFn}(${objName})`;
+			if (this.#isTuple) {
+				inner = IR.new`${baseName}(
+					(${new IR(this.#destructExprs.map((de, i) => de.toNameIR(i))).join(", ")}) -> {
+						${inner}
+					}
+				)`;
+			}
+
+			let getter = fieldGetter;
 
 			const t = this.type;
 
@@ -3760,8 +3795,9 @@ export class DestructExpr {
 	}
 
 	/**
+	 * 
 	 * @param {ToIRContext} ctx
-	 * @param {IR} inner 
+	 * @param {IR} inner - downstream IR expression
 	 * @param {number} argIndex 
 	 * @returns {IR}
 	 */
@@ -3769,15 +3805,29 @@ export class DestructExpr {
 		if (this.#destructExprs.length == 0) {
 			return inner;
 		} else {
+			/**
+			 * same as this.toNameIR()
+			 * TODO: can __lhs be changed to underscore?
+			 */
 			const baseName = this.isIgnored() ? `__lhs_${argIndex}` : this.#name.toString();
 
 			for (let i = this.#destructExprs.length - 1; i >= 0; i--) {
 				const de = this.#destructExprs[i];
 
-				inner = de.wrapDestructIRInternal(ctx.tab(), inner, baseName, i, this.getFieldFn(i));
+				const getter = this.#isTuple ? de.toNameIR(i).toString() : `${this.getFieldFn(i)}(${baseName})`;
+
+				inner = de.wrapDestructIRInternal(ctx.tab(), inner, baseName, i, getter);
 			}
 
-			return inner;
+			if (this.#isTuple) {
+				return IR.new`${baseName}(
+					(${new IR(this.#destructExprs.map((de, i) => de.toNameIR(i))).join(", ")}) -> {
+						${inner}
+					}
+				)`;
+			} else {
+				return inner;
+			}
 		}
 	}
 
@@ -3797,7 +3847,9 @@ export class SwitchCase extends Token {
 	#lhs;
 	#bodyExpr;
 
-	/** @type {?number} */
+	/** 
+	 * @type {null | number} 
+	 */
 	#constrIndex;
 
 	/**
@@ -3827,6 +3879,9 @@ export class SwitchCase extends Token {
 		return this.#lhs.typeName;
 	}
 
+	/**
+	 * @returns {boolean}
+	 */
 	isDataMember() {
 		switch (this.memberName.value) {
 			case "Int":
@@ -3861,7 +3916,7 @@ export class SwitchCase extends Token {
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope 
 	 * @param {DataType} enumType
-	 * @returns {null | Multi | Typed}
+	 * @returns {null | Typed}
 	 */
 	evalEnumMember(scope, enumType) {
 		const caseType = enumType.typeMembers[this.memberName.value]?.asEnumMemberType;
@@ -3884,7 +3939,7 @@ export class SwitchCase extends Token {
 			return null;
 		}
 
-		const bodyVal = bodyVal_.asTyped ?? bodyVal_?.asMulti;
+		const bodyVal = bodyVal_.asTyped;
 
 		if (!bodyVal) {
 			this.#bodyExpr.typeError("not typed");
@@ -3899,7 +3954,7 @@ export class SwitchCase extends Token {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {null | Typed | Multi}
+	 * @returns {null | Typed}
 	 */
 	evalDataMember(scope) {
 		/** @type {DataType} */
@@ -3949,7 +4004,7 @@ export class SwitchCase extends Token {
 
 		caseScope.assertAllUsed();
 
-		const bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
+		const bodyVal = bodyVal_.asTyped;
 
 		if (!bodyVal) {
 			this.#bodyExpr.typeError("not typed");
@@ -3971,7 +4026,7 @@ export class SwitchCase extends Token {
 
 		return new IR([
 			new IR("("),
-			this.#lhs.toNameIR(0), 
+			this.#lhs.toNameIR(0), // wrapDestructIR depends on this name
 			new IR(") "),
 			new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}`),
 			inner,
@@ -4020,11 +4075,11 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 	/**
 	 * Evaluates the switch type and body value of a case.
 	 * @param {Scope} scope
-	 * @returns {null | Typed | Multi}
+	 * @returns {null | Typed}
 	 */
 	evalDataMember(scope) {
 		/**
-		 * @type {null | Typed | Multi}
+		 * @type {null | Typed}
 		 */
 		let bodyVal = null;
 
@@ -4045,7 +4100,7 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 				return null;
 			}
 
-			bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
+			bodyVal = bodyVal_.asTyped;
 
 			caseScope.assertAllUsed();
 		} else {
@@ -4055,7 +4110,7 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 				return null;
 			}
 
-			bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
+			bodyVal = bodyVal_.asTyped;
 		}
 
 		if (!bodyVal) {
@@ -4106,7 +4161,7 @@ export class SwitchDefault extends Token {
 
 	/**
 	 * @param {Scope} scope 
-	 * @returns {null | Typed | Multi}
+	 * @returns {null | Typed}
 	 */
 	eval(scope) {
 		const bodyVal_ = this.#bodyExpr.eval(scope);
@@ -4115,7 +4170,7 @@ export class SwitchDefault extends Token {
 			return null;
 		}
 
-		const bodyVal = bodyVal_.asTyped ?? bodyVal_.asMulti;
+		const bodyVal = bodyVal_.asTyped;
 
 		if (!bodyVal) {
 			this.#bodyExpr.typeError("not typed");
@@ -4220,7 +4275,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 			this.setDefaultCaseToVoid();
 		}
 
-		/** @type {null | Type[]} */
+		/** @type {null | Type} */
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
@@ -4252,7 +4307,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 		if (branchMultiType === null) {
 			return new ErrorEntity();
 		} else {
-			return Common.toTyped(branchMultiType);
+			return branchMultiType.toTyped();
 		}
 	}
 
@@ -4333,7 +4388,7 @@ export class DataSwitchExpr extends SwitchExpr {
 			this.setDefaultCaseToVoid();
 		}
 
-		/** @type {null | Type[]} */
+		/** @type {null | Type} */
 		let branchMultiType = null;
 
 		for (let c of this.cases) {
@@ -4366,7 +4421,7 @@ export class DataSwitchExpr extends SwitchExpr {
 			// only possible if each branch is an error
 			return new ErrorEntity();
 		} else {
-			return Common.toTyped(branchMultiType);
+			return branchMultiType.toTyped();
 		}
 	}
 

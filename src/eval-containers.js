@@ -65,6 +65,15 @@ import {
  * @typedef {import("./eval-common.js").TypeMembers} TypeMembers
  */
 
+/**
+ * @template {HeliosData} T
+ * @typedef {import("./eval-common.js").GenericTypeProps<T>} GenericTypeProps
+ */
+
+/**
+ * @typedef {import("./eval-common.js").InferenceMap} InferenceMap
+ */
+
 import {
 	BoolType,
 	ByteArrayType,
@@ -97,19 +106,23 @@ export function IteratorType$(itemTypes) {
 		name: `Iterator[${itemTypes.map(it => it.toString()).join(", ")}]`,
 		path: `__helios__iterator__${itemTypes.length}`,
 		genInstanceMembers: (self) => {
+			// Note: to_list and to_map can't be part of Iterator because type information is lost (eg. we can map to an iterator over functions)
+
+			const itemType = itemTypes.length == 1 ? itemTypes[0] : TupleType$(itemTypes);
+
 			const members = {
 				any: new FuncType([new FuncType(itemTypes, BoolType)], BoolType),
 				drop: new FuncType([IntType], self),
-				head: new FuncType([], itemTypes),
 				filter: new FuncType([new FuncType(itemTypes, BoolType)], self),
-				find: new FuncType([new FuncType(itemTypes, BoolType)], itemTypes),
+				find: new FuncType([new FuncType(itemTypes, BoolType)], itemType),
 				for_each: new FuncType([new FuncType(itemTypes, new VoidType())], new VoidType()),
 				fold: (() => {
 					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					return new ParametricFunc([a], new FuncType([new FuncType([a.ref].concat(itemTypes), a.ref), a.ref], a.ref));
 				})(),
-				get: new FuncType([IntType], itemTypes),
-				get_singleton: new FuncType([], itemTypes),
+				head: itemType,
+				get: new FuncType([IntType], itemType),
+				get_singleton: new FuncType([], itemType),
 				is_empty: new FuncType([], BoolType),
 				map: (() => {
 					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
@@ -119,7 +132,7 @@ export function IteratorType$(itemTypes) {
 					const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 					const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
 
-					return new ParametricFunc([a, b], new FuncType([new FuncType(itemTypes, [a.ref, b.ref])], IteratorType$([a.ref, b.ref])));
+					return new ParametricFunc([a, b], new FuncType([new FuncType(itemTypes, TupleType$([a.ref, b.ref]))], IteratorType$([a.ref, b.ref])));
 				})(),
 				prepend: new FuncType(itemTypes, self),
 				tail: self,
@@ -138,9 +151,139 @@ export function IteratorType$(itemTypes) {
 		genTypeMembers: (self) => ({})
 	};
 
-	// to_list and to_map can't be part of Iterator because type information is lost (eg. we can map to an iterator over functions)
+	// if any of the item type is parametric, this return type must also be parametric so that the item type inference methods are called correctly
+	//  (i.e. the inference method of this Iterator type calls the inference methods of the itemtypes)
 	return itemTypes.some(it => it.isParametric()) ? new GenericParametricType(props) : new GenericType(props);
 };
+
+/**
+ * @internal
+ * @template {HeliosData} T
+ * @implements {DataType}
+ */
+export class TupleType extends GenericType {
+	#itemTypes;
+
+	/**
+	 * @param {GenericTypeProps<T>} props
+	 * @param {Type[]} itemTypes
+	 */
+	constructor(props, itemTypes) {
+		super(props);
+
+		this.#itemTypes = itemTypes;
+	}
+	
+	get itemTypes() {
+		return this.#itemTypes;
+	}
+
+	/**
+     * @param {Type} other 
+     * @returns {boolean}
+     */
+    isBaseOf(other) {
+		if (other instanceof TupleType) {
+			return other.#itemTypes.length == this.#itemTypes.length && this.#itemTypes.every((it, i) => it.isBaseOf(other.#itemTypes[i]));
+		} else {
+			return false;
+		}
+    }
+
+	/**
+	 * @internal
+	 * @param {Site} site
+	 * @param {InferenceMap} map 
+	 * @param {null | Type} type 
+	 * @returns {Type}
+	 */
+	infer(site, map, type) {
+		if (!this.#itemTypes.some(it => it.isParametric())) {
+			return this;
+		}
+
+		if (!type) {
+			const itemTypes = this.#itemTypes.map(it => it.infer(site, map, null));
+
+			return TupleType$(itemTypes);
+		} else if (type instanceof TupleType && this.#itemTypes.length == type.#itemTypes.length) {
+			const itemTypes = this.#itemTypes.map((it, i) => it.infer(site, map, type.#itemTypes[i]));
+
+			return TupleType$(itemTypes);
+		}
+
+		throw site.typeError(`unable to infer type of ${this.toString()} (${type instanceof TupleType} ${type instanceof GenericType})`);
+	}
+}
+
+/**
+ * @internal
+ * @param {Type[]} itemTypes
+ * @param {boolean | null} isAllDataTypes - if the all the itemTypes are known datatypes, then don't check that here (could lead to infinite recursion)
+ * @returns {Type}
+ */
+export function TupleType$(itemTypes, isAllDataTypes = null) {
+	const dataTypeClass = new DefaultTypeClass();
+
+	const isData = isAllDataTypes !== null ? isAllDataTypes : itemTypes.every(it => {
+		// no need to check for primitives
+		if (it == IntType || it == StringType || it == ByteArrayType || it == BoolType || it == RealType) {
+			return true;
+		}
+
+		dataTypeClass.isImplementedBy(it)
+	});
+
+	const props = {
+		name: `(${itemTypes.map(it => it.toString()).join(", ")})`,
+		path: `__helios__tuple[${itemTypes.map(it => it.asDataType ? it.asDataType.path : "__helios__func").join(", ")}]`,
+		genInstanceMembers: (self) => {
+			const members = isData ? genCommonInstanceMembers(self) : {};
+
+			const getters = [
+				"first",
+				"second",
+				"third",
+				"fourth",
+				"fifth",
+				"sixth",
+				"seventh",
+				"eigth",
+				"nineth",
+				"tenth"
+			];
+
+			for (let i = 0; i< 10 && i < itemTypes.length; i++) {
+				const key = getters[i];
+				members[key] = itemTypes[i]
+			}
+
+			const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
+			members.__to_func = new ParametricFunc([a], new FuncType([new FuncType(itemTypes, a.ref)], a.ref));
+			
+			return members;
+		},
+		genTypeMembers: (self) => {
+			return isData ? genCommonTypeMembers(self) : {};
+		}
+	};
+
+	return new TupleType(props, itemTypes);
+}
+
+/**
+ * Returns null if `type` isn't a tuple
+ * @internal
+ * @param {Type} type 
+ * @returns {null | Type[]}
+ */
+export function getTupleItemTypes(type) {
+	if (type instanceof TupleType) {
+		return type.itemTypes;
+	} else {
+		return null;
+	}
+}
 
 /**
  * Builtin list type
@@ -217,13 +360,13 @@ export const ListType = new ParametricType({
 					fold2: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
-						return new ParametricFunc([a, b], new FuncType([new FuncType([a.ref, b.ref, itemType], [a.ref, b.ref]), a.ref, b.ref], [a.ref, b.ref]));
+						return new ParametricFunc([a, b], new FuncType([new FuncType([a.ref, b.ref, itemType], TupleType$([a.ref, b.ref])), a.ref, b.ref], TupleType$([a.ref, b.ref])));
 					})(),
 					fold3: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
 						const c = new Parameter("c", `${FTPP}0`, new AnyTypeClass());
-						return new ParametricFunc([a, b, c], new FuncType([new FuncType([a.ref, b.ref, c.ref, itemType], [a.ref, b.ref, c.ref]), a.ref, b.ref, c.ref], [a.ref, b.ref, c.ref]));
+						return new ParametricFunc([a, b, c], new FuncType([new FuncType([a.ref, b.ref, c.ref, itemType], TupleType$([a.ref, b.ref, c.ref])), a.ref, b.ref, c.ref], TupleType$([a.ref, b.ref, c.ref])));
 					})(),
 					fold_lazy: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
@@ -232,7 +375,7 @@ export const ListType = new ParametricType({
 					fold2_lazy: (() => {
 						const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass());
 						const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass());
-						return new ParametricFunc([a, b], new FuncType([new FuncType([itemType, new FuncType([], [a.ref, b.ref])], [a.ref, b.ref]), a.ref, b.ref], [a.ref, b.ref]));
+						return new ParametricFunc([a, b], new FuncType([new FuncType([itemType, new FuncType([], TupleType$([a.ref, b.ref]))], TupleType$([a.ref, b.ref])), a.ref, b.ref], TupleType$([a.ref, b.ref])));
 					})(),
 					for_each: new FuncType([new FuncType([itemType], new VoidType())], new VoidType()),
 					get: new FuncType([IntType], itemType),
@@ -251,7 +394,7 @@ export const ListType = new ParametricType({
 					prepend: new FuncType([itemType], self),
 					set: new FuncType([IntType, itemType], self),
 					sort: new FuncType([new FuncType([itemType, itemType], BoolType)], self),
-					split_at: new FuncType([IntType], [self, self]),
+					split_at: new FuncType([IntType], TupleType$([self, self], true)),
 					tail: self,
 					take: new FuncType([IntType], self),
 					take_end: new FuncType([IntType], self),
@@ -323,10 +466,11 @@ export const MapType = new ParametricType({
 				append: new FuncType([keyType, valueType], self),
 				delete: new FuncType([keyType], self),
 				filter: new FuncType([new FuncType([keyType, valueType], BoolType)], self),
-				find: new FuncType([new FuncType([keyType, valueType], BoolType)], [keyType, valueType]),
+				find: new FuncType([new FuncType([keyType, valueType], BoolType)], TupleType$([keyType, valueType], true)),
 				find_key: new FuncType([new FuncType([keyType], BoolType)], keyType),
 				find_key_safe: new FuncType([new FuncType([keyType], BoolType)], OptionType$(keyType)),
-				find_safe: new FuncType([new FuncType([keyType, valueType], BoolType)], [new FuncType([], [keyType, valueType]), BoolType]),
+				// TODO: convert return value of find_safe to an OptionType of a TupleType (requires changing the way options work internally)
+				find_safe: new FuncType([new FuncType([keyType, valueType], BoolType)], TupleType$([new FuncType([], TupleType$([keyType, valueType])), BoolType], false)),
 				find_value: new FuncType([new FuncType([valueType], BoolType)], valueType),
 				find_value_safe: new FuncType([new FuncType([valueType], BoolType)], OptionType$(valueType)),
 				fold: (() => {
@@ -340,7 +484,7 @@ export const MapType = new ParametricType({
 				for_each: new FuncType([new FuncType([keyType, valueType], new VoidType())], new VoidType()),
 				get: new FuncType([keyType], valueType),
 				get_safe: new FuncType([keyType], OptionType$(valueType)),
-				head: new FuncType([], [keyType, valueType]),
+				head: TupleType$([keyType, valueType], true),
 				head_key: keyType,
 				head_value: valueType,
 				is_empty: new FuncType([], BoolType),
@@ -349,7 +493,7 @@ export const MapType = new ParametricType({
 					const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass());
 					const b = new Parameter("b", `${FTPP}1`, new DefaultTypeClass());
 
-					return new ParametricFunc([a, b], new FuncType([new FuncType([keyType, valueType], [a.ref, b.ref])], MapType$(a.ref, b.ref)));
+					return new ParametricFunc([a, b], new FuncType([new FuncType([keyType, valueType], TupleType$([a.ref, b.ref], true))], MapType$(a.ref, b.ref)));
 				})(),
 				prepend: new FuncType([keyType, valueType], self),
 				set: new FuncType([keyType, valueType], self),

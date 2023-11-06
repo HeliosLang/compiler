@@ -72,10 +72,6 @@ import {
  */
 
 /**
- * @typedef {import("./eval-common.js").Multi} Multi
- */
-
-/**
  * @typedef {import("./eval-common.js").Named} Named
  */
 

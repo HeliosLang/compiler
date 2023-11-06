@@ -14,7 +14,7 @@
   "scripts": {
     "prebuild": "node ./src/index.js && npx tsc --outFile ./helios-internal.d.ts && node ./utils/strip-internal.js && npx tsc --noEmit --target es2020 ./helios.d.ts",
     "build": "npm test",
-    "pretest": "mkdir -p ./test/node_modules/helios && cp -t ./test/node_modules/helios ./helios* package*.json",
+    "pretest": "rm -fr ./test/node_modules/helios && mkdir -p ./test/node_modules && cd ./test/node_modules && ln -s ../../ ./helios",
     "test": "node ./test/index.js",
     "pub": "node ./utils/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./utils/latest-version.js)/ && npm publish ."
   },

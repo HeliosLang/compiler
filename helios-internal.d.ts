@@ -577,7 +577,6 @@ declare module "helios" {
      *   asEnumMemberType: (null | EnumMemberType)
      *   asFunc:           (null | Func)
      *   asInstance:       (null | Instance)
-     *   asMulti:          (null | Multi)
      *   asNamed:          (null | Named)
      *   asNamespace:      (null | Namespace)
      *   asParametric:     (null | Parametric)
@@ -592,7 +591,7 @@ declare module "helios" {
      * @typedef {Typed & {
      *   asFunc: Func
      * 	 funcType: FuncType
-     *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (null | Typed | Multi)
+     *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): (null | Typed)
      * }} Func
      */
     /**
@@ -602,13 +601,6 @@ declare module "helios" {
      *   fieldNames:      string[]
      *   instanceMembers: InstanceMembers
      * }} Instance
-     */
-    /**
-     * @internal
-     * @typedef {EvalEntity & {
-     *	 asMulti: Multi
-     *   values:  Typed[]
-     * }} Multi
      */
     /**
      * @internal
@@ -713,6 +705,20 @@ declare module "helios" {
      * @returns {Type}
      */
     export function IteratorType$(itemTypes: Type[]): Type;
+    /**
+     * @internal
+     * @param {Type[]} itemTypes
+     * @param {boolean | null} isAllDataTypes - if the all the itemTypes are known datatypes, then don't check that here (could lead to infinite recursion)
+     * @returns {Type}
+     */
+    export function TupleType$(itemTypes: Type[], isAllDataTypes?: boolean | null): Type;
+    /**
+     * Returns null if `type` isn't a tuple
+     * @internal
+     * @param {Type} type
+     * @returns {null | Type[]}
+     */
+    export function getTupleItemTypes(type: Type): null | Type[];
     /**
      * @internal
      * @param {Type} itemType
@@ -5113,11 +5119,6 @@ declare module "helios" {
          */
         static instanceOf(i: Typed, t: Type): boolean;
         /**
-         * @param {Type | Type[]} type
-         * @returns {Typed | Multi}
-         */
-        static toTyped(type: Type | Type[]): Typed | Multi;
-        /**
          * Compares two types. Throws an error if neither is a Type.
          * @example
          * Common.typesEq(IntType, IntType) == true
@@ -5165,10 +5166,6 @@ declare module "helios" {
          * @type {null | Instance}
          */
         get asInstance(): Instance | null;
-        /**
-         * @type {null | Multi}
-         */
-        get asMulti(): Multi | null;
         /**
          * @type {null | Named}
          */
@@ -5414,9 +5411,9 @@ declare module "helios" {
     export class FuncType extends Common implements Type {
         /**
          * @param {Type[] | ArgType[]} argTypes
-         * @param {Type | Type[]} retTypes
+         * @param {Type} retType
          */
-        constructor(argTypes: Type[] | ArgType[], retTypes: Type | Type[]);
+        constructor(argTypes: Type[] | ArgType[], retType: Type);
         /**
          * @type {Type[]}
          */
@@ -5438,9 +5435,9 @@ declare module "helios" {
          */
         get nOptArgs(): number;
         /**
-         * @type {Type[]}
+         * @type {Type}
          */
-        get retTypes(): Type[];
+        get retType(): Type;
         /**
          * @type {TypeMembers}
          */
@@ -5450,16 +5447,22 @@ declare module "helios" {
          */
         get asType(): Type;
         /**
+         * Expand tuples in posArgs, if that matches argTypes better
+         * @param {Typed[]} posArgs
+         * @returns {Typed[]}
+         */
+        expandTuplesInPosArgs(posArgs: Typed[]): Typed[];
+        /**
          * Checks if arg types are valid.
          * Throws errors if not valid. Returns the return type if valid.
          * @param {Site} site
          * @param {Typed[]} posArgs
          * @param {{[name: string]: Typed}} namedArgs
-         * @returns {null | Type[]}
+         * @returns {null | Type}
          */
         checkCall(site: Site, posArgs: Typed[], namedArgs?: {
             [name: string]: Typed;
-        }): null | Type[];
+        }): null | Type;
         /**
          * @internal
          * @param {Site} site
@@ -5784,10 +5787,6 @@ declare module "helios" {
          */
         get asInstance(): Instance | null;
         /**
-         * @type {null | Multi}
-         */
-        get asMulti(): Multi | null;
-        /**
          * @type {Named}
          */
         get asNamed(): Named;
@@ -5856,36 +5855,11 @@ declare module "helios" {
          * @param {Site} site
          * @param {Typed[]} args
          * @param {{[name: string]: Typed}} namedArgs
-         * @returns {null | Typed | Multi}
+         * @returns {null | Typed}
          */
         call(site: Site, args: Typed[], namedArgs?: {
             [name: string]: Typed;
-        }): null | Typed | Multi;
-        #private;
-    }
-    /**
-     * Wraps multiple return values
-     * @internal
-     * @implements {Multi}
-     */
-    export class MultiEntity extends Common implements Multi {
-        /**
-         * @param {(Typed | Multi)[]} vals
-         * @returns {Typed[]}
-         */
-        static flatten(vals: (Typed | Multi)[]): Typed[];
-        /**
-         * @param {Typed[]} values
-         */
-        constructor(values: Typed[]);
-        /**
-         * @type {Typed[]}
-         */
-        get values(): Typed[];
-        /**
-         * @type {Multi}
-         */
-        get asMulti(): Multi;
+        }): null | Typed;
         #private;
     }
     /**
@@ -6371,11 +6345,11 @@ declare module "helios" {
          * @param {Site} site
          * @param {Typed[]} args
          * @param {{[name: string]: Typed}} namedArgs
-         * @returns {null | Typed | Multi}
+         * @returns {null | Typed}
          */
         call(site: Site, args: Typed[], namedArgs?: {
             [name: string]: Typed;
-        }): null | Typed | Multi;
+        }): null | Typed;
         #private;
     }
     /**
@@ -6393,6 +6367,20 @@ declare module "helios" {
      * @internal
      */
     export const PrintFunc: BuiltinFunc;
+    /**
+     * @internal
+     * @template {HeliosData} T
+     * @implements {DataType}
+     */
+    export class TupleType<T extends HeliosData> extends GenericType<any> implements DataType {
+        /**
+         * @param {GenericTypeProps<T>} props
+         * @param {Type[]} itemTypes
+         */
+        constructor(props: GenericTypeProps<T>, itemTypes: Type[]);
+        get itemTypes(): Type[];
+        #private;
+    }
     /**
      * Builtin list type
      * @internal
@@ -6906,11 +6894,6 @@ declare module "helios" {
          */
         evalAsTyped(scope: Scope): null | Typed;
         /**
-         * @param {Scope} scope
-         * @returns {null | Typed | Multi}
-         */
-        evalAsTypedOrMulti(scope: Scope): null | Typed | Multi;
-        /**
          * @param {ToIRContext} ctx
          * @returns {IR}
          */
@@ -7024,6 +7007,17 @@ declare module "helios" {
     /**
      * @internal
      */
+    export class TupleTypeExpr extends Expr {
+        /**
+         * @param {Site} site
+         * @param {Expr[]} itemTypeExprs
+         */
+        constructor(site: Site, itemTypeExprs: Expr[]);
+        #private;
+    }
+    /**
+     * @internal
+     */
     export class FuncArgTypeExpr extends Token {
         /**
          * @param {Site} site
@@ -7056,9 +7050,9 @@ declare module "helios" {
         /**
          * @param {Site} site
          * @param {FuncArgTypeExpr[]} argTypeExprs
-         * @param {Expr[]} retTypeExprs
+         * @param {Expr} retTypeExpr
          */
-        constructor(site: Site, argTypeExprs: FuncArgTypeExpr[], retTypeExprs: Expr[]);
+        constructor(site: Site, argTypeExprs: FuncArgTypeExpr[], retTypeExpr: Expr);
         /**
          * @param {Scope} scope
          * @returns {null | Type}
@@ -7095,11 +7089,11 @@ declare module "helios" {
     export class AssignExpr extends ChainExpr {
         /**
          * @param {Site} site
-         * @param {DestructExpr[]} nameTypes
+         * @param {DestructExpr} nameType
          * @param {Expr} upstreamExpr
          * @param {Expr} downstreamExpr
          */
-        constructor(site: Site, nameTypes: DestructExpr[], upstreamExpr: Expr, downstreamExpr: Expr);
+        constructor(site: Site, nameType: DestructExpr, upstreamExpr: Expr, downstreamExpr: Expr);
         #private;
     }
     /**
@@ -7370,10 +7364,10 @@ declare module "helios" {
         /**
          * @param {Site} site
          * @param {FuncArg[]} args
-         * @param {(null | Expr)[]} retTypeExprs
+         * @param {null | Expr} retTypeExpr
          * @param {Expr} bodyExpr
          */
-        constructor(site: Site, args: FuncArg[], retTypeExprs: (null | Expr)[], bodyExpr: Expr);
+        constructor(site: Site, args: FuncArg[], retTypeExpr: null | Expr, bodyExpr: Expr);
         /**
          * @type {number}
          */
@@ -7395,9 +7389,9 @@ declare module "helios" {
          */
         get retExpr(): Expr;
         /**
-         * @type {Type[]}
+         * @type {Type}
          */
-        get retTypes(): Type[];
+        get retType(): Type;
         /**
          * @param {Scope} scope
          * @returns {null | FuncType}
@@ -7573,6 +7567,12 @@ declare module "helios" {
          * @returns {IR}
          */
         toFnExprIR(ctx: ToIRContext): IR;
+        /**
+         * @private
+         * @param {Expr[]} posExprs
+         * @returns {Map<Expr, number>}
+         */
+        private detectExpandedTuples;
         #private;
     }
     /**
@@ -7608,11 +7608,11 @@ declare module "helios" {
         static reduceBranchType(site: Site, prevType: null | Type, newType: Type): null | Type;
         /**
          * @param {Site} site
-         * @param {null | Type[]} prevTypes
-         * @param {Typed | Multi} newValue
-         * @returns {null | Type[]}
+         * @param {null | Type} prevType
+         * @param {Typed} newValue
+         * @returns {null | Type}
          */
-        static reduceBranchMultiType(site: Site, prevTypes: null | Type[], newValue: Typed | Multi): null | Type[];
+        static reduceBranchMultiType(site: Site, prevType: null | Type, newValue: Typed): null | Type;
         /**
          * @param {Site} site
          * @param {Expr[]} conditions
@@ -7623,6 +7623,7 @@ declare module "helios" {
     }
     /**
      * DestructExpr is for the lhs-side of assignments and for switch cases
+     * `NameExpr [':' TypeExpr ['{' ... '}']]`
      * @internal
      */
     export class DestructExpr {
@@ -7630,8 +7631,9 @@ declare module "helios" {
          * @param {Word} name - use an underscore as a sink
          * @param {null | Expr} typeExpr
          * @param {DestructExpr[]} destructExprs
+         * @param {boolean} isTuple typeExpr must be `null` if isTuple is `true` and `destructExpr.length` must be `> 0`
          */
-        constructor(name: Word, typeExpr: null | Expr, destructExprs?: DestructExpr[]);
+        constructor(name: Word, typeExpr: null | Expr, destructExprs?: DestructExpr[], isTuple?: boolean);
         /**
          * @type {Site}
          */
@@ -7643,7 +7645,14 @@ declare module "helios" {
         /**
          * @returns {boolean}
          */
+        isTuple(): boolean;
+        /**
+         * @returns {boolean}
+         */
         hasDestructExprs(): boolean;
+        /**
+         * @returns {boolean}
+         */
         isIgnored(): boolean;
         /**
          * @returns {boolean}
@@ -7665,9 +7674,10 @@ declare module "helios" {
         /**
          * Evaluates the type, used by FuncLiteralExpr and DataDefinition
          * @param {Scope} scope
+         * @param {null | Type} upstreamType
          * @returns {null | Type}
          */
-        evalType(scope: Scope): null | Type;
+        evalType(scope: Scope, upstreamType?: null | Type): null | Type;
         /**
          * @param {Scope} scope
          * @param {Type} upstreamType
@@ -7689,7 +7699,7 @@ declare module "helios" {
          * @param {null | Type} upstreamType
          * @param {number} i
          */
-        evalInAssignExpr(scope: Scope, upstreamType: null | Type, i: number): null | undefined;
+        evalInAssignExpr(scope: Scope, upstreamType: null | Type, i: number): void;
         /**
          * @param {number} argIndex
          * @returns {IR}
@@ -7701,17 +7711,19 @@ declare module "helios" {
          */
         getFieldFn(fieldIndex: number): string;
         /**
+         * @private
          * @param {ToIRContext} ctx
          * @param {IR} inner
          * @param {string} objName
          * @param {number} fieldIndex
-         * @param {string} fieldFn
+         * @param {string} fieldGetter
          * @returns {IR}
          */
-        wrapDestructIRInternal(ctx: ToIRContext, inner: IR, objName: string, fieldIndex: number, fieldFn: string): IR;
+        private wrapDestructIRInternal;
         /**
+         *
          * @param {ToIRContext} ctx
-         * @param {IR} inner
+         * @param {IR} inner - downstream IR expression
          * @param {number} argIndex
          * @returns {IR}
          */
@@ -7742,6 +7754,9 @@ declare module "helios" {
          * @type {Word} - word representation of type
          */
         get memberName(): Word;
+        /**
+         * @returns {boolean}
+         */
         isDataMember(): boolean;
         /**
          * @type {number}
@@ -7751,15 +7766,15 @@ declare module "helios" {
          * Evaluates the switch type and body value of a case.
          * @param {Scope} scope
          * @param {DataType} enumType
-         * @returns {null | Multi | Typed}
+         * @returns {null | Typed}
          */
-        evalEnumMember(scope: Scope, enumType: DataType): null | Multi | Typed;
+        evalEnumMember(scope: Scope, enumType: DataType): null | Typed;
         /**
          * Evaluates the switch type and body value of a case.
          * @param {Scope} scope
-         * @returns {null | Typed | Multi}
+         * @returns {null | Typed}
          */
-        evalDataMember(scope: Scope): null | Typed | Multi;
+        evalDataMember(scope: Scope): null | Typed;
         /**
          * Accept an arg because will be called with the result of the controlexpr
          * @param {ToIRContext} ctx
@@ -7799,9 +7814,9 @@ declare module "helios" {
         constructor(site: Site, bodyExpr: Expr);
         /**
          * @param {Scope} scope
-         * @returns {null | Typed | Multi}
+         * @returns {null | Typed}
          */
-        eval(scope: Scope): null | Typed | Multi;
+        eval(scope: Scope): null | Typed;
         /**
          * @param {ToIRContext} ctx
          * @returns {IR}
@@ -8291,9 +8306,9 @@ declare module "helios" {
          */
         get argTypeNames(): string[];
         /**
-         * @type {Type[]}
+         * @type {Type}
          */
-        get retTypes(): Type[];
+        get retType(): Type;
         /**
          * @type {Site}
          */
@@ -13335,7 +13350,6 @@ declare module "helios" {
         asEnumMemberType: (null | EnumMemberType);
         asFunc: (null | Func);
         asInstance: (null | Instance);
-        asMulti: (null | Multi);
         asNamed: (null | Named);
         asNamespace: (null | Namespace);
         asParametric: (null | Parametric);
@@ -13352,16 +13366,12 @@ declare module "helios" {
         funcType: FuncType;
         call(site: Site, args: Typed[], namedArgs?: {
             [name: string]: Typed;
-        } | undefined): (null | Typed | Multi);
+        } | undefined): (null | Typed);
     };
     export type Instance = Typed & {
         asInstance: Instance;
         fieldNames: string[];
         instanceMembers: InstanceMembers;
-    };
-    export type Multi = EvalEntity & {
-        asMulti: Multi;
-        values: Typed[];
     };
     export type Named = EvalEntity & {
         asNamed: Named;

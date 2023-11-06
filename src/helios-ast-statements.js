@@ -1965,10 +1965,10 @@ export class FuncStatement extends Statement {
 	}
 
 	/**
-	 * @type {Type[]}
+	 * @type {Type}
 	 */
-	get retTypes() {
-		return this.#funcExpr.retTypes;
+	get retType() {
+		return this.#funcExpr.retType;
 	}
 
 	/**

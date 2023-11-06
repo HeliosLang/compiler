@@ -1443,7 +1443,7 @@ class RedeemerProgram extends Program {
 		const main = this.mainFunc;
 		const argTypeNames = main.argTypeNames;
 		const argTypes = main.argTypes;
-		const retTypes = main.retTypes;
+		const retType = main.retType;
 		const nArgs = argTypes.length;
 
 		if (this.config.allowPosParams) {
@@ -1470,10 +1470,8 @@ class RedeemerProgram extends Program {
 			}
 		}
 
-		if (retTypes.length !== 1) {
-			main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
-		} else if (!(BoolType.isBaseOf(retTypes[0]))) {
-			main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
+		if (!(BoolType.isBaseOf(retType))) {
+			main.typeError(`illegal return type for main, expected 'Bool', got '${retType.toString()}'`);
 		}
 
 		return topScope;
@@ -1601,7 +1599,7 @@ export class DatumRedeemerProgram extends Program {
 		const main = this.mainFunc;
 		const argTypeNames = main.argTypeNames;
 		const argTypes = main.argTypes;
-		const retTypes = main.retTypes;
+		const retType = main.retType;
 		const nArgs = main.nArgs;
 
 		if (this.config.allowPosParams) {
@@ -1628,10 +1626,8 @@ export class DatumRedeemerProgram extends Program {
 			}
 		}
 
-		if (retTypes.length !== 1) {
-			main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
-		} else if (!(BoolType.isBaseOf(retTypes[0]))) {
-			main.typeError(`illegal return type for main, expected 'Bool', got '${retTypes[0].toString()}'`);
+		if (!(BoolType.isBaseOf(retType))) {
+			main.typeError(`illegal return type for main, expected 'Bool', got '${retType.toString()}'`);
 		}
 
 		return topScope;
@@ -1772,7 +1768,7 @@ class GenericProgram extends Program {
 		const main = this.mainFunc;
 		const argTypeNames = main.argTypeNames;
 		const argTypes = main.argTypes;
-		const retTypes = main.retTypes;
+		const retType = main.retType;
 
 
 		argTypeNames.forEach((argTypeName, i) => {
@@ -1781,11 +1777,9 @@ class GenericProgram extends Program {
 			}
 		});
 
-		// TODO: support multiple return values
-		if (retTypes.length !== 1) {
-			main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
-		} else if (!((new DefaultTypeClass()).isImplementedBy(retTypes[0]))) {
-			main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
+		// TODO: support tuple return values ?
+		if (!((new DefaultTypeClass()).isImplementedBy(retType))) {
+			main.typeError(`illegal return type for main: '${retType.toString()}'`);
 		}
 
 		return topScope;
@@ -1820,7 +1814,7 @@ class GenericProgram extends Program {
 			new IR(")"),
 		]);
 
-		const retType = assertDefined(this.mainFunc.retTypes[0].asDataType);
+		const retType = assertDefined(this.mainFunc.retType.asDataType);
 
 		ir = new IR([
 			new IR(`${retType.path}____to_data`),
@@ -1906,7 +1900,7 @@ class EndpointProgram extends GenericProgram {
 		const main = this.mainFunc;
 		const argTypes = main.argTypes;
 		const argTypeNames = main.argTypeNames;
-		const retTypes = main.retTypes;
+		const retType = main.retType;
 
 		if (argTypeNames.length == 0) {
 			main.typeError("expected at least argument 'ContractContext'");
@@ -1926,11 +1920,9 @@ class EndpointProgram extends GenericProgram {
 			}
 		}
 		
-		// TODO: support multiple return values
-		if (retTypes.length !== 1) {
-			main.typeError(`illegal number of return values for main, expected 1, got ${retTypes.length}`);
-		} else if (!((new DefaultTypeClass()).isImplementedBy(retTypes[0]))) {
-			main.typeError(`illegal return type for main: '${retTypes[0].toString()}'`);
+		// TODO: support tuple return values ?
+		if (!((new DefaultTypeClass()).isImplementedBy(retType))) {
+			main.typeError(`illegal return type for main: '${retType.toString()}'`);
 		}
 		
 		return topScope;

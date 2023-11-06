@@ -31,11 +31,12 @@ function optimizeHelios(src, n = 1) {
 
     const [rawIR, _] = program.toIR(new ToIRContext(false, "")).generateSource();
 
+    console.log(rawIR)
     return optimize(rawIR, n);
 }
 
 export default async function test() {
-    console.log(optimize(`
+    /*console.log(optimize(`
     (a, b) -> {
         __core__multiplyInteger(__core__addInteger(a, b), 0)
     }
@@ -72,7 +73,7 @@ export default async function test() {
                 }
             }
         )
-    }`))
+    }`))*/
 
     /*console.log(optimize(`
     (a, b) -> {

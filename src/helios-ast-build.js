@@ -44,6 +44,7 @@ import {
     FuncTypeExpr,
     IfElseExpr,
 	IteratorTypeExpr,
+	TupleTypeExpr,
     DestructExpr,
     ListLiteralExpr,
     ListTypeExpr,
@@ -720,11 +721,7 @@ function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false)
 		site.syntaxError("no return type specified");
 	}
 
-	const retTypeExprs = buildFuncRetTypeExprs(arrow.site, ts.splice(0, bodyPos), allowInferredRetType);
-
-	if (retTypeExprs === null) {
-		return null;
-	}
+	const retTypeExpr = buildFuncRetTypeExpr(arrow.site, ts.splice(0, bodyPos), allowInferredRetType);
 
 	const bodyGroup = assertToken(ts.shift(), site)?.assertGroup("{", 1)
 
@@ -738,7 +735,7 @@ function buildFuncLiteralExpr(ts, methodOf = null, allowInferredRetType = false)
 		return null;
 	}
 
-	return new FuncLiteralExpr(arrow.site, args, retTypeExprs, bodyExpr);
+	return new FuncLiteralExpr(arrow.site, args, retTypeExpr, bodyExpr);
 }
 
 /**
@@ -1478,19 +1475,13 @@ function buildFuncTypeExpr(site, ts) {
 		return null;
 	}
 
-	const maybeRetTypes = buildFuncRetTypeExprs(arrow.site, ts, false);
+	const retType = buildFuncRetTypeExpr(arrow.site, ts, false);
 
-	if (!maybeRetTypes) {
+	if (!retType) {
 		return null;
 	}
 
-	const retTypes = reduceNull(maybeRetTypes);
-
-	if (!retTypes) {
-		return null;
-	}
-
-	return new FuncTypeExpr(parens.site, argTypes, retTypes);
+	return new FuncTypeExpr(parens.site, argTypes, retType);
 }
 
 /**
@@ -1563,12 +1554,12 @@ function buildFuncArgTypeExpr(site, ts) {
  * @param {Site} site 
  * @param {Token[]} ts 
  * @param {boolean} allowInferredRetType
- * @returns {null | (null | Expr)[]}
+ * @returns {null | Expr}
  */
-function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
+function buildFuncRetTypeExpr(site, ts, allowInferredRetType = false) {
 	if (ts.length === 0) {
 		if (allowInferredRetType) {
-			return [null];
+			return null;
 		} else {
 			site.syntaxError("expected type expression after '->'");
 			return null;
@@ -1580,19 +1571,27 @@ function buildFuncRetTypeExprs(site, ts, allowInferredRetType = false) {
 			if (!group) {
 				return null;
 			} else if (group.fields.length == 0) {
-				return [new VoidTypeExpr(group.site)];
+				return new VoidTypeExpr(group.site);
 			} else if (group.fields.length == 1) {
 				group.syntaxError("expected 0 or 2 or more types in multi return type");
 				return null;
 			} else {
-				return group.fields.map(fts => {
+				const itemTypeExprs_ = group.fields.map(fts => {
 					fts = fts.slice();
 
 					return buildTypeExpr(group.site, fts);
 				});
+
+				const itemTypeExprs = reduceNull(itemTypeExprs_);
+
+				if (!itemTypeExprs) {
+					return null;
+				}
+
+				return new TupleTypeExpr(group.site, itemTypeExprs);
 			}
 		} else {
-			return [buildTypeExpr(site, ts)];
+			return buildTypeExpr(site, ts);
 		}
 	}
 }
@@ -1820,6 +1819,10 @@ function buildDestructExpr(site, ts, isSwitchCase = false) {
 		let name = new Word(maybeName.site, "_");
 
 		if (ts.length >= 1 && ts[0].isSymbol(":")) {
+			// name + ':' + type + optional braces
+			// or name + ':' + tuple-type
+			// or name + ':' + tuple-parens-destruct
+
 			let name_ = maybeName.assertWord()?.assertNotKeyword();
 
 			if (!name_) {
@@ -1837,22 +1840,41 @@ function buildDestructExpr(site, ts, isSwitchCase = false) {
 			if (ts.length == 0) {
 				colon.syntaxError("expected type expression after ':'");
 				return null;
-			} 
+			}
 
-			const destructExprs = buildDestructExprs(ts);
+			// the next group token might be a tuple type instead of a tuple destruct expression (if it doesn't contain a colon it is a type)
+			if (ts[0].isGroup("(") && !ts[0].assertGroup("(")?.fields.some(fs => fs.some(t => t.isSymbol(":")))) {
+				const typeExpr = buildTypeExpr(colon.site, ts);
+				return new DestructExpr(name, typeExpr);
+			}
 
-			if (destructExprs === null || destructExprs === undefined) {
+			const destructExprsIsTuple = buildDestructExprs(ts);
+
+			if (!destructExprsIsTuple) {
 				return null
 			}
 
-			const typeExpr = buildTypeExpr(colon.site, ts);
+			const [destructExprs, isTuple] = destructExprsIsTuple;
 
-			if (!typeExpr) {
-				return null;
+			/**
+			 * @type {Expr | null}
+			 */
+			let typeExpr = null;
+			
+			if (!isTuple) {
+				typeExpr = buildTypeExpr(colon.site, ts);
+
+				if (!typeExpr) {
+					return null;
+				}
+			} else if (ts.length > 0) {
+				ts[0].syntaxError("unexpected tokens");
 			}
 
-			return new DestructExpr(name, typeExpr, destructExprs);
+			return new DestructExpr(name, typeExpr, destructExprs, isTuple);
 		} else if (ts.length == 0) {
+			// only name in case of regular destruct (rhs of assign or nested in switch)
+
 			if (isSwitchCase) {
 				const typeName = maybeName.assertWord()?.assertNotKeyword();
 
@@ -1877,21 +1899,35 @@ function buildDestructExpr(site, ts, isSwitchCase = false) {
 				return new DestructExpr(name, null);
 			}
 		} else {
+			// type + braces or parenthesis
+
 			ts.unshift(maybeName);
 
-			const destructExprs = buildDestructExprs(ts);
+			const destructExprsIsTuple = buildDestructExprs(ts);
 
-			if (destructExprs === null || destructExprs === undefined) {
+			if (!destructExprsIsTuple) {
 				return null;
 			}
+
+			const [destructExprs, isTuple] = destructExprsIsTuple;
 	
-			const typeExpr = buildTypeExpr(site, ts);
+			/**
+			 * @type {Expr | null}
+			 */
+			let typeExpr = null;
 
-			if (!typeExpr) {
-				return null;
-			}
+			if (!isTuple) {
+				typeExpr = buildTypeExpr(site, ts);
 
-			return new DestructExpr(name, typeExpr, destructExprs);
+				if (!typeExpr) {
+					return null;
+				}
+			} else if (ts.length != 0) {
+				ts[0].syntaxError("unexpected tokens");
+			}		
+
+			// name is '_' (so ignored)
+			return new DestructExpr(name, typeExpr, destructExprs, isTuple);
 		}
 	}
 }
@@ -1899,11 +1935,11 @@ function buildDestructExpr(site, ts, isSwitchCase = false) {
 /**
  * Pops the last element of ts if it is a braces group
  * @param {Token[]} ts
- * @returns {null | DestructExpr[]}
+ * @returns {null | [DestructExpr[], boolean]}
  */
 function buildDestructExprs(ts) {
 	if (ts.length == 0) {
-		return [];
+		return [[], false];
 	} else if (ts[ts.length -1].isGroup("{")) {
 		const group = assertDefined(ts.pop()).assertGroup("{");
 
@@ -1920,9 +1956,38 @@ function buildDestructExprs(ts) {
 			return null;
 		}
 
-		return reduceNull(destructExprs);
+		const destructExprs_ = reduceNull(destructExprs);
+
+		if (!destructExprs_) {
+			return null;
+		}
+
+		return [destructExprs_, false];
+	} else if (ts[ts.length - 1].isGroup("(")) {
+		const group = assertDefined(ts.pop()).assertGroup("(");
+
+		if (!group) {
+			return null;
+		}
+
+		const destructExprs = group.fields.map(fts => {
+			return buildDestructExpr(group.site, fts);
+		});
+	
+		if (destructExprs.every(le => le !== null && le.isIgnored() && !le.hasDestructExprs())) {
+			group.syntaxError("expected at least one used field while destructuring a tuple")
+			return null;
+		}
+
+		const destructExprs_ = reduceNull(destructExprs);
+
+		if (!destructExprs_) {
+			return null;
+		}
+
+		return [destructExprs_, true];
 	} else {
-		return [];
+		return [[], false];
 	}	
 }
 
@@ -1930,19 +1995,14 @@ function buildDestructExprs(ts) {
  * @internal
  * @param {Site} site 
  * @param {Token[]} ts 
- * @returns {null | DestructExpr[]}
+ * @returns {null | DestructExpr}
  */
 function buildAssignLhs(site, ts) {
 	const maybeName = ts.shift();
 	if (maybeName === undefined) {
-		site.syntaxError("expected a name before '='");
+		site.syntaxError("expected a name or destruct expression before '='");
 		return null;
 	} else {
-		/**
-		 * @type {DestructExpr[]}
-		 */
-		const pairs = [];
-
 		if (maybeName.isWord()) {
 			ts.unshift(maybeName);
 
@@ -1955,8 +2015,13 @@ function buildAssignLhs(site, ts) {
 				return null;
 			}
 
-			pairs.push(lhs);
+			return lhs;
 		} else if (maybeName.isGroup("(")) {
+			/**
+			 * @type {DestructExpr[]}
+			 */
+			const inner = [];
+			
 			const group = maybeName.assertGroup("(");
 
 			if (!group) {
@@ -1988,25 +2053,25 @@ function buildAssignLhs(site, ts) {
 				}
 
 				// check that name is unique
-				pairs.forEach(p => {
+				inner.forEach(p => {
 					if (!lhs.isIgnored() && p.name.value === lhs.name.value) {
-						lhs.name.syntaxError(`duplicate name '${lhs.name.value}' in lhs of multi-assign`);
+						lhs.name.syntaxError(`duplicate name '${lhs.name.value}' in tuple destruct expr`);
 					}
 				});
 
-				pairs.push(lhs);
+				inner.push(lhs);
 			}
 
 			if (!someNoneUnderscore) {
 				group.syntaxError("expected at least one non-underscore in lhs of multi-assign");
 				return null;
 			}
+
+			return new DestructExpr(new Word(group.site, "_"), null, inner, true);
 		} else {
 			maybeName.syntaxError("unexpected syntax for lhs of =");
 			return null;
 		}
-
-		return pairs;
 	}
 }
 

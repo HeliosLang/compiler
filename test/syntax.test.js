@@ -135,6 +135,7 @@ async function test0() {
 
     const program = Program.new(src);
 
+    console.log("done creating program 0");
     console.log(program.dumpIR(true));
 }
 
