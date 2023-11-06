@@ -1230,6 +1230,8 @@ function buildTypeExpr(site, ts) {
 		return buildParametricTypeExpr(site, ts);
 	} else if (ts.length == 1 && ts[0].isWord()) {
 		return buildTypeRefExpr(site, ts);
+	} else if (ts.length == 1 && ts[0].isGroup("(")) {
+		return buildTupleTypeExpr(ts[0]);
 	} else {
 		ts[0].syntaxError("invalid type syntax");
 		return null;
@@ -1647,6 +1649,33 @@ function buildTypeRefExpr(site, ts) {
 }
 
 /**
+ * @param {Token} t
+ * @returns {TupleTypeExpr | null}
+ */
+function buildTupleTypeExpr(t) {
+	const group = t.assertGroup("(");
+
+	if (!group) {
+		return null;
+	}
+
+	if (group.fields.length < 2) {
+		group.syntaxError("expected at least two items for tuple type");
+		return null;
+	}
+
+	const itemTypeExprs = reduceNull(group.fields.map(fts => {
+		return buildTypeExpr(group.site, fts);
+	}));
+
+	if (!itemTypeExprs) {
+		return null;
+	}
+
+	return new TupleTypeExpr(group.site, itemTypeExprs);
+}
+
+/**
  * @internal
  * @param {Token[]} ts 
  * @param {number} prec 
@@ -1889,6 +1918,16 @@ function buildDestructExpr(site, ts, isSwitchCase = false) {
 				} 
 
 				return new DestructExpr(name, typeExpr);
+			} else if(maybeName.isGroup("(")) {
+				const destructExprsIsTuple = buildDestructExprs([maybeName]);
+
+				if (!destructExprsIsTuple) {
+					return null;
+				}
+
+				const [destructExprs, isTuple] = destructExprsIsTuple;
+
+				return new DestructExpr(new Word(maybeName.site, "_"), null, destructExprs, isTuple);
 			} else {
 				const name = maybeName.assertWord()?.assertNotKeyword();
 

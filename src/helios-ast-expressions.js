@@ -4330,14 +4330,21 @@ export class EnumSwitchExpr extends SwitchExpr {
 
 		let res = last.toIR(ctx.tab().tab().tab());
 
+		// TODO: if constrIndex is null then use the case test that is defined as a builtin (needed to be able to treat StakingCredential as an enum)
+		// TODO: once the null fallback has been implemented get rid of constrIndex
 		for (let i = n - 1; i >= 0; i--) {
-			res = new IR([
-				new IR(`__core__ifThenElse(__core__equalsInteger(i, ${cases[i].constrIndex.toString()}), () -> {`),
-				cases[i].toIR(ctx.tab().tab().tab()),
-				new IR(`}, () -> {`),
-				res,
-				new IR(`})()`)
-			]);
+			const c = cases[i];
+			
+			const test = IR.new`__core__equalsInteger(i, ${c.constrIndex.toString()})`;
+
+			res = IR.new`__core__ifThenElse(
+				${test},
+				() -> {
+					${c.toIR(ctx.tab().tab().tab())}
+				}, () -> {
+					${res}
+				}
+			)()`;
 		}
 
 		return new IR([

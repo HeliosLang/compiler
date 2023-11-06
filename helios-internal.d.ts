@@ -706,6 +706,13 @@ declare module "helios" {
      */
     export function IteratorType$(itemTypes: Type[]): Type;
     /**
+     * TODO: rename DataType to something else
+     * @internal
+     * @param {Type} type
+     * @return {boolean}
+     */
+    export function isDataType(type: Type): boolean;
+    /**
      * @internal
      * @param {Type[]} itemTypes
      * @param {boolean | null} isAllDataTypes - if the all the itemTypes are known datatypes, then don't check that here (could lead to infinite recursion)
@@ -748,9 +755,9 @@ declare module "helios" {
      * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
      * @internal
      * @param {ToIRContext} ctx
-     * @returns {IRDefinitions}
+     * @returns {Map<string, ((ttp: string[], ftp: string[]) => IR)>}
      */
-    export function fetchRawGenerics(ctx: ToIRContext): IRDefinitions;
+    export function fetchRawGenerics(ctx: ToIRContext): Map<string, (ttp: string[], ftp: string[]) => IR>;
     /**
      * Doesn't add templates
      * @internal
@@ -1687,9 +1694,21 @@ declare module "helios" {
          */
         constructor(base: string, ttp: string[], fn?: string, ftp?: string[]);
         /**
+         * @type {string[]}
+         */
+        get ttp(): string[];
+        /**
+         * @type {string[]}
+         */
+        get ftp(): string[];
+        /**
          * @type {string}
          */
         get base(): string;
+        /**
+         * @type {string}
+         */
+        get fn(): string;
         /**
          * @param {string[]} ttp
          * @param {string[]} ftp
@@ -1701,9 +1720,10 @@ declare module "helios" {
          */
         toString(): string;
         /**
+         * @param {boolean} emptyParameters
          * @return {string}
          */
-        toTemplate(): string;
+        toTemplate(emptyParameters?: boolean): string;
         /**
          * @param {IR} ir
          * @returns {IR}
@@ -14001,26 +14021,34 @@ declare module "helios" {
     }
     /**
      * Wrapper for a builtin function (written in IR)
+     * @internal
      */
     class RawFunc {
         /**
          * Construct a RawFunc, and immediately scan the definition for dependencies
          * @param {string} name
-         * @param {string} definition
+         * @param {string | ((ttp: string[], ftp: string[]) => string)} definition
          */
-        constructor(name: string, definition: string);
+        constructor(name: string, definition: string | ((ttp: string[], ftp: string[]) => string));
+        /**
+         * @type {string}
+         */
         get name(): string;
         /**
+         * @param {string[]} ttp
+         * @param {string[]} ftp
          * @returns {IR}
          */
-        toIR(): IR;
+        toIR(ttp?: string[], ftp?: string[]): IR;
         /**
          * Loads 'this.#dependecies' (if not already loaded), then load 'this'
          * @param {Map<string, RawFunc>} db
          * @param {IRDefinitions} dst
+         * @param {string[]} ttp
+         * @param {string[]} ftp
          * @returns {void}
          */
-        load(db: Map<string, RawFunc>, dst: IRDefinitions): void;
+        load(db: Map<string, RawFunc>, dst: IRDefinitions, ttp?: string[], ftp?: string[]): void;
         #private;
     }
     /**

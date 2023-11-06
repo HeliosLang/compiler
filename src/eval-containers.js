@@ -217,26 +217,42 @@ export class TupleType extends GenericType {
 }
 
 /**
+ * TODO: rename DataType to something else
+ * @internal
+ * @param {Type} type 
+ * @return {boolean}
+ */
+export function isDataType(type) {
+	const dt = type.asDataType;
+
+	if (!dt) {
+		return false;
+	}
+
+	// no need to check for primitives
+	if (dt == IntType || dt == StringType || dt == ByteArrayType || dt == BoolType || dt == RealType) {
+		return true;
+	}
+
+	const dataTypeClass = new DefaultTypeClass();
+
+	return dataTypeClass.isImplementedBy(dt)
+}
+
+/**
  * @internal
  * @param {Type[]} itemTypes
  * @param {boolean | null} isAllDataTypes - if the all the itemTypes are known datatypes, then don't check that here (could lead to infinite recursion)
  * @returns {Type}
  */
 export function TupleType$(itemTypes, isAllDataTypes = null) {
-	const dataTypeClass = new DefaultTypeClass();
-
 	const isData = isAllDataTypes !== null ? isAllDataTypes : itemTypes.every(it => {
-		// no need to check for primitives
-		if (it == IntType || it == StringType || it == ByteArrayType || it == BoolType || it == RealType) {
-			return true;
-		}
-
-		dataTypeClass.isImplementedBy(it)
+		return isDataType(it);
 	});
 
 	const props = {
 		name: `(${itemTypes.map(it => it.toString()).join(", ")})`,
-		path: `__helios__tuple[${itemTypes.map(it => it.asDataType ? it.asDataType.path : "__helios__func").join(", ")}]`,
+		path: `__helios__tuple[${itemTypes.map(it => it.asDataType ? it.asDataType.path : "__helios__func").join("@")}]`,
 		genInstanceMembers: (self) => {
 			const members = isData ? genCommonInstanceMembers(self) : {};
 
@@ -245,15 +261,10 @@ export function TupleType$(itemTypes, isAllDataTypes = null) {
 				"second",
 				"third",
 				"fourth",
-				"fifth",
-				"sixth",
-				"seventh",
-				"eigth",
-				"nineth",
-				"tenth"
+				"fifth"
 			];
 
-			for (let i = 0; i< 10 && i < itemTypes.length; i++) {
+			for (let i = 0; i< 5 && i < itemTypes.length; i++) {
 				const key = getters[i];
 				members[key] = itemTypes[i]
 			}

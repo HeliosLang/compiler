@@ -1461,10 +1461,31 @@ export class IRParametricName {
 	}
 
 	/**
+	 * @type {string[]}
+	 */
+	get ttp() {
+		return this.#ttp;
+	}
+
+	/**
+	 * @type {string[]}
+	 */
+	get ftp() {
+		return this.#ftp;
+	}
+
+	/**
 	 * @type {string}
 	 */
 	get base() {
 		return this.#base;
+	}
+
+	/**
+	 * @type {string}
+	 */
+	get fn() {
+		return this.#fn;
 	}
 
 	/**
@@ -1487,10 +1508,15 @@ export class IRParametricName {
 	}
 
 	/**
+	 * @param {boolean} emptyParameters
 	 * @return {string}
 	 */
-	toTemplate() {
-		return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.map((_, i) => `${TTPP}${i}`).join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.map((_, i) => `${FTPP}${i}`).join("@")}]` : ""}`;
+	toTemplate(emptyParameters = false) {
+		if (emptyParameters) {
+			return `${this.#base}${this.#ttp.length > 0 ? "[]" : ""}${this.#fn}${this.#ftp.length > 0 ? "[]" : ""}`;
+		} else {
+			return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.map((_, i) => `${TTPP}${i}`).join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.map((_, i) => `${FTPP}${i}`).join("@")}]` : ""}`;
+		}
 	}
 
 	/**

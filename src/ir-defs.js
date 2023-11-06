@@ -43,73 +43,108 @@ const RE_BUILTIN = new RegExp("(?<![@[])__helios[a-zA-Z0-9_@[\\]]*", "g");
 
 /**
  * Wrapper for a builtin function (written in IR)
+ * @internal
  */
 class RawFunc {
+	/**
+	 * @type {string}
+	 */
 	#name;
-	#definition;
 
-	/** @type {Set<string>} */
-	#dependencies;
+	/**
+	 * @type {((ttp: string[], ftp: string[]) => string)}
+	 */
+	#definition;
 
 	/**
 	 * Construct a RawFunc, and immediately scan the definition for dependencies
 	 * @param {string} name 
-	 * @param {string} definition 
+	 * @param {string | ((ttp: string[], ftp: string[]) => string)} definition
 	 */
 	constructor(name, definition) {
 		this.#name = name;
 		assert(definition != undefined);
-		this.#definition = definition;
-		this.#dependencies = new Set();
-
-		let matches = this.#definition.match(RE_BUILTIN);
-
-		if (matches !== null) {
-			for (let match of matches) {
-				this.#dependencies.add(match);
-			}
-		}
+		this.#definition = typeof definition == "string" ? 
+			(ttp, ftp) => {
+				if (IRParametricName.matches(this.#name)) {
+					// TODO: make sure definition is always a function for parametric names
+					let pName = IRParametricName.parse(this.#name);
+					pName = new IRParametricName(pName.base, ttp, pName.fn, ftp);
+					const [def, _] = pName.replaceTemplateNames(new IR(definition)).generateSource();
+					return def;
+				} else {
+					return definition;
+				}
+			} : 
+			definition;	
 	}
 
+	/**
+	 * @type {string}
+	 */
 	get name() {
 		return this.#name;
 	}
 
 	/**
+	 * @param {string[]} ttp
+	 * @param {string[]} ftp
 	 * @returns {IR}
 	 */
-	toIR() {
-		return new IR(replaceTabs(this.#definition))
+	toIR(ttp = [], ftp = []) {
+		return new IR(replaceTabs(this.#definition(ttp, ftp)));
 	}
 
 	/**
 	 * Loads 'this.#dependecies' (if not already loaded), then load 'this'
 	 * @param {Map<string, RawFunc>} db 
 	 * @param {IRDefinitions} dst 
+	 * @param {string[]} ttp
+	 * @param {string[]} ftp
 	 * @returns {void}
 	 */
-	load(db, dst) {
+	load(db, dst, ttp = [], ftp = []) {
 		if (onNotifyRawUsage !== null) {
 			onNotifyRawUsage(this.#name, 1);
 		}
 
-		if (dst.has(this.#name)) {
+		let name = this.#name;
+		if (ttp.length > 0 || ftp.length > 0){
+			let pName = IRParametricName.parse(name);
+			pName = new IRParametricName(pName.base, ttp, pName.fn, ftp);
+			name = pName.toString()
+		}
+
+		if (dst.has(name)) {
 			return;
 		} else {
-			for (let dep of this.#dependencies) {
+			const ir = this.toIR(ttp, ftp);
+
+			const [def, _] = ir.generateSource();
+			const deps = new Set();
+			def.match(RE_BUILTIN)?.forEach(match => deps.add(match));
+
+			for (let dep of deps) {
 				if (!db.has(dep)) {
 					if (IRParametricName.matches(dep)) {
 						const pName = IRParametricName.parse(dep);
-						const genericName = pName.toTemplate();
+						const genericName = pName.toTemplate(true);
 
 						let fn = db.get(genericName);
 
 						if (fn) {
-							const ir = pName.replaceTemplateNames(fn.toIR());
-							fn = new RawFunc(dep, ir.toString());
-							fn.load(db, dst);
+							fn.load(db, dst, pName.ttp, pName.ftp);
 						} else {
-							throw new Error(`InternalError: dependency ${dep} not found`);	
+							// TODO: make sure all templated defs use the functional approach instead of the replacement approach
+							fn = db.get(pName.toTemplate(false));
+
+							if (fn) {
+								const ir = pName.replaceTemplateNames(fn.toIR());
+								fn = new RawFunc(dep, ir.toString());
+								fn.load(db, dst);
+							} else {
+								throw new Error(`InternalError: dependency ${dep} not found`);	
+							}
 						}
 					} else {
 						throw new Error(`InternalError: dependency ${dep} not found`);
@@ -119,7 +154,7 @@ class RawFunc {
 				}
 			}
 
-			dst.set(this.#name, this.toIR());
+			dst.set(name, ir);
 		}
 	}
 }
@@ -2572,6 +2607,129 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	add(new RawFunc("__helios__struct__from_data", "__core__unListData"));
 	add(new RawFunc("__helios__struct____to_data", "__core__listData"));
 
+
+	// Tuple builtins
+	add(new RawFunc("__helios__tuple[]____to_func", (ttp) => `__helios__common__identity`));
+	add(new RawFunc("__helios__tuple[]__from_data", (ttp) => {
+		assert(ttp.length >= 2);
+
+		return `(data) -> {
+			(fields) -> {
+				(callback) -> {
+					callback(${ttp.map((tp, i) => {
+						let inner = "fields";
+
+						for (let j = 0; j < i; j++) {
+							inner = `__core__tailList(${inner})`
+						}
+
+						return `${tp}__from_data(__core__headList(${inner}))`;
+					}).join(", ")})
+				}
+			}(__core__unListData(data))
+		}`;
+	}));
+	add(new RawFunc("__helios__tuple[]____to_data", (ttp) => {
+		assert(ttp.length >= 2);
+
+		let inner = `__core__mkNilData(())`;
+
+		for (let i = ttp.length - 1; i >= 0; i--) {
+			inner = `__core__mkCons(${ttp[i]}____to_data(x${i}), ${inner})`;
+		}
+
+		return `(tuple) -> {
+			tuple(
+				(${ttp.map((tp, i) => `x${i}`).join(", ")}) -> {
+					__core__listData(${inner})
+				}
+			)
+		}`;
+	}));
+	add(new RawFunc("__helios__tuple[]__test_data", (ttp) => {
+		assert(ttp.length >= 2);
+
+		let inner = `__core__chooseList(
+			list,
+			() -> {true},
+			() -> {false}
+		)()`;
+
+		for (let i = ttp.length - 1; i >= 0; i--) {
+			const tp = ttp[i];
+			inner = `__core__chooseList(
+				list,
+				() -> {false},
+				() -> {
+					(head, list) -> {
+						__helios__bool__and(
+							() -> {${tp}__test_data(head)},
+							() -> {
+								${inner}
+							}
+						)
+					}(__core__headList__safe(list), __core__tailList__safe(list))
+				}
+			)()`;
+		}
+
+
+		return `(data) -> {
+			__core__chooseData(
+				data,
+				() -> {false},
+				() -> {false},
+				() -> {
+					(list) -> {
+						${inner}
+					}(__core__unListData__safe(list))
+				},
+				() -> {false},
+				() -> {false}
+			)()
+		}`;
+	}));
+	add(new RawFunc("__helios__tuple[]__serialize", (ttp) => {
+		assert(ttp.length >= 2);
+
+		return `(tuple) -> {
+			__helios__common__serialize(__helios__tuple[${ttp.join("@")}]____to_data(tuple))
+		}`
+	}));
+	add(new RawFunc("__helios__tuple[]____eq", (ttp) => {
+		assert(ttp.length >= 2);
+
+		return `(a, b) -> {
+			__helios__common____eq(
+				__helios__tuple[${ttp.join("@")}]____to_data(a),
+				__helios__tuple[${ttp.join("@")}]____to_data(b)
+			)
+		}`;
+	}));
+	add(new RawFunc("__helios__tuple[]____neq", (ttp) => {
+		assert(ttp.length >= 2);
+		
+		return `(a, b) -> {
+			__helios__common____neq(
+				__helios__tuple[${ttp.join("@")}]____to_data(a),
+				__helios__tuple[${ttp.join("@")}]____to_data(b)
+			)
+		}`;
+	}));
+	["first", "second", "third", "fourth", "fifth"].forEach((getter, i) => {
+		add(new RawFunc(`__helios__tuple[]__${getter}`, (ttp) => {
+			assert(ttp.length >= 2);
+	
+			return `(tuple) -> {
+				tuple(
+					(${ttp.map((tp, j) => `x${j}`).join(", ")}) -> {
+						x${i}
+					}
+				)
+			}`
+		}));
+	});
+	
 
 	// List builtins
 	addSerializeFunc(`__helios__list[${TTPP}0]`);
@@ -7337,18 +7495,25 @@ export class ToIRContext {
  * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
  * @internal
  * @param {ToIRContext} ctx
- * @returns {IRDefinitions}
+ * @returns {Map<string, ((ttp: string[], ftp: string[]) => IR)>}
  */
 export function fetchRawGenerics(ctx) {
 	/**
-	 * @type {IRDefinitions}
+	 * @type {Map<string, ((ttp: string[], ftp: string[]) => IR)>}
 	 */
 	const map = new Map();
 
 	for (let [k, v] of ctx.db) {
 		if (IRParametricName.matches(k)) {
 			// load without dependencies
-			map.set(k, v.toIR())
+			/**
+			 * 
+			 * @param {string[]} ttp 
+			 * @param {string[]} ftp 
+			 * @returns {IR}
+			 */
+			const fn = (ttp, ftp) => v.toIR(ttp, ftp);
+			map.set(k, fn)
 		}
 	}
 

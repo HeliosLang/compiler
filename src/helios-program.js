@@ -1140,17 +1140,24 @@ const DEFAULT_PROGRAM_CONFIG = {
 			const pName = IRParametricName.parse(name);
 
 			const genericName = pName.toTemplate();
+			const genericFuncName = pName.toTemplate(true);
 
-			let ir = builtinGenerics.get(name) ?? builtinGenerics.get(genericName) ?? map.get(genericName);
+			let ir = builtinGenerics.get(name) ?? builtinGenerics.get(genericName) ?? builtinGenerics.get(genericFuncName) ?? map.get(genericName);
 
 			if (!ir) {
 				throw new Error(`${genericName} undefined in ir`);
-			} else {
+			} else if (ir instanceof IR) {
 				ir = pName.replaceTemplateNames(ir);
 
 				added.set(name, [location, ir]);
 
 				ir.search(RE_IR_PARAMETRIC_NAME, (name_) => add(name_, name));
+			} else {
+				const ir_ = ir(pName.ttp, pName.ftp);
+
+				added.set(name, [location, ir_]);
+
+				ir_.search(RE_IR_PARAMETRIC_NAME, (name_) => add(name_, name));
 			}
 		};
 

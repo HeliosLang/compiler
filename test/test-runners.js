@@ -40,8 +40,9 @@ export async function runTestScriptWithArgs(src, argNames, expectedResult, expec
 
     let program;
 
-    try {   
+    try {
         program = Program.new(src);
+        
         let args = argNames.map(n => program.evalParam(n));
 
         // test the transfer() function as well
@@ -68,13 +69,17 @@ export async function runTestScriptWithArgs(src, argNames, expectedResult, expec
         checkResult(result, true);
     } catch(e) {
         if (!(e instanceof RuntimeError || e instanceof UserError)) {
-            console.log(program.dumpIR(true, true));
+            if (program) {
+                console.log(program.dumpIR(true, true));
+            }
             throw e
         } else {
             try {
                 checkResult(e);
             } catch (e) {
-                console.log(program.dumpIR(true, true));
+                if (program) {
+                    console.log(program.dumpIR(true, true));
+                }
                 throw e;
             }
         }

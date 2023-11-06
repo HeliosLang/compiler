@@ -126,6 +126,10 @@ import {
 	genCommonEnumTypeMembers
 } from "./eval-primitives.js";
 
+import { 
+	isDataType
+} from "./eval-containers.js";
+
 import {
 	DefaultTypeClass,
 	GenericParametricType,
@@ -856,11 +860,15 @@ export class DataField extends NameTypePair {
 			}
 
 			if (t.asDataType) {
-				return t.asDataType;
-			} else {
-				this.typeExpr.typeError(`'${t.toString()}' isn't a valid data field type`);
-				return null;
+				const dt = t.asDataType;
+
+				if (isDataType(dt)) {
+					return dt;
+				}
 			}
+
+			this.typeExpr.typeError(`'${t.toString()}' isn't a valid data field type`);
+			return null;
 		}
 	}
 }

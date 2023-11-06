@@ -5172,9 +5172,6 @@ export type PropertyTest = (args: UplcValue[], res: (UplcValue | RuntimeError), 
  * UplcStack contains a value that can be retrieved using a Debruijn index.
  */
 /**
- * Wrapper for a builtin function (written in IR)
- */
-/**
  * Parent class of EnumSwitchExpr and DataSwitchExpr
  */
 /**
