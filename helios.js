@@ -10179,6 +10179,10 @@ export class NetworkParams {
 	 * @param {null | LiveSlotGetter} liveSlotGetter
 	 */
 	constructor(raw, liveSlotGetter = null) {
+	        if(typeof raw !== 'object'){
+		    throw new Error("raw param must be of type object");
+        	}
+
 		this.#raw = raw;
 		this.#liveSlotGetter = liveSlotGetter;
 	}
