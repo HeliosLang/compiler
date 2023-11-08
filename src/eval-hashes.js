@@ -71,8 +71,7 @@ import {
  */
 function genHashInstanceMembers(self) {
     return {
-        ...genCommonInstanceMembers(self),
-        show: new FuncType([], StringType)
+        ...genCommonInstanceMembers(self)
     };
 }
 
@@ -190,7 +189,6 @@ export const PubKeyType = new GenericType({
     offChainType: PubKey,
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        show: new FuncType([], StringType),
         verify: new FuncType([ByteArrayType, ByteArrayType], BoolType)
     }),
     genTypeMembers: (self) => ({

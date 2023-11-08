@@ -85,8 +85,7 @@ export const AssetClassType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         mph: MintingPolicyHashType,
-        token_name: ByteArrayType,
-        show: new FuncType([], StringType)
+        token_name: ByteArrayType
     }),
     genTypeMembers: (self) => {
         const selfInstance = new DataEntity(assertDefined(self.asDataType));
@@ -135,7 +134,6 @@ export const ValueType = new GenericType({
         get_policy: new FuncType([MintingPolicyHashType], MapType$(ByteArrayType, IntType)),
         get_safe: new FuncType([AssetClassType], IntType),
         is_zero: new FuncType([], BoolType),
-        show: new FuncType([], StringType),
         to_map: new FuncType([], MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType))),
         value: self // so that Value implements Valuable itself as well
     }),

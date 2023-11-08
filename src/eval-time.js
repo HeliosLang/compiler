@@ -22,8 +22,7 @@ import {
 
 import {
     BoolType,
-    IntType, 
-    StringType,
+    IntType,
     genCommonInstanceMembers, 
     genCommonTypeMembers
 } from "./eval-primitives.js";
@@ -99,8 +98,7 @@ export var TimeType = new GenericType({
         return new Date(Number(Time.fromUplcData(data).value));
     },
     genInstanceMembers: (self) => ({
-        ...genCommonInstanceMembers(self),
-        show: new FuncType([], StringType)
+        ...genCommonInstanceMembers(self)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -128,8 +126,7 @@ export var TimeRangeType = new GenericType({
         start: TimeType,
         end: TimeType,
         is_before: new FuncType([TimeType], BoolType),
-        is_after: new FuncType([TimeType], BoolType),
-        show: new FuncType([], StringType)
+        is_after: new FuncType([TimeType], BoolType)
     }),
     genTypeMembers: (self) => {
         const selfInstance = new DataEntity(assertDefined(self.asDataType));

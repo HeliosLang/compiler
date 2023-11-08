@@ -49,6 +49,7 @@ import {
 export function genCommonInstanceMembers(type) {
     return {
         serialize: new FuncType([], ByteArrayType),
+        show: new FuncType([], StringType)
     }
 }
 
@@ -105,7 +106,6 @@ export const BoolType = new GenericType({
     },
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        show:      new FuncType([], StringType),
         to_int:    new FuncType([], IntType),
         trace:     new FuncType([StringType], self),
         trace_if_false: new FuncType([StringType], self),
@@ -154,7 +154,6 @@ export const ByteArrayType = new GenericType({
         prepend: new FuncType([IntType], self),
         sha2: new FuncType([], self),
         sha3: new FuncType([], self),
-        show: new FuncType([], StringType),
         slice: new FuncType([IntType, IntType], self),
         starts_with: new FuncType([self], BoolType),
     }),
@@ -197,7 +196,6 @@ export const IntType = new GenericType({
         bound_min: new FuncType([self], self),
         decode_zigzag: new FuncType([], self),
         encode_zigzag: new FuncType([], self),
-        show: new FuncType([], StringType),
         to_base58: new FuncType([], StringType),
         to_big_endian: new FuncType([], ByteArrayType),
         to_bool: new FuncType([], BoolType),
@@ -275,7 +273,6 @@ export const RealType = new GenericType({
         ceil: new FuncType([], IntType),
         floor: new FuncType([], IntType),
         round: new FuncType([], IntType),
-        show: new FuncType([], StringType),
         trunc: new FuncType([], IntType)
     }),
     genTypeMembers: (self) => ({
@@ -333,6 +330,7 @@ export const StringType = new GenericType({
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
-        __add: new FuncType([self, self], self)
+        __add: new FuncType([self, self], self),
+        is_valid_utf8: new FuncType([ByteArrayType], BoolType)
     })
 });

@@ -222,6 +222,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		add(new RawFunc(`${ns}____neq`, "__helios__int____neq"));
 		add(new RawFunc(`${ns}__serialize`, "__helios__int__serialize"));
 		add(new RawFunc(`${ns}__from_data`, "__helios__int__from_data"));
+		add(new RawFunc(`${ns}__from_data_safe`, "__helios__int__from_data_safe"));
 		add(new RawFunc(`${ns}____to_data`, "__helios__int____to_data"));
 	}
 
@@ -233,6 +234,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		add(new RawFunc(`${ns}____neq`, "__helios__bytearray____neq"));
 		add(new RawFunc(`${ns}__serialize`, "__helios__bytearray__serialize"));
 		add(new RawFunc(`${ns}__from_data`, "__helios__bytearray__from_data"));
+		add(new RawFunc(`${ns}__from_data_safe`, "__helios__bytearray__from_data_safe"));
 		add(new RawFunc(`${ns}____to_data`, "__helios__bytearray____to_data"));
 		add(new RawFunc(`${ns}____lt`, "__helios__bytearray____lt"));
 		add(new RawFunc(`${ns}____leq`, "__helios__bytearray____leq"));
@@ -244,14 +246,23 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	/**
 	 * Adds basic auto members to a fully named type
+	 * TODO: many types that are currently treated as Data could in fact be treated as something slighly better (eg. lists or pairs)
 	 * @param {string} ns 
-	 * @param {{eq?: string, neq?: string, serialize?: string, from_data?: string, to_data?: string}} custom
+	 * @param {{
+	 *   eq?: string, 
+	 *   neq?: string, 
+	 *   serialize?: string, 
+	 *   from_data?: string, 
+	 *   from_data_safe?: string, 
+	 *   to_data?: string
+	 * }} custom
 	 */
 	function addDataFuncs(ns, custom = {}) {
 		add(new RawFunc(`${ns}____eq`, custom?.eq ?? "__helios__common____eq"));
 		add(new RawFunc(`${ns}____neq`, custom?.neq ?? "__helios__common____neq"));
 		add(new RawFunc(`${ns}__serialize`, custom?.serialize ?? "__helios__common__serialize"));
 		add(new RawFunc(`${ns}__from_data`, custom?.from_data ?? "__helios__common__identity"));
+		add(new RawFunc(`${ns}__from_data_safe`, custom?.from_data_safe  ?? `(data) -> {__helios__option__SOME_FUNC(data)}`));
 		add(new RawFunc(`${ns}____to_data`, custom?.to_data ?? "__helios__common__identity"));
 	}
 
@@ -268,7 +279,28 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		add(new RawFunc(`${ns}__from_data`, 
 		`(data) -> {
 			__helios__common__assert_constr_index(data, ${constrIndex})
-		}`))
+		}`));
+		add(new RawFunc(`${ns}__from_data_safe`,
+		`(data) -> {
+			__core__chooseData(
+				data,
+				() -> {
+					__core__ifThenElse(
+						__core__equalsInteger(${constrIndex}, __core__fstPair(__core__unConstrData__safe(data))),
+						() -> {
+							__helios__option__SOME_FUNC(data)
+						},
+						() -> {
+							__helios__option__NONE_FUNC
+						}
+					)()
+				},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC}
+			)()
+		}`));
 	}
 
 	/**
@@ -666,6 +698,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			}(selfLengthFn(self), __core__lengthOfByteString(suffix))
 		}
 	}`));
+	// TODO: inline __core__sndPair(head)
 	add(new RawFunc("__helios__common__cip68_field",
 	`(self, name) -> {
 		(map) -> {
@@ -705,6 +738,37 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				}
 			)
 		}(__core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(self)))))
+	}`));
+	// map is expected to already have been extracted
+	add(new RawFunc("__helios__common__cip68_field_safe",
+	`(map, name) -> {
+		(recurse) -> {
+			recurse(recurse, map)
+		}(
+			(recurse, map) -> {
+				__core__chooseList(
+					map,
+					() -> {
+						__helios__option__NONE_FUNC
+					},
+					() -> {
+						(head) -> {
+							(key) -> {
+								__core__ifThenElse(
+									__core__equalsData(key, name),
+									() -> {
+										__helios__option__SOME_FUNC(__core__sndPair(head))
+									},
+									() -> {
+										recurse(recurse, __core__tailList__safe(map))
+									}
+								)()
+							}(__core__fstPair(head))
+						}(__core__headList__safe(map))
+					}
+				)()
+			}
+		)
 	}`));
 	add(new RawFunc("__helios__common__test_cip68_field",
 	`(self, name, inner_test) -> {
@@ -930,6 +994,19 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// Int builtins
 	add(new RawFunc("__helios__int____eq", "__core__equalsInteger"));
 	add(new RawFunc("__helios__int__from_data", "__core__unIData"));
+	add(new RawFunc("__helios__int__from_data_safe",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {
+				__helios__option__SOME_FUNC(__core__unIData__safe(data))
+			},
+			() -> {__helios__option__NONE_FUNC}
+		)()
+	}`));
 	add(new RawFunc("__helios__int__test_data", `(data) -> {
 		__core__chooseData(data, false, false, false, true, false)
 	}`));
@@ -1851,6 +1928,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(a, b) -> {
 		__core__ifThenElse(a, __helios__bool____not(b), b)
 	}`));
+	// TODO: optimize this drastically by simply returning the comparison to 1
 	add(new RawFunc("__helios__bool__from_data", 
 	`(d) -> {
 		__core__ifThenElse(
@@ -1858,6 +1936,26 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			false, 
 			true
 		)
+	}`));
+	add(new RawFunc("__helios__bool__from_data_safe",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {
+				__helios__option__SOME_FUNC(
+					__core__equalsInteger(
+						__core__fstPair(
+							__core__unConstrData__safe(data)
+						),
+						1
+					)
+				)
+			},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC}
+		)()
 	}`));
 	add(new RawFunc("__helios__bool____to_data",  
 	`(b) -> {
@@ -1945,7 +2043,280 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(d) -> {
 		__core__decodeUtf8(__core__unBData(d))
 	}`));
-	// TODO: compete valid UTF-8 check
+	add(new RawFunc("__helios__string__from_data_safe",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {
+				(bytes) -> {
+					__core__ifThenElse(
+						__helios__string__is_valid_utf8(bytes),
+						() -> {
+							__helios__option__SOME_FUNC(__core__decodeUtf8__safe(bytes))
+						},
+						() -> {
+							__helios__option__NONE_FUNC
+						}
+					)()
+				}(__core__unBData__safe(data))
+				
+			},
+		)()
+	}`));
+	add(new RawFunc("__helios__string__show", 
+	`(self) -> {
+		() -> {
+			__core__appendString(
+				"'",
+				__core__appendString(
+					self,
+					"'"
+				)
+			)
+		}
+	}`));
+	add(new RawFunc("__helios__string__parse_utf8_cont_byte",
+	`(byte, callback) -> {
+		__core__ifThenElse(
+			__core__equalsInteger(__core__divideInteger(byte, 64), 2),
+			() -> {
+				callback(true, __core__modInteger(byte, 64))
+			},
+			() -> {
+				callback(false, 0)
+			}
+		)()
+	}`));
+	add(new RawFunc("__helios__string__is_valid_utf8",
+	`(bytes) -> {
+		(n) -> {
+			(recurse) -> {
+				recurse(recurse, 0)
+			}(
+				(recurse, i) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(i, n),
+						() -> {
+							true
+						},
+						() -> {
+							(b0) -> {
+								__core__ifThenElse(
+									__core__lessThanEqualsInteger(b0, 127),
+									() -> {
+										recurse(recurse, __core__addInteger(i, 1))
+									},
+									() -> {
+										__core__ifThenElse(
+											__core__equalsInteger(__core__divideInteger(b0, 32), 6),
+											() -> {
+												(inext) -> {
+													__core__ifThenElse(
+														__core__lessThanEqualsInteger(inext, n),
+														() -> {
+															__helios__string__parse_utf8_cont_byte(
+																__core__indexByteString(bytes, __core__addInteger(i, 1)), 
+																(valid, c1) -> {
+																	__core__ifThenElse(
+																		valid,
+																		() -> {
+																			(c) -> {
+																				__core__ifThenElse(
+																					__helios__bool__and(
+																						() -> {__core__lessThanEqualsInteger(128, c)},
+																						() -> {__core__lessThanEqualsInteger(c, 2047)}
+																					),
+																					() -> {
+																						recurse(recurse, inext)
+																					},
+																					() -> {
+																						false
+																					}
+																				)()
+																			}(
+																				__core__addInteger(
+																					__core__multiplyInteger(__core__modInteger(b0, 32), 64),
+																					c1
+																				)
+																			)
+																		},
+																		() -> {
+																			false
+																		}
+																	)()
+																}
+															)
+														},
+														() -> {
+															false
+														}
+													)()
+												}(__core__addInteger(i, 2))
+											},
+											() -> {
+												__core__ifThenElse(
+													__core__equalsInteger(__core__divideInteger(b0, 16), 14),
+													() -> {
+														(inext) -> {
+															__core__ifThenElse(
+																__core__lessThanEqualsInteger(inext, n),
+																() -> {
+																	__helios__string__parse_utf8_cont_byte(
+																		__core__indexByteString(bytes, __core__addInteger(i, 1)),
+																		(valid, c1) -> {
+																			__core__ifThenElse(
+																				valid,
+																				() -> {
+																					__helios__string__parse_utf8_cont_byte(
+																						__core__indexByteString(bytes, __core__addInteger(i, 2)),
+																						(valid, c2) -> {
+																							__core__ifThenElse(
+																								valid,
+																								() -> {
+																									(c) -> {
+																										__core__ifThenElse(
+																											__helios__bool__and(
+																												() -> {__core__lessThanEqualsInteger(2048, c)},
+																												() -> {__core__lessThanEqualsInteger(c, 65535)}
+																											),
+																											() -> {
+																												recurse(recurse, inext)
+																											},
+																											() -> {
+																												false
+																											}
+																										)()
+																									}(
+																										__core__addInteger(
+																											__core__multiplyInteger(__core__modInteger(b0, 16), 4096),
+																											__core__addInteger(
+																												__core__multiplyInteger(c1, 64),
+																												c2
+																											)
+																									)
+																									)
+																								},
+																								() -> {
+																									false
+																								}
+																							)()
+																						}
+																					)
+																				},
+																				() -> {
+																					false
+																				}
+																			)()
+																		}
+																	)
+																},
+																() -> {
+																	false
+																}
+															)()
+														}(__core__addInteger(i, 3))
+													},
+													() -> {
+														__core__ifThenElse(
+															__core__equalsInteger(__core__divideInteger(b0, 8), 30),
+															() -> {
+																(inext) -> {
+																	__core__ifThenElse(
+																		__core__lessThanEqualsInteger(inext, n),
+																		() -> {
+																			__helios__string__parse_utf8_cont_byte(
+																				__core__indexByteString(bytes, __core__addInteger(i, 1)),
+																				(valid, c1) -> {
+																					__core__ifThenElse(
+																						valid,
+																						() -> {
+																							__helios__string__parse_utf8_cont_byte(
+																								__core__indexByteString(bytes, __core__addInteger(i, 2)),
+																								(valid, c2) -> {
+																									__core__ifThenElse(
+																										valid,
+																										() -> {
+																											__helios__string__parse_utf8_cont_byte(
+																												__core__indexByteString(bytes, __core__addInteger(i, 3)),
+																												(valid, c3) -> {
+																													__core__ifThenElse(
+																														valid,
+																														() -> {
+																															(c) -> {
+																																__core__ifThenElse(
+																																	__helios__bool__and(
+																																		() -> {__core__lessThanEqualsInteger(65536, c)},
+																																		() -> {__core__lessThanEqualsInteger(c, 2097151)}
+																																	),
+																																	() -> {
+																																		recurse(recurse, inext)
+																																	},
+																																	() -> {
+																																		false
+																																	}
+																																)()
+																															}(
+																																__core__addInteger(
+																																	__core__multiplyInteger(__core__modInteger(b0, 8), 262144),
+																																	__core__addInteger(
+																																		__core__multiplyInteger(c1, 4096),
+																																		__core__addInteger(
+																																			__core__multiplyInteger(c2, 64),
+																																			c3
+																																		)
+																																	)
+																																)
+																															)
+																														},
+																														() -> {
+																															false
+																														}
+																													)()
+																												}
+																											)
+																										},
+																										() -> {
+																											false
+																										}
+																									)()
+																								}
+																							)
+																						},
+																						() -> {
+																							false
+																						}
+																					)()
+																				}
+																			)
+																		},
+																		() -> {
+																			false
+																		}
+																	)()
+																}(__core__addInteger(i, 4))
+															},
+															() -> {
+																false
+															}
+														)()
+													}
+												)()
+											}
+										)()
+									}
+								)()
+							}(__core__indexByteString(bytes, i))
+						}
+					)()
+					
+				}
+			)
+		}(__core__lengthOfByteString(bytes))
+	}`));
 	add(new RawFunc("__helios__string__test_data",
 	`(data) -> {
 		__core__chooseData(
@@ -1954,7 +2325,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			() -> {false},
 			() -> {false},
 			() -> {false},
-			() -> {true}
+			() -> {
+				__helios__string__is_valid_utf8(__core__unBData__safe(data))
+			}
 		)()
 	}`));
 	add(new RawFunc("__helios__string____to_data", 
@@ -2027,6 +2400,17 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	}`));
 	add(new RawFunc("__helios__bytearray____eq", "__core__equalsByteString"));
 	add(new RawFunc("__helios__bytearray__from_data", "__core__unBData"));
+	add(new RawFunc("__helios__bytearray__from_data_safe",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__SOME_FUNC(__core__unBData__safe(data))}
+		)()
+	}`));
 	add(new RawFunc("__helios__bytearray__test_data",
 	`(data) -> {
 		__core__chooseData(data, false, false, false, false, true)
@@ -2629,6 +3013,101 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			}(__core__unListData(data))
 		}`;
 	}));
+	add(new RawFunc("__helios__tuple[]__from_data_safe", (ttp) => {
+		assert(ttp.length >= 2);
+
+		let inner = `__helios__option__SOME_FUNC(
+			(callback) -> {
+				callback(${ttp.map((_, i) => `opt${i}`).join(", ")})
+			}
+		}`;
+
+		for (let i = ttp.length - 1; i >= 0; i--) {
+			inner = `opt${i}(
+				(valid, value${i}) -> {
+					__core__ifThenElse(
+						valid,
+						() -> {
+							${inner}
+						},
+						() -> {
+							__helios__option__NONE_FUNC
+						}
+					)()
+				}
+			)`;
+		}
+
+		for (let i = ttp.length - 1; i >= 0; i--) {
+			inner = `(fields) -> {
+				__core__chooseList(
+					fields,
+					() -> {
+						__helios__option__NONE_FUNC
+					},
+					() -> {
+						(opt${i}) -> {
+							${i == ttp.length - 1 ? inner : `${inner}(__core__tailList__safe(fields))`}
+						}(${ttp[i]}__from_data_safe(__core__headList__safe(fields)))
+					}
+				)()
+			}`;
+		}
+
+		return `(data) -> {
+			__core__chooseData(
+				data,
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {
+					(fields) -> {
+						${ttp.map(tp => {
+							return `__core__chooseList(
+								fields,
+								() -> {
+									__helios__option__NONE_FUNC
+								},
+								() -> {
+
+								}
+							)()`
+						})}
+					}(__core__unListData__safe(data))
+				},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC}
+			)
+		}`
+	}))
+	add(new RawFunc("__helios__tuple[]__show", (ttp) => {
+		let inner = `${ttp[ttp.length-1]}__show(x${ttp.length-1})()`;
+
+		for (let i = ttp.length - 2; i >= 0; i--) {
+			inner = `__core__appendString(
+				${ttp[i]}__show(x${i})(),
+				__core__appendString(
+					", ",
+					${inner}
+				)
+			)`;
+		}
+
+		return `(tuple) -> {
+			() -> {
+				tuple(
+					(${ttp.map((_, i) => `x${i}`).join(", ")}) -> {
+						__core__appendString(
+							"(",
+							__core__appendString(
+								${inner},
+								")"
+							)
+						)
+					}
+				)
+			}
+		}`;
+	}));
 	add(new RawFunc("__helios__tuple[]____to_data", (ttp) => {
 		assert(ttp.length >= 2);
 
@@ -2779,6 +3258,19 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			)
 		}(__core__unListData(data))
 	}`));
+	add(new RawFunc(`__helios__list[${TTPP}0]__from_data_safe`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {
+				__helios__option__SOME_FUNC(__core__unListData__safe(data))
+			},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC}
+		)()
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__test_data`,
 	`(data) -> {
 		__core__chooseData(
@@ -2793,6 +3285,60 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		)()
 	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]____to_data`, "__core__listData"));
+	add(new RawFunc(`__helios__list[${TTPP}0]__show`, 
+	`(self) -> {
+		() -> {
+			(recurse) -> {
+				__core__appendString(
+					"[",
+					__core__appendString(
+						recurse(recurse, self, true),
+						"]"
+					)
+				)
+			}(
+				(recurse, self, first) -> {
+					__core__chooseList(
+						self,
+						() -> {
+							""
+						},
+						() -> {
+							__core__appendString(
+								__core__ifThenElse(
+									first,
+									() -> {
+										""
+									},
+									() -> {
+										", "
+									}
+								)(),
+								(head) -> {
+									__core__appendString(
+										head(
+											(valid, value) -> {
+												__core__ifThenElse(
+													valid,
+													() -> {
+														${TTPP}0__show(value)()
+													},
+													() -> {
+														"<n/a>"
+													}
+												)()
+											}
+										),
+										recurse(recurse, __core__tailList__safe(self), false)
+									)
+								}(${TTPP}0__from_data_safe(__core__headList__safe(self)))
+							)
+						}
+					)()
+				}
+			)
+		}
+	}`));
 	add(new RawFunc(`__helios__list[${TTPP}0]__new`,
 	`(n, fn) -> {
 		(recurse) -> {
@@ -3700,6 +4246,89 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			)
 		}(__core__unMapData(data))
 	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__from_data_safe`,
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {__helios__option__NONE_FUNC},
+			() -> {
+				__helios__option__SOME_FUNC(__core__unMapData__safe(data))
+			},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC}
+		)()
+	}`));
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__show`,
+	`(self) -> {
+		() -> {
+			(recurse) -> {
+				__core__appendString(
+					"{",
+					__core__appendString(
+						recurse(recurse, self, true),
+						"}"
+					)
+				)
+			}(
+				(recurse, self, first) -> {
+					__core__chooseList(
+						self,
+						() -> {
+							""
+						},
+						() -> {
+							__core__appendString(
+								__core__ifThenElse(
+									first,
+									() -> {""},
+									() -> {", "}
+								)(),
+								(head) -> {
+									(key, value) -> {
+										__core__appendString(
+											__core__appendString(
+												__core__appendString(
+													key(
+														(valid, key) -> {
+															__core__ifThenElse(
+																valid,
+																() -> {
+																	${TTPP}0__show(key)()
+																},
+																() -> {
+																	"<n/a>"
+																}
+															)()
+														}
+													),
+													": "
+												),
+												value(
+													(valid, value) -> {
+														__core__ifThenElse(
+															valid,
+															() -> {
+																${TTPP}1__show(value)()
+															},
+															() -> {
+																"<n/a>"
+															}
+														)
+													}
+												)
+											),
+											recurse(recurse, __core__tailList__safe(self), false)
+										)
+									}(${TTPP}0__from_data_safe(__core__fstPair(head)), ${TTPP}1__from_data_safe(__core__sndPair(head)))
+								}(__core__headList__safe(self))
+							)
+						}
+					)()
+				}
+			)
+		}
+	}`));
 	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__test_data`,
 	`(data) -> {
 		__core__chooseData(
@@ -4301,6 +4930,18 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					}
 				)()
 			)
+		}`,
+		from_data_safe: `(data) -> {
+			__core__chooseData(
+				data,
+				() -> {
+					__helios__option__SOME_FUNC(data)
+				},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC}
+			)()
 		}`
 	});
 	add(new RawFunc(`__helios__option[${TTPP}0]__map[${FTPP}0]`, 
@@ -4331,10 +4972,69 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			${TTPP}0__from_data(__helios__common__enum_field_0(self))
 		}
 	}`));
+	add(new RawFunc(`__helios__option[${TTPP}0]__show`,
+	`(self) -> {
+		__core__chooseData(
+			self,
+			() -> {
+				(pair) -> {
+					(index) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(index, 0),
+							() -> {
+								(fields) -> {
+									__core__chooseList(
+										fields,
+										() -> {
+											"Option::Some{<n/a>}"
+										},
+										() -> {
+											(some) -> {
+												some(
+													(valid, value) -> {
+														__core__ifThenElse(
+															valid,
+															() -> {
+																__core__appendString(
+																	"Option::Some{",
+																	__core__appendString(
+																		${TTPP}0__show(value)(),
+																		"}"
+																	)
+																)
+															},
+															() -> {
+																"Option::Some{<n/a>}"
+															}
+														)()
+													}
+												)
+											}(${TTPP}0__from_data_safe(__core__headList__safe(fields)))
+										}
+									)()
+								}(__core__sndPair(pair))
+							},
+							() -> {
+								"Option::None"
+							}
+						)()
+					}(__core__fstPair(pair))
+				}(__core__unConstrData__safe(self))
+			},
+			() -> {"Option{<n/a>}"},
+			() -> {"Option{<n/a>}"},
+			() -> {"Option{<n/a>}"},
+			() -> {"Option{<n/a>}"}
+		)
+	}`))
 
 
 	// Option[T]::Some
 	addEnumDataFuncs(`__helios__option[${TTPP}0]__some`, 0);
+	add(new RawFunc("__helios__option__SOME_FUNC", 
+	`(some) -> {
+		(callback) -> {callback(true, some)}
+	}`));
 	add(new RawFunc(`__helios__option[${TTPP}0]__some____new`,
 	`(some) -> {
 		__core__constrData(0, __helios__common__list_1(${TTPP}0____to_data(some)))
@@ -4357,6 +5057,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// Option[T]::None
 	addEnumDataFuncs(`__helios__option[${TTPP}0]__none`, 1);
 	add(new RawFunc("__helios__option__NONE", "__core__constrData(1, __helios__common__list_0)"));
+	add(new RawFunc("__helios__option__NONE_FUNC", `(callback) -> {callback(false, ())}`));
 	add(new RawFunc(`__helios__option[${TTPP}0]__none____new`,
 	`() -> {
 		__helios__option__NONE
@@ -5772,6 +6473,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(self) -> {
 		__helios__bytearray__show(__helios__address__to_bytes(self)())
 	}`));
+	add(new RawFunc("__helios__address__show", "__helios__address__to_hex"));
 	add(new RawFunc("__helios__address__header",
 	`(self) -> {
 		() -> {
@@ -6261,6 +6963,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addIntLikeFuncs("__helios__duration");
 	add(new RawFunc("__helios__duration__test_data", `__helios__int__test_data`));
 	add(new RawFunc("__helios__duration__new", `__helios__common__identity`));
+	add(new RawFunc("__helios__duration__show", `__helios__int__show`));
 	add(new RawFunc("__helios__duration____add", `__helios__int____add`));
 	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
 	add(new RawFunc("__helios__duration____mul", `__helios__int____mul`));
@@ -6789,6 +7492,19 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		)()
 	}`));
 	add(new RawFunc("__helios__value__from_data", "__core__unMapData"));
+	add(new RawFunc("__helios__value__from_data_safe",
+	`(data) -> {
+		__core__chooseData(
+			data,
+			() -> {__helios__option__NONE_FUNC},
+			() -> {
+				__helios__option__SOME_FUNC(__core__unMapData__safe(data))
+			},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC},
+			() -> {__helios__option__NONE_FUNC}
+		)()
+	}`));
 	add(new RawFunc("__helios__value____to_data", "__core__mapData"));
 	add(new RawFunc("__helios__value__value", "__helios__common__identity"));
 	add(new RawFunc("__helios__value__ZERO", "__core__mkNilPairData(())"));
@@ -7554,6 +8270,7 @@ export function fetchRawFunctions(ctx, ir, userDefs = null) {
 				const builtin = ctx.db.get(m);
 
 				if (!builtin) {
+					console.log(src);
 					throw new Error(`builtin ${m} not found`);
 				}
 

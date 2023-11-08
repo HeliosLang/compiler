@@ -1213,7 +1213,7 @@ export class DataDefinition {
 	 * @param {IRDefinitions} map 
 	 * @param {number} constrIndex
 	 */
-	newToIR(ctx, path, map, constrIndex) {
+	toIR_new(ctx, path, map, constrIndex) {
 		const isConstr = constrIndex != -1;
 
 		/**
@@ -1286,7 +1286,7 @@ export class DataDefinition {
 	 * @param {string[]} getterNames
 	 * @param {number} constrIndex
 	 */
-	copyToIR(ctx, path, map, getterNames, constrIndex = -1) {
+	toIR_copy(ctx, path, map, getterNames, constrIndex = -1) {
 		const key = `${path}__copy`;
 
 		let ir = StructLiteralExpr.toIRInternal(ctx, this.site, path, this.#fields.map(df => new IR(df.name.value)));
@@ -1316,9 +1316,154 @@ export class DataDefinition {
 
 	/**
 	 * @internal
+	 * @param {string} baseName
+	 * @param {boolean} isEnumMember
 	 * @returns {IR}
 	 */
-	testDataToIR() {
+	toIR_show(baseName, isEnumMember = false) {
+		if (this.hasTags()) {
+			assert(!isEnumMember);
+			let ir = IR.new`""`;
+
+			for (let i = 0; i < this.nFields; i++) {
+				const f = this.#fields[i];
+				const p = f.type.path;
+
+				ir = IR.new`__core__appendString(
+					${ir},
+					__core__appendString(
+						${i > 0 ? `", ${f.name}: "`: `"${f.name}: "`},
+						(opt) -> {
+							opt(
+								(valid, value) -> {
+									__core__ifThenElse(
+										valid,
+										() -> {
+											(opt) -> {
+												opt(
+													(valid, value) -> {
+														__core__ifThenElse(
+															valid,
+															() -> {
+																${p}__show(value)()
+															},
+															() -> {
+																"<n/a>"
+															}
+														)()
+													}
+												)
+											}(${p}__from_data_safe(value))
+										},
+										() -> {
+											"<n/a>"
+										}
+									)()
+								}
+							)
+						}(__helios__common__cip68_field_safe(self, __core__bData(#${bytesToHex(textToBytes(f.tag))})))
+					)
+				)`;
+			}
+
+			return IR.new`(data) -> {
+				__core__chooseData(
+					data,
+					() -> {
+						(fields) -> {
+							__core__chooseList(
+								fields,
+								() -> {"${baseName}{<n/a>}"},
+								() -> {
+									(data) -> {
+										__core__chooseData(
+											data,
+											() -> {"${baseName}{<n/a>}"},
+											() -> {
+												(self) -> {
+													__core__appendString(
+														"${baseName}{",
+														__core__appendString(
+															${ir},
+															"}"
+														)
+													)
+												}(__core__unMapData(data))
+											},
+											() -> {"${baseName}{<n/a>}"},
+											() -> {"${baseName}{<n/a>}"},
+											() -> {"${baseName}{<n/a>}"}
+										)()
+									}(__core__headList__safe(fields))
+								}
+							)()
+						}(__core__sndPair(__core__unConstrData__safe(data)))
+					},
+					() -> {"${baseName}{<n/a>}"},
+					() -> {"${baseName}{<n/a>}"},
+					() -> {"${baseName}{<n/a>}"},
+					() -> {"${baseName}{<n/a>}"}
+				)
+			}`;
+		} else if (this.nFields == 1 && !isEnumMember) {
+			return IR.new`${this.#fields[0].type.path}__show`;
+		} else {
+			let ir = IR.new`(fields) -> {""}`;
+
+			for (let i = this.nFields - 1; i >= 0; i--) {
+				const f = this.#fields[i];
+				const p = f.type.path;
+
+				ir = IR.new`(fields) -> {
+					__core__chooseList(
+						fields,
+						() -> {""},
+						() -> {
+							__core__appendString(
+								${i > 0 ? `", ${f.name}: "` : `"${f.name}: "`},
+								__core__appendString(
+									(opt) -> {
+										opt(
+											(valid, value) -> {
+												__core__ifThenElse(
+													valid,
+													() -> {
+														${p}__show(value)()
+													},
+													() -> {
+														"<n/a>"
+													}
+												)()
+											}
+										)
+									}(${p}__from_data_safe(__core__headList__safe(fields))),
+									${ir}(__core__tailList__safe(fields))
+								)
+							)
+						}
+					)()
+				}`;
+			}
+
+			return IR.new`(self) -> {
+				() -> {
+					__core__appendString(
+						"${baseName}{",
+						__core__appendString(
+							${ir}(self),
+							"}"
+						)
+					)
+				}
+			}`;
+		}
+	}
+
+	/**
+	 * @internal
+	 * @returns {IR}
+	 */
+	toIR_test_data() {
 		if (this.hasTags()) {
 			const fields = this.#fields;
 
@@ -1404,7 +1549,7 @@ export class DataDefinition {
 	 * @param {string} path
 	 * @returns {IR}
 	 */
-	fromDataFieldsCheckToIR(path) {
+	toIR_from_data_fields(path) {
 		if (this.hasTags()) {
 
 			//let ir = IR.new`(data) -> {__core__mkNilPairData(())}`;
@@ -1575,8 +1720,8 @@ export class DataDefinition {
 			}
 		}
 
-		this.newToIR(ctx, path, map, constrIndex);
-		this.copyToIR(ctx, path, map, getterNames);
+		this.toIR_new(ctx, path, map, constrIndex);
+		this.toIR_copy(ctx, path, map, getterNames);
 	}
 }
 
@@ -1851,7 +1996,7 @@ export class StructStatement extends Statement {
 	 * @param {IRDefinitions} map
 	 */
 	toIR(ctx, map) {
-		map.set(`${this.path}__test_data`, this.#dataDef.testDataToIR());
+		map.set(`${this.path}__test_data`, this.#dataDef.toIR_test_data());
 
 		if (this.#dataDef.hasTags()) {
 			map.set(`${this.path}____eq`, IR.new`__helios__common____eq${this.site}`);
@@ -1878,6 +2023,8 @@ export class StructStatement extends Statement {
 			} else {
 				map.set(`${this.path}__from_data`, IR.new`__helios__common__identity${this.site}`);
 			}
+
+			map.set(`${this.path}__from_data_safe`, IR.new`__helios__option__SOME_FUNC${this.site}`);
 		} else {
 			const implPath = this.#dataDef.nFields == 1 ? this.#dataDef.getFieldType(0).path : "__helios__struct";
 
@@ -1905,12 +2052,29 @@ export class StructStatement extends Statement {
 					)
 				}${this.site}`);
 			}
+			if (this.#dataDef.fieldNames.length == 1) {
+				map.set(`${this.path}__from_data_safe`, IR.new`${this.#dataDef.getFieldType(0).path}__from_data_safe${this.site}`);
+			} else {
+				map.set(`${this.path}__from_data_safe`, IR.new`(data) -> {
+					__core__chooseData(
+						data,
+						() -> {__helios__option__NONE_FUNC},
+						() -> {__helios__option__NONE_FUNC},
+						() -> {
+							__helios__option__SOME_FUNC(__core__unListData__safe(data))
+						},
+						() -> {__helios__option__NONE_FUNC},
+						() -> {__helios__option__NONE_FUNC}
+					)()
+				}`);
+			}
 
 			map.set(`${this.path}____to_data`, new IR(`${implPath}____to_data`, this.site));
 		}
 
 		// super.toIR adds __new and copy, which might depend on __to_data, so must come after
 		this.#dataDef.toIR(ctx, this.path, map, -1);
+		map.set(`${this.path}__show`, this.#dataDef.toIR_show(this.name.value));
 
 		this.#impl.toIR(ctx, map);
 	}
@@ -2344,7 +2508,7 @@ export class EnumMember {
 						__core__ifThenElse(
 							__core__equalsInteger(__core__fstPair(pair), ${this.#constrIndex}),
 							() -> {
-								${this.#dataDef.testDataToIR()}(__core__listData(__core__sndPair(pair)))
+								${this.#dataDef.toIR_test_data()}(__core__listData(__core__sndPair(pair)))
 							},
 							() -> {
 								false
@@ -2381,10 +2545,49 @@ export class EnumMember {
 			}`, this.#dataDef.site));
 		}
 
+		map.set(`${this.path}__from_data_safe`, IR.new`(data) -> {
+			__core__chooseData(
+				data,
+				() -> {
+					(index) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(index, ${this.constrIndex}),
+							() -> {
+								__helios__option__SOME_FUNC(data)
+							},
+							() -> {
+								__helios__option__NONE_FUNC
+							}
+						)()
+					}(__core__fstPair(__core__unConstrData__safe(data)))
+				},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC},
+				() -> {__helios__option__NONE_FUNC}
+			)()
+		}`);
+
 		map.set(`${this.path}____to_data`, new IR("__helios__common__identity", this.#dataDef.site));
 
 		// super.toIR adds __new and copy, which might depend on __to_data, so must come after
 		this.#dataDef.toIR(ctx, this.path, map, this.constrIndex);
+
+		const longName = (this.#parent?.name?.value ?? "") + "::" + this.name.value;
+		map.set(`${this.path}__show`, IR.new`(data) -> {
+			__core__chooseData(
+				data,
+				() -> {
+					(fields) -> {
+						${this.#dataDef.toIR_show(longName, true)}(fields)()
+					}(__core__sndPair(__core__unConstrData__safe(data)))
+				},
+				() -> {"${longName}{<n/a>}"},
+				() -> {"${longName}{<n/a>}"},
+				() -> {"${longName}{<n/a>}"},
+				() -> {"${longName}{<n/a>}"}
+			)
+		}`);
 	}
 }
 
@@ -2676,7 +2879,7 @@ export class EnumStatement extends Statement {
 	/**
 	 * @returns {IR}
 	 */
-	testDataToIR() {
+	toIR_test_data() {
 		let ir = IR.new`false`;
 
 		this.#members.forEach(m => {
@@ -2697,6 +2900,47 @@ export class EnumStatement extends Statement {
 	}
 
 	/**
+	 * @internal
+	 * @returns {IR}
+	 */
+	toIR_show() {
+		const name = this.name.value;
+
+		const last = this.#members[this.#members.length-1];
+
+		let ir = IR.new`${last.path}__show(data)()`;
+
+		for (let i = this.#members.length - 2; i >= 0; i--) {
+			const m = this.#members[i];
+
+			ir = IR.new`__core__ifThenElse(
+				__core__equalsInteger(index, ${m.constrIndex}),
+				() -> {
+					${m.path}__show(data)()
+				},
+				() -> {
+					${ir}
+				}
+			)()`;
+		}
+
+		return IR.new`(data) -> {
+			__core__chooseData(
+				data,
+				() -> {
+					(index) -> {
+						${ir}
+					}(__core__fstPair(__core__unConstrData__safe(data)))
+				},
+				() -> {"${name}{<n/a>}"},
+				() -> {"${name}{<n/a>}"},
+				() -> {"${name}{<n/a>}"},
+				() -> {"${name}{<n/a>}"}
+			)
+		}`;
+	}
+
+	/**
 	 * @param {ToIRContext} ctx
 	 * @param {IRDefinitions} map 
 	 */
@@ -2706,7 +2950,8 @@ export class EnumStatement extends Statement {
 		map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.site}`);
 		map.set(`${this.path}____to_data`, IR.new`__helios__common__identity${this.site}`);
 
-		map.set(`${this.path}__test_data`, this.testDataToIR());
+		map.set(`${this.path}__test_data`, this.toIR_test_data());
+		map.set(`${this.path}__show`, this.toIR_show());
 
 		// there could be circular dependencies here, which is ok
 		if (config.CHECK_CASTS && !ctx.simplify) {
@@ -2728,6 +2973,8 @@ export class EnumStatement extends Statement {
 		} else {
 			map.set(`${this.path}__from_data`, IR.new`__helios__common__identity${this.site}`);
 		}
+
+		map.set(`${this.path}__from_data_safe`, IR.new`__helios__option__SOME_FUNC${this.site}`);
 
 		// member __new and copy methods might depend on __to_data, so must be added after
 		for (let member of this.#members) {

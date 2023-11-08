@@ -4392,7 +4392,6 @@ export class BlockfrostV0 implements Network {
  */
 export class KoiosV0 implements Network {
     /**
-    * Throws an error if a Blockfrost project_id is missing for that specific network.
     * @param {TxInput} refUtxo
     * @returns {Promise<KoiosV0>}
     */

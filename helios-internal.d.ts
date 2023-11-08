@@ -8236,7 +8236,7 @@ declare module "helios" {
          * @param {IRDefinitions} map
          * @param {number} constrIndex
          */
-        newToIR(ctx: ToIRContext, path: string, map: IRDefinitions, constrIndex: number): void;
+        toIR_new(ctx: ToIRContext, path: string, map: IRDefinitions, constrIndex: number): void;
         /**
          * @internal
          * @param {ToIRContext} ctx
@@ -8245,18 +8245,25 @@ declare module "helios" {
          * @param {string[]} getterNames
          * @param {number} constrIndex
          */
-        copyToIR(ctx: ToIRContext, path: string, map: IRDefinitions, getterNames: string[], constrIndex?: number): void;
+        toIR_copy(ctx: ToIRContext, path: string, map: IRDefinitions, getterNames: string[], constrIndex?: number): void;
+        /**
+         * @internal
+         * @param {string} baseName
+         * @param {boolean} isEnumMember
+         * @returns {IR}
+         */
+        toIR_show(baseName: string, isEnumMember?: boolean): IR;
         /**
          * @internal
          * @returns {IR}
          */
-        testDataToIR(): IR;
+        toIR_test_data(): IR;
         /**
          * @internal
          * @param {string} path
          * @returns {IR}
          */
-        fromDataFieldsCheckToIR(path: string): IR;
+        toIR_from_data_fields(path: string): IR;
         /**
          * Doesn't return anything, but sets its IRdef in the map
          * @param {ToIRContext} ctx
@@ -8452,7 +8459,12 @@ declare module "helios" {
         /**
          * @returns {IR}
          */
-        testDataToIR(): IR;
+        toIR_test_data(): IR;
+        /**
+         * @internal
+         * @returns {IR}
+         */
+        toIR_show(): IR;
         #private;
     }
     /**
@@ -12152,7 +12164,6 @@ declare module "helios" {
      */
     export class KoiosV0 implements Network {
         /**
-        * Throws an error if a Blockfrost project_id is missing for that specific network.
         * @param {TxInput} refUtxo
         * @returns {Promise<KoiosV0>}
         */

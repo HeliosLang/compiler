@@ -1063,8 +1063,7 @@ export const TxIdType = new GenericType({
         return TxId.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
-        ...genCommonInstanceMembers(self),
-        show: new FuncType([], StringType)
+        ...genCommonInstanceMembers(self)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -1141,8 +1140,7 @@ export const TxOutputIdType = new GenericType({
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         tx_id: TxIdType,
-        index: IntType,
-        show: new FuncType([], StringType)
+        index: IntType
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),

@@ -610,7 +610,6 @@ export class KoiosV0 {
     }
 
      /**
-     * Throws an error if a Blockfrost project_id is missing for that specific network.
      * @param {TxInput} refUtxo
      * @returns {Promise<KoiosV0>}
      */
