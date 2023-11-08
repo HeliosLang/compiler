@@ -413,6 +413,28 @@ export class ByteArrayData extends UplcData {
 			return 0;
 		}
 	}
+
+	/**
+	 * Cbor-specific Bytearray comparison (see https://datatracker.ietf.org/doc/html/rfc7049#section-3.9)
+	 * Used by Assets.sort()
+	 * @internal
+	 * @param {number[]} a
+	 * @param {number[]} b
+	 * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt
+	 */
+	static compLengthFirst(a, b) {
+		if (a.length != b.length) {
+			return a.length < b.length ? -1 : 1;
+		} else {
+			for (let i = 0; i < a.length; i++) {
+				if (a[i] != b[i]) {
+					return a[i] < b[i] ? -1 : 1;
+				}
+			}
+
+			return 0;
+		}
+	}
 }
 
 /**

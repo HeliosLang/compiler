@@ -6500,6 +6500,28 @@ export class ByteArrayData extends UplcData {
 			return 0;
 		}
 	}
+
+	/**
+	 * Cbor-specific Bytearray comparison (see https://datatracker.ietf.org/doc/html/rfc7049#section-3.9)
+	 * Used by Assets.sort()
+	 * @internal
+	 * @param {number[]} a
+	 * @param {number[]} b
+	 * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt
+	 */
+	static compLengthFirst(a, b) {
+		if (a.length != b.length) {
+			return a.length < b.length ? -1 : 1;
+		} else {
+			for (let i = 0; i < a.length; i++) {
+				if (a[i] != b[i]) {
+					return a[i] < b[i] ? -1 : 1;
+				}
+			}
+
+			return 0;
+		}
+	}
 }
 
 /**
@@ -9812,7 +9834,7 @@ export class Assets extends CborData {
 
 		this.assets.forEach(([_, tokens]) => {
 			tokens.sort((a, b) => {
-				return ByteArrayData.comp(a[0].bytes, b[0].bytes);
+				return ByteArrayData.compLengthFirst(a[0].bytes, b[0].bytes);
 			});
 		});
 	}
@@ -9828,7 +9850,7 @@ export class Assets extends CborData {
 					if (j > 0) {
 						const aa = b[1][j-1];
 
-						assert(ByteArrayData.comp(aa[0].bytes, bb[0].bytes) < 0, "tokens not sorted");
+						assert(ByteArrayData.compLengthFirst(aa[0].bytes, bb[0].bytes) < 0, "tokens not sorted");
 					}
 				})
 			}
@@ -10207,10 +10229,10 @@ export class NetworkParams {
 	 * @param {null | LiveSlotGetter} liveSlotGetter
 	 */
 	constructor(raw, liveSlotGetter = null) {
-	        if(typeof raw !== 'object'){
+		if(typeof raw !== 'object'){
 		    throw new Error("raw param must be of type object");
-        	}
-
+        }
+		
 		this.#raw = raw;
 		this.#liveSlotGetter = liveSlotGetter;
 	}
@@ -51809,18 +51831,31 @@ export class TxOutput extends CborData {
 
 						let tupleBytes = Cbor.decodeBytes(fieldBytes);
 
+						let refScriptType = -1;
+
 						Cbor.decodeTuple(tupleBytes, (tupleIdx, innerTupleBytes) => {
 							assert(refScript === null);
 
 							switch(tupleIdx) {
 								case 0:
-									throw new Error("native refScript unhandled");
+									refScriptType = Number(Cbor.decodeInteger(innerTupleBytes));
+									break;
 								case 1:
-									throw new Error("plutuScriptV1 as refScript unhandled");
-								case 2:
-									refScript = UplcProgram.fromCbor(innerTupleBytes);
+									switch(refScriptType) {
+										case 0:
+											throw new Error("native refScript not handled");
+										case 1:
+											console.log("Warning: deserializing PlutusV1 refScript as PlutusV2 refScript");
+											refScript = UplcProgram.fromCbor(innerTupleBytes);		
+											break;
+										case 2:
+											refScript = UplcProgram.fromCbor(innerTupleBytes);		
+											break;
+										default:
+											throw new Error(`unhandled refScript type ${refScriptType}`);
+									}
 								default:
-									throw new Error("unhandled script type for refScript");
+									throw new Error("unhandled refScript format");
 							}
 						});
 

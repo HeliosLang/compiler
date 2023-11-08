@@ -3441,18 +3441,31 @@ export class TxOutput extends CborData {
 
 						let tupleBytes = Cbor.decodeBytes(fieldBytes);
 
+						let refScriptType = -1;
+
 						Cbor.decodeTuple(tupleBytes, (tupleIdx, innerTupleBytes) => {
 							assert(refScript === null);
 
 							switch(tupleIdx) {
 								case 0:
-									throw new Error("native refScript unhandled");
+									refScriptType = Number(Cbor.decodeInteger(innerTupleBytes));
+									break;
 								case 1:
-									throw new Error("plutuScriptV1 as refScript unhandled");
-								case 2:
-									refScript = UplcProgram.fromCbor(innerTupleBytes);
+									switch(refScriptType) {
+										case 0:
+											throw new Error("native refScript not handled");
+										case 1:
+											console.log("Warning: deserializing PlutusV1 refScript as PlutusV2 refScript");
+											refScript = UplcProgram.fromCbor(innerTupleBytes);		
+											break;
+										case 2:
+											refScript = UplcProgram.fromCbor(innerTupleBytes);		
+											break;
+										default:
+											throw new Error(`unhandled refScript type ${refScriptType}`);
+									}
 								default:
-									throw new Error("unhandled script type for refScript");
+									throw new Error("unhandled refScript format");
 							}
 						});
 

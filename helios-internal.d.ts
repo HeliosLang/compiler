@@ -1949,6 +1949,15 @@ declare module "helios" {
          */
         static comp(a: number[], b: number[]): number;
         /**
+         * Cbor-specific Bytearray comparison (see https://datatracker.ietf.org/doc/html/rfc7049#section-3.9)
+         * Used by Assets.sort()
+         * @internal
+         * @param {number[]} a
+         * @param {number[]} b
+         * @returns {number} - 0 -> equals, 1 -> gt, -1 -> lt
+         */
+        static compLengthFirst(a: number[], b: number[]): number;
+        /**
          * @param {number[]} bytes
          */
         constructor(bytes: number[]);

@@ -3032,7 +3032,7 @@ export class Assets extends CborData {
 
 		this.assets.forEach(([_, tokens]) => {
 			tokens.sort((a, b) => {
-				return ByteArrayData.comp(a[0].bytes, b[0].bytes);
+				return ByteArrayData.compLengthFirst(a[0].bytes, b[0].bytes);
 			});
 		});
 	}
@@ -3048,7 +3048,7 @@ export class Assets extends CborData {
 					if (j > 0) {
 						const aa = b[1][j-1];
 
-						assert(ByteArrayData.comp(aa[0].bytes, bb[0].bytes) < 0, "tokens not sorted");
+						assert(ByteArrayData.compLengthFirst(aa[0].bytes, bb[0].bytes) < 0, "tokens not sorted");
 					}
 				})
 			}
