@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.16.3
+// Version:       0.16.4
 // Last update:   November 2023
 // License type:  BSD-3-Clause
 //
@@ -311,7 +311,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.16.3";
+export const VERSION = "0.16.4";
 
 /**
  * A tab used for indenting of the IR.
@@ -29236,6 +29236,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(self) -> {
 		__helios__bytearray__show(__helios__address__to_bytes(self)())
 	}`));
+	add(new RawFunc("__helios__address__show", "__helios__address__to_hex"));
 	add(new RawFunc("__helios__address__header",
 	`(self) -> {
 		() -> {
@@ -29725,6 +29726,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addIntLikeFuncs("__helios__duration");
 	add(new RawFunc("__helios__duration__test_data", `__helios__int__test_data`));
 	add(new RawFunc("__helios__duration__new", `__helios__common__identity`));
+	add(new RawFunc("__helios__duration__show", `__helios__int__show`));
 	add(new RawFunc("__helios__duration____add", `__helios__int____add`));
 	add(new RawFunc("__helios__duration____sub", `__helios__int____sub`));
 	add(new RawFunc("__helios__duration____mul", `__helios__int____mul`));
@@ -37369,7 +37371,6 @@ export class StructStatement extends Statement {
 			// the from_data method can include field checks
 			if (this.#dataDef.fieldNames.length == 1 || (!(config.CHECK_CASTS && !ctx.simplify))) {
 				map.set(`${this.path}__from_data`, IR.new`${implPath}__from_data${this.site}`);
-				
 			} else {
 				map.set(`${this.path}__from_data`, IR.new`(data) -> {
 					(ignore) -> {
