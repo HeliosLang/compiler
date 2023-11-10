@@ -987,34 +987,52 @@ export class AssignExpr extends ChainExpr {
 	 */
 	toIR(ctx) {
 		let inner = this.downstreamExpr.toIR(ctx.tab());
-
-		inner = this.#nameType.wrapDestructIR(ctx, inner, 0);
-
-		let upstream = this.upstreamExpr.toIR(ctx);
-
-		// enum member run-time error IR
-		if (this.#nameType.hasType()) {
-			const t = assertDefined(this.#nameType.type);
-
-			if (t.asEnumMemberType) {
-				upstream = new IR([
-					new IR("__helios__common__assert_constr_index("),
-					upstream,
-					new IR(`, ${t.asEnumMemberType.constrIndex})`)
-				]);
+		
+		if (this.#nameType.isTuple() && this.#nameType.isIgnored()) {
+			// TODO: get rid of this on the next major version release, while making sure the default approach is equally efficient (i.e. the callback call is properly inlined)
+			// keep using the old way of creating the IR in order to assure backwards compatibility
+			for (let i = this.#nameType.children.length - 1; i >= 0; i--) {
+				// internally generates enum-member error IR
+				inner = this.#nameType.children[i].wrapDestructIR(ctx, inner, i);
 			}
-		}
 
-		return new IR([
-			new IR("("),
-			this.#nameType.toNameIR(0), // wrapDestructIR depends on this name
-			new IR(") "),
-			new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}`),
-			inner,
-			new IR(`\n${ctx.indent}}(`),
-			upstream,
-			new IR(")")
-		]);
+			const ir = new IR([
+				this.upstreamExpr.toIR(ctx),
+				new IR(`(\n${ctx.indent + TAB}(`), new IR(this.#nameType.children.map((nt, i) => nt.toNameIR(i))).join(", "), new IR(") ->", this.site), new IR(` {\n${ctx.indent}${TAB}${TAB}`),
+				inner,
+				new IR(`\n${ctx.indent + TAB}}\n${ctx.indent})`)
+			]);
+
+			return ir;
+		} else {
+			inner = this.#nameType.wrapDestructIR(ctx, inner, 0);
+
+			let upstream = this.upstreamExpr.toIR(ctx);
+
+			// enum member run-time error IR
+			if (this.#nameType.hasType()) {
+				const t = assertDefined(this.#nameType.type);
+
+				if (t.asEnumMemberType) {
+					upstream = new IR([
+						new IR("__helios__common__assert_constr_index("),
+						upstream,
+						new IR(`, ${t.asEnumMemberType.constrIndex})`)
+					]);
+				}
+			}
+
+			return new IR([
+				new IR("("),
+				this.#nameType.toNameIR(0), // wrapDestructIR depends on this name
+				new IR(") "),
+				new IR("->", this.site), new IR(` {\n${ctx.indent}${TAB}`),
+				inner,
+				new IR(`\n${ctx.indent}}(`),
+				upstream,
+				new IR(")")
+			]);
+		}
 	}
 
 	/**
@@ -3446,6 +3464,13 @@ export class DestructExpr {
 	 */
 	get name() {
 		return this.#name;
+	}
+
+	/**
+	 * @type {DestructExpr[]}
+	 */
+	get children() {
+		return this.#destructExprs;
 	}
 
 	/**

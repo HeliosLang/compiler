@@ -7672,6 +7672,10 @@ declare module "helios" {
          */
         get name(): Word;
         /**
+         * @type {DestructExpr[]}
+         */
+        get children(): DestructExpr[];
+        /**
          * @returns {boolean}
          */
         isTuple(): boolean;
