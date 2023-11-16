@@ -54546,7 +54546,7 @@ export const CoinSelection = {
  * @interface
  * @typedef {object} Wallet
  * @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
- * @property {Promise<Address[]>} rewardAddresses Returns a list of the reward addresses.
+ * @property {Promise<StakeAddress[]>} rewardAddresses Returns a list of the reward addresses.
  * @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
  * @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonymity.
  * @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
@@ -54641,10 +54641,16 @@ export class Cip30Wallet {
 
     /**
      * Gets a list of unique reward addresses which can be used to UTxOs to.
-     * @type {Promise<Address[]>}
+     * @type {Promise<StakeAddress[]>}
      */
     get rewardAddresses() {
-        return this.#handle.getRewardAddresses().then(addresses => addresses.map(a => new StakeAddress(a)));
+        return this.#handle.getRewardAddresses().then(
+            addresses => {
+            if (!Array.isArray(addresses))
+                throw new Error(`The wallet getRewardAddresses() call did not return an array.`);
+
+            return addresses.map(a => new StakeAddress(hexToBytes(a)));
+        });
     }
 
     /**
