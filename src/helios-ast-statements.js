@@ -1361,7 +1361,7 @@ export class DataDefinition {
 									)()
 								}
 							)
-						}(__helios__common__cip68_field_safe(self, __core__bData(#${bytesToHex(textToBytes(f.tag))})))
+						}(__helios__common__cip68_field_safe(self, #${bytesToHex(textToBytes(f.tag))}))
 					)
 				)`;
 			}
@@ -1581,7 +1581,7 @@ export class DataDefinition {
 								${ftPath}__from_data(
 									__helios__common__cip68_field(
 										data, 
-										__core__bData(#${bytesToHex(textToBytes(f.tag))})
+										#${bytesToHex(textToBytes(f.tag))}
 									)
 								)
 							)
@@ -1664,7 +1664,7 @@ export class DataDefinition {
 				const key = `${path}__${f.name.value}`;
 
 				// equalsData is much more efficient than first converting to byteArray
-				const getter = IR.new`(self) -> {${f.type.path}__from_data(__helios__common__cip68_field(self, __core__bData(#${bytesToHex(textToBytes(f.tag))})))}`;
+				const getter = IR.new`(self) -> {${f.type.path}__from_data(__helios__common__cip68_field(self, #${bytesToHex(textToBytes(f.tag))}))}`;
 
 				map.set(key, getter);
 				getterNames.push(key);

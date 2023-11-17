@@ -2239,17 +2239,21 @@ export function annotateIR(evaluation, expr) {
                 }
             }).join(", ")})${countStr} -> ${output ? output.toString() + " " : ""}{\n${innerIndent}${annotate(expr.body, innerIndent)}\n${indent}}`;
         } else if (expr instanceof IRCallExpr) {
-            const output = evaluation.getExprValue(expr);
-
-            const isGlobalDef = expr.func instanceof IRFuncExpr && expr.func.args.length == 1 && expr.func.args[0].name.startsWith("__");
-            const globalDef = expr.func instanceof IRFuncExpr && expr.func.args.length == 1 ? expr.func.args[0].name : "";
-
-            const parens = `(${isGlobalDef ? `\n${indent}${TAB}/* ${globalDef} */` : ""}${expr.args.map(a => `\n${indent}${TAB}${annotate(a, indent + TAB)}`).join(",")}${(expr.args.length > 0) || isGlobalDef ? `\n${indent}` : ""})${output ? `: ${output.toString()}` : ""}`;
-
-            if (expr.func instanceof IRNameExpr) {
-                return `${expr.func.toString()}${parens}`;
+            if (expr.func instanceof IRFuncExpr && expr.args.length == 1) {
+                return `${expr.func.args[0].name} = ${annotate(expr.args[0], indent)};\n${indent}${annotate(expr.func.body, indent)}`;
             } else {
-                return `${annotate(expr.func, indent)}${parens}`;
+                const output = evaluation.getExprValue(expr);
+
+                const isGlobalDef = expr.func instanceof IRFuncExpr && expr.func.args.length == 1 && expr.func.args[0].name.startsWith("__");
+                const globalDef = expr.func instanceof IRFuncExpr && expr.func.args.length == 1 ? expr.func.args[0].name : "";
+
+                const parens = `(${isGlobalDef ? `\n${indent}${TAB}/* ${globalDef} */` : ""}${expr.args.map(a => `\n${indent}${TAB}${annotate(a, indent + TAB)}`).join(",")}${(expr.args.length > 0) || isGlobalDef ? `\n${indent}` : ""})${output ? `: ${output.toString()}` : ""}`;
+
+                if (expr.func instanceof IRNameExpr) {
+                    return `${expr.func.toString()}${parens}`;
+                } else {
+                    return `${annotate(expr.func, indent)}${parens}`;
+                }
             }
         } else {
             throw new Error("unhandled IRExpr");

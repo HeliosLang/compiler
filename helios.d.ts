@@ -2557,25 +2557,30 @@ export class UplcBuiltin extends UplcTerm {
  * }} TransferableUplcProgram
  */
 /**
+ * @typedef {Cost & {
+ * 	 count: number
+ * }} CostCount
+ */
+/**
  * @typedef {{
-*   mem: bigint,
-*   cpu: bigint,
-*   size?: number,
-*   builtins?: {[name: string]: Cost},
-*   terms?: {[name: string]: Cost},
-*   result?: RuntimeError | UplcValue,
-*   messages?: string[]
-* }} Profile
-*
-*
-* mem:  in 8 byte words (i.e. 1 mem unit is 64 bits)
-* cpu:  in reference cpu microseconds
-* size: in bytes
-* builtins: breakdown per builtin
-* terms: breakdown per termtype
-* result: result of evaluation
-* messages: printed messages (can be helpful when debugging)
-*/
+ *   mem: bigint,
+ *   cpu: bigint,
+ *   size?: number,
+ *   builtins?: {[name: string]: CostCount},
+ *   terms?: {[name: string]: CostCount},
+ *   result?: RuntimeError | UplcValue,
+ *   messages?: string[]
+ * }} Profile
+ *
+ *
+ * mem:  in 8 byte words (i.e. 1 mem unit is 64 bits)
+ * cpu:  in reference cpu microseconds
+ * size: in bytes
+ * builtins: breakdown per builtin
+ * terms: breakdown per termtype
+ * result: result of evaluation
+ * messages: printed messages (can be helpful when debugging)
+ */
 /**
  * Result of `program.compile()`. Contains the Untyped Plutus-Core AST, along with a code-mapping to the original source.
  */
@@ -5009,6 +5014,9 @@ export type TransferableUplcProgram<TInstance> = {
     transferUplcProgram: (expr: any, properties: ProgramProperties, version: any[]) => TInstance;
     transferUplcAst: TransferUplcAst;
 };
+export type CostCount = Cost & {
+    count: number;
+};
 /**
  * mem:  in 8 byte words (i.e. 1 mem unit is 64 bits)
  * cpu:  in reference cpu microseconds
@@ -5023,10 +5031,10 @@ export type Profile = {
     cpu: bigint;
     size?: number | undefined;
     builtins?: {
-        [name: string]: Cost;
+        [name: string]: CostCount;
     } | undefined;
     terms?: {
-        [name: string]: Cost;
+        [name: string]: CostCount;
     } | undefined;
     result?: RuntimeError | UplcValue | undefined;
     messages?: string[] | undefined;

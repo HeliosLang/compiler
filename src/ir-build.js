@@ -11,6 +11,7 @@ import {
     ByteArrayLiteral,
     IntLiteral,
     StringLiteral,
+	SymbolToken,
     Token,
     Word
 } from "./tokens.js";
@@ -83,7 +84,25 @@ export function buildIRExpr(ts, funcTagger = null) {
 		if (t === undefined) {
 			throw new Error("unexpected: no tokens");
 		} else {
-			if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
+			if (t.isWord() && ts.length > 1 && ts[0].isSymbol("=")) {
+				const equalsSite = assertDefined(assertDefined(ts.shift()).assertSymbol("=")).site;
+
+				const semiColonPos = SymbolToken.find(ts, ";");
+
+				assert(semiColonPos != -1, "expected semicolon after '='");
+				
+				const upstreamTokens = ts.splice(0, semiColonPos);
+
+				const upstreamExpr = buildIRExpr(upstreamTokens, funcTagger);
+
+				const semicolonSite = assertDefined(assertDefined(ts.shift()).assertSymbol(";")).site;
+
+				const downstreamExpr = buildIRExpr(ts, funcTagger);
+
+				const argWord = assertDefined(t.assertWord());
+
+				expr = new IRCallExpr(equalsSite, new IRFuncExpr(semicolonSite, [new IRVariable(argWord)], downstreamExpr, funcTagger.genTag()), [upstreamExpr])
+			} else if (t.isGroup("(") && ts.length > 0 && ts[0].isSymbol("->")) {
 				assert(expr === null, "shouldn't be preceded by an expr");
 
 				ts.unshift(t);

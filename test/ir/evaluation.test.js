@@ -172,23 +172,22 @@ export default async function test() {
         __core__constrData(__core__ifThenElse(
           (a) -> {
             __core__equalsInteger((bytes) -> {
-              (n) -> {
-                (recurse) -> {
-                  recurse(recurse, 0, 1, 0)
-                }((recurse, acc, pow, i) -> {
-                  __core__ifThenElse(
-                    __core__equalsInteger(i, n),
-                    () -> {
-                      acc
-                    },
-                    () -> {
-                      (new_acc) -> {
-                        recurse(recurse, new_acc, __core__multiplyInteger(pow, 256), __core__addInteger(i, 1))
-                      }(__core__addInteger(acc, __core__multiplyInteger(__core__indexByteString(bytes, i), pow)))
-                    }
-                  )()
-                })
-              }(__core__lengthOfByteString(bytes))
+              n = __core__lengthOfByteString(bytes);
+              (recurse) -> {
+                recurse(recurse, 0, 1, 0)
+              }((recurse, acc, pow, i) -> {
+                __core__ifThenElse(
+                  __core__equalsInteger(i, n),
+                  () -> {
+                    acc
+                  },
+                  () -> {
+                    (new_acc) -> {
+                      recurse(recurse, new_acc, __core__multiplyInteger(pow, 256), __core__addInteger(i, 1))
+                    }(__core__addInteger(acc, __core__multiplyInteger(__core__indexByteString(bytes, i), pow)))
+                  }
+                )()
+              })
             }(__core__ifThenElse(
               __core__lessThanInteger(a, 0),
               () -> {
@@ -336,7 +335,8 @@ export default async function test() {
         a.take_end(n)
     }`));
 
-    console.log(compileAndAnnotate(`(__helios__common__list_0) -> {
+    console.log(compileAndAnnotate(`
+      (__helios__common__list_0) -> {
       (__helios__bool____to_data) -> {
       (__helios__int__from_data) -> {
       (__helios__common__enum_fields) -> {

@@ -532,6 +532,8 @@ export class IRCallExpr {
 			return `${BUILTIN_PREFIX}${this.builtinName}(\n${indent}${TAB}${this.args[0].toString(indent + TAB)},\n${indent}${TAB}${this.args[1].toString(indent + TAB)},\n${indent}${TAB}${this.args[2].toString(indent+TAB)}\n${indent})`;
 		} else if (this.builtinName != "") {
 			return `${BUILTIN_PREFIX}${this.builtinName}(${this.argsToString(indent)})`;
+		} else if (this.func instanceof IRFuncExpr && this.func.args.length == 1) {
+			return `${this.func.args[0].name} = ${this.args[0].toString(indent)};\n${indent}${this.func.body.toString(indent)}`;
 		} else {
 			let comment = (this.func instanceof IRFuncExpr && this.func.args.length == 1 && this.func.args[0].name.startsWith("__")) ? `/*${this.func.args[0].name}*/` : "";
 

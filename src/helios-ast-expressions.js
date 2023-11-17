@@ -3299,6 +3299,17 @@ export class IfElseExpr extends Expr {
 					}
 				}
 
+				const prevTupleItems = getTupleItemTypes(prevType);
+				const newTupleItems = getTupleItemTypes(newType);
+
+				if (prevTupleItems && newTupleItems && prevTupleItems.length == newTupleItems.length) {
+					const reducedTupleItems = reduceNull(prevTupleItems.map((prev, i) => IfElseExpr.reduceBranchType(site, prev, newTupleItems[i])));
+
+					if (reducedTupleItems) {
+						return TupleType$(reducedTupleItems);
+					}
+				}
+
 				site.typeError("inconsistent types");
 				return null;
 			}
