@@ -1463,7 +1463,7 @@ export class DataDefinition {
 	 * @internal
 	 * @returns {IR}
 	 */
-	toIR_test_data() {
+	toIR_is_valid_data() {
 		if (this.hasTags()) {
 			const fields = this.#fields;
 
@@ -1474,14 +1474,14 @@ export class DataDefinition {
 					ir = IR.new`__helios__common__test_cip68_field(
 						data,
 						__core__bData(#${bytesToHex(textToBytes(f.tag))}),
-						${f.type.path}__test_data	
+						${f.type.path}__is_valid_data	
 					)`;
 				} else {
 					ir = IR.new`__core__ifThenElse(
 						__helios__common__test_cip68_field(
 							data,
 							__core__bData(#${bytesToHex(textToBytes(f.tag))}),
-							${f.type.path}__test_data	
+							${f.type.path}__is_valid_data	
 						),
 						() -> {
 							${ir}
@@ -1497,7 +1497,7 @@ export class DataDefinition {
 				${ir}
 			}`;
 		} else if (this.nFields == 1) {
-			return IR.new`${this.#fields[0].type.path}__test_data`;
+			return IR.new`${this.#fields[0].type.path}__is_valid_data`;
 		} else {
 			const reversedFields = this.#fields.slice().reverse();
 
@@ -1519,7 +1519,7 @@ export class DataDefinition {
 						() -> {
 							(head) -> {
 								__core__ifThenElse(
-									${f.type.path}__test_data(head),
+									${f.type.path}__is_valid_data(head),
 									() -> {${ir}(__core__tailList__safe(fields))},
 									() -> {false}
 								)()
@@ -1559,7 +1559,7 @@ export class DataDefinition {
 					data
 				}(
 					__core__ifThenElse(
-						${path}__test_data(data),
+						${path}__is_valid_data(data),
 						() -> {
 							()
 						},
@@ -1611,7 +1611,7 @@ export class DataDefinition {
 					fields
 				}(
 					__core__ifThenElse(
-						${path}__test_data(__core__listData(fields)),
+						${path}__is_valid_data(__core__listData(fields)),
 						() -> {
 							()
 						},
@@ -1996,7 +1996,7 @@ export class StructStatement extends Statement {
 	 * @param {IRDefinitions} map
 	 */
 	toIR(ctx, map) {
-		map.set(`${this.path}__test_data`, this.#dataDef.toIR_test_data());
+		map.set(`${this.path}__is_valid_data`, this.#dataDef.toIR_is_valid_data());
 
 		if (this.#dataDef.hasTags()) {
 			map.set(`${this.path}____eq`, IR.new`__helios__common____eq${this.site}`);
@@ -2010,7 +2010,7 @@ export class StructStatement extends Statement {
 						data
 					}(
 						__core__ifThenElse(
-							${this.path}__test_data(data),
+							${this.path}__is_valid_data(data),
 							() -> {
 								()
 							},
@@ -2041,7 +2041,7 @@ export class StructStatement extends Statement {
 						__core__unListData(data)
 					}(
 						__core__ifThenElse(
-							${this.path}__test_data(data),
+							${this.path}__is_valid_data(data),
 							() -> {
 								()
 							},
@@ -2160,9 +2160,10 @@ export class FuncStatement extends Statement {
 	/**
 	 * Evaluates a function and returns a func value
 	 * @param {Scope} scope 
+	 * @param {boolean} isMember functions that are members of structs or enums aren't added to their own internal scope as they are always accessed through member access
 	 * @returns {null | EvalEntity}
 	 */
-	evalInternal(scope) {
+	evalInternal(scope, isMember = false) {
 		const typed = this.#parameters.evalParametricFunc(scope, (subScope) => {
 			const type = this.#funcExpr.evalType(subScope);
 
@@ -2170,13 +2171,16 @@ export class FuncStatement extends Statement {
 				return null;
 			}
 
-			const implScope = new Scope(subScope);
+			if (isMember) {
+				void this.#funcExpr.evalInternal(subScope);	
+			} else {
+				const implScope = new Scope(subScope);
 
-			// recursive calls expect func value, not func type
-			implScope.set(this.name, new NamedEntity(this.name.value, super.path, type.toTyped()));
+				// recursive calls expect func value, not func type
+				implScope.set(this.name, new NamedEntity(this.name.value, super.path, type.toTyped()));
 
-			
-			void this.#funcExpr.evalInternal(implScope);
+				void this.#funcExpr.evalInternal(implScope);
+			}
 
 			return type;
 		});
@@ -2500,7 +2504,7 @@ export class EnumMember {
 		map.set(`${this.path}____neq`, IR.new`__helios__common____neq${this.#dataDef.site}`);
 		map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.#dataDef.site}`);
 
-		map.set(`${this.path}__test_data`, IR.new`(data) -> {
+		map.set(`${this.path}__is_valid_data`, IR.new`(data) -> {
 			__core__chooseData(
 				data,
 				() -> {
@@ -2508,7 +2512,7 @@ export class EnumMember {
 						__core__ifThenElse(
 							__core__equalsInteger(__core__fstPair(pair), ${this.#constrIndex}),
 							() -> {
-								${this.#dataDef.toIR_test_data()}(__core__listData(__core__sndPair(pair)))
+								${this.#dataDef.toIR_is_valid_data()}(__core__listData(__core__sndPair(pair)))
 							},
 							() -> {
 								false
@@ -2529,7 +2533,7 @@ export class EnumMember {
 					data
 				}(
 					__core__ifThenElse(
-						${this.path}__test_data(data),
+						${this.path}__is_valid_data(data),
 						() -> {
 							()
 						},
@@ -2879,12 +2883,12 @@ export class EnumStatement extends Statement {
 	/**
 	 * @returns {IR}
 	 */
-	toIR_test_data() {
+	toIR_is_valid_data() {
 		let ir = IR.new`false`;
 
 		this.#members.forEach(m => {
 			ir = IR.new`__core__ifThenElse(
-				${m.path}__test_data(data),
+				${m.path}__is_valid_data(data),
 				() -> {
 					true
 				},
@@ -2950,7 +2954,7 @@ export class EnumStatement extends Statement {
 		map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.site}`);
 		map.set(`${this.path}____to_data`, IR.new`__helios__common__identity${this.site}`);
 
-		map.set(`${this.path}__test_data`, this.toIR_test_data());
+		map.set(`${this.path}__is_valid_data`, this.toIR_is_valid_data());
 		map.set(`${this.path}__show`, this.toIR_show());
 
 		// there could be circular dependencies here, which is ok
@@ -2960,7 +2964,7 @@ export class EnumStatement extends Statement {
 					data
 				}(
 					__core__ifThenElse(
-						${this.path}__test_data(data),
+						${this.path}__is_valid_data(data),
 						() -> {
 							()
 						},
@@ -3091,7 +3095,11 @@ export class ImplDefinition {
 		void this.#selfTypeExpr.eval(scope);
 
 		for (let s of this.#statements) {
-			void s.evalInternal(scope);
+			if (s instanceof FuncStatement) {
+				void s.evalInternal(scope, true);
+			} else {
+				void s.evalInternal(scope);
+			}
 		}
 	}
 

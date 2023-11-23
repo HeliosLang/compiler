@@ -64,6 +64,7 @@ export function genCommonTypeMembers(type) {
         __neq:     new FuncType([type, type], BoolType),
         from_data: new FuncType([RawDataType], type),
         __to_data: new FuncType([type], RawDataType),
+        is_valid_data: new FuncType([RawDataType], BoolType)
     }
 }
 
@@ -79,9 +80,9 @@ export function genCommonEnumTypeMembers(type, parentType) {
         __neq:     new FuncType([type, parentType], BoolType),
         from_data: new FuncType([RawDataType], type),
         __to_data: new FuncType([type], RawDataType),
+        is_valid_data: new FuncType([RawDataType], BoolType)
     }
 }
-
 
 /**
  * Builtin bool type

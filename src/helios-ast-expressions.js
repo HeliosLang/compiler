@@ -4296,11 +4296,16 @@ export class EnumSwitchExpr extends SwitchExpr {
 			return null;
 		}
 
-		const enumType = controlVal.type.asDataType;
+		let enumType = controlVal.type.asDataType;
 
 		if (!enumType) {
 			this.controlExpr.typeError("not an enum");
 			return null;
+		}
+
+		if (controlVal.type.asEnumMemberType) {
+			this.controlExpr.typeError(`${controlVal.type.toString()} is an enum variant, not an enum`);
+			enumType = controlVal.type.asEnumMemberType.parentType; // continue with optimistic evaluation, even though compilation will fail
 		}
 
 		const nEnumMembers = Common.countEnumMembers(enumType);

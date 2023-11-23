@@ -335,7 +335,7 @@ export class Scope extends Common {
 
 			if (allowShadowing && value.asTyped && prevEntity && !(prevEntity instanceof Scope) && prevEntity.asTyped) {
 				if (!(prevEntity.asTyped.type.isBaseOf(value.asTyped.type) && value.asTyped.type.isBaseOf(prevEntity.asTyped.type))) {
-					throw name.syntaxError(`'${name.toString()}' already defined`);
+					name.syntaxError(`'${name.toString()}' already defined`);
 				}
 			} else {
 				name.syntaxError(`'${name.toString()}' already defined`);

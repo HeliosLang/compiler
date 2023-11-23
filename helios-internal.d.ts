@@ -881,7 +881,7 @@ declare module "helios" {
     /**
      * Current version of the Helios library.
      */
-    export const VERSION: "0.16.4";
+    export const VERSION: "0.16.5";
     /**
      * A tab used for indenting of the IR.
      * 2 spaces.
@@ -3531,7 +3531,7 @@ declare module "helios" {
         #private;
     }
     /**
-     * cost = (size(arg0) > size(arg1)) ? constant : a + b*size(arg0)*size(arg1)
+     * cost = (size(arg0) < size(arg1)) ? constant : a + b*size(arg0)*size(arg1)
      * (only for Uplc functions with two arguments)
      * @internal
      */
@@ -8275,7 +8275,7 @@ declare module "helios" {
          * @internal
          * @returns {IR}
          */
-        toIR_test_data(): IR;
+        toIR_is_valid_data(): IR;
         /**
          * @internal
          * @param {string} path
@@ -8361,9 +8361,10 @@ declare module "helios" {
         /**
          * Evaluates a function and returns a func value
          * @param {Scope} scope
+         * @param {boolean} isMember functions that are members of structs or enums aren't added to their own internal scope as they are always accessed through member access
          * @returns {null | EvalEntity}
          */
-        evalInternal(scope: Scope): null | EvalEntity;
+        evalInternal(scope: Scope, isMember?: boolean): null | EvalEntity;
         /**
          * Evaluates type of a funtion.
          * Separate from evalInternal so we can use this function recursively inside evalInternal
@@ -8477,7 +8478,7 @@ declare module "helios" {
         /**
          * @returns {IR}
          */
-        toIR_test_data(): IR;
+        toIR_is_valid_data(): IR;
         /**
          * @internal
          * @returns {IR}

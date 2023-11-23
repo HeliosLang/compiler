@@ -7,7 +7,7 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.16.4
+// Version:       0.16.5
 // Last update:   November 2023
 // License type:  BSD-3-Clause
 //
@@ -311,7 +311,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.16.4";
+export const VERSION = "0.16.5";
 
 /**
  * A tab used for indenting of the IR.
@@ -10862,7 +10862,7 @@ export class ArgSizeDiffCost extends LinearCost {
 }
 
 /**
- * cost = (size(arg0) > size(arg1)) ? constant : a + b*size(arg0)*size(arg1)
+ * cost = (size(arg0) < size(arg1)) ? constant : a + b*size(arg0)*size(arg1)
  * (only for Uplc functions with two arguments)
  * @internal
  */
@@ -10900,7 +10900,7 @@ export class ArgSizeProdCost extends LinearCost {
 		
 		const [x, y] = args;
 
-		if (x > y) {
+		if (x < y) {
 			return this.#constant;
 		} else {
 			return this.calcInternal(x*y);
@@ -18969,6 +18969,7 @@ export function genCommonTypeMembers(type) {
         __neq:     new FuncType([type, type], BoolType),
         from_data: new FuncType([RawDataType], type),
         __to_data: new FuncType([type], RawDataType),
+        is_valid_data: new FuncType([RawDataType], BoolType)
     }
 }
 
@@ -18984,9 +18985,9 @@ export function genCommonEnumTypeMembers(type, parentType) {
         __neq:     new FuncType([type, parentType], BoolType),
         from_data: new FuncType([RawDataType], type),
         __to_data: new FuncType([type], RawDataType),
+        is_valid_data: new FuncType([RawDataType], BoolType)
     }
 }
-
 
 /**
  * Builtin bool type
@@ -22610,7 +22611,7 @@ export class Scope extends Common {
 
 			if (allowShadowing && value.asTyped && prevEntity && !(prevEntity instanceof Scope) && prevEntity.asTyped) {
 				if (!(prevEntity.asTyped.type.isBaseOf(value.asTyped.type) && value.asTyped.type.isBaseOf(prevEntity.asTyped.type))) {
-					throw name.syntaxError(`'${name.toString()}' already defined`);
+					name.syntaxError(`'${name.toString()}' already defined`);
 				}
 			} else {
 				name.syntaxError(`'${name.toString()}' already defined`);
@@ -23787,7 +23788,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			() -> {__helios__option__NONE_FUNC}
 		)()
 	}`));
-	add(new RawFunc("__helios__int__test_data", `(data) -> {
+	add(new RawFunc("__helios__int__is_valid_data", `(data) -> {
 		__core__chooseData(data, false, false, false, true, false)
 	}`));
 	add(new RawFunc("__helios__int____to_data", "__core__iData"));
@@ -24434,7 +24435,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Real builtins
 	addIntLikeFuncs("__helios__real");
-	add(new RawFunc("__helios__real__test_data", "__helios__int__test_data"));
+	add(new RawFunc("__helios__real__is_valid_data", "__helios__int__is_valid_data"));
 	add(new RawFunc("__helios__real__PRECISION", REAL_PRECISION.toString()));
 	add(new RawFunc("__helios__real__ONE", '1' + new Array(REAL_PRECISION).fill('0').join('')));
 	add(new RawFunc("__helios__real__HALF", '5' + new Array(REAL_PRECISION-1).fill('0').join('')));
@@ -24593,7 +24594,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Bool builtins
 	addSerializeFunc("__helios__bool");
-	add(new RawFunc("__helios__bool__test_data",
+	add(new RawFunc("__helios__bool__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -25010,7 +25011,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		};
 		recurse(recurse, 0)
 	}`));
-	add(new RawFunc("__helios__string__test_data",
+	add(new RawFunc("__helios__string__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data, 
@@ -25096,11 +25097,11 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			() -> {__helios__option__SOME_FUNC(__core__unBData__safe(data))}
 		)()
 	}`));
-	add(new RawFunc("__helios__bytearray__test_data",
+	add(new RawFunc("__helios__bytearray__is_valid_data",
 	`(data) -> {
 		__core__chooseData(data, false, false, false, false, true)
 	}`));
-	add(new RawFunc(`__helios__bytearray__test_data_fixed_length`,
+	add(new RawFunc(`__helios__bytearray__is_valid_data_fixed_length`,
 	`(data, n) -> {
 		__core__chooseData(
 			data,
@@ -25759,7 +25760,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			)
 		}`;
 	}));
-	add(new RawFunc("__helios__tuple[]__test_data", (ttp) => {
+	add(new RawFunc("__helios__tuple[]__is_valid_data", (ttp) => {
 		assert(ttp.length >= 2);
 
 		let inner = `__core__chooseList(
@@ -25777,7 +25778,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 					head = __core__headList__safe(list);
 					list = __core__tailList__safe(list);
 					__helios__bool__and(
-						() -> {${tp}__test_data(head)},
+						() -> {${tp}__is_valid_data(head)},
 						() -> {
 							${inner}
 						}
@@ -25847,7 +25848,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addSerializeFunc(`__helios__list[${TTPP}0]`);
 	addNeqFunc(`__helios__list[${TTPP}0]`);
 	addDataLikeEqFunc(`__helios__list[${TTPP}0]`);
-	add(new RawFunc(`__helios__list[${TTPP}0]__test_data_internal`,
+	add(new RawFunc(`__helios__list[${TTPP}0]__is_valid_data_internal`,
 	`(lst) -> {
 		recurse = (recurse, lst) -> {
 			__core__chooseList(
@@ -25857,7 +25858,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				},
 				() -> {
 					__core__ifThenElse(
-						${TTPP}0__test_data(__core__headList__safe(lst)),
+						${TTPP}0__is_valid_data(__core__headList__safe(lst)),
 						() -> {
 							recurse(recurse, __core__tailList__safe(lst))
 						},
@@ -25874,7 +25875,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(data) -> {
 		lst = __core__unListData(data);
 		_ = __core__ifThenElse(
-			__helios__list[${TTPP}0]__test_data_internal(lst),
+			__helios__list[${TTPP}0]__is_valid_data_internal(lst),
 			() -> {
 				()
 			},
@@ -25897,14 +25898,14 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			() -> {__helios__option__NONE_FUNC}
 		)()
 	}`));
-	add(new RawFunc(`__helios__list[${TTPP}0]__test_data`,
+	add(new RawFunc(`__helios__list[${TTPP}0]__is_valid_data`,
 	`(data) -> {
 		__core__chooseData(
 			data,
 			() -> {false},
 			() -> {false},
 			() -> {
-				__helios__list[${TTPP}0]__test_data_internal(__core__unListData__safe(data))
+				__helios__list[${TTPP}0]__is_valid_data_internal(__core__unListData__safe(data))
 			},
 			() -> {false},
 			() -> {false}
@@ -26743,7 +26744,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addSerializeFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addNeqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
 	addDataLikeEqFunc(`__helios__map[${TTPP}0@${TTPP}1]`);
-	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__test_data_internal`,
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__is_valid_data_internal`,
 	`(map) -> {
 		recurse = (recurse, map) -> {
 			__core__chooseList(
@@ -26754,10 +26755,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 				() -> {
 					head = __core__headList__safe(map);
 					__core__ifThenElse(
-						${TTPP}0__test_data(__core__fstPair(head)),
+						${TTPP}0__is_valid_data(__core__fstPair(head)),
 						() -> {
 							__core__ifThenElse(
-								${TTPP}1__test_data(__core__sndPair(head)),
+								${TTPP}1__is_valid_data(__core__sndPair(head)),
 								() -> {
 									recurse(recurse, __core__tailList__safe(map))
 								},
@@ -26779,7 +26780,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(data) -> {
 		map = __core__unMapData(data);
 		_ = __core__ifThenElse(
-			__helios__map[${TTPP}0@${TTPP}1]__test_data_internal(map),
+			__helios__map[${TTPP}0@${TTPP}1]__is_valid_data_internal(map),
 			() -> {
 				()
 			},
@@ -26868,13 +26869,13 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 			)
 		}
 	}`));
-	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__test_data`,
+	add(new RawFunc(`__helios__map[${TTPP}0@${TTPP}1]__is_valid_data`,
 	`(data) -> {
 		__core__chooseData(
 			data,
 			() -> {false},
 			() -> {
-				__helios__map[${TTPP}0@${TTPP}1]__test_data_internal(__core__unMapData__safe(data))
+				__helios__map[${TTPP}0@${TTPP}1]__is_valid_data_internal(__core__unMapData__safe(data))
 			},
 			() -> {false},
 			() -> {false},
@@ -27347,7 +27348,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 
 	// Option[T] builtins
-	add(new RawFunc(`__helios__option[${TTPP}0]__test_data`,
+	add(new RawFunc(`__helios__option[${TTPP}0]__is_valid_data`,
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -27367,7 +27368,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__chooseList(
 									__core__tailList__safe(fields),
 									() -> {
-										${TTPP}0__test_data(__core__headList__safe(fields))
+										${TTPP}0__is_valid_data(__core__headList__safe(fields))
 									},
 									() -> {
 										false
@@ -27402,7 +27403,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	addDataFuncs(`__helios__option[${TTPP}0]`, {
 		from_data: `(data) -> {
 			_ = __core__ifThenElse(
-				__helios__option[${TTPP}0]__test_data(data),
+				__helios__option[${TTPP}0]__is_valid_data(data),
 				() -> {
 					()
 				},
@@ -27547,15 +27548,15 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// ScriptHash builtin
 	addByteArrayLikeFuncs("__helios__scripthash");
-	add(new RawFunc("__helios__scripthash__test_data", `(data) -> {__helios__bytearray__test_data_fixed_length(data, 28)}`));
+	add(new RawFunc("__helios__scripthash__is_valid_data", `(data) -> {__helios__bytearray__is_valid_data_fixed_length(data, 28)}`));
 
 	
 	for (let hash of ["pubkeyhash", "validatorhash", "mintingpolicyhash", "stakingvalidatorhash", "datumhash"]) {
 	// Hash builtins
 		addByteArrayLikeFuncs(`__helios__${hash}`);
-		add(new RawFunc(`__helios__${hash}__test_data`,
+		add(new RawFunc(`__helios__${hash}__is_valid_data`,
 		`(data) -> {
-			__helios__bytearray__test_data_fixed_length(data, ${hash == "datumhash" ? 32 : 28})
+			__helios__bytearray__is_valid_data_fixed_length(data, ${hash == "datumhash" ? 32 : 28})
 		}`));
 		add(new RawFunc(`__helios__${hash}__from_script_hash`, "__helios__common__identity"));
 	}
@@ -27563,7 +27564,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	
 	// PubKey builtin
 	addByteArrayLikeFuncs("__helios__pubkey");
-	add(new RawFunc("__helios__pubkey__test_data", `(data) -> {__helios__bytearray__test_data_fixed_length(data, 32)}`));
+	add(new RawFunc("__helios__pubkey__is_valid_data", `(data) -> {__helios__bytearray__is_valid_data_fixed_length(data, 32)}`));
 	add(new RawFunc("__helios__pubkey__verify", 
 	`(self) -> {
 		(message, signature) -> {
@@ -27575,7 +27576,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// ScriptContext builtins
 	addDataFuncs("__helios__scriptcontext");
 	// TODO: test fields
-	add(new RawFunc("__helios__scriptcontext__test_data",
+	add(new RawFunc("__helios__scriptcontext__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -27796,7 +27797,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// ScriptPurpose builtins
 	addDataFuncs("__helios__scriptpurpose");
 	// TODO: test fields
-	add(new RawFunc("__helios__scriptpurpose__test_data",
+	add(new RawFunc("__helios__scriptpurpose__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -27853,7 +27854,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// DCert builtins
 	addDataFuncs("__helios__dcert");
 	// TODO: test each enum variant
-	add(new RawFunc("__helios__dcert__test_data",
+	add(new RawFunc("__helios__dcert__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -28279,7 +28280,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// Tx builtins
 	addDataFuncs("__helios__tx");
 	// TODO: test fields
-	add(new RawFunc("__helios__tx__test_data",
+	add(new RawFunc("__helios__tx__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -28598,7 +28599,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(bytes) -> {
 		__core__constrData(0, __helios__common__list_1(__core__bData(bytes))) 
 	}`));
-	add(new RawFunc("__helios__txid__test_data",
+	add(new RawFunc("__helios__txid__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -28618,7 +28619,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__chooseList(
 									__core__tailList__safe(fields),
 									() -> {
-										__helios__bytearray__test_data_fixed_length(__core__headList__safe(fields), 32)
+										__helios__bytearray__is_valid_data_fixed_length(__core__headList__safe(fields), 32)
 									},
 									() -> {
 										false
@@ -28646,9 +28647,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TxInput builtins
 	addDataFuncs("__helios__txinput");
-	add(new RawFunc("__helios__txinput__test_data", 
+	add(new RawFunc("__helios__txinput__is_valid_data", 
 	`(data) -> {
-		__helios__common__test_constr_data_2(data 0, __helios__txoutputid__test_data, __helios__txoutput__test_data)
+		__helios__common__test_constr_data_2(data 0, __helios__txoutputid__is_valid_data, __helios__txoutput__is_valid_data)
 	}`));
 	add(new RawFunc("__helios__txinput__new",
 	`(output_id, output) -> {
@@ -28673,7 +28674,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// TxOutput builtins
 	addDataFuncs("__helios__txoutput");
 	// TODO: test fields
-	add(new RawFunc("__helios__txoutput__test_data",
+	add(new RawFunc("__helios__txoutput__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -28783,7 +28784,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// OutputDatum
 	addDataFuncs("__helios__outputdatum");
 	// TODO: test each enum variant
-	add(new RawFunc("__helios__outputdatum__test_data", 
+	add(new RawFunc("__helios__outputdatum__is_valid_data", 
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -28850,7 +28851,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// RawData
 	addDataFuncs("__helios__data");
-	add(new RawFunc("__helios__data__test_data", `(data) -> {true}`));
+	add(new RawFunc("__helios__data__is_valid_data", `(data) -> {true}`));
 	add(new RawFunc("__helios__data__tag", 
 	`(self) -> {
 		__core__fstPair(__core__unConstrData(self))
@@ -28859,9 +28860,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// TxOutputId
 	addDataFuncs("__helios__txoutputid");
-	add(new RawFunc("__helios__txoutputid__test_data",
+	add(new RawFunc("__helios__txoutputid__is_valid_data",
 	`(data) -> {
-		__helios__common__test_constr_data_2(data, 0, __helios__txid__test_data, __helios__int__test_data)
+		__helios__common__test_constr_data_2(data, 0, __helios__txid__is_valid_data, __helios__int__is_valid_data)
 	}`));
 	add(new RawFunc("__helios__txoutputid__tx_id", "__helios__common__enum_field_0"));
 	add(new RawFunc("__helios__txoutputid__index", 
@@ -29176,9 +29177,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	`(hex) -> {
 		__helios__address__from_bytes(__helios__bytearray__parse(hex))
 	}`));
-	add(new RawFunc("__helios__address__test_data", 
+	add(new RawFunc("__helios__address__is_valid_data", 
 	`(data) -> {
-		__helios__common__test_constr_data_2(data, 0, __helios__credential__test_data, __helios__option[__helios__stakingcredential]__test_data)
+		__helios__common__test_constr_data_2(data, 0, __helios__credential__is_valid_data, __helios__option[__helios__stakingcredential]__is_valid_data)
 	}`));
 	add(new RawFunc("__helios__address__new", 
 	`(cred, staking_cred) -> {
@@ -29200,7 +29201,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Credential builtins
 	addDataFuncs("__helios__credential");
-	add(new RawFunc("__helios__credential__test_data",
+	add(new RawFunc("__helios__credential__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -29220,7 +29221,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 								__core__chooseList(
 									__core__tailList__safe(fields),
 									() -> {
-										__helios__validatorhash__test_data(__core__headList__safe(fields))
+										__helios__validatorhash__is_valid_data(__core__headList__safe(fields))
 									}, 
 									() -> {
 										false
@@ -29242,7 +29243,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 										__core__chooseList(
 											__core__tailList__safe(fields),
 											() -> {
-												__helios__pubkeyhash__test_data(__core__headList__safe(fields))
+												__helios__pubkeyhash__is_valid_data(__core__headList__safe(fields))
 											}, 
 											() -> {
 												false
@@ -29309,7 +29310,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// StakingHash builtins
 	addDataFuncs("__helios__stakinghash");
-	add(new RawFunc("__helios__stakinghash__test_data", "__helios__credential__test_data"));
+	add(new RawFunc("__helios__stakinghash__is_valid_data", "__helios__credential__is_valid_data"));
 	add(new RawFunc("__helios__stakinghash__new_stakekey", "__helios__credential__new_pubkey"));
 	add(new RawFunc("__helios__stakinghash__new_validator", "__helios__credential__new_validator"));
 	add(new RawFunc("__helios__stakinghash__is_stakekey", "__helios__credential__is_stakekey"));
@@ -29318,14 +29319,14 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// StakingHash::StakeKey builtins
 	addEnumDataFuncs("__helios__stakinghash__stakekey", 0);
-	add(new RawFunc("__helios__stakinghash__stakekey__test_data", "__helios__credential__pubkey__test_data"));
+	add(new RawFunc("__helios__stakinghash__stakekey__is_valid_data", "__helios__credential__pubkey__is_valid_data"));
 	add(new RawFunc("__helios__stakinghash__stakekey__cast", "__helios__credential__pubkey__cast"));
 	add(new RawFunc("__helios__stakinghash__stakekey__hash", "__helios__credential__pubkey__hash"));
 
 
 	// StakingHash::Validator builtins
 	addEnumDataFuncs("__helios__stakinghash__validator", 1);
-	add(new RawFunc("__helios__stakinghash__validator__test_data", "__helios__credential__validator__test_data"));
+	add(new RawFunc("__helios__stakinghash__validator__is_valid_data", "__helios__credential__validator__is_valid_data"));
 	add(new RawFunc("__helios__stakinghash__validator__cast", "__helios__credential__validator__cast"));
 	add(new RawFunc("__helios__stakinghash__validator__hash", "__helios__credential__validator__hash"));
 
@@ -29333,7 +29334,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// StakingCredential builtins
 	addDataFuncs("__helios__stakingcredential");
 	// TODO: test fields
-	add(new RawFunc("__helios__stakingcredential__test_data",
+	add(new RawFunc("__helios__stakingcredential__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -29379,7 +29380,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Time builtins
 	addIntLikeFuncs("__helios__time");
-	add(new RawFunc("__helios__time__test_data", `__helios__int__test_data`));
+	add(new RawFunc("__helios__time__is_valid_data", `__helios__int__is_valid_data`));
 	add(new RawFunc("__helios__time__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__time____add", `__helios__int____add`));
 	add(new RawFunc("__helios__time____sub", `__helios__int____sub`));
@@ -29393,7 +29394,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// Duratin builtins
 	addIntLikeFuncs("__helios__duration");
-	add(new RawFunc("__helios__duration__test_data", `__helios__int__test_data`));
+	add(new RawFunc("__helios__duration__is_valid_data", `__helios__int__is_valid_data`));
 	add(new RawFunc("__helios__duration__new", `__helios__common__identity`));
 	add(new RawFunc("__helios__duration__show", `__helios__int__show`));
 	add(new RawFunc("__helios__duration____add", `__helios__int____add`));
@@ -29416,7 +29417,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// TimeRange builtins
 	addDataFuncs("__helios__timerange");
 	// TODO: test fields
-	add(new RawFunc("__helios__timerange__test_data",
+	add(new RawFunc("__helios__timerange__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -29658,9 +29659,9 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 
 	// AssetClass builtins
 	addDataFuncs("__helios__assetclass");
-	add(new RawFunc("__helios__assetclass__test_data",
+	add(new RawFunc("__helios__assetclass__is_valid_data",
 	`(data) -> {
-		__helios__common__test_constr_data_2(data, 0, __helios__mintingpolicyhash__test_data, __helios__bytearray__test_data)
+		__helios__common__test_constr_data_2(data, 0, __helios__mintingpolicyhash__is_valid_data, __helios__bytearray__is_valid_data)
 	}`));
 	add(new RawFunc("__helios__assetclass__ADA", `__helios__assetclass__new(#, #)`));
 	add(new RawFunc("__helios__assetclass__new",
@@ -29808,7 +29809,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 	// Value builtins
 	addSerializeFunc("__helios__value");
 	// TODO: test each entry in the map
-	add(new RawFunc("__helios__value__test_data",
+	add(new RawFunc("__helios__value__is_valid_data",
 	`(data) -> {
 		__core__chooseData(
 			data,
@@ -29826,7 +29827,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 							key = __core__fstPair(head);
 							value = __core__sndPair(head);
 							__core__ifThenElse(
-								__helios__mintingpolicyhash__test_data(key),
+								__helios__mintingpolicyhash__is_valid_data(key),
 								() -> {
 									__core__chooseData(
 										value,
@@ -29850,10 +29851,10 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 																key = __core__fstPair(head);
 																value = __core__sndPair(head);
 																__core__ifThenElse(
-																	__helios__bytearray__test_data(key),
+																	__helios__bytearray__is_valid_data(key),
 																	() -> {
 																		__core__ifThenElse(
-																			__helios__int__test_data(value),
+																			__helios__int__is_valid_data(value),
 																			() -> {
 																				true
 																			},
@@ -34827,11 +34828,16 @@ export class EnumSwitchExpr extends SwitchExpr {
 			return null;
 		}
 
-		const enumType = controlVal.type.asDataType;
+		let enumType = controlVal.type.asDataType;
 
 		if (!enumType) {
 			this.controlExpr.typeError("not an enum");
 			return null;
+		}
+
+		if (controlVal.type.asEnumMemberType) {
+			this.controlExpr.typeError(`${controlVal.type.toString()} is an enum variant, not an enum`);
+			enumType = controlVal.type.asEnumMemberType.parentType; // continue with optimistic evaluation, even though compilation will fail
 		}
 
 		const nEnumMembers = Common.countEnumMembers(enumType);
@@ -36414,7 +36420,7 @@ export class DataDefinition {
 	 * @internal
 	 * @returns {IR}
 	 */
-	toIR_test_data() {
+	toIR_is_valid_data() {
 		if (this.hasTags()) {
 			const fields = this.#fields;
 
@@ -36425,14 +36431,14 @@ export class DataDefinition {
 					ir = IR.new`__helios__common__test_cip68_field(
 						data,
 						__core__bData(#${bytesToHex(textToBytes(f.tag))}),
-						${f.type.path}__test_data	
+						${f.type.path}__is_valid_data	
 					)`;
 				} else {
 					ir = IR.new`__core__ifThenElse(
 						__helios__common__test_cip68_field(
 							data,
 							__core__bData(#${bytesToHex(textToBytes(f.tag))}),
-							${f.type.path}__test_data	
+							${f.type.path}__is_valid_data	
 						),
 						() -> {
 							${ir}
@@ -36448,7 +36454,7 @@ export class DataDefinition {
 				${ir}
 			}`;
 		} else if (this.nFields == 1) {
-			return IR.new`${this.#fields[0].type.path}__test_data`;
+			return IR.new`${this.#fields[0].type.path}__is_valid_data`;
 		} else {
 			const reversedFields = this.#fields.slice().reverse();
 
@@ -36470,7 +36476,7 @@ export class DataDefinition {
 						() -> {
 							(head) -> {
 								__core__ifThenElse(
-									${f.type.path}__test_data(head),
+									${f.type.path}__is_valid_data(head),
 									() -> {${ir}(__core__tailList__safe(fields))},
 									() -> {false}
 								)()
@@ -36510,7 +36516,7 @@ export class DataDefinition {
 					data
 				}(
 					__core__ifThenElse(
-						${path}__test_data(data),
+						${path}__is_valid_data(data),
 						() -> {
 							()
 						},
@@ -36562,7 +36568,7 @@ export class DataDefinition {
 					fields
 				}(
 					__core__ifThenElse(
-						${path}__test_data(__core__listData(fields)),
+						${path}__is_valid_data(__core__listData(fields)),
 						() -> {
 							()
 						},
@@ -36947,7 +36953,7 @@ export class StructStatement extends Statement {
 	 * @param {IRDefinitions} map
 	 */
 	toIR(ctx, map) {
-		map.set(`${this.path}__test_data`, this.#dataDef.toIR_test_data());
+		map.set(`${this.path}__is_valid_data`, this.#dataDef.toIR_is_valid_data());
 
 		if (this.#dataDef.hasTags()) {
 			map.set(`${this.path}____eq`, IR.new`__helios__common____eq${this.site}`);
@@ -36961,7 +36967,7 @@ export class StructStatement extends Statement {
 						data
 					}(
 						__core__ifThenElse(
-							${this.path}__test_data(data),
+							${this.path}__is_valid_data(data),
 							() -> {
 								()
 							},
@@ -36992,7 +36998,7 @@ export class StructStatement extends Statement {
 						__core__unListData(data)
 					}(
 						__core__ifThenElse(
-							${this.path}__test_data(data),
+							${this.path}__is_valid_data(data),
 							() -> {
 								()
 							},
@@ -37111,9 +37117,10 @@ export class FuncStatement extends Statement {
 	/**
 	 * Evaluates a function and returns a func value
 	 * @param {Scope} scope 
+	 * @param {boolean} isMember functions that are members of structs or enums aren't added to their own internal scope as they are always accessed through member access
 	 * @returns {null | EvalEntity}
 	 */
-	evalInternal(scope) {
+	evalInternal(scope, isMember = false) {
 		const typed = this.#parameters.evalParametricFunc(scope, (subScope) => {
 			const type = this.#funcExpr.evalType(subScope);
 
@@ -37121,13 +37128,16 @@ export class FuncStatement extends Statement {
 				return null;
 			}
 
-			const implScope = new Scope(subScope);
+			if (isMember) {
+				void this.#funcExpr.evalInternal(subScope);	
+			} else {
+				const implScope = new Scope(subScope);
 
-			// recursive calls expect func value, not func type
-			implScope.set(this.name, new NamedEntity(this.name.value, super.path, type.toTyped()));
+				// recursive calls expect func value, not func type
+				implScope.set(this.name, new NamedEntity(this.name.value, super.path, type.toTyped()));
 
-			
-			void this.#funcExpr.evalInternal(implScope);
+				void this.#funcExpr.evalInternal(implScope);
+			}
 
 			return type;
 		});
@@ -37451,7 +37461,7 @@ export class EnumMember {
 		map.set(`${this.path}____neq`, IR.new`__helios__common____neq${this.#dataDef.site}`);
 		map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.#dataDef.site}`);
 
-		map.set(`${this.path}__test_data`, IR.new`(data) -> {
+		map.set(`${this.path}__is_valid_data`, IR.new`(data) -> {
 			__core__chooseData(
 				data,
 				() -> {
@@ -37459,7 +37469,7 @@ export class EnumMember {
 						__core__ifThenElse(
 							__core__equalsInteger(__core__fstPair(pair), ${this.#constrIndex}),
 							() -> {
-								${this.#dataDef.toIR_test_data()}(__core__listData(__core__sndPair(pair)))
+								${this.#dataDef.toIR_is_valid_data()}(__core__listData(__core__sndPair(pair)))
 							},
 							() -> {
 								false
@@ -37480,7 +37490,7 @@ export class EnumMember {
 					data
 				}(
 					__core__ifThenElse(
-						${this.path}__test_data(data),
+						${this.path}__is_valid_data(data),
 						() -> {
 							()
 						},
@@ -37830,12 +37840,12 @@ export class EnumStatement extends Statement {
 	/**
 	 * @returns {IR}
 	 */
-	toIR_test_data() {
+	toIR_is_valid_data() {
 		let ir = IR.new`false`;
 
 		this.#members.forEach(m => {
 			ir = IR.new`__core__ifThenElse(
-				${m.path}__test_data(data),
+				${m.path}__is_valid_data(data),
 				() -> {
 					true
 				},
@@ -37901,7 +37911,7 @@ export class EnumStatement extends Statement {
 		map.set(`${this.path}__serialize`, IR.new`__helios__common__serialize${this.site}`);
 		map.set(`${this.path}____to_data`, IR.new`__helios__common__identity${this.site}`);
 
-		map.set(`${this.path}__test_data`, this.toIR_test_data());
+		map.set(`${this.path}__is_valid_data`, this.toIR_is_valid_data());
 		map.set(`${this.path}__show`, this.toIR_show());
 
 		// there could be circular dependencies here, which is ok
@@ -37911,7 +37921,7 @@ export class EnumStatement extends Statement {
 					data
 				}(
 					__core__ifThenElse(
-						${this.path}__test_data(data),
+						${this.path}__is_valid_data(data),
 						() -> {
 							()
 						},
@@ -38042,7 +38052,11 @@ export class ImplDefinition {
 		void this.#selfTypeExpr.eval(scope);
 
 		for (let s of this.#statements) {
-			void s.evalInternal(scope);
+			if (s instanceof FuncStatement) {
+				void s.evalInternal(scope, true);
+			} else {
+				void s.evalInternal(scope);
+			}
 		}
 	}
 
@@ -38077,8 +38091,10 @@ const AUTOMATIC_METHODS = [
 	"__eq",
 	"__neq",
 	"copy",
+	"show",
 	"from_data",
-	"test_data",
+	"from_data_safe",
+	"is_valid_data",
 	"serialize"
 ];
 
@@ -49215,7 +49231,7 @@ export class Tx extends CborData {
 			}
 
 			if (!config.AUTO_SET_VALIDITY_RANGE) {
-				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts.\nSetting the tx validity interval to a sane default\m(hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning)");
+				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts.\nSetting the tx validity interval to a sane default\n(hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning)");
 			}
 		}
 

@@ -1212,7 +1212,7 @@ export class Tx extends CborData {
 			}
 
 			if (!config.AUTO_SET_VALIDITY_RANGE) {
-				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts.\nSetting the tx validity interval to a sane default\m(hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning)");
+				console.error("Warning: validity interval is unset but detected usage of tx.time_range in one of the scripts.\nSetting the tx validity interval to a sane default\n(hint: set helios.config.AUTO_SET_VALIDITY_RANGE to true to avoid this warning)");
 			}
 		}
 

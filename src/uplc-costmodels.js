@@ -677,7 +677,7 @@ export class ArgSizeDiffCost extends LinearCost {
 }
 
 /**
- * cost = (size(arg0) > size(arg1)) ? constant : a + b*size(arg0)*size(arg1)
+ * cost = (size(arg0) < size(arg1)) ? constant : a + b*size(arg0)*size(arg1)
  * (only for Uplc functions with two arguments)
  * @internal
  */
@@ -715,7 +715,7 @@ export class ArgSizeProdCost extends LinearCost {
 		
 		const [x, y] = args;
 
-		if (x > y) {
+		if (x < y) {
 			return this.#constant;
 		} else {
 			return this.calcInternal(x*y);
