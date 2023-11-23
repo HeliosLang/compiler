@@ -2848,7 +2848,7 @@ export class CallExpr extends Expr {
 		} else if (fnVal.asFunc) {
 			return fnVal.asFunc.call(this.site, posArgVals, namedArgVals);
 		} else {
-			this.#fnExpr.typeError(`expected function, got ${fnVal.toString()}`);
+			this.#fnExpr.typeError(`unable to call ${fnVal.toString()} (returned by ${this.#fnExpr.toString()})`);
 			return null;
 		}
 	}

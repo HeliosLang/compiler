@@ -105,7 +105,7 @@ export default async function main() {
     func main() -> Bool {
         x: ByteArray = #32423acd232;
         (fibonacci(1) == 1) && x.length() == 12
-    }`, "expected function, got Int", []);
+    }`, "unable to call Int", []);
 
     // 7. mutual recursion
     // * mutual recursive struct statements in wrong order
