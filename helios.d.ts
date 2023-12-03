@@ -2729,6 +2729,14 @@ export class UplcProgram {
     #private;
 }
 /**
+ * State that must be maintained over optimization iterations
+ */
+export class IROptimizerState {
+    incrCommonExprCount(): void;
+    get commonExprCount(): number;
+    #private;
+}
+/**
  * Helios root object
  */
 export class Program {

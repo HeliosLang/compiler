@@ -68,7 +68,7 @@ import {
 } from "./ir-build.js";
 
 import {
-	IROptimizer
+	IROptimizer, IROptimizerState
 } from "./ir-optimize.js";
 import { IREvaluator, annotateIR } from "./ir-evaluate.js";
 
@@ -161,11 +161,12 @@ export class IRProgram {
 	static simplify(expr) {
 		let dirty = true;
 		let oldState = expr.toString();
+		let optState = new IROptimizerState();
 
 		while (dirty) {
 			dirty = false;
 
-			const optimizer = new IROptimizer(expr, true);
+			const optimizer = new IROptimizer(expr, optState);
 
 			expr = optimizer.optimize();
 

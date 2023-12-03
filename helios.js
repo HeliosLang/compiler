@@ -263,7 +263,8 @@
 //                                           IRValueCodeMapper, IR_BUILTIN_CALLBACKS, IREvaluator, 
 //                                           annotateIR
 //
-//     Section 31: IR optimization           INLINE_MAX_SIZE, isIdentityFunc, IROptimizer
+//     Section 31: IR optimization           INLINE_MAX_SIZE, isIdentityFunc, IROptimizerState, 
+//                                           IROptimizer
 //
 //     Section 32: IR Program                IRProgram, IRParametricProgram
 //
@@ -44645,6 +44646,25 @@ function isIdentityFunc(func) {
 }
 
 /**
+ * State that must be maintained over optimization iterations
+ */
+export class IROptimizerState{
+    #commonExprCount;
+
+    constructor() {
+        this.#commonExprCount = 0
+    }
+
+    incrCommonExprCount() {
+        this.#commonExprCount += 1
+    }
+
+    get commonExprCount() {
+        return this.#commonExprCount
+    }
+}
+
+/**
  * Recursive algorithm that performs the following optimizations.
  * 
  * Optimizations performed in both `aggressive == false` and `aggressive == true` cases:
@@ -44715,7 +44735,7 @@ function isIdentityFunc(func) {
 export class IROptimizer {
     #evaluator;
     #root;
-    #aggressive;
+    #state;
 
     /**
      * @type {Map<IRVariable, IRExpr>}
@@ -44723,22 +44743,16 @@ export class IROptimizer {
     #inlining;
 
     /**
-     * @type {Map<IRFuncExpr, number>}
-     */
-    #callCount;
-
-    /**
      * @param {IRExpr} root
-     * @param {boolean} aggressive 
+     * @param {IROptimizerState} state
      */
-    constructor(root, aggressive = false) {
+    constructor(root, state) {
         this.#evaluator = new IREvaluator();
         this.#root = root;
         IROptimizer.assertNoDuplicateExprs(root);
-        this.#aggressive = aggressive;
 
+        this.#state = state;
         this.#inlining = new Map();
-        this.#callCount = new Map();
 
         this.init();
     }
@@ -44791,10 +44805,6 @@ export class IROptimizer {
 
         if (config.DEBUG) {
             console.log(annotateIR(this.#evaluator, this.#root));
-        }
-
-        if (!this.#aggressive) {
-            return;
         }
 
         this.removeUnusedArgs();
@@ -44997,7 +45007,7 @@ export class IROptimizer {
         if (v) {
             if (v instanceof IRLiteralValue) {
                 return new IRLiteralExpr(v.value);
-            } else if (v instanceof IRErrorValue && this.#aggressive) {
+            } else if (v instanceof IRErrorValue) {
                 return new IRErrorExpr(expr.site);
             }
         }
@@ -45275,7 +45285,7 @@ export class IROptimizer {
         if (v) {
             if (v instanceof IRLiteralValue) {
                 return new IRLiteralExpr(v.value);
-            } else if (v instanceof IRErrorValue && this.#aggressive) {
+            } else if (v instanceof IRErrorValue) {
                 return new IRErrorExpr(expr.site);
             }
         }
@@ -45353,7 +45363,7 @@ export class IROptimizer {
 
         const builtinName = newExpr.builtinName;
 
-        if (builtinName != "" && this.#aggressive) {
+        if (builtinName != "") {
             return this.optimizeBuiltinCallExpr(newExpr);
         }
 
@@ -45539,11 +45549,12 @@ export class IRProgram {
 	static simplify(expr) {
 		let dirty = true;
 		let oldState = expr.toString();
+		let optState = new IROptimizerState();
 
 		while (dirty) {
 			dirty = false;
 
-			const optimizer = new IROptimizer(expr, true);
+			const optimizer = new IROptimizer(expr, optState);
 
 			expr = optimizer.optimize();
 

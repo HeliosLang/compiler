@@ -9408,6 +9408,14 @@ declare module "helios" {
         #private;
     }
     /**
+     * State that must be maintained over optimization iterations
+     */
+    export class IROptimizerState {
+        incrCommonExprCount(): void;
+        get commonExprCount(): number;
+        #private;
+    }
+    /**
      * Recursive algorithm that performs the following optimizations.
      *
      * Optimizations performed in both `aggressive == false` and `aggressive == true` cases:
@@ -9482,9 +9490,9 @@ declare module "helios" {
         static assertNoDuplicateExprs(expr: IRExpr): void;
         /**
          * @param {IRExpr} root
-         * @param {boolean} aggressive
+         * @param {IROptimizerState} state
          */
-        constructor(root: IRExpr, aggressive?: boolean);
+        constructor(root: IRExpr, state: IROptimizerState);
         /**
          * @param {IRExpr} expr
          * @returns {boolean}
