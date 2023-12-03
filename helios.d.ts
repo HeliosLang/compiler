@@ -105,7 +105,7 @@ export function highlight(src: string): Uint8Array;
 /**
  * Current version of the Helios library.
  */
-export const VERSION: "0.16.5";
+export const VERSION: "0.16.6";
 /**
  * Mutable global config properties.
  * @namespace
@@ -4074,10 +4074,12 @@ export namespace CoinSelection {
  * @interface
  * @typedef {object} Wallet
  * @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
+ * @property {Promise<StakeAddress[]>} rewardAddresses Returns a list of the reward addresses.
  * @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
  * @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
  * @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
  * @property {Promise<TxInput[]>} collateral
+ * @property {(addr: Address, sigStructure: string) => Promise<{signature: string, key: string}>} signData Signs a message, returning an object containing the signature and key that can be used to verify/authenticate the message later.
  * @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
  * @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
  */
@@ -4111,6 +4113,8 @@ export namespace CoinSelection {
  *     getUnusedAddresses(): Promise<string[]>,
  *     getUtxos(): Promise<string[]>,
  *     getCollateral(): Promise<string[]>,
+ *     getRewardAddresses(): Promise<string[]>,
+ *     signData(addr: string, sigStructure: string): Promise<{signature: string, key: string}>,
  *     signTx(txHex: string, partialSign: boolean): Promise<string>,
  *     submitTx(txHex: string): Promise<string>,
  *     experimental: {
@@ -4139,6 +4143,11 @@ export class Cip30Wallet implements Wallet {
      */
     isMainnet(): Promise<boolean>;
     /**
+     * Gets a list of unique reward addresses which can be used to UTxOs to.
+     * @type {Promise<StakeAddress[]>}
+     */
+    get rewardAddresses(): Promise<StakeAddress[]>;
+    /**
      * Gets a list of addresses which contain(ed) UTxOs.
      * @type {Promise<Address[]>}
      */
@@ -4157,6 +4166,17 @@ export class Cip30Wallet implements Wallet {
      * @type {Promise<TxInput[]>}
      */
     get collateral(): Promise<TxInput[]>;
+    /**
+     * Sign a data payload with the users wallet.
+     *
+     * @param {Address} addr - A Cardano address object
+     * @param {string} sigStructure - The message to sign, in string format.
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    signData(addr: Address, sigStructure: string): Promise<{
+        signature: string;
+        key: string;
+    }>;
     /**
      * Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
      * @param {Tx} tx
@@ -4260,6 +4280,10 @@ export class RemoteWallet implements Wallet {
      */
     isMainnet(): Promise<boolean>;
     /**
+     * @type {Promise<StakeAddress[]>}
+     */
+    get rewardAddresses(): Promise<StakeAddress[]>;
+    /**
      * @type {Promise<Address[]>}
      */
     get usedAddresses(): Promise<Address[]>;
@@ -4275,6 +4299,15 @@ export class RemoteWallet implements Wallet {
      * @type {Promise<TxInput[]>}
      */
     get collateral(): Promise<TxInput[]>;
+    /**
+     * @param {Address} addr
+     * @param {string} message
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    signData(addr: Address, message: string): Promise<{
+        signature: string;
+        key: string;
+    }>;
     /**
      * @param {Tx} tx
      * @returns {Promise<Signature[]>}
@@ -4482,6 +4515,11 @@ export class SimpleWallet implements Wallet {
      */
     isMainnet(): Promise<boolean>;
     /**
+     * Not yet implemented.
+     * @type {Promise<StakeAddress[]>}
+     */
+    get rewardAddresses(): Promise<StakeAddress[]>;
+    /**
      * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
      * @type {Promise<Address[]>}
      */
@@ -4498,6 +4536,16 @@ export class SimpleWallet implements Wallet {
      * @type {Promise<TxInput[]>}
      */
     get collateral(): Promise<TxInput[]>;
+    /**
+     * Not yet implemented.
+     * @param {Address} addr
+     * @param {string} message
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    signData(addr: Address, message: string): Promise<{
+        signature: string;
+        key: string;
+    }>;
     /**
      * Simply assumed the tx needs to by signed by this wallet without checking.
      * @param {Tx} tx
@@ -5095,6 +5143,10 @@ export interface Wallet  {
      */
     isMainnet: () => Promise<boolean>;
     /**
+     * Returns a list of the reward addresses.
+     */
+    rewardAddresses: Promise<StakeAddress[]>;
+    /**
      * Returns a list of addresses which already contain UTxOs.
      */
     usedAddresses: Promise<Address[]>;
@@ -5107,6 +5159,13 @@ export interface Wallet  {
      */
     utxos: Promise<TxInput[]>;
     collateral: Promise<TxInput[]>;
+    /**
+     * Signs a message, returning an object containing the signature and key that can be used to verify/authenticate the message later.
+     */
+    signData: (addr: Address, sigStructure: string) => Promise<{
+        signature: string;
+        key: string;
+    }>;
     /**
      * Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
      */
@@ -5146,6 +5205,11 @@ export type Cip30Handle = {
     getUnusedAddresses(): Promise<string[]>;
     getUtxos(): Promise<string[]>;
     getCollateral(): Promise<string[]>;
+    getRewardAddresses(): Promise<string[]>;
+    signData(addr: string, sigStructure: string): Promise<{
+        signature: string;
+        key: string;
+    }>;
     signTx(txHex: string, partialSign: boolean): Promise<string>;
     submitTx(txHex: string): Promise<string>;
     experimental: {

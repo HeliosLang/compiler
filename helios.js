@@ -7,8 +7,8 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.16.5
-// Last update:   November 2023
+// Version:       0.16.6
+// Last update:   December 2023
 // License type:  BSD-3-Clause
 //
 //
@@ -312,7 +312,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.16.5";
+export const VERSION = "0.16.6";
 
 /**
  * A tab used for indenting of the IR.
@@ -45449,6 +45449,7 @@ export class IROptimizer {
     optimize() {
         const expr = this.optimizeInternal(this.#root);
 
+        // TODO: factorize common subexprs
         IROptimizer.assertNoDuplicateExprs(expr);
 
         return expr;
@@ -54150,7 +54151,7 @@ export const CoinSelection = {
  * @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
  * @property {Promise<StakeAddress[]>} rewardAddresses Returns a list of the reward addresses.
  * @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
- * @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonymity.
+ * @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
  * @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
  * @property {Promise<TxInput[]>} collateral
  * @property {(addr: Address, sigStructure: string) => Promise<{signature: string, key: string}>} signData Signs a message, returning an object containing the signature and key that can be used to verify/authenticate the message later.
@@ -54188,8 +54189,8 @@ export const CoinSelection = {
  *     getUnusedAddresses(): Promise<string[]>,
  *     getUtxos(): Promise<string[]>,
  *     getCollateral(): Promise<string[]>,
- *     getRewardAddresses(): Promise<StakeAddress[]>,
- *     signData(Address: addr, string: sigStructure): Promise<{signature: string, key: string}>,
+ *     getRewardAddresses(): Promise<string[]>,
+ *     signData(addr: string, sigStructure: string): Promise<{signature: string, key: string}>,
  *     signTx(txHex: string, partialSign: boolean): Promise<string>,
  *     submitTx(txHex: string): Promise<string>,
  *     experimental: {
@@ -54230,11 +54231,12 @@ export class Cip30Wallet {
      * Gets a list of unique reward addresses which can be used to UTxOs to.
      * @type {Promise<StakeAddress[]>}
      */
-    get rewardAddresses() {
+     get rewardAddresses() {
         return this.#handle.getRewardAddresses().then(
             addresses => {
-                if (!Array.isArray(addresses))
+                if (!Array.isArray(addresses)) {
                     throw new Error(`The wallet getRewardAddresses() call did not return an array.`);
+                }
 
                 return addresses.map(a => new StakeAddress(hexToBytes(a)));
             });
@@ -54276,16 +54278,15 @@ export class Cip30Wallet {
      * Sign a data payload with the users wallet.
      *
      * @param {Address} addr - A Cardano address object
-     * @param {string} sigStructure - The message to sign,
-     *  in string format.
-     *
+     * @param {string} sigStructure - The message to sign, in string format.
      * @return {Promise<{signature: string, key: string}>}
      */
     async signData(addr, sigStructure) {
-        if (!(addr instanceof Address))
+        if (!(addr instanceof Address)) {
             throw new Error(`The value in the addr parameter is not a Cardano Address object.`);
-        if (typeof sigStructure !== 'string' || sigStructure.length < 1)
+        } else if (typeof sigStructure !== 'string' || sigStructure.length < 1) {
             throw new Error(`The sigStructure parameter is empty or invalid.  Must be a non-empty string`);
+        }
 
         // Convert the string to a hex string since that is what
         //  the underlying signData() method expects.
@@ -54553,6 +54554,13 @@ export class RemoteWallet {
     }
 
     /**
+     * @type {Promise<StakeAddress[]>}
+     */
+    get rewardAddresses() {
+        throw new Error("not yet implemented")
+    }
+
+    /**
      * @type {Promise<Address[]>}
      */
     get usedAddresses() {
@@ -54578,6 +54586,15 @@ export class RemoteWallet {
      */
     get collateral() {
         return new Promise((resolve, _) => resolve([]));
+    }
+
+    /**
+     * @param {Address} addr
+     * @param {string} message
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    async signData(addr, message) {
+        throw new Error("not yet implemented")
     }
 
     /**
@@ -56021,6 +56038,14 @@ export class SimpleWallet {
     }
 
     /**
+     * Not yet implemented.
+     * @type {Promise<StakeAddress[]>}
+     */
+    get rewardAddresses() {
+        throw new Error("not yet implemented")
+    }
+
+    /**
      * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
      * @type {Promise<Address[]>}
      */
@@ -56055,6 +56080,16 @@ export class SimpleWallet {
         return new Promise((resolve, _) => {
             resolve([])
         });
+    }
+
+    /**
+     * Not yet implemented.
+     * @param {Address} addr 
+     * @param {string} message 
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    async signData(addr, message) {
+        throw new Error("not yet implemented")
     }
 
     /**
@@ -56514,6 +56549,15 @@ class TxChainWallet {
     }
 
     /**
+     * @param {Address} addr 
+     * @param {string} message 
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    async signData(addr, message) {
+        return this.#base.signData(addr, message)
+    }
+
+    /**
      * @param {Tx} tx 
      * @returns {Promise<Signature[]>}
      */
@@ -56527,6 +56571,10 @@ class TxChainWallet {
      */
     async submitTx(tx) {
         return this.#chain.submitTx(tx)
+    }
+
+    get rewardAddresses() {
+        return this.#base.rewardAddresses;
     }
 
     get unusedAddresses() {

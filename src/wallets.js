@@ -4,7 +4,8 @@
 import {
     assertDefined,
     bytesToHex,
-    hexToBytes
+    hexToBytes,
+    textToBytes
 } from "./utils.js";
 
 import {
@@ -16,6 +17,7 @@ import {
 
 import {
     Signature,
+    StakeAddress,
     Tx,
     TxWitnesses,
     TxInput
@@ -34,10 +36,12 @@ import {
  * @interface
  * @typedef {object} Wallet
  * @property {() => Promise<boolean>} isMainnet Returns `true` if the wallet is connected to the mainnet.
+ * @property {Promise<StakeAddress[]>} rewardAddresses Returns a list of the reward addresses.
  * @property {Promise<Address[]>} usedAddresses Returns a list of addresses which already contain UTxOs.
  * @property {Promise<Address[]>} unusedAddresses Returns a list of unique unused addresses which can be used to send UTxOs to with increased anonimity.
  * @property {Promise<TxInput[]>} utxos Returns a list of all the utxos controlled by the wallet.
  * @property {Promise<TxInput[]>} collateral
+ * @property {(addr: Address, sigStructure: string) => Promise<{signature: string, key: string}>} signData Signs a message, returning an object containing the signature and key that can be used to verify/authenticate the message later.
  * @property {(tx: Tx) => Promise<Signature[]>} signTx Signs a transaction, returning a list of signatures needed for submitting a valid transaction.
  * @property {(tx: Tx) => Promise<TxId>} submitTx Submits a transaction to the blockchain and returns the id of that transaction upon success.
  */
@@ -72,6 +76,8 @@ import {
  *     getUnusedAddresses(): Promise<string[]>,
  *     getUtxos(): Promise<string[]>,
  *     getCollateral(): Promise<string[]>,
+ *     getRewardAddresses(): Promise<string[]>,
+ *     signData(addr: string, sigStructure: string): Promise<{signature: string, key: string}>,
  *     signTx(txHex: string, partialSign: boolean): Promise<string>,
  *     submitTx(txHex: string): Promise<string>,
  *     experimental: {
@@ -109,6 +115,21 @@ export class Cip30Wallet {
     }
 
     /**
+     * Gets a list of unique reward addresses which can be used to UTxOs to.
+     * @type {Promise<StakeAddress[]>}
+     */
+     get rewardAddresses() {
+        return this.#handle.getRewardAddresses().then(
+            addresses => {
+                if (!Array.isArray(addresses)) {
+                    throw new Error(`The wallet getRewardAddresses() call did not return an array.`);
+                }
+
+                return addresses.map(a => new StakeAddress(hexToBytes(a)));
+            });
+    }
+
+    /**
      * Gets a list of addresses which contain(ed) UTxOs.
      * @type {Promise<Address[]>}
      */
@@ -138,6 +159,27 @@ export class Cip30Wallet {
     get collateral() {
         const getCollateral = this.#handle.getCollateral || this.#handle.experimental.getCollateral;
         return getCollateral().then(utxos => utxos.map(u => TxInput.fromFullCbor(hexToBytes(u))));
+    }
+
+    /**
+     * Sign a data payload with the users wallet.
+     *
+     * @param {Address} addr - A Cardano address object
+     * @param {string} sigStructure - The message to sign, in string format.
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    async signData(addr, sigStructure) {
+        if (!(addr instanceof Address)) {
+            throw new Error(`The value in the addr parameter is not a Cardano Address object.`);
+        } else if (typeof sigStructure !== 'string' || sigStructure.length < 1) {
+            throw new Error(`The sigStructure parameter is empty or invalid.  Must be a non-empty string`);
+        }
+
+        // Convert the string to a hex string since that is what
+        //  the underlying signData() method expects.
+        const hexStr = bytesToHex(textToBytes(sigStructure));
+
+        return await this.#handle.signData(addr.toHex(), hexStr);
     }
 
     /**
@@ -399,6 +441,13 @@ export class RemoteWallet {
     }
 
     /**
+     * @type {Promise<StakeAddress[]>}
+     */
+    get rewardAddresses() {
+        throw new Error("not yet implemented")
+    }
+
+    /**
      * @type {Promise<Address[]>}
      */
     get usedAddresses() {
@@ -424,6 +473,15 @@ export class RemoteWallet {
      */
     get collateral() {
         return new Promise((resolve, _) => resolve([]));
+    }
+
+    /**
+     * @param {Address} addr
+     * @param {string} message
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    async signData(addr, message) {
+        throw new Error("not yet implemented")
     }
 
     /**

@@ -33,6 +33,7 @@ import {
 import {
     Bip32PrivateKey,
     Signature,
+    StakeAddress,
     Tx,
     TxInput,
     TxOutput
@@ -774,6 +775,14 @@ export class SimpleWallet {
     }
 
     /**
+     * Not yet implemented.
+     * @type {Promise<StakeAddress[]>}
+     */
+    get rewardAddresses() {
+        throw new Error("not yet implemented")
+    }
+
+    /**
      * Assumed wallet was initiated with at least 1 UTxO at the pubkeyhash address.
      * @type {Promise<Address[]>}
      */
@@ -808,6 +817,16 @@ export class SimpleWallet {
         return new Promise((resolve, _) => {
             resolve([])
         });
+    }
+
+    /**
+     * Not yet implemented.
+     * @param {Address} addr 
+     * @param {string} message 
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    async signData(addr, message) {
+        throw new Error("not yet implemented")
     }
 
     /**
@@ -1267,6 +1286,15 @@ class TxChainWallet {
     }
 
     /**
+     * @param {Address} addr 
+     * @param {string} message 
+     * @return {Promise<{signature: string, key: string}>}
+     */
+    async signData(addr, message) {
+        return this.#base.signData(addr, message)
+    }
+
+    /**
      * @param {Tx} tx 
      * @returns {Promise<Signature[]>}
      */
@@ -1280,6 +1308,10 @@ class TxChainWallet {
      */
     async submitTx(tx) {
         return this.#chain.submitTx(tx)
+    }
+
+    get rewardAddresses() {
+        return this.#base.rewardAddresses;
     }
 
     get unusedAddresses() {
