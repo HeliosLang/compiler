@@ -7,8 +7,8 @@
 // Email:         cschmitz398@gmail.com
 // Website:       https://www.hyperion-bt.org
 // Repository:    https://github.com/hyperion-bt/helios
-// Version:       0.16.6
-// Last update:   December 2023
+// Version:       0.16.7
+// Last update:   January 2024
 // License type:  BSD-3-Clause
 //
 //
@@ -312,7 +312,7 @@
 /**
  * Current version of the Helios library.
  */
-export const VERSION = "0.16.6";
+export const VERSION = "0.16.7";
 
 /**
  * A tab used for indenting of the IR.
@@ -20986,7 +20986,8 @@ export var TimeRangeType = new GenericType({
  */
 function genHashInstanceMembers(self) {
     return {
-        ...genCommonInstanceMembers(self)
+        ...genCommonInstanceMembers(self),
+        bytes: ByteArrayType
     };
 }
 
@@ -22287,7 +22288,8 @@ export const TxIdType = new GenericType({
         return TxId.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
-        ...genCommonInstanceMembers(self)
+        ...genCommonInstanceMembers(self),
+        bytes: ByteArrayType
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -23039,6 +23041,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		add(new RawFunc(`${ns}____gt`, "__helios__bytearray____gt"));
 		add(new RawFunc(`${ns}____geq`, "__helios__bytearray____geq"));
 		add(new RawFunc(`${ns}__new`, `__helios__common__identity`));
+		add(new RawFunc(`${ns}__bytes`, "__helios__common__identity"));
 		add(new RawFunc(`${ns}__show`, "__helios__bytearray__show"));
 	}
 
@@ -51495,6 +51498,7 @@ export class TxOutput extends CborData {
 										default:
 											throw new Error(`unhandled refScript type ${refScriptType}`);
 									}
+									break;
 								default:
 									throw new Error("unhandled refScript format");
 							}

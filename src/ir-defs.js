@@ -241,6 +241,7 @@ function makeRawFunctions(simplify, isTestnet = config.IS_TESTNET) {
 		add(new RawFunc(`${ns}____gt`, "__helios__bytearray____gt"));
 		add(new RawFunc(`${ns}____geq`, "__helios__bytearray____geq"));
 		add(new RawFunc(`${ns}__new`, `__helios__common__identity`));
+		add(new RawFunc(`${ns}__bytes`, "__helios__common__identity"));
 		add(new RawFunc(`${ns}__show`, "__helios__bytearray__show"));
 	}
 

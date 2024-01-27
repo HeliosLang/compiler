@@ -71,7 +71,8 @@ import {
  */
 function genHashInstanceMembers(self) {
     return {
-        ...genCommonInstanceMembers(self)
+        ...genCommonInstanceMembers(self),
+        bytes: ByteArrayType
     };
 }
 

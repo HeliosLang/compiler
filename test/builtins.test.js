@@ -3912,6 +3912,13 @@ async function testBuiltins() {
     ${spendingScriptContextParam(false)}
     `, ([_], res) => !asBool(res), 2);
 
+    await ft.test([ft.bytes(0, 3)], `
+    testing txid_bytes
+    func main(as: ByteArray) -> Bool {
+        a = TxId::new(as);
+        a.bytes == as
+    }`, ([a, b], res) => asBool(res));
+
     await ft.test([ft.bytes(0, 3), ft.bytes(0, 3)], `
     testing txid_lt_geq
     func main(as: ByteArray, bs: ByteArray) -> Bool {
@@ -5122,6 +5129,14 @@ async function testBuiltins() {
         tr: TimeRange = TimeRange::new(Time::new(a), Time::new(b));
         tr.serialize() == tr.serialize()
     }`, ([a, b], res) => asBool(res));
+
+    await ft.test([ft.bytes(0, 3)], `
+    testing pubkeyhash_bytes
+    func main(bs: ByteArray) -> Bool {
+        pkh = PubKeyHash::new(bs);
+        pkh.bytes == bs
+    }
+    `, ([_], res) => asBool(res))
 }
 
 export default async function main() {

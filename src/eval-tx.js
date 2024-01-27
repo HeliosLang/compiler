@@ -1063,7 +1063,8 @@ export const TxIdType = new GenericType({
         return TxId.fromUplcData(data);
     },
     genInstanceMembers: (self) => ({
-        ...genCommonInstanceMembers(self)
+        ...genCommonInstanceMembers(self),
+        bytes: ByteArrayType
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
