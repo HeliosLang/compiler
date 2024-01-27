@@ -3464,6 +3464,7 @@ export class TxOutput extends CborData {
 										default:
 											throw new Error(`unhandled refScript type ${refScriptType}`);
 									}
+									break;
 								default:
 									throw new Error("unhandled refScript format");
 							}
