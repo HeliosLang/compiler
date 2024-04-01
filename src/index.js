@@ -68,24 +68,7 @@ import { getShebang } from "typescript"
 export function check(main, modules = [], options = {}) {
     const program = Program.new(main, modules)
 
-    /**
-     * @param {any} type 
-     * @returns {TypeSchema}
-     */
-    function getSchema(type) {
-        if (type.path.includes("scriptcontext")) {
-            return {kind: "internal", internal: "ScriptContext"}
-        } else {
-            return {kind: "internal", internal: "Data"}
-        }
-    }
-
-    const paramTypes = program.paramTypes
-
-    return {
-        arguments: program.mainFunc.argTypes.map(at => getSchema(at)),
-        parameters: Object.fromEntries(Object.keys(paramTypes).map(k => [k, getSchema(paramTypes[k])]))
-    }
+    return {}
 }
 
 /**
