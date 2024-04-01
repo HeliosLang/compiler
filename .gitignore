@@ -4,4 +4,4 @@ node_modules
 *.swp
 log.*
 *.log
-
+auto-version.sh
