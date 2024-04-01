@@ -83,7 +83,7 @@ export function check(main, modules = [], options = {}) {
     const paramTypes = program.paramTypes
 
     return {
-        arguments: program.mainFunc.argTypes.map(at => getSchema(at.path)),
+        arguments: program.mainFunc.argTypes.map(at => getSchema(at)),
         parameters: Object.fromEntries(Object.keys(paramTypes).map(k => [k, getSchema(paramTypes[k])]))
     }
 }
@@ -118,10 +118,8 @@ export function compile(main, options = {}) {
     const program = Program.new(main, options?.modules ?? [])
 
     const params = options?.parameters ?? {}
-    
-    for (let k in params) {
-        program.changeParam(k, JSON.stringify(params[k]))
-    }
+
+    program.parameters = params
 
     return JSON.parse(program.compile(optimize).serialize())
 }
