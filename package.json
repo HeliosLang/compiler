@@ -23,7 +23,7 @@
         "singleQuote": false
     },
     "dependencies": {
-        "@hyperionbt/helios": "0.8.8"
+        "@hyperionbt/helios": "0.8.9"
     },
     "devDependencies": {
         "prettier": "^3.2.5",
