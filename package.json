@@ -1,0 +1,32 @@
+{
+    "name": "@helios-lang/compiler",
+    "version": "0.2.1",
+    "description": "Helios compiler library",
+    "main": "src/index.js",
+    "types": "types/index.d.ts",
+    "type": "module",
+    "scripts": {
+        "build": "npm run build:types",
+        "build:types": "npx tsc -p jsconfig.json --noEmit false --emitDeclarationOnly",
+        "prettify": "npx prettier . --write",
+        "test": "npm run test:pretty && npm run test:types && npm run test:suite",
+        "test:pretty": "npx prettier . --check",
+        "test:suite": "node --test  --experimental-test-coverage",
+        "test:types": "npx tsc -p jsconfig.json --noEmit"
+    },
+    "author": "Christian Schmitz",
+    "license": "BSD-3-Clause",
+    "prettier": {
+        "trailingComma": "none",
+        "tabWidth": 4,
+        "semi": false,
+        "singleQuote": false
+    },
+    "dependencies": {
+        "@hyperionbt/helios": "0.2.1"
+    },
+    "devDependencies": {
+        "prettier": "^3.2.5",
+        "typescript": "^5.4.3"
+    }
+}
