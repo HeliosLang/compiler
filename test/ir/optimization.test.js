@@ -1,53 +1,57 @@
-import { 
+import {
     IROptimizer,
     IRScope,
     Program,
     ToIRContext,
-    buildIRExpr, 
+    buildIRExpr,
     tokenizeIR
 } from "helios"
 
-
 function optimize(src, n = 1) {
-    const ir = tokenizeIR(src);
+    const ir = tokenizeIR(src)
 
-    let expr = buildIRExpr(ir);
+    let expr = buildIRExpr(ir)
 
-    const scope = new IRScope(null, null);
+    const scope = new IRScope(null, null)
 
-    expr.resolveNames(scope);
+    expr.resolveNames(scope)
 
     for (let iter = 0; iter < n; iter++) {
-        const optimizer = new IROptimizer(expr, true);
+        const optimizer = new IROptimizer(expr, true)
 
-        expr = optimizer.optimize();
+        expr = optimizer.optimize()
     }
 
-    return expr.toString();
+    return expr.toString()
 }
 
 function optimizeHelios(src, n = 1) {
-    const program = Program.new(src);
+    const program = Program.new(src)
 
-    const [rawIR, _] = program.toIR(new ToIRContext(false, "")).generateSource();
+    const [rawIR, _] = program.toIR(new ToIRContext(false, "")).generateSource()
 
     console.log(rawIR)
-    return optimize(rawIR, n);
+    return optimize(rawIR, n)
 }
 
 export default async function test() {
-    console.log(optimize(`
+    console.log(
+        optimize(`
     (a, b) -> {
         __core__multiplyInteger(__core__addInteger(a, b), 0)
     }
-    `))
+    `)
+    )
 
-    console.log(optimize(`
+    console.log(
+        optimize(`
     (a, b) -> {
         __core__multiplyInteger(__core__divideInteger(a, b), 0)
-    }`))
+    }`)
+    )
 
-    console.log(optimize(`
+    console.log(
+        optimize(`
     (a, b) -> {
         (fn) -> {
             fn(a, b)()
@@ -58,9 +62,11 @@ export default async function test() {
                 }
             }
         )
-    }`))
+    }`)
+    )
 
-    console.log(optimize(`
+    console.log(
+        optimize(`
     (a, b) -> {
         (fn) -> {
             fn(a, b)()(a)
@@ -73,9 +79,11 @@ export default async function test() {
                 }
             }
         )
-    }`))
+    }`)
+    )
 
-    console.log(optimize(`
+    console.log(
+        optimize(`
     (a, b) -> {
         (fn) -> {
             __core__addInteger(
@@ -91,9 +99,11 @@ export default async function test() {
                 }
             }
         )
-    }`))
+    }`)
+    )
 
-    console.log(optimize(`
+    console.log(
+        optimize(`
     (i) -> {
         (id) -> {
             (recurse) -> {
@@ -113,9 +123,11 @@ export default async function test() {
             )
         }(__core__addInteger(i, i))
     }
-    `))
+    `)
+    )
 
-    console.log(optimize(`
+    console.log(
+        optimize(`
     (i) -> {
         (id) -> {
             (recurse) -> {
@@ -135,9 +147,12 @@ export default async function test() {
             )
         }(__core__addInteger(i, i))
     }
-    `))
+    `)
+    )
 
-    console.log(optimize(`(__helios__common__list_0) -> {
+    console.log(
+        optimize(
+            `(__helios__common__list_0) -> {
         (arg0, arg1) -> {
           (b) -> {
             __core__constrData(__core__ifThenElse(
@@ -148,15 +163,22 @@ export default async function test() {
           }(__core__equalsInteger(__core__unIData(arg0), __core__unIData(arg1)))
         }
       }(__core__mkNilData(()))
-      `, 3))
+      `,
+            3
+        )
+    )
 
-      console.log(optimize(`(arg0) -> {
+    console.log(
+        optimize(`(arg0) -> {
         __core__iData((a) -> {
           0
         }(__core__unIData(arg0)))
-      }`));
+      }`)
+    )
 
-      console.log(optimize(`(__helios__common__list_0) -> {
+    console.log(
+        optimize(
+            `(__helios__common__list_0) -> {
         (__helios__bool____to_data) -> {
         (__helios__int__from_data) -> {
         (__helios__int____eq) -> {
@@ -219,9 +241,13 @@ export default async function test() {
           ), __helios__common__list_0)
         })
         }(__core__mkNilData(()))
-      `, 3));
+      `,
+            3
+        )
+    )
 
-      console.log(optimize(`(__helios__int____to_data) -> {
+    console.log(
+        optimize(`(__helios__int____to_data) -> {
         (__helios__int__from_data) -> {
         (__helios__int__min) -> {
         (__helios__int__bound_max) -> {
@@ -246,28 +272,40 @@ export default async function test() {
         })
         }(__core__unIData)
         }(__core__iData)
-    `));
+    `)
+    )
 
-        console.log(optimizeHelios(`
+    console.log(
+        optimizeHelios(`
     testing int_to_base58
     func main() -> String {
         a = 0x287fb4cd;
         a.to_base58()
     }
-    `))
+    `)
+    )
 
-    console.log(optimizeHelios(`
+    console.log(
+        optimizeHelios(`
     testing int_to_from_little_endian
     func main(a: Int) -> Bool {
         Int::from_little_endian(a.to_little_endian()) == a
-    }`))
+    }`)
+    )
 
-    console.log(optimizeHelios(`testing bytearray_starts_with_1
+    console.log(
+        optimizeHelios(
+            `testing bytearray_starts_with_1
     func main(a: ByteArray, b: ByteArray) -> Bool {
         (a+b).starts_with(a)
-    }`, 2));
+    }`,
+            2
+        )
+    )
 
-    console.log(optimizeHelios(`testing list_new_const
+    console.log(
+        optimizeHelios(
+            `testing list_new_const
     func main(n: Int, b: Int) -> Bool {
         lst: []Int = []Int::new_const(n, b);
         if (n < 0) {
@@ -275,51 +313,79 @@ export default async function test() {
         } else {
             lst.length == n && lst.all((v: Int) -> Bool {v == b})
         }
-    }`, 10));
+    }`,
+            10
+        )
+    )
 
-    console.log(optimizeHelios(`testing list_eq_2
+    console.log(
+        optimizeHelios(`testing list_eq_2
     func main(a: []Int, b: []Int) -> Bool {
         (a == b) == ((a.length == b.length) && (
             []Int::new(a.length, (i: Int) -> Int {i}).all((i: Int) -> Bool {
                 a.get(i) == b.get(i)
             })
         ))
-    }`));
+    }`)
+    )
 
-    console.log(optimizeHelios(`testing list_filter_get_singleton_iterator
+    console.log(
+        optimizeHelios(
+            `testing list_filter_get_singleton_iterator
     func main(a: []Int) -> Int {
         a
             .to_iterator()
             .map((item: Int) -> {item*2})
             .filter((item: Int) -> {item == 0})
             .get_singleton()
-    }`, 3));
+    }`,
+            3
+        )
+    )
 
-    console.log(optimizeHelios(`
+    console.log(
+        optimizeHelios(`
     testing list_split_at
     func main(a: []Int, b: Int) -> []Int {
       (c: []Int, d: []Int) = a.split_at(b);
 
       c + d
-    }`));
+    }`)
+    )
 
-    console.log(optimizeHelios(`testing list_add_1_alt
+    console.log(
+        optimizeHelios(
+            `testing list_add_1_alt
     func main(a: []Int) -> Bool {
         newLst: []Int = []Int{} + a;
         newLst == a
-    }`, 2))
+    }`,
+            2
+        )
+    )
 
-    console.log(optimizeHelios(`testing list_take_end
+    console.log(
+        optimizeHelios(
+            `testing list_take_end
     func main(a: []Int, n: Int) -> []Int {
         a.take_end(n)
-    }`, 3))
+    }`,
+            3
+        )
+    )
 
-    console.log(optimizeHelios(`testing timerange_never
+    console.log(
+        optimizeHelios(
+            `testing timerange_never
     func main(a: Int) -> Bool {
         TimeRange::NEVER.contains(Time::new(a))
-    }`, 2))
+    }`,
+            2
+        )
+    )
 
-    console.log(optimizeHelios(` testing map_find_value_safe
+    console.log(
+        optimizeHelios(` testing map_find_value_safe
     func main(a: Map[Int]Int) -> Option[Int] {
         (result: () -> (Int, Int), ok: Bool) = a.find_safe((_, v: Int) -> Bool {v == 0}); 
         if (ok) {
@@ -328,21 +394,29 @@ export default async function test() {
         } else {
             Option[Int]::None
         }
-    }`));
+    }`)
+    )
 
-    console.log(optimizeHelios(`testing hash_new
+    console.log(
+        optimizeHelios(`testing hash_new
     func main(a: PubKeyHash) -> Bool {
         []ByteArray{#70, #71, #72, #73, #74, #75, #76, #77, #78, #79, #7a, #7b, #7c, #7d, #7e, #7f}.any((ba: ByteArray) -> Bool {
             PubKeyHash::new(ba) == a
         })
-    }`))
+    }`)
+    )
 
-    console.log(optimizeHelios(`testing list_fold2_verbose
+    console.log(
+        optimizeHelios(
+            `testing list_fold2_verbose
     func main(a: []Int) -> Int {
         (sa: Int, sb: Int) = a.fold((sum: () -> (Int, Int), x: Int) -> () -> (Int, Int) {
             (sa_: Int, sb_: Int) = sum();
             () -> {(sa_ + x, sb_ + x)}
         }, () -> {(0, 0)})();
         (sa + sb)/2
-    }`, 10))
+    }`,
+            10
+        )
+    )
 }

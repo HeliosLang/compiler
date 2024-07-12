@@ -1,7 +1,8 @@
-import { runTestScript } from "../../test-runners.js";
+import { runTestScript } from "../../test-runners.js"
 
 export default async function test() {
-    await runTestScript(`
+    await runTestScript(
+        `
     testing tuple_data
 
     struct Struct {
@@ -12,5 +13,8 @@ export default async function test() {
         s = Struct{(1, 2, 3)};
         (a: Int, b: Int, _) = s.field;
         a == 1 && b == 2
-    }`, "data(1{})", []);
+    }`,
+        "data(1{})",
+        []
+    )
 }

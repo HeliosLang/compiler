@@ -1,17 +1,15 @@
 {
     "compilerOptions": {
-		"target": "es2020",
+        "target": "es2020",
         "allowJs": true,
         "declaration": true,
         "emitDeclarationOnly": true,
         "declarationMap": false,
-		"moduleResolution": "nodenext",
-		"skipLibCheck": true,
-		"types": [ "node" ],
+        "moduleResolution": "nodenext",
+        "skipLibCheck": true,
+        "types": ["node"],
         "paths": {
-            "helios": [
-                "../helios-internal.d.ts"
-            ]
+            "helios": ["../helios-internal.d.ts"]
         }
     }
 }

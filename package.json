@@ -1,48 +1,58 @@
 {
-  "name": "@hyperionbt/helios",
-  "type": "module",
-  "version": "0.16.7",
-  "description": "Helios is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Helios is a non-Haskell alternative to Plutus. With this library you can compile Helios scripts and build Cardano transactions, all you need to build 100% client-side dApps for Cardano.",
-  "main": "helios.js",
-  "types": "helios.d.ts",
-  "files": [
-    "helios.js",
-    "helios.d.ts",
-    "helios-internal.d.ts"
-  ],
-  "sideEffects": false,
-  "scripts": {
-    "prebuild": "node ./src/index.js && npx tsc --outFile ./helios-internal.d.ts && node ./utils/strip-internal.js && npx tsc --noEmit --target es2020 ./helios.d.ts",
-    "build": "npm test",
-    "pretest": "rm -fr ./test/node_modules/helios && mkdir -p ./test/node_modules && cd ./test/node_modules && ln -s ../../ ./helios",
-    "test": "node ./test/index.js",
-    "pub": "node ./utils/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./utils/latest-version.js)/ && npm publish ."
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/hyperion-bt/helios.git"
-  },
-  "author": "Christian Schmitz",
-  "license": "BSD-3-Clause",
-  "bugs": {
-    "url": "https://github.com/hyperion-bt/helios/issues"
-  },
-  "homepage": "https://www.hyperion-bt.org/helios-book",
-  "keywords": [
-    "blockchain",
-    "crypto",
-    "cryptocurrency",
-    "cardano",
-    "plutus",
-    "smart contracts",
-    "domain specific language",
-    "dsl",
-    "compiler",
-    "transaction builder",
-    "on-chain",
-    "off-chain"
-  ],
-  "devDependencies": {
-    "typescript": "^4.9.5"
-  }
+    "name": "@helios-lang/compiler",
+    "version": "0.17.0",
+    "description": "Helios is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Helios is a non-Haskell alternative to Plutus. With this library you can compile Helios scripts and build Cardano transactions, all you need to build 100% client-side dApps for Cardano.",
+    "main": "src/index.js",
+    "types": "types/index.d.ts",
+    "type": "module",
+    "author": "Christian Schmitz",
+    "license": "BSD-3-Clause",
+    "scripts": {
+        "prebuild": "node ./src/index.js && npx tsc --outFile ./helios-internal.d.ts && node ./utils/strip-internal.js && npx tsc --noEmit --target es2020 ./helios.d.ts",
+        "build": "npm test",
+        "pretest": "rm -fr ./test/node_modules/helios && mkdir -p ./test/node_modules && cd ./test/node_modules && ln -s ../../ ./helios",
+        "prettify": "npx prettier . --write",
+        "test": "node ./test/index.js",
+        "test:types": "npx tsc -p jsconfig.json --noEmit",
+        "pub": "node ./utils/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./utils/latest-version.js)/ && npm publish ."
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/HeliosLang/compiler.git"
+    },
+    "prettier": {
+        "trailingComma": "none",
+        "tabWidth": 4,
+        "semi": false,
+        "singleQuote": false
+    },
+    "bugs": {
+        "url": "https://github.com/HeliosLang/compiler/issues"
+    },
+    "homepage": "https://www.hyperion-bt.org/helios-book",
+    "keywords": [
+        "blockchain",
+        "crypto",
+        "cryptocurrency",
+        "cardano",
+        "plutus",
+        "smart contracts",
+        "domain specific language",
+        "dsl",
+        "compiler",
+        "transaction builder",
+        "on-chain",
+        "off-chain"
+    ],
+    "devDependencies": {
+        "prettier": "^3.3.2",
+        "typescript": "^4.9.5"
+    },
+    "dependencies": {
+        "@helios-lang/codec-utils": "^0.1.32",
+        "@helios-lang/compiler-utils": "^0.1.48",
+        "@helios-lang/ir": "^0.1.1",
+        "@helios-lang/type-utils": "^0.1.19",
+        "@helios-lang/uplc": "^0.1.34"
+    }
 }

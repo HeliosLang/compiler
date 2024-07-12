@@ -8,8 +8,8 @@ Before applying optimization the IR AST is [evaluated](./ir-evaluation.md). The 
 
 ## Optimization steps
 
-  1. evaluation
-  2. optimize topology (inlining, eliminating unused args, etc.)
+1. evaluation
+2. optimize topology (inlining, eliminating unused args, etc.)
 
 ## Evaluating literals
 
@@ -163,8 +163,9 @@ Can't be done if `<msg-expr>` throws an error. Sadly decodeUtf8 will be used thr
 Simplifying literals requires a (pseudo)-evaluation of the IR. Though less efficient, a simple recursive algorithm can be used.
 
 Each term can return one of the following value types:
-  * IRLiteralValue (wraps UplcValue, similar to IRLiteralExpr)
-  * IRErrorValue (potential error thrown by expression returning this value)
-  * IRDataValue (generic data value which can't be known during compile time)
-  * IRFuncValue (each IRFuncValue, containing a callback function wrapping the associated IRFuncExpr or builtin func)
-  * IRMultiValue (a set of any other value type above)
+
+-   IRLiteralValue (wraps UplcValue, similar to IRLiteralExpr)
+-   IRErrorValue (potential error thrown by expression returning this value)
+-   IRDataValue (generic data value which can't be known during compile time)
+-   IRFuncValue (each IRFuncValue, containing a callback function wrapping the associated IRFuncExpr or builtin func)
+-   IRMultiValue (a set of any other value type above)

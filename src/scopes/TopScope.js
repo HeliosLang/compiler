@@ -1,0 +1,80 @@
+import { Word } from "@helios-lang/compiler-utils"
+import { GlobalScope } from "./GlobalScope.js"
+import { ModuleScope } from "./ModuleScope.js"
+import { Scope } from "./Scope.js"
+
+/**
+ * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
+ */
+
+/**
+ * TopScope is a special scope that can contain UserTypes
+ * @internal
+ */
+export class TopScope extends Scope {
+    #strict
+
+    /**
+     * @param {GlobalScope} parent
+     * @param {boolean} strict
+     */
+    constructor(parent, strict = true) {
+        super(parent)
+        this.#strict = strict
+    }
+
+    /**
+     * Prepends "__scope__" to name before actually setting scope
+     * @param {Word} name
+     * @param {Scope} value
+     */
+    setScope(name, value) {
+        if (name.value.startsWith("__scope__")) {
+            throw new Error("unexpected")
+        }
+
+        this.set(new Word(`__scope__${name.value}`, name.site), value)
+    }
+
+    /**
+     * @param {Word} name
+     * @param {EvalEntity | Scope} value
+     */
+    set(name, value) {
+        super.setInternal(name, value, false)
+    }
+
+    /**
+     * @param {boolean} s
+     */
+    setStrict(s) {
+        this.#strict = s
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isStrict() {
+        return this.#strict
+    }
+
+    /**
+     * @param {Word} name
+     * @returns {ModuleScope}
+     */
+    getModuleScope(name) {
+        if (name.value.startsWith("__scope__")) {
+            throw new Error("unexpected")
+        }
+
+        const maybeModuleScope = this.get(
+            new Word(`__scope__${name.value}`, name.site)
+        )
+
+        if (maybeModuleScope instanceof ModuleScope) {
+            return maybeModuleScope
+        } else {
+            throw new Error("expected ModuleScope")
+        }
+    }
+}

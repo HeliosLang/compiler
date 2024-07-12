@@ -2,4 +2,12 @@ doc/*
 examples/*
 .*
 *.txt
-examples/README.md
+node_modules
+*.swp
+log.*
+*.log
+.prettierignore
+.vscode
+*.test.js
+*.test.d.ts
+*.test.d.ts.map

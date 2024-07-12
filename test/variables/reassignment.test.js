@@ -1,15 +1,15 @@
 import {
-	assert,
-	config,
-	textToBytes,
-	Site,
-	Program,
-	MapData,
-	ConstrData,
-	UplcDataValue,
-	ByteArrayData,
-	IntData,
-	ToIRContext
+    assert,
+    config,
+    textToBytes,
+    Site,
+    Program,
+    MapData,
+    ConstrData,
+    UplcDataValue,
+    ByteArrayData,
+    IntData,
+    ToIRContext
 } from "helios"
 
 function test1() {
@@ -23,7 +23,7 @@ func main(a: Int) -> Int {
 }
 `
 
-	Program.new(src)
+    Program.new(src)
 }
 
 function test2() {
@@ -40,7 +40,7 @@ func main(a: Int) -> Int {
 }
 `
 
-	Program.new(src)
+    Program.new(src)
 }
 
 export default async function test() {

@@ -1,5 +1,5 @@
 /**
- * @param {boolean} useInlineDatum 
+ * @param {boolean} useInlineDatum
  * @returns {string}
  */
 export function spendingScriptContextParam(useInlineDatum) {
@@ -65,5 +65,5 @@ export function spendingScriptContextParam(useInlineDatum) {
             CURRENT_TX_ID
         )
         const SCRIPT_CONTEXT: ScriptContext = ScriptContext::new_spending(TX, TX_OUTPUT_ID_IN)
-    `;
+    `
 }

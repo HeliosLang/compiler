@@ -1,8 +1,9 @@
 import { Program, assert } from "helios"
-import { runTestScript } from "../test-runners.js";
+import { runTestScript } from "../test-runners.js"
 
 export default async function test() {
-    await runTestScript(`
+    await runTestScript(
+        `
     testing enum_scope
 
     func helper(a: Int, b: Int) -> Int {
@@ -29,9 +30,13 @@ export default async function test() {
     func main() -> Bool {
         e = Enum::B{10};
         e.helper() == 20
-    }`, "data(1{})", []);
+    }`,
+        "data(1{})",
+        []
+    )
 
-    const program = Program.new(`
+    const program = Program.new(
+        `
     testing enum_scope_imported
     
     import { helper } from Helpers
@@ -56,13 +61,15 @@ export default async function test() {
         e = Enum::B{10};
         e.helper() == 20
     }
-    `, [
-        `module Helpers
+    `,
+        [
+            `module Helpers
         
         func helper(a: Int, b: Int) -> Int {
             a + b
         }`
-    ])
+        ]
+    )
 
     assert((await program.compile(true).run([])).toString() == "data(1{})")
 }

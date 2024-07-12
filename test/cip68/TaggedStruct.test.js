@@ -1,10 +1,7 @@
-import {
-	assert,
-	Program
-} from "helios"
+import { assert, Program } from "helios"
 
 export default async function test() {
-	const src = `
+    const src = `
 testing tagged_struct
 
 struct TaggedStruct {
@@ -20,14 +17,13 @@ func main() -> TaggedStruct {
 }
 `
 
-	const program = Program.new(src)
+    const program = Program.new(src)
 
+    const res = await program.compile().run([])
 
-	const res = await program.compile().run([])
+    const json = res.data.toSchemaJson()
 
-	const json = res.data.toSchemaJson()
+    console.log(json)
 
-	console.log(json)
-
-	assert(JSON.parse(json).fields[0].map[1].v.int == 5)
+    assert(JSON.parse(json).fields[0].map[1].v.int == 5)
 }

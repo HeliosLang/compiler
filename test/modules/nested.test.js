@@ -1,9 +1,10 @@
 // test to make sure trace shows correct line-number/file
 
-import { Program } from "helios";
+import { Program } from "helios"
 
 export default async function test() {
-    const program = Program.new(`
+    const program = Program.new(
+        `
     testing nested_modules
 
     import { foo } from Foo
@@ -11,8 +12,9 @@ export default async function test() {
     func main() -> Bool {
         foo()
     }
-    `, [
-        `
+    `,
+        [
+            `
         module Foo
         
         import { bar } from Bar
@@ -21,7 +23,7 @@ export default async function test() {
             bar()
         }
         `,
-        `module Bar
+            `module Bar
         
         func bar() -> Bool {
             if (1 == 1) {
@@ -29,7 +31,8 @@ export default async function test() {
             };
             true
         }`
-    ]);
+        ]
+    )
 
     console.log((await program.compile(false).run([])).toString())
 }

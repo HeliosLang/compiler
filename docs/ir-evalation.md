@@ -16,19 +16,19 @@ Once the root expression is unwrapped into the Compute stack, the main evaluatio
 
 The main loop of the IR evaluator starts by popping the head item from the Compute stack.
 
-* An `IRErrorExpr` results in an `IRErrorValue` being pushed onto the Reduction stack.
-* An `IRLiteralExpr` results in an `IRLiteralValue` being pushed onto the Reduction stack.
-* An `IRNameExpr` results in different things being pushed onto the Reduction stack, depending on the name.
-  * If the name has a `__PARAM` prefix it results in an `IRDataValue`
-  * If the name has a `__core` prefix it results in `IRFuncValue`, using the `IRStack` that was attached to the expression
-  * Else the name's `IRVariable` is used to find the associated `IRValue` in the `IRStack`
-* An `IRFuncExpr` results in an `IRFuncValue` being pushed onto the Reduction stack, using the `IRStack` that was attached to the expression
-* An `IRCallExpr` pops its lhs value, and then its arguments, from the Reduction stack
-  * If the lhs is an `IRAnyValue`, a call to each `IRFuncValue` is pushed onto the Compute stack (using only `IRAnyValue` args). If any of these `IRFuncValue`s returns an `IRErrorValue` then the resulting value pushed onto the Reduction stack is `(IRAnyValue | IRErrorValue)`, otherwise it is `IRAnyValue`.
-  * If the lhs is an `IRDataValue` or an `IRLiteralValue`, throw an error because that is unexpected.
-  * If the lhs or any of the args is an `IRErrorValue`, then push an `IRErrorValue` onto the Reduction stack.
-  * If the lhs is an `IRFuncValue`, actually call it (see below)
-  * If the lhs is an `IRMultiValue`, collect the result of calling each entry in the `IRMultiValue` separately
+-   An `IRErrorExpr` results in an `IRErrorValue` being pushed onto the Reduction stack.
+-   An `IRLiteralExpr` results in an `IRLiteralValue` being pushed onto the Reduction stack.
+-   An `IRNameExpr` results in different things being pushed onto the Reduction stack, depending on the name.
+    -   If the name has a `__PARAM` prefix it results in an `IRDataValue`
+    -   If the name has a `__core` prefix it results in `IRFuncValue`, using the `IRStack` that was attached to the expression
+    -   Else the name's `IRVariable` is used to find the associated `IRValue` in the `IRStack`
+-   An `IRFuncExpr` results in an `IRFuncValue` being pushed onto the Reduction stack, using the `IRStack` that was attached to the expression
+-   An `IRCallExpr` pops its lhs value, and then its arguments, from the Reduction stack
+    -   If the lhs is an `IRAnyValue`, a call to each `IRFuncValue` is pushed onto the Compute stack (using only `IRAnyValue` args). If any of these `IRFuncValue`s returns an `IRErrorValue` then the resulting value pushed onto the Reduction stack is `(IRAnyValue | IRErrorValue)`, otherwise it is `IRAnyValue`.
+    -   If the lhs is an `IRDataValue` or an `IRLiteralValue`, throw an error because that is unexpected.
+    -   If the lhs or any of the args is an `IRErrorValue`, then push an `IRErrorValue` onto the Reduction stack.
+    -   If the lhs is an `IRFuncValue`, actually call it (see below)
+    -   If the lhs is an `IRMultiValue`, collect the result of calling each entry in the `IRMultiValue` separately
 
 ### Calling an `IRFuncValue`
 

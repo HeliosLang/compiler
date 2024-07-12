@@ -1,11 +1,12 @@
 # IR
 
 Helios compiles a set of scripts into an Internal Representation. This IR is a simplified version of Helios, and only uses a few expression terms:
-  * IRNameExpr
-  * IRCallExpr
-  * IRFuncExpr
-  * IRLiteralExpr
-  * IRErrorCallExpr
+
+-   IRNameExpr
+-   IRCallExpr
+-   IRFuncExpr
+-   IRLiteralExpr
+-   IRErrorCallExpr
 
 ## IRNameExpr
 

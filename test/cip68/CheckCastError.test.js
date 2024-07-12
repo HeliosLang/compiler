@@ -1,23 +1,23 @@
 import {
-	assert,
-	config,
-	textToBytes,
-	Site,
-	Program,
-	MapData,
-	ConstrData,
-	UplcDataValue,
-	ByteArrayData,
-	IntData,
-	ToIRContext
+    assert,
+    config,
+    textToBytes,
+    Site,
+    Program,
+    MapData,
+    ConstrData,
+    UplcDataValue,
+    ByteArrayData,
+    IntData,
+    ToIRContext
 } from "helios"
 
 export default async function test() {
-	config.set({
-		CHECK_CASTS: true
-	})
+    config.set({
+        CHECK_CASTS: true
+    })
 
-	const src = `
+    const src = `
 testing tagged_struct
 
 struct TaggedStruct {
@@ -32,22 +32,20 @@ func main(s: TaggedStruct) -> TaggedStruct {
 }
 `
 
-	const program = Program.new(src)
+    const program = Program.new(src)
 
-	const arg = new UplcDataValue(
-		Site.dummy(), 
-		new ConstrData(
-			0, [
-				new MapData([
-					[new ByteArrayData(textToBytes("@")), new IntData(0n)],
-					[new ByteArrayData(textToBytes("ello-world")), new IntData(10n)]
-				]),
-				new IntData(1n)
-			]
-		)
-	)
+    const arg = new UplcDataValue(
+        Site.dummy(),
+        new ConstrData(0, [
+            new MapData([
+                [new ByteArrayData(textToBytes("@")), new IntData(0n)],
+                [new ByteArrayData(textToBytes("ello-world")), new IntData(10n)]
+            ]),
+            new IntData(1n)
+        ])
+    )
 
-	const res = await program.compile().run([arg])
+    const res = await program.compile().run([arg])
 
-	assert(res.message.includes("not found"))
+    assert(res.message.includes("not found"))
 }

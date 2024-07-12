@@ -9,30 +9,39 @@ import {
     extractScriptPurposeAndName
 } from "helios"
 
-import { runTestScript, runTestScriptWithArgs } from "./test-runners.js";
+import { runTestScript, runTestScriptWithArgs } from "./test-runners.js"
 
 export default async function main() {
     // start of integration tests
 
     // 1. hello_world_true
-    await runTestScript(`
+    await runTestScript(
+        `
     testing hello_world_true
     func main() -> Bool {
         print("hello world");
         true
-    }`, "data(1{})", ["hello world"]);
+    }`,
+        "data(1{})",
+        ["hello world"]
+    )
 
     // 2. hello_world_false
-    await runTestScript(`
+    await runTestScript(
+        `
     testing hello_world_false
     func main() -> Bool {
         print("hello world");
         !true
-    }`, "data(0{})", ["hello world"]);
+    }`,
+        "data(0{})",
+        ["hello world"]
+    )
 
     // 3. hello_number
     // * non-main function statement
-    await runTestScript(`
+    await runTestScript(
+        `
     testing hello_number
     func print_message(a: Int) -> String {
         "hello number " + a.show()
@@ -40,13 +49,17 @@ export default async function main() {
     func main() -> Bool {
         print(print_message(0) + "");
         !true
-    }`, "data(0{})", ["hello number 0"]);
+    }`,
+        "data(0{})",
+        ["hello number 0"]
+    )
 
     // 4. my_struct
     // * struct statement
     // * struct literal
     // * struct getters
-    await runTestScript(`
+    await runTestScript(
+        `
     testing my_struct
     struct MyStruct {
         a: Int
@@ -55,13 +68,17 @@ export default async function main() {
     func main() -> Int {
         x: MyStruct = MyStruct{a: 1, b: 1};
         x.a + x.b
-    }`, "data(2)", []);
+    }`,
+        "data(2)",
+        []
+    )
 
     // 4. owner_value
     // * struct statement
     // * struct literal
     // * struct getters
-    await runTestScript(`
+    await runTestScript(
+        `
     testing owner_value
     struct Datum {
         owner: PubKeyHash
@@ -74,11 +91,15 @@ export default async function main() {
         };
         print(d.owner.show());
         d.value > Value::ZERO
-    }`, "data(1{})", ["1234"]);
+    }`,
+        "data(1{})",
+        ["1234"]
+    )
 
     // 5. fibonacci
     // * recursive function statement
-    await runTestScript(`
+    await runTestScript(
+        `
     testing fibonacci
     func fibonacci(n: Int) -> Int {
         if (n < 2) {
@@ -89,11 +110,15 @@ export default async function main() {
     }
     func main() -> Int {
         fibonacci(5)
-    }`, "data(8)", []);
+    }`,
+        "data(8)",
+        []
+    )
 
     // 6. fibonacci2
     // * calling a non-function
-    await runTestScript(`
+    await runTestScript(
+        `
     testing fibonacci2
     func fibonacci(n: Int) -> Int {
         if (n < 2) {
@@ -105,11 +130,15 @@ export default async function main() {
     func main() -> Bool {
         x: ByteArray = #32423acd232;
         (fibonacci(1) == 1) && x.length() == 12
-    }`, "unable to call Int", []);
+    }`,
+        "unable to call Int",
+        []
+    )
 
     // 7. mutual recursion
     // * mutual recursive struct statements in wrong order
-    await runTestScript(`
+    await runTestScript(
+        `
     testing mutual_recursion
 
     struct Wrapper {
@@ -132,30 +161,42 @@ export default async function main() {
         w = Wrapper{1};
 
         w.fn1()
-    }`, "data(1)", []);
+    }`,
+        "data(1)",
+        []
+    )
 
     // 8. list_get ok
-    await runTestScript(`
+    await runTestScript(
+        `
     testing list_get
     func main() -> Bool {
         x: []Int = []Int{1, 2, 3};
         print(x.get(0).show());
         x.get(2) == 3
-    }`, "data(1{})", ["1"]);
+    }`,
+        "data(1{})",
+        ["1"]
+    )
 
     // 9. list_get nok
     // * error thrown by builtin
-    await runTestScript(`
+    await runTestScript(
+        `
     testing list_get
     func main() -> Bool {
         x = []Int{1, 2, 3};
         print(x.get(0).show());
         x.get(-1) == 3
-    }`, "index out of range", ["1"]);
+    }`,
+        "index out of range",
+        ["1"]
+    )
 
     // 10. multiple_args
     // * function that takes more than 1 arguments
-    await runTestScript(`
+    await runTestScript(
+        `
     testing multiple_args
     func concat(a: String, b: String) -> String {
         a + b
@@ -163,11 +204,15 @@ export default async function main() {
     func main() -> Bool {
         print(concat("hello ", "world"));
         true
-    }`, "data(1{})", ["hello world"]);
+    }`,
+        "data(1{})",
+        ["hello world"]
+    )
 
     // 11. collatz recursion
     // * recursion
-    await runTestScript(`
+    await runTestScript(
+        `
     testing collatz
     func collatz(current: Int, accumulator: []Int) -> []Int {
         if (current == 1) {
@@ -180,11 +225,15 @@ export default async function main() {
     }
     func main() -> []Int {
         collatz(3, []Int{})
-    }`, "data([1, 2, 4, 8, 16, 5, 10, 3])", []);
+    }`,
+        "data([1, 2, 4, 8, 16, 5, 10, 3])",
+        []
+    )
 
     // 12. list_any
     // * member function as value
-    await runTestScript(`
+    await runTestScript(
+        `
     testing list_any
     func main_inner(fnAny: ((Int) -> Bool) -> Bool) -> Bool {
         fnAny((i: Int) -> Bool {
@@ -193,10 +242,14 @@ export default async function main() {
     }
     func main() -> Bool {
         main_inner([]Int{1,2,3,4,5,6,10}.any)
-    }`, "data(1{})", []);
-    
+    }`,
+        "data(1{})",
+        []
+    )
+
     // 13. value_get
-    await runTestScript(`
+    await runTestScript(
+        `
     testing value_get
     func main() -> []Int {
         ac1: AssetClass = AssetClass::new(MintingPolicyHash::new(#1234), #1234);
@@ -207,10 +260,14 @@ export default async function main() {
         x: Value = Value::new(ac1, 100) + Value::new(ac2, 200) - Value::new(ac1, 50);
 
         []Int{x.get(ac1), x.get(ac2), x.get(ac3)}
-    }`, "not found", []);
+    }`,
+        "not found",
+        []
+    )
 
     // 14. switch_redeemer
-    await runTestScript(`
+    await runTestScript(
+        `
     testing staking
     enum Redeemer {
         Unstake
@@ -229,10 +286,14 @@ export default async function main() {
         print(main_internal(Redeemer::Reward).show());
         print(main_internal(Redeemer::Migrate).show());
         true
-    }`, "data(1{})", ["false", "true", "false"]);
+    }`,
+        "data(1{})",
+        ["false", "true", "false"]
+    )
 
     // 15. struct method recursion
-    await runTestScript(`
+    await runTestScript(
+        `
     testing fibonacci_struct
     struct Fib {
         a: Int
@@ -252,10 +313,14 @@ export default async function main() {
     func main() -> Int {
         fib = Fib{a: 0, b: 1};
         fib.calc(5)
-    }`, "data(13)", []);
+    }`,
+        "data(13)",
+        []
+    )
 
     // 16. enum method recursion
-    await runTestScript(`
+    await runTestScript(
+        `
     testing fibonacci_enum
     enum Fib {
         One{
@@ -295,9 +360,13 @@ export default async function main() {
         fib = Fib::One{a: 0, b: 1};
         print(fib.calc(5).show());
         Fib::Two{a: 0, b: 1}.calc(6)
-    }`, "data(21)", ["13"]);
+    }`,
+        "data(21)",
+        ["13"]
+    )
 
-    await runTestScript(`
+    await runTestScript(
+        `
     testing opt_args_wrong_syntax
 
     func opt_args(a: Int, b: Int, c: Int = 0) -> Int {
@@ -307,9 +376,13 @@ export default async function main() {
     func main() -> Int {
         opt_args(a: 10, 10)
     }
-    `, "can't mix positional and named args", []);
+    `,
+        "can't mix positional and named args",
+        []
+    )
 
-    await runTestScript(`
+    await runTestScript(
+        `
     testing opt_args_wrong_syntax
 
     func opt_args(a: Int, b: Int, c: Int = 0) -> Int {
@@ -320,9 +393,13 @@ export default async function main() {
         fn: (a: Int, Int, ?Int) -> Int = opt_args;
         fn(10, 10)
     }
-    `, "can't mix named and unnamed args in func type", []);
+    `,
+        "can't mix named and unnamed args in func type",
+        []
+    )
 
-    await runTestScript(`
+    await runTestScript(
+        `
     testing mix_opt_and_multi
 
     func multi() -> (Int, Int) {
@@ -336,9 +413,13 @@ export default async function main() {
     func main() -> Int {
         fn: (Int, ?Int, ?Int) -> Int = opt;
         fn(multi()) + fn(2, multi()) + opt(a: 1, c: 10)
-    }`, "data(21)", []);
+    }`,
+        "data(21)",
+        []
+    )
 
-    await runTestScript(`
+    await runTestScript(
+        `
     testing copy_1
 
     struct Datum {
@@ -356,9 +437,13 @@ export default async function main() {
         d0: Datum = d.copy(2);
         d1: Datum = d.copy(c: 10);
         d0.sum() + d1.sum()
-    }`, "data(20)", []);
+    }`,
+        "data(20)",
+        []
+    )
 
-	await runTestScriptWithArgs(`testing nestNFT
+    await runTestScriptWithArgs(
+        `testing nestNFT
     const NOTHING: Value = Value::lovelace(0)
 
 	enum Redeemer{
@@ -481,9 +566,14 @@ export default async function main() {
 	const REDEEMER: Redeemer = Redeemer::Convert{
 		mph: MPH,
 		policyConverted: MPH
-	}`, ["REDEEMER", "SCRIPT_CONTEXT"], "data(0{})", []);
+	}`,
+        ["REDEEMER", "SCRIPT_CONTEXT"],
+        "data(0{})",
+        []
+    )
 
-    await runTestScriptWithArgs(`
+    await runTestScriptWithArgs(
+        `
     testing handles_personalization
 
     enum Redeemer {
@@ -561,5 +651,9 @@ export default async function main() {
             TxId::new(#9876543210012345678901234567890123456789012345678901234567891234)
         ),
         TxOutputId::new(TxId::new(#0123456789012345678901234567890123456789012345678901234567891234), 0)
-    )`, ["good_datum", "update_nft_redeemer_good", "ctx_good_default"], "data(1{})", []);
+    )`,
+        ["good_datum", "update_nft_redeemer_good", "ctx_good_default"],
+        "data(1{})",
+        []
+    )
 }

@@ -1,16 +1,12 @@
 //@ts-check
-import {
-    Program,
-    UplcProgram,
-    UserError
-} from "helios"
+import { Program, UplcProgram, UserError } from "helios"
 
 async function test1() {
     const moduleSrc = `
     module my_module
 
     const test: Int = 0
-    `;
+    `
 
     const mainSrc = `
     testing my_script
@@ -22,21 +18,21 @@ async function test1() {
     }
     
     const QTY: Int = 10
-    `;
+    `
 
-    let program = Program.new(mainSrc, [moduleSrc]);
+    let program = Program.new(mainSrc, [moduleSrc])
 
-    console.log(program.dumpIR(false));
-    console.log(program.dumpIR(true));
+    console.log(program.dumpIR(false))
+    console.log(program.dumpIR(true))
 
     // also test the transfer() function
-    let uplcProgram = program.compile(false).transfer(UplcProgram);
-    let result = await uplcProgram.run([]);
+    let uplcProgram = program.compile(false).transfer(UplcProgram)
+    let result = await uplcProgram.run([])
 
-    console.log(result.toString());
+    console.log(result.toString())
 
-    program.parameters.QTY = 20;
-    console.log(program.evalParam("QTY").toString());
+    program.parameters.QTY = 20
+    console.log(program.evalParam("QTY").toString())
 }
 
 async function test2() {
@@ -44,13 +40,13 @@ async function test2() {
     module m1
     
     const test: Int = 1
-    `;
+    `
 
     const module2 = `
     module m2
 
     import {test as test_} from m1
-    `;
+    `
 
     const main = `
     testing my_script
@@ -60,18 +56,18 @@ async function test2() {
     func main() -> Int  {
         test_
     }
-    `;
+    `
 
-    let program = Program.new(main, [module1, module2]);
+    let program = Program.new(main, [module1, module2])
 
-    console.log(program.dumpIR(false));
-    console.log(program.dumpIR(true));
+    console.log(program.dumpIR(false))
+    console.log(program.dumpIR(true))
 
     // also test transfer() function
-    let uplcProgram = program.compile(false).transfer(UplcProgram);
-    let result = await uplcProgram.run([]);
+    let uplcProgram = program.compile(false).transfer(UplcProgram)
+    let result = await uplcProgram.run([])
 
-    console.log(result.toString());
+    console.log(result.toString())
 }
 
 async function test3() {
@@ -82,7 +78,7 @@ async function test3() {
         a: Int
         b: Int
     }
-    `;
+    `
 
     const main = `
     spending my_script
@@ -91,11 +87,11 @@ async function test3() {
 
     func main(d: Datum, _, _) -> Bool {
         d.a == d.b
-    }`;
+    }`
 
-    let program = Program.new(main, [moduleSrc]);
+    let program = Program.new(main, [moduleSrc])
 
-    console.log(program.dumpIR());
+    console.log(program.dumpIR())
 }
 
 async function test4() {
@@ -103,13 +99,13 @@ async function test4() {
     module m1
 
     import {test} from m2
-    `;
+    `
 
     const module2 = `
     module m2
     
     import {test} from m1
-    `;
+    `
 
     const main = `
     testing my_script
@@ -118,18 +114,18 @@ async function test4() {
 
     func main() -> Int {
         test
-    }`;
+    }`
 
     try {
-        Program.new(main, [module1, module2]);
+        Program.new(main, [module1, module2])
     } catch (e) {
         if (e instanceof UserError) {
             if (e.message.includes("circular import detected")) {
-                return;
+                return
             }
         }
 
-        throw e;
+        throw e
     }
 }
 
@@ -138,7 +134,7 @@ async function test5() {
     module my_module
     
     const vh: ValidatorHash = ValidatorHash::new(#00112233445566778899001122334455667788990011223344556677)
-    `;
+    `
 
     const mainSrc = `
     testing my_script
@@ -150,9 +146,9 @@ async function test5() {
     import {vh} from my_module
 
     const VH: ValidatorHash = vh
-    `;
+    `
 
-    let program = Program.new(mainSrc, [moduleSrc]);
+    let program = Program.new(mainSrc, [moduleSrc])
 
     console.log(program.evalParam("VH").toString())
 }
@@ -162,13 +158,13 @@ async function test6() {
     module Module1
     
     const test: Int = 1
-    `;
+    `
 
     const module2 = `
     module Module2
 
     import Module1
-    `;
+    `
 
     const main = `
     testing my_script
@@ -179,32 +175,32 @@ async function test6() {
     func main() -> Int  {
         RenamedModule1::test + Module2::Module1::test + 1_000_000.000.round()
     }
-    `;
+    `
 
-    console.log("Testing namespace import");
+    console.log("Testing namespace import")
 
-    let program = Program.new(main, [module1, module2]);
+    let program = Program.new(main, [module1, module2])
 
-    console.log(program.dumpIR());
-    console.log(program.dumpIR(true));
+    console.log(program.dumpIR())
+    console.log(program.dumpIR(true))
 
     // also test the transfer() function
-    let uplcProgram = program.compile(false).transfer(UplcProgram);
-    let result = await uplcProgram.run([]);
+    let uplcProgram = program.compile(false).transfer(UplcProgram)
+    let result = await uplcProgram.run([])
 
-    console.log(result.toString());
+    console.log(result.toString())
 }
 
 export default async function main() {
-    await test1();
+    await test1()
 
-    await test2();
+    await test2()
 
-    await test3();
+    await test3()
 
-    await test4();
+    await test4()
 
-    await test5();
+    await test5()
 
-    await test6();
+    await test6()
 }

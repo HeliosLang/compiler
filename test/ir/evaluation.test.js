@@ -6,7 +6,7 @@ import {
     annotateIR,
     buildIRExpr,
     tokenizeIR
-} from "helios";
+} from "helios"
 
 function compileHeliosAndAnnotate(src) {
     const program = Program.new(src)
@@ -17,70 +17,85 @@ function compileHeliosAndAnnotate(src) {
 }
 
 function compileAndAnnotate(src) {
-    const ir = tokenizeIR(src);
+    const ir = tokenizeIR(src)
 
-    const expr = buildIRExpr(ir);
+    const expr = buildIRExpr(ir)
 
-    const scope = new IRScope(null, null);
+    const scope = new IRScope(null, null)
 
-    expr.resolveNames(scope);
+    expr.resolveNames(scope)
 
-    const evaluation = new IREvaluator();
+    const evaluation = new IREvaluator()
 
-    evaluation.eval(expr);
+    evaluation.eval(expr)
 
-    return annotateIR(evaluation, expr);
+    return annotateIR(evaluation, expr)
 }
 
 export default async function test() {
-    console.log(compileAndAnnotate(
-        `(a, b) -> {
+    console.log(
+        compileAndAnnotate(
+            `(a, b) -> {
             a
         }`
-    ));
+        )
+    )
 
-    console.log(compileAndAnnotate(
-        `(a, b) -> {
+    console.log(
+        compileAndAnnotate(
+            `(a, b) -> {
             __core__divideInteger(a, b)
         }`
-    ));
+        )
+    )
 
-    console.log(compileHeliosAndAnnotate(
-        `testing int_div_0
+    console.log(
+        compileHeliosAndAnnotate(
+            `testing int_div_0
     
         func main(a: Int) -> Int {
             a / 0
         }`
-    ));
+        )
+    )
 
-    console.log(compileHeliosAndAnnotate(
-        `testing int_decode_zigzag
+    console.log(
+        compileHeliosAndAnnotate(
+            `testing int_decode_zigzag
     
         func main(a: Int) -> Int {
             a.decode_zigzag()
         }`
-    ));
+        )
+    )
 
-    console.log(compileHeliosAndAnnotate(`
+    console.log(
+        compileHeliosAndAnnotate(`
     testing int_to_from_little_endian
     func main(a: Int) -> Bool {
         Int::from_little_endian(a.to_little_endian()) == a
-    }`));
+    }`)
+    )
 
-    console.log(compileHeliosAndAnnotate(`
+    console.log(
+        compileHeliosAndAnnotate(`
     testing int_parse
     func main(a: Int) -> Bool {
         Int::parse(a.show()) == a
-    }`));
+    }`)
+    )
 
-    console.log(compileAndAnnotate(
-        `(a, b) -> {
+    console.log(
+        compileAndAnnotate(
+            `(a, b) -> {
             __core__multiplyInteger(__core__divideInteger(a, b), 0)
         }`
-    ));
+        )
+    )
 
-    console.log(compileAndAnnotate(
-        `(a) -> {
+    console.log(
+        compileAndAnnotate(
+            `(a) -> {
             (recurse) -> {
                 recurse(recurse, a)
             }(
@@ -97,10 +112,12 @@ export default async function test() {
                 }
             )
         }`
-    ));
+        )
+    )
 
-    console.log(compileAndAnnotate(
-        `(a) -> {
+    console.log(
+        compileAndAnnotate(
+            `(a) -> {
             (recurse) -> {
                 recurse(recurse, a)
             }(
@@ -117,19 +134,23 @@ export default async function test() {
                 }
             )
         }`
-    ));
+        )
+    )
 
-    console.log(compileAndAnnotate(
-        `(arg0) -> {
+    console.log(
+        compileAndAnnotate(
+            `(arg0) -> {
             __core__iData((a) -> {
               0
             }(__core__unIData(arg0)))
           }
           `
-    ));
+        )
+    )
 
-    console.log(compileAndAnnotate(
-        `(arg0) -> {
+    console.log(
+        compileAndAnnotate(
+            `(arg0) -> {
               (b) -> {
                 __core__constrData(__core__ifThenElse(
                   b,
@@ -166,9 +187,11 @@ export default async function test() {
                 }(a)), a)
               }(__core__unIData(arg0)))
         }`
-    ));
+        )
+    )
 
-    console.log(compileAndAnnotate(`(arg0) -> {
+    console.log(
+        compileAndAnnotate(`(arg0) -> {
         __core__constrData(__core__ifThenElse(
           (a) -> {
             __core__equalsInteger((bytes) -> {
@@ -214,9 +237,11 @@ export default async function test() {
           0
         ), __core__mkNilData(()))
       }
-      `))
+      `)
+    )
 
-      console.log(compileAndAnnotate(`(__helios__string____to_data) -> {
+    console.log(
+        compileAndAnnotate(`(__helios__string____to_data) -> {
                 (__helios__error) -> {
         (__helios__common__BASE58_ALPHABET) -> {
         (__helios__int__to_base58) -> {
@@ -265,58 +290,73 @@ export default async function test() {
         }((s) -> {
           __core__bData(__core__encodeUtf8(s))
         })
-      `));
+      `)
+    )
 
-      console.log(compileHeliosAndAnnotate(`
+    console.log(
+        compileHeliosAndAnnotate(`
       testing int_to_from_little_endian
       func main(a: Int) -> Bool {
           Int::from_little_endian(a.to_little_endian()) == a
-      }`));
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing bytearray_starts_with_1
+    console.log(
+        compileHeliosAndAnnotate(`testing bytearray_starts_with_1
       func main(a: ByteArray, b: ByteArray) -> Bool {
           (a+b).starts_with(a)
-      }`))
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing list_eq_2
+    console.log(
+        compileHeliosAndAnnotate(`testing list_eq_2
       func main(a: []Int, b: []Int) -> Bool {
           (a == b) == ((a.length == b.length) && (
               []Int::new(a.length, (i: Int) -> Int {i}).all((i: Int) -> Bool {
                   a.get(i) == b.get(i)
               })
           ))
-      }`));
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing list_length
+    console.log(
+        compileHeliosAndAnnotate(`testing list_length
       func main(a: []Int) -> Int {
         a.length
-      }`));
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing list_filter_get_singleton_iterator
+    console.log(
+        compileHeliosAndAnnotate(`testing list_filter_get_singleton_iterator
     func main(a: []Int) -> Int {
         a
             .to_iterator()
             .map((item: Int) -> {item*2})
             .filter((item: Int) -> {item == 0})
             .get_singleton()
-    }`))
+    }`)
+    )
 
-    console.log(compileHeliosAndAnnotate(`testing list_split_at
+    console.log(
+        compileHeliosAndAnnotate(`testing list_split_at
     func main(a: []Int, b: Int) -> []Int {
       (c: []Int, d: []Int) = a.split_at(b);
 
       c + d
-    }`))
+    }`)
+    )
 
-    console.log(compileHeliosAndAnnotate(`
+    console.log(
+        compileHeliosAndAnnotate(`
     testing list_add_1_alt
         func main(a: []Int) -> Bool {
             newLst: []Int = []Int{} + a;
             newLst == a
-        }`));
+        }`)
+    )
 
-
-    console.log(compileHeliosAndAnnotate(`
+    console.log(
+        compileHeliosAndAnnotate(`
     testing swap
     
     func swap(a: Int, b: Int) -> (Int, Int) {
@@ -327,15 +367,19 @@ export default async function test() {
       (_, c:Int) = swap(a, a);
 
       c
-    }`))
+    }`)
+    )
 
-    console.log(compileHeliosAndAnnotate(`
+    console.log(
+        compileHeliosAndAnnotate(`
     testing list_take_end
     func main(a: []Int, n: Int) -> []Int {
         a.take_end(n)
-    }`));
+    }`)
+    )
 
-    console.log(compileAndAnnotate(`
+    console.log(
+        compileAndAnnotate(`
       (__helios__common__list_0) -> {
       (__helios__bool____to_data) -> {
       (__helios__int__from_data) -> {
@@ -475,18 +519,22 @@ export default async function test() {
         ), __helios__common__list_0)
       })
       }(__core__mkNilData(()))
-      `))
+      `)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing list_head_iterator
+    console.log(
+        compileHeliosAndAnnotate(`testing list_head_iterator
       func main(a: []Int) -> Bool {
           if (a.length == 0) {
               true
           } else {
               a.to_iterator().head == a.get(0)
           }
-      }`))
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing map_find_value_safe
+    console.log(
+        compileHeliosAndAnnotate(`testing map_find_value_safe
       func main(a: Map[Int]Int) -> Option[Int] {
           (result: () -> (Int, Int), ok: Bool) = a.find_safe((_, v: Int) -> Bool {v == 0}); 
           if (ok) {
@@ -495,53 +543,67 @@ export default async function test() {
           } else {
               Option[Int]::None
           }
-      }`))
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing hash_new
+    console.log(
+        compileHeliosAndAnnotate(`testing hash_new
       func main(a: PubKeyHash) -> Bool {
           []ByteArray{#70, #71, #72, #73, #74, #75, #76, #77, #78, #79, #7a, #7b, #7c, #7d, #7e, #7f}.any((ba: ByteArray) -> Bool {
               PubKeyHash::new(ba) == a
           })
-      }`))
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing bytearray_show
+    console.log(
+        compileHeliosAndAnnotate(`testing bytearray_show
       func main(a: ByteArray) -> String {
           a.show()
-      }`))
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing list_filter_get_singleton
+    console.log(
+        compileHeliosAndAnnotate(`testing list_filter_get_singleton
       func main(a: []Int) -> Int {
           a.map((item: Int) -> {item*2}).filter((item: Int) -> {item == 0}).get_singleton()
-      }`))
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing bool_and_alt
+    console.log(
+        compileHeliosAndAnnotate(`testing bool_and_alt
       func main(a: Bool, b: Bool) -> Bool {
           Bool::and(() -> Bool {
               a
           }, () -> Bool {
               b && (0 / 0 == 0)
           })
-      }`))
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing list_filter_get_singleton_iterator
+    console.log(
+        compileHeliosAndAnnotate(`testing list_filter_get_singleton_iterator
       func main(a: []Int) -> Int {
           a
               .to_iterator()
               .map((item: Int) -> {item*2})
               .filter((item: Int) -> {item == 0})
               .get_singleton()
-      }`))
+      }`)
+    )
 
-      console.log(compileHeliosAndAnnotate(`testing list_fold2_verbose
+    console.log(
+        compileHeliosAndAnnotate(`testing list_fold2_verbose
       func main(a: []Int) -> Int {
           (sa: Int, sb: Int) = a.fold((sum: () -> (Int, Int), x: Int) -> () -> (Int, Int) {
               (sa_: Int, sb_: Int) = sum();
               () -> {(sa_ + x, sb_ + x)}
           }, () -> {(0, 0)})();
           (sa + sb)/2
-      }`))
+      }`)
+    )
 
-      console.log(compileAndAnnotate(`(arg0) -> {
+    console.log(
+        compileAndAnnotate(`(arg0) -> {
         __core__iData((recurse) -> {
           recurse(recurse, __core__unListData(arg0), () -> {
             (callback) -> {
@@ -567,5 +629,6 @@ export default async function test() {
         })()((sa, sb) -> {
           __core__divideInteger(__core__addInteger(sa, sb), 2)
         }))
-      }`))
+      }`)
+    )
 }

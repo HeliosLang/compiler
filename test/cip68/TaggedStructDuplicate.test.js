@@ -1,10 +1,7 @@
-import {
-	assert,
-	Program
-} from "helios"
+import { assert, Program } from "helios"
 
 export default async function test() {
-	const src = `
+    const src = `
 testing tagged_struct
 
 struct TaggedStruct {
@@ -20,17 +17,16 @@ func main() -> TaggedStruct {
 }
 `
 
-	try {
-	    const program = Program.new(src)
-	} catch(e) {
-		console.log(e.message)
-		if (e.message.includes("duplicate")) {
-			return 
-		} else {
-			throw e
+    try {
+        const program = Program.new(src)
+    } catch (e) {
+        console.log(e.message)
+        if (e.message.includes("duplicate")) {
+            return
+        } else {
+            throw e
         }
+    }
 
-	}
-
-	throw new Error("unexpected")
+    throw new Error("unexpected")
 }

@@ -3,55 +3,63 @@
 import fs from "fs"
 
 import {
-	bytesToHex,
-	config,
-	NetworkParams,
-	Program,
-	UplcProgram,
-	UserError,
-	assert,
-	Crypto,
-	textToBytes
+    bytesToHex,
+    config,
+    NetworkParams,
+    Program,
+    UplcProgram,
+    UserError,
+    assert,
+    Crypto,
+    textToBytes
 } from "helios"
 
-const networkParams = new NetworkParams(JSON.parse(fs.readFileSync("./network-parameters-preview.json").toString()));
+const networkParams = new NetworkParams(
+    JSON.parse(fs.readFileSync("./network-parameters-preview.json").toString())
+)
 
-config.set({CHECK_CASTS: true});
+config.set({ CHECK_CASTS: true })
 
 /**
- * 
- * @param {string} src 
- * @param {string[]} argNames 
- * @param {null | any} expected 
+ *
+ * @param {string} src
+ * @param {string[]} argNames
+ * @param {null | any} expected
  * @param {boolean} simplify
  */
 async function profile(src, argNames, expected = null, simplify = true) {
-    let program = Program.new(src);
+    let program = Program.new(src)
 
-    let args = argNames.map(name => program.evalParam(name));
+    let args = argNames.map((name) => program.evalParam(name))
 
-    console.log("ARGS: ", args.map(a => a.toString()));
-	
-	console.log("IR: ", program.dumpIR(simplify, true));
-	
-	// also test the transfer() function
-	let profileResult = await program.compile(true).transfer(UplcProgram).profile(args, networkParams);
+    console.log(
+        "ARGS: ",
+        args.map((a) => a.toString())
+    )
 
-	if (profileResult.result instanceof UserError) {
-		throw profileResult.result;
-	}
-	
-    console.log(profileResult);
+    console.log("IR: ", program.dumpIR(simplify, true))
 
-	if (expected != null) {
-		assert(profileResult.mem === expected.mem, "unexpected mem budget");
-		assert(profileResult.cpu === expected.cpu, "unexpected cpu budget");
-		assert(profileResult.size === expected.size, "unexpected size");
-	}
+    // also test the transfer() function
+    let profileResult = await program
+        .compile(true)
+        .transfer(UplcProgram)
+        .profile(args, networkParams)
+
+    if (profileResult.result instanceof UserError) {
+        throw profileResult.result
+    }
+
+    console.log(profileResult)
+
+    if (expected != null) {
+        assert(profileResult.mem === expected.mem, "unexpected mem budget")
+        assert(profileResult.cpu === expected.cpu, "unexpected cpu budget")
+        assert(profileResult.size === expected.size, "unexpected size")
+    }
 }
 
 async function test1() {
-	const src = `
+    const src = `
 	minting multi_nft
 
 	// a single transaction allows multiple minting policies to be used
@@ -132,13 +140,13 @@ async function test1() {
 		Map[ScriptPurpose]Int{},
 		Map[DatumHash]Data{},
 		TX_ID
-	), MintingPolicyHash::new(#1123456789012345678901234567890123456789012345678901234567891234))`;
+	), MintingPolicyHash::new(#1123456789012345678901234567890123456789012345678901234567891234))`
 
-	await profile(src, ["REDEEMER", "SCRIPT_CONTEXT"]);
+    await profile(src, ["REDEEMER", "SCRIPT_CONTEXT"])
 }
 
 async function test2() {
-	const src = `
+    const src = `
 	spending single_datum
 	
 	struct Datum {
@@ -153,15 +161,16 @@ async function test2() {
 	const DATUM: Datum = Datum{10}
 	`
 
-	await profile(src, ["DATUM", "DATUM", "DATUM"]);
+    await profile(src, ["DATUM", "DATUM", "DATUM"])
 }
 
 async function test3() {
-	const LIST = `[]Int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}`;
+    const LIST = `[]Int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}`
 
-	console.log("profiling list.length");
+    console.log("profiling list.length")
 
-	await profile(`
+    await profile(
+        `
 	testing list_length
 
 	func main(list: []Int) -> Int {
@@ -169,11 +178,14 @@ async function test3() {
 	}
 
 	const LIST: []Int = ${LIST}
-	`, ["LIST"]);
+	`,
+        ["LIST"]
+    )
 
-	console.log("profiling list.drop");
+    console.log("profiling list.drop")
 
-	await profile(`
+    await profile(
+        `
 	testing list_drop
 
 	
@@ -183,11 +195,14 @@ async function test3() {
 	}
 
 	const LIST: []Int = ${LIST}
-	`, ["LIST"]);
+	`,
+        ["LIST"]
+    )
 
-	console.log("profiling list.take");
+    console.log("profiling list.take")
 
-	await profile(`
+    await profile(
+        `
 	testing list_take
 
 	func main(list: []Int) -> []Int {
@@ -195,11 +210,14 @@ async function test3() {
 	}
 
 	const LIST: []Int = ${LIST}
-	`, ["LIST"]);
+	`,
+        ["LIST"]
+    )
 
-	console.log("profiling list.take combined with list.length");
+    console.log("profiling list.take combined with list.length")
 
-	await profile(`
+    await profile(
+        `
 	testing list_length_and_take
 
 	func main(list: []Int) -> []Int {
@@ -209,11 +227,14 @@ async function test3() {
 	}
 
 	const LIST: []Int = ${LIST}
-	`, ["LIST"]);
+	`,
+        ["LIST"]
+    )
 
-	console.log("profiling list.take combined with known list.length");
+    console.log("profiling list.take combined with known list.length")
 
-	await profile(`
+    await profile(
+        `
 	testing list_known_length_and_take
 
 	func main(list: []Int, n: Int) -> []Int {
@@ -223,11 +244,14 @@ async function test3() {
 	const LIST: []Int = ${LIST}
 
 	const N: Int = LIST.length
-	`, ["LIST", "N"]);
+	`,
+        ["LIST", "N"]
+    )
 
-	console.log("profiling list.drop_end");
+    console.log("profiling list.drop_end")
 
-	await profile(`
+    await profile(
+        `
 	testing list_drop_end
 
 	func main(list: []Int) -> []Int {
@@ -235,11 +259,14 @@ async function test3() {
 	}
 
 	const LIST: []Int = ${LIST}
-	`, ["LIST"]);
+	`,
+        ["LIST"]
+    )
 
-	console.log("profiling list.drop with list.length");
+    console.log("profiling list.drop with list.length")
 
-	await profile(`
+    await profile(
+        `
 	testing list_length_and_drop
 
 	func main(list: []Int) -> []Int {
@@ -248,11 +275,14 @@ async function test3() {
 	}
 
 	const LIST: []Int = ${LIST}
-	`, ["LIST"]);
+	`,
+        ["LIST"]
+    )
 
-	console.log("profiling list.drop with known list.length");
+    console.log("profiling list.drop with known list.length")
 
-	await profile(`
+    await profile(
+        `
 	testing list_known_length_and_drop
 
 	func main(list: []Int, n: Int) -> []Int {
@@ -263,11 +293,14 @@ async function test3() {
 	const LIST: []Int = ${LIST}
 
 	const N: Int = LIST.length
-	`, ["LIST", "N"]);
+	`,
+        ["LIST", "N"]
+    )
 
-	console.log("profiling list.take_end");
+    console.log("profiling list.take_end")
 
-	await profile(`
+    await profile(
+        `
 	testing list_take_end
 
 	func main(list: []Int) -> []Int {
@@ -275,9 +308,12 @@ async function test3() {
 	}
 
 	const LIST: []Int = ${LIST}
-	`, ["LIST"]);
+	`,
+        ["LIST"]
+    )
 
-	await profile(`
+    await profile(
+        `
 	testing multi_return_callback
 	
 	func head_tail(list: []Int) -> (Int, []Int) {
@@ -291,9 +327,12 @@ async function test3() {
 	}
 	
 	const LIST: []Int = ${LIST}
-	`, ["LIST"]);
+	`,
+        ["LIST"]
+    )
 
-	await profile(`
+    await profile(
+        `
 	testing multi_return_tuple
 	
 	struct Tuple {
@@ -311,11 +350,14 @@ async function test3() {
 	}
 	
 	const LIST: []Int = ${LIST}
-	`, ["LIST"]);
+	`,
+        ["LIST"]
+    )
 }
 
 async function test4() {
-	await profile(`
+    await profile(
+        `
 	testing list_sum_max_callback
 
 	func sum_max(list: []Int) -> (Int, Int) {
@@ -334,9 +376,13 @@ async function test4() {
 	}
 
 	const LIST: []Int = []Int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
-	`, ["LIST"], null);
+	`,
+        ["LIST"],
+        null
+    )
 
-	await profile(`
+    await profile(
+        `
 	testing list_sum_max_data
 
 	struct Pair{
@@ -360,12 +406,15 @@ async function test4() {
 	}
 
 	const LIST: []Int = []Int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
-	`, ["LIST"]);	
+	`,
+        ["LIST"]
+    )
 }
 
 async function test5() {
-	config.set({DEBUG: true});
-	await profile(`
+    config.set({ DEBUG: true })
+    await profile(
+        `
 	testing map_get_multiple
 
 	func main(map1: Map[String]Int, map2: Map[String]String) -> Bool {
@@ -374,34 +423,38 @@ async function test5() {
 
 	const MAP1: Map[String]Int = Map[String]Int{"a": 0, "b": 1, "d": 2}
 	const MAP2: Map[String]String = Map[String]String{"a": "a", "b": "b", "c": "c"}
-	`, ["MAP1", "MAP2"]);
+	`,
+        ["MAP1", "MAP2"]
+    )
 
-	config.set({DEBUG: false});
+    config.set({ DEBUG: false })
 }
 
 async function test6() {
-	const msg = textToBytes("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu");
+    const msg = textToBytes(
+        "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstuu"
+    )
 
-	let tick = Date.now();
+    let tick = Date.now()
 
-	for (let iter = 0; iter < 1000; iter++) {
-		Crypto.sha2_512(msg);
-	}
+    for (let iter = 0; iter < 1000; iter++) {
+        Crypto.sha2_512(msg)
+    }
 
-	console.log(`${Date.now() - tick}ms`);
+    console.log(`${Date.now() - tick}ms`)
 }
 
 export default async function main() {
-	// exbudget/size used to be: {mem: 51795n, cpu: 31933326n, size: 367} (when get_policy().all_values(...) was being used). TODO: become that good again
-	await test1();
+    // exbudget/size used to be: {mem: 51795n, cpu: 31933326n, size: 367} (when get_policy().all_values(...) was being used). TODO: become that good again
+    await test1()
 
-	await test2();
+    await test2()
 
-	await test3();
+    await test3()
 
-	await test4();
+    await test4()
 
-	await test5();
+    await test5()
 
-	await test6();
+    await test6()
 }
