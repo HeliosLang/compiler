@@ -1,32 +1,36 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
 import { DefaultTypeClass } from "../typecheck/index.js"
+import { EntryPointImpl } from "./EntryPoint.js"
 import { Module } from "./Module.js"
-import { Program } from "./Program.js"
 
 /**
+ * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
- * @typedef {import("./Program.js").ProgramConfig} ProgramConfig
+ * @typedef {import("../typecheck/index.js").Type} Type
+ * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
  */
 
-export class GenericProgram extends Program {
+/**
+ * @implements {EntryPoint}
+ */
+export class GenericEntryPoint extends EntryPointImpl {
+    /**
+     * @readonly
+     * @type {string}
+     */
+    purpose
+
     /**
      * @param {string} purpose
      * @param {Module[]} modules
-     * @param {ProgramConfig} config
      */
-    constructor(purpose, modules, config) {
-        super(purpose, modules, config)
-    }
-
-    /**
-     * @returns {string}
-     */
-    toString() {
-        return `${this.purpose} ${this.name}\n${super.toString()}`
+    constructor(purpose, modules) {
+        super(modules)
+        this.purpose = purpose
     }
 
     /**
@@ -69,6 +73,35 @@ export class GenericProgram extends Program {
     }
 
     /**
+     *
+     * @param {ToIRContext} ctx
+     * @returns {[string, Type][]}
+     */
+    getRequiredParameters(ctx) {
+        const ir = this.toIRInternal(ctx)
+        return this.getRequiredParametersInternal(ctx, ir)
+    }
+
+    /**
+     * @param {ToIRContext} ctx
+     * @param {Option<Definitions>} extra
+     * @returns {SourceMappedString}
+     */
+    toIR(ctx, extra = None) {
+        const ir = this.toIRInternal(ctx)
+
+        return this.wrapEntryPoint(ctx, ir, extra)
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return `${this.purpose} ${this.name}\n${super.toString()}`
+    }
+
+    /**
+     * @protected
      * @param {ToIRContext} ctx
      * @returns {SourceMappedString}
      */

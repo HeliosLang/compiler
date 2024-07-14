@@ -11,7 +11,7 @@
 // License type:  BSD-3-Clause
 //
 //
-// About: Helios is a smart contract DSL for Cardano.
+// About: Helios-lang is a smart contract DSL for Cardano.
 //     This Javascript library contains functions to compile Helios sources into Plutus-core.
 //
 //
@@ -24,8 +24,8 @@
 //
 //
 // Example usage:
-//     > import { newProgram } from "@helios-lang/compiler";
-//     > console.log(helios.Program.new("spending my_validator ...").compile().serialize());
+//     > import { Program } from "@helios-lang/compiler";
+//     > console.log(new helios.Program("spending my_validator ...").compile().toString());
 //
 //
 // Documentation: https://www.hyperion-bt.org/helios-book

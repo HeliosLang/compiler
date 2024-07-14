@@ -1,11 +1,6 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
-import {
-    $,
-    DEFAULT_PARSE_OPTIONS,
-    SourceMappedString,
-    compile
-} from "@helios-lang/ir"
-import { UplcProgramV2 } from "@helios-lang/uplc"
+import { $, SourceMappedString } from "@helios-lang/ir"
+import { None } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
 import {
@@ -13,51 +8,82 @@ import {
     DefaultTypeClass,
     ScriptContextType
 } from "../typecheck/index.js"
-import { Program } from "./Program.js"
+import { EntryPointImpl } from "./EntryPoint.js"
 import { Module } from "./Module.js"
 
 /**
- * @typedef {import("../typecheck/index.js").DataType} DataType
+ * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
- * @typedef {import("./Program.js").ProgramConfig} ProgramConfig
+ * @typedef {import("../typecheck/index.js").Type} Type
+ * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
  */
 
 /**
- * Used by CLI
- * @internal
+ * @implements {EntryPoint}
  */
-export class DatumRedeemerProgram extends Program {
+export class RedeemerEntryPoint extends EntryPointImpl {
     /**
      * @param {string} purpose
      * @param {Module[]} modules
-     * @param {ProgramConfig} config
+     * @param {boolean} allowPosParams
+     * @param {boolean} invertEntryPoint
      */
-    constructor(purpose, modules, config) {
-        super(purpose, modules, config)
+    constructor(purpose, modules, allowPosParams, invertEntryPoint) {
+        super(modules)
+        this.purpose = purpose
+        this.allowPosParams = allowPosParams
+        this.invertEntryPoint = invertEntryPoint
     }
 
     /**
+     * @protected
      * @type {number}
      */
     get nPosParams() {
-        return this.mainFunc.nArgs - (this.config.invertEntryPoint ? 0 : 3)
+        return this.mainFunc.nArgs - (this.invertEntryPoint ? 0 : 2)
     }
 
     /**
-     * @type {DataType}
+     * @param {ScriptTypes} validatorTypes
+     * @returns {TopScope}
      */
-    get datumType() {
-        return this.mainArgTypes[0]
+    evalTypes(validatorTypes = {}) {
+        const scope = GlobalScope.new(validatorTypes)
+
+        return this.evalTypesInternal(scope)
     }
 
     /**
-     * @type {string}
+     *
+     * @param {ToIRContext} ctx
+     * @returns {[string, Type][]}
      */
-    get datumTypeName() {
-        return this.mainFunc.argTypeNames[0]
+    getRequiredParameters(ctx) {
+        const ir = this.toIRInternal(ctx)
+
+        return this.getRequiredParametersInternal(ctx, ir)
     }
 
     /**
+     * @param {ToIRContext} ctx
+     * @param {Option<Definitions>} extra
+     * @returns {SourceMappedString}
+     */
+    toIR(ctx, extra = None) {
+        const ir = this.toIRInternal(ctx)
+
+        return this.wrapEntryPoint(ctx, ir, extra)
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return `${this.purpose} ${this.name}\n${super.toString()}`
+    }
+
+    /**
+     * @protected
      * @param {GlobalScope} scope
      * @returns {TopScope}
      */
@@ -70,19 +96,19 @@ export class DatumRedeemerProgram extends Program {
         const argTypeNames = main.argTypeNames
         const argTypes = main.argTypes
         const retType = main.retType
-        const nArgs = main.nArgs
+        const nArgs = argTypes.length
 
-        if (this.config.allowPosParams) {
-            if (argTypes.length < 3) {
+        if (this.allowPosParams) {
+            if (nArgs < 2) {
                 throw CompilerError.type(
                     main.site,
-                    "expected at least 3 args for main"
+                    "expected at least 2 args for main"
                 )
                 return topScope
             }
         } else {
-            if (argTypes.length != 3) {
-                throw CompilerError.type(main.site, "expected 3 args for main")
+            if (nArgs != 2) {
+                throw CompilerError.type(main.site, "expected 2 args for main")
                 return topScope
             }
         }
@@ -95,7 +121,7 @@ export class DatumRedeemerProgram extends Program {
                 ) {
                     throw CompilerError.type(
                         main.site,
-                        `illegal type for arg ${nArgs} in main: expected 'ScriptContext', got '${argTypes[i].toString()}'`
+                        `illegal type for arg ${nArgs} in main, expected 'ScriptContext', got ${argTypes[i].toString()}`
                     )
                 }
             } else {
@@ -105,7 +131,7 @@ export class DatumRedeemerProgram extends Program {
                 ) {
                     throw CompilerError.type(
                         main.site,
-                        `illegal type for arg ${i + 1} in main ${i == nArgs - 2 ? "(datum) " : i == nArgs - 3 ? "(redeemer) " : ""}: '${argTypes[i].toString()}`
+                        `illegal ${i == nArgs - 2 ? "redeemer " : ""}argument type in main: '${argTypes[i].toString()}`
                     )
                 }
             }
@@ -122,30 +148,19 @@ export class DatumRedeemerProgram extends Program {
     }
 
     /**
-     * @internal
-     * @param {ScriptTypes} scriptTypes
-     * @returns {TopScope}
-     */
-    evalTypes(scriptTypes) {
-        const scope = GlobalScope.new(scriptTypes)
-
-        return this.evalTypesInternal(scope)
-    }
-
-    /**
+     * @protected
      * @param {ToIRContext} ctx
      * @returns {SourceMappedString}
      */
     toIRInternal(ctx) {
-        const outerArgNames = this.config.invertEntryPoint
-            ? []
-            : ["datum", "redeemer", "ctx"]
+        const outerArgNames = this.invertEntryPoint ? [] : ["redeemer", "ctx"]
         const nOuterArgs = outerArgNames.length
 
         const nArgs = this.mainFunc.nArgs
         const argTypeNames = this.mainFunc.argTypeNames
+        const argTypes = this.mainArgTypes
 
-        const innerArgs = this.mainArgTypes.map((t, i) => {
+        const innerArgs = argTypes.map((t, i) => {
             const name =
                 i >= nArgs - nOuterArgs
                     ? outerArgNames[i - (nArgs - nOuterArgs)]
@@ -185,51 +200,5 @@ export class DatumRedeemerProgram extends Program {
         }
 
         return ir
-    }
-
-    /**
-     * @internal
-     * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
-     */
-    datumCheckToIR(ctx) {
-        if (this.datumTypeName == "") {
-            return $(`(data) -> {data}`)
-        } else {
-            const datumPath = this.datumType.path
-
-            const ir = $(
-                `(data) -> {${datumPath}____to_data(${datumPath}__from_data(data))}`
-            )
-
-            return this.wrapEntryPoint(ctx, ir)
-        }
-    }
-
-    /**
-     * Used by cli
-     * @internal
-     * @returns {UplcProgramV2}
-     */
-    compileDatumCheck() {
-        const ir = this.datumCheckToIR(
-            new ToIRContext(false, this.config.isTestnet)
-        )
-
-        return compile(ir, {
-            optimize: false,
-            parseOptions: {
-                ...DEFAULT_PARSE_OPTIONS,
-                builtinsPrefix: "__core__",
-                errorPrefix: ""
-            }
-        })
-    }
-
-    /**
-     * @returns {string}
-     */
-    toString() {
-        return `${this.purpose} ${this.name}\n${super.toString()}`
     }
 }
