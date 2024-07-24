@@ -8,6 +8,7 @@ import {
     cbor,
     compileAndRunMany,
     int,
+    ratio,
     str
 } from "./utils.js"
 import { encodeIntBE } from "@helios-lang/codec-utils"
@@ -206,6 +207,11 @@ describe("Int", () => {
     const intSerializeScript = `testing int_serialize
     func main(a: Int) -> ByteArray {
         a.serialize()
+    }`
+
+    const intToRatioScript = `testing int_to_ratio
+    func main(a: Int) -> Ratio {
+        a.to_ratio()
     }`
 
     compileAndRunMany([
@@ -1068,6 +1074,12 @@ describe("Int", () => {
             }`,
             inputs: [int(-100001), int(10_000_000)],
             output: int(-1000010)
+        },
+        {
+            description: "-1.to_ratio() == -1/1",
+            main: intToRatioScript,
+            inputs: [int(-1)],
+            output: ratio(-1, 1)
         }
     ])
 })

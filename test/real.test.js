@@ -1,5 +1,13 @@
 import { describe } from "node:test"
-import { False, True, compileAndRunMany, int, real, str } from "./utils.js"
+import {
+    False,
+    True,
+    compileAndRunMany,
+    int,
+    ratio,
+    real,
+    str
+} from "./utils.js"
 
 describe("Real", () => {
     const realEq1Script = `testing real_eq_1
@@ -70,6 +78,11 @@ describe("Real", () => {
     const realShowScript = `testing real_show
     func main(a: Real) -> String {
         a.show()
+    }`
+
+    const realToRatioScript = `testing real_to_ratio
+    func main(a: Real) -> Ratio {
+        a.to_ratio()
     }`
 
     compileAndRunMany([
@@ -471,6 +484,12 @@ describe("Real", () => {
             main: realShowScript,
             inputs: [real(-0.394872)],
             output: str("-0.394872")
+        },
+        {
+            description: "2.5.to_ratio() == 2_500_000 / 1_000_000",
+            main: realToRatioScript,
+            inputs: [real(2.5)],
+            output: ratio(2_500_000, 1_000_000)
         }
     ])
 })

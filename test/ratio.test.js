@@ -1,5 +1,5 @@
 import { describe } from "node:test"
-import { compileAndRunMany, int, ratio } from "./utils.js"
+import { False, True, compileAndRunMany, int, ratio } from "./utils.js"
 
 describe("Ratio", () => {
     const ratioNewTopScript = `testing ratio_new_first
@@ -17,8 +17,28 @@ describe("Ratio", () => {
         a + b
     }`
 
+    const ratioAddIntScript = `testing ratio_add_int
+    func main(a: Ratio, b: Int) -> Ratio {
+        a + b
+    }`
+
+    const intAddRatioScript = `testing int_add_ratio
+    func main(a: Int, b: Ratio) -> Ratio {
+        a + b
+    }`
+
     const ratioSubScript = `testing ratio_sub
     func main(a: Ratio, b: Ratio) -> Ratio {
+        a - b
+    }`
+
+    const ratioSubIntScript = `testing ratio_sub_int
+    func main(a: Ratio, b: Int) -> Ratio {
+        a - b
+    }`
+
+    const intSubRatioScript = `testing int_sub_ratio
+    func main(a: Int, b: Ratio) -> Ratio {
         a - b
     }`
 
@@ -27,14 +47,94 @@ describe("Ratio", () => {
         a * b
     }`
 
+    const ratioMulIntScript = `testing ratio_mul_int
+    func main(a: Ratio, b: Int) -> Ratio {
+        a * b
+    }`
+
+    const intMulRatioScript = `testing int_mul_ratio
+    func main(a: Int, b: Ratio) -> Ratio {
+        a * b
+    }`
+
     const ratioDivScript = `testing ratio_div
     func main(a: Ratio, b: Ratio) -> Ratio {
+        a/b
+    }`
+
+    const ratioDivIntScript = `testing ratio_div_int
+    func main(a: Ratio, b: Int) -> Ratio {
+        a/b
+    }`
+
+    const intDivRatioScript = `testing int_div_ratio
+    func main(a: Int, b: Ratio) -> Ratio {
         a/b
     }`
 
     const ratioFloorScript = `testing ratio_floor
     func main(a: Ratio) -> Int {
         a.floor()
+    }`
+
+    const ratioLtScript = `testing ratio_lt
+    func main(a: Ratio, b: Ratio) -> Bool {
+        a < b
+    }`
+
+    const ratioLtIntScript = `testing ratio_lt_int
+    func main(a: Ratio, b: Int) -> Bool {
+        a < b
+    }`
+
+    const intLtRatioScript = `testing int_lt_ratio
+    func main(a: Int, b: Ratio) -> Bool {
+        a < b
+    }`
+
+    const ratioLeqScript = `testing ratio_leq
+    func main(a: Ratio, b: Ratio) -> Bool {
+        a <= b
+    }`
+
+    const ratioLeqIntScript = `testing ratio_leq_int
+    func main(a: Ratio, b: Int) -> Bool {
+        a <= b
+    }`
+
+    const intLeqRatioScript = `testing int_leq_ratio
+    func main(a: Int, b: Ratio) -> Bool {
+        a <= b
+    }`
+
+    const ratioGtScript = `testing ratio_gt
+    func main(a: Ratio, b: Ratio) -> Bool {
+        a > b
+    }`
+
+    const ratioGtIntScript = `testing ratio_gt_int
+    func main(a: Ratio, b: Int) -> Bool {
+        a > b
+    }`
+
+    const intGtRatioScript = `testing int_gt_ratio
+    func main(a: Int, b: Ratio) -> Bool {
+        a > b
+    }`
+
+    const ratioGeqScript = `testing ratio_geq
+    func main(a: Ratio, b: Ratio) -> Bool {
+        a >= b
+    }`
+
+    const ratioGeqIntScript = `testing ratio_geq_int
+    func main(a: Ratio, b: Int) -> Bool {
+        a >= b
+    }`
+
+    const intGeqRatioScript = `testing int_geq_ratio
+    func main(a: Int, b: Ratio) -> Bool {
+        a >= b
     }`
 
     compileAndRunMany([
@@ -57,10 +157,34 @@ describe("Ratio", () => {
             output: ratio(6, 8)
         },
         {
+            description: "1/2 + 1 == 3/2",
+            main: ratioAddIntScript,
+            inputs: [ratio(1, 2), int(1)],
+            output: ratio(3, 2)
+        },
+        {
+            description: "1 + 1/2 == 3/2",
+            main: intAddRatioScript,
+            inputs: [int(1), ratio(1, 2)],
+            output: ratio(3, 2)
+        },
+        {
             description: "1/2 - 1/4 == 2/8",
             main: ratioSubScript,
             inputs: [ratio(1, 2), ratio(1, 4)],
             output: ratio(2, 8)
+        },
+        {
+            description: "1/2 - 1 = -1/2",
+            main: ratioSubIntScript,
+            inputs: [ratio(1, 2), int(1)],
+            output: ratio(-1, 2)
+        },
+        {
+            description: "1 - 1/2 = 1/2",
+            main: intSubRatioScript,
+            inputs: [int(1), ratio(1, 2)],
+            output: ratio(1, 2)
         },
         {
             description: "1/2 * 1/4 == 1/8",
@@ -69,16 +193,148 @@ describe("Ratio", () => {
             output: ratio(1, 8)
         },
         {
+            description: "1/2 * 2 == 2/2",
+            main: ratioMulIntScript,
+            inputs: [ratio(1, 2), int(2)],
+            output: ratio(2, 2)
+        },
+        {
+            description: "2 * 1/2 == 2/2",
+            main: intMulRatioScript,
+            inputs: [int(2), ratio(1, 2)],
+            output: ratio(2, 2)
+        },
+        {
             description: "1/2 / 1/4 == 4/2",
             main: ratioDivScript,
             inputs: [ratio(1, 2), ratio(1, 4)],
             output: ratio(4, 2)
         },
         {
+            description: "1/2 / 0 == 1/0",
+            main: ratioDivIntScript,
+            inputs: [ratio(1, 2), int(0)],
+            output: ratio(1, 0)
+        },
+        {
+            description: "1/2 / 10 == 1/20",
+            main: ratioDivIntScript,
+            inputs: [ratio(1, 2), int(10)],
+            output: ratio(1, 20)
+        },
+        {
+            description: "10 / 1/2 == 20/1",
+            main: intDivRatioScript,
+            inputs: [int(10), ratio(1, 2)],
+            output: ratio(20, 1)
+        },
+        {
             description: "1/2.floor() == 0",
             main: ratioFloorScript,
             inputs: [ratio(1, 2)],
             output: int(0)
+        },
+        {
+            description: "1/2 < 1/4 == false",
+            main: ratioLtScript,
+            inputs: [ratio(1, 2), ratio(1, 4)],
+            output: False
+        },
+        {
+            description: "1/2 < 1 == true",
+            main: ratioLtIntScript,
+            inputs: [ratio(1, 2), int(1)],
+            output: True
+        },
+        {
+            description: "1 < 1/2 == false",
+            main: intLtRatioScript,
+            inputs: [int(1), ratio(1, 2)],
+            output: False
+        },
+        {
+            description: "1/2 <= 1/4 == false",
+            main: ratioLeqScript,
+            inputs: [ratio(1, 2), ratio(1, 4)],
+            output: False
+        },
+        {
+            description: "1/2 <= 2/4 == true",
+            main: ratioLeqScript,
+            inputs: [ratio(1, 2), ratio(2, 4)],
+            output: True
+        },
+        {
+            description: "2/2 <= 2/4 == false",
+            main: ratioLeqScript,
+            inputs: [ratio(2, 2), ratio(2, 4)],
+            output: False
+        },
+        {
+            description: "1/2 <= 1 == true",
+            main: ratioLeqIntScript,
+            inputs: [ratio(1, 2), int(1)],
+            output: True
+        },
+        {
+            description: "1 <= 1/2 == false",
+            main: intLeqRatioScript,
+            inputs: [int(1), ratio(1, 2)],
+            output: False
+        },
+        {
+            description: "1/2 > 1/4 == true",
+            main: ratioGtScript,
+            inputs: [ratio(1, 2), ratio(1, 4)],
+            output: True
+        },
+        {
+            description: "1/2 > 2/4 == false",
+            main: ratioGtScript,
+            inputs: [ratio(1, 2), ratio(2, 4)],
+            output: False
+        },
+        {
+            description: "1/2 > 1 == false",
+            main: ratioGtIntScript,
+            inputs: [ratio(1, 2), int(1)],
+            output: False
+        },
+        {
+            description: "1/0 > 1 == false",
+            main: ratioGtIntScript,
+            inputs: [ratio(1, 0), int(1)],
+            output: True
+        },
+        {
+            description: "1 > 1/2 == true",
+            main: intGtRatioScript,
+            inputs: [int(1), ratio(1, 2)],
+            output: True
+        },
+        {
+            description: "1/2 >= 1/4 == true",
+            main: ratioGeqScript,
+            inputs: [ratio(1, 2), ratio(1, 4)],
+            output: True
+        },
+        {
+            description: "1/2 >= 2/4 == true",
+            main: ratioGeqScript,
+            inputs: [ratio(1, 2), ratio(2, 4)],
+            output: True
+        },
+        {
+            description: "1/2 >= -1 == true",
+            main: ratioGeqIntScript,
+            inputs: [ratio(1, 2), int(-1)],
+            output: True
+        },
+        {
+            description: "-1 >= 1/2 == false",
+            main: intGeqRatioScript,
+            inputs: [int(-1), ratio(1, 2)],
+            output: False
         }
     ])
 })

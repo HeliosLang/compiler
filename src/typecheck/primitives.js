@@ -143,6 +143,7 @@ export const IntType = new GenericType({
         to_bool: new FuncType([], BoolType),
         to_hex: new FuncType([], StringType),
         to_little_endian: new FuncType([], ByteArrayType),
+        to_ratio: new FuncType([], RatioType),
         to_real: new FuncType([], RealType)
     }),
     genTypeMembers: (self) => ({
@@ -151,10 +152,19 @@ export const IntType = new GenericType({
         __add1: new FuncType([self, RealType], RealType),
         __div: new FuncType([self, self], self),
         __div1: new FuncType([self, RealType], RealType),
+        __div2: new FuncType([self, RatioType], RatioType),
         __geq: new FuncType([self, self], BoolType),
+        __geq1: new FuncType([self, RealType], BoolType),
+        __geq2: new FuncType([self, RatioType], BoolType),
         __gt: new FuncType([self, self], BoolType),
+        __gt1: new FuncType([self, RealType], BoolType),
+        __gt2: new FuncType([self, RatioType], BoolType),
         __leq: new FuncType([self, self], BoolType),
+        __leq1: new FuncType([self, RealType], BoolType),
+        __leq2: new FuncType([self, RatioType], BoolType),
         __lt: new FuncType([self, self], BoolType),
+        __lt1: new FuncType([self, RealType], BoolType),
+        __lt2: new FuncType([self, RatioType], BoolType),
         __mod: new FuncType([self, self], self),
         __mul: new FuncType([self, self], self),
         __mul1: new FuncType([self, RealType], RealType),
@@ -162,6 +172,7 @@ export const IntType = new GenericType({
         __pos: new FuncType([self], self),
         __sub: new FuncType([self, self], self),
         __sub1: new FuncType([self, RealType], RealType),
+        __sub2: new FuncType([self, RatioType], RatioType),
         from_base58: new FuncType([StringType], self),
         from_big_endian: new FuncType([ByteArrayType], self),
         from_little_endian: new FuncType([ByteArrayType], self),
@@ -211,9 +222,21 @@ export const RatioType = new GenericType({
         ...genCommonTypeMembers(self),
         new: new FuncType([IntType, IntType], self),
         __add: new FuncType([self, self], self),
+        __add1: new FuncType([self, IntType], self),
         __sub: new FuncType([self, self], self),
+        __sub1: new FuncType([self, IntType], self),
         __mul: new FuncType([self, self], self),
-        __div: new FuncType([self, self], self)
+        __mul1: new FuncType([self, IntType], self),
+        __div: new FuncType([self, self], self),
+        __div1: new FuncType([self, IntType], self),
+        __lt: new FuncType([self, self], BoolType),
+        __lt1: new FuncType([self, IntType], BoolType),
+        __leq: new FuncType([self, self], BoolType),
+        __leq1: new FuncType([self, IntType], BoolType),
+        __gt: new FuncType([self, self], BoolType),
+        __gt1: new FuncType([self, IntType], BoolType),
+        __geq: new FuncType([self, self], BoolType),
+        __geq1: new FuncType([self, IntType], BoolType)
     })
 })
 /**
@@ -235,7 +258,8 @@ export const RealType = new GenericType({
         ceil: new FuncType([], IntType),
         floor: new FuncType([], IntType),
         round: new FuncType([], IntType),
-        trunc: new FuncType([], IntType)
+        trunc: new FuncType([], IntType),
+        to_ratio: new FuncType([], RatioType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),

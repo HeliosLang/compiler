@@ -1088,6 +1088,22 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(
+        new RawFunc(
+            "__helios__int____sub2",
+            `(a, b) -> {
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+		__helios__ratio__new(
+			__helios__int____sub(
+				__helios__int____mul(a, bb),
+				bt
+			),
+			bb
+		)
+	}`
+        )
+    )
     add(new RawFunc("__helios__int____mul1", "__helios__int____mul"))
     add(
         new RawFunc(
@@ -1096,6 +1112,20 @@ export function makeRawFunctions(simplify, isTestnet) {
 		__core__divideInteger(
 			__core__multiplyInteger(a, __helios__real__ONESQ),
 			b
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__int____div2",
+            `(a, b) -> {
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+
+		__helios__ratio__new(
+			__helios__int____mul(a, bb),
+			bt
 		)
 	}`
         )
@@ -1133,6 +1163,19 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__int____geq2",
+            `(a, b) -> {
+				bt = __helios__ratio__top(b);
+				bb = __helios__ratio__bottom(b);
+		__core__lessThanEqualsInteger(
+			bt,
+			__helios__int____mul(a, bb)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__int____gt1",
             `(a, b) -> {
 		__helios__bool____not(
@@ -1140,6 +1183,19 @@ export function makeRawFunctions(simplify, isTestnet) {
 				__core__multiplyInteger(a, __helios__real__ONE),
 				b
 			)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__int____gt2",
+            `(a, b) -> {
+				bt = __helios__ratio__top(b);
+				bb = __helios__ratio__bottom(b);
+		__core__lessThanInteger(
+			bt,
+			__helios__int____mul(a, bb)
 		)
 	}`
         )
@@ -1157,11 +1213,37 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__int____leq2",
+            `(a, b) -> {
+				bt = __helios__ratio__top(b);
+				bb = __helios__ratio__bottom(b);
+		__core__lessThanEqualsInteger(
+			__helios__int____mul(a, bb),
+			bt
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__int____lt1",
             `(a, b) -> {
 		__core__lessThanInteger(
 			__core__multiplyInteger(a, __helios__real__ONE),
 			b
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__int____lt2",
+            `(a, b) -> {
+				bt = __helios__ratio__top(b);
+				bb = __helios__ratio__bottom(b);
+		__core__lessThanInteger(
+			__helios__int____mul(a, bb),
+			bt
 		)
 	}`
         )
@@ -1288,6 +1370,19 @@ export function makeRawFunctions(simplify, isTestnet) {
             `(self) -> {
 		() -> {
 			__core__ifThenElse(__core__equalsInteger(self, 0), false, true)
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__int__to_ratio",
+            `(self) -> {
+		() -> {
+			__helios__ratio__new(
+				self,
+				1
+			)
 		}
 	}`
         )
@@ -1896,7 +1991,20 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-
+    add(
+        new RawFunc(
+            "__helios__ratio____add1",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		new_top = __helios__int____add(
+			at,
+			__helios__int____mul(b, ab)
+		);
+		__helios__ratio__new(new_top, ab)
+	}`
+        )
+    )
     add(
         new RawFunc(
             "__helios__ratio____sub",
@@ -1914,7 +2022,20 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-
+    add(
+        new RawFunc(
+            "__helios__ratio____sub1",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		new_top = __helios__int____sub(
+			at,
+			__helios__int____mul(b, ab)
+		);
+		__helios__ratio__new(new_top, ab)
+	}`
+        )
+    )
     add(
         new RawFunc(
             "__helios__ratio____mul",
@@ -1929,7 +2050,17 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-
+    add(
+        new RawFunc(
+            "__helios__ratio____mul1",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		new_top = __helios__int____mul(at, b);
+		__helios__ratio__new(new_top, ab)
+	}`
+        )
+    )
     add(
         new RawFunc(
             "__helios__ratio____div",
@@ -1944,7 +2075,129 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-
+    add(
+        new RawFunc(
+            "__helios__ratio____div1",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		new_bottom = __helios__int____mul(ab, b);
+		__helios__ratio__new(at, new_bottom)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio____lt",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+		__core__lessThanInteger(
+			__core__multiplyInteger(at, bb),
+			__core__multiplyInteger(bt, ab)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio____lt1",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		__core__lessThanInteger(
+			at,
+			__core__multiplyInteger(b, ab)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio____leq",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+		__core__lessThanEqualsInteger(
+			__core__multiplyInteger(at, bb),
+			__core__multiplyInteger(bt, ab)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio____leq1",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		__core__lessThanEqualsInteger(
+			at,
+			__core__multiplyInteger(b, ab)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio____gt",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+		__core__lessThanInteger(
+			__core__multiplyInteger(bt, ab),
+			__core__multiplyInteger(at, bb)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio____gt1",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		__core__lessThanInteger(
+			__core__multiplyInteger(b, ab),
+			at
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio____geq",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+		__core__lessThanEqualsInteger(
+			__core__multiplyInteger(bt, ab),
+			__core__multiplyInteger(at, bb)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio____geq1",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		__core__lessThanEqualsInteger(
+			__core__multiplyInteger(b, ab),
+			at
+		)
+	}`
+        )
+    )
     add(
         new RawFunc(
             "__helios__ratio__floor",
@@ -2211,6 +2464,19 @@ export function makeRawFunctions(simplify, isTestnet) {
 					show_positive(self)
 				}
 			)()
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__real__to_ratio",
+            `(self) -> {
+		() -> {
+			__helios__ratio__new(
+				self,
+				__helios__real__ONE
+			)
 		}
 	}`
         )
