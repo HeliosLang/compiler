@@ -80,8 +80,12 @@ export class PrimitiveLiteralExpr extends Expr {
      * @returns {SourceMappedString}
      */
     toIR(ctx) {
-        // all literals can be reused in their string-form in the IR
-        return $(this.#primitive.toString(), this.#primitive.site)
+        if (this.#primitive instanceof RealLiteral) {
+            return $(this.#primitive.value.toString(), this.#primitive.site)
+        } else {
+            // all literals except RealLiteral can be reused in their string-form in the IR
+            return $(this.#primitive.toString(), this.#primitive.site)
+        }
     }
 
     /**

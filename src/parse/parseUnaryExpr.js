@@ -33,6 +33,8 @@ export function makeUnaryExprParser(parseValueExpr, op1, ...ops) {
 
             return new UnaryExpr(m, rhs)
         } else {
+            r.endMatch(false)
+
             return parseValueExpr(ctx, precedence + 1)
         }
     }

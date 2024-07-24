@@ -157,6 +157,8 @@ export class Module {
                     stack.push(statement)
                 }
             })
+
+            head = stack.pop()
         }
     }
 }

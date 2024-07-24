@@ -12,7 +12,9 @@
         "build": "npm test",
         "pretest": "rm -fr ./test/node_modules/helios && mkdir -p ./test/node_modules && cd ./test/node_modules && ln -s ../../ ./helios",
         "prettify": "npx prettier . --write",
-        "test": "node ./test/index.js",
+        "test": "npm run test:pretty && npm run test:types && npm run test:suite",
+        "test:pretty": "npx prettier . --check",
+        "test:suite": "node --test",
         "test:types": "npx tsc -p jsconfig.json --noEmit",
         "pub": "node ./utils/check-version.js && aws s3 cp ./helios.js s3://helios-library/$(node ./utils/latest-version.js)/ && npm publish ."
     },
@@ -45,14 +47,15 @@
         "off-chain"
     ],
     "devDependencies": {
+        "@types/node": "^20.14.10",
         "prettier": "^3.3.2",
         "typescript": "^4.9.5"
     },
     "dependencies": {
         "@helios-lang/codec-utils": "^0.1.32",
-        "@helios-lang/compiler-utils": "^0.1.48",
-        "@helios-lang/ir": "^0.1.1",
+        "@helios-lang/compiler-utils": "^0.1.51",
+        "@helios-lang/ir": "^0.1.5",
         "@helios-lang/type-utils": "^0.1.19",
-        "@helios-lang/uplc": "^0.1.34"
+        "@helios-lang/uplc": "^0.1.35"
     }
 }

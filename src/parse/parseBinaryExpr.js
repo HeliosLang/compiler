@@ -35,8 +35,14 @@ export function makeBinaryExprParser(parseValueExpr, op1, ...ops) {
 
         let m
 
-        if ((m = r.findLast(anyOp))) {
+        if ((m = r.findLastMatch(anyOp))) {
             const [before, op] = m
+
+            if (before.isEof()) {
+                r.endMatch(false)
+                r.unreadToken()
+                return parseValueExpr(ctx, precedence + 1)
+            }
 
             const beforeExpr = parseValueExpr(
                 ctx.withReader(before),
@@ -59,6 +65,7 @@ export function makeBinaryExprParser(parseValueExpr, op1, ...ops) {
 
             return new BinaryExpr(op, beforeExpr, afterExpr)
         } else {
+            r.endMatch(false)
             return parseValueExpr(ctx, precedence + 1)
         }
     }

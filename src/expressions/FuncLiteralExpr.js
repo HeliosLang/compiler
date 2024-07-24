@@ -20,7 +20,13 @@ import { FuncArg } from "./FuncArg.js"
  */
 export class FuncLiteralExpr extends Expr {
     #args
-    #retTypeExpr
+
+    /**
+     * @readonly
+     * @type {Option<Expr>}
+     */
+    retTypeExpr
+
     #bodyExpr
 
     /**
@@ -32,7 +38,7 @@ export class FuncLiteralExpr extends Expr {
     constructor(site, args, retTypeExpr, bodyExpr) {
         super(site)
         this.#args = args
-        this.#retTypeExpr = retTypeExpr
+        this.retTypeExpr = retTypeExpr
         this.#bodyExpr = bodyExpr
     }
 
@@ -81,10 +87,10 @@ export class FuncLiteralExpr extends Expr {
      * @type {Type}
      */
     get retType() {
-        if (!this.#retTypeExpr) {
+        if (!this.retTypeExpr) {
             return new AllType()
         } else {
-            return expectSome(this.#retTypeExpr.cache?.asType)
+            return expectSome(this.retTypeExpr.cache?.asType)
         }
     }
 
@@ -107,8 +113,8 @@ export class FuncLiteralExpr extends Expr {
 
         const argTypes = args.map((a) => a.evalArgType(scope))
 
-        const retType = this.#retTypeExpr
-            ? this.#retTypeExpr.evalAsType(scope)
+        const retType = this.retTypeExpr
+            ? this.retTypeExpr.evalAsType(scope)
             : new AllType()
 
         return new FuncType(argTypes, retType)
@@ -136,7 +142,7 @@ export class FuncLiteralExpr extends Expr {
 
         let bodyVal = this.#bodyExpr.eval(subScope)
 
-        if (this.#retTypeExpr == null) {
+        if (this.retTypeExpr == null) {
             if (bodyVal.asTyped) {
                 return new FuncEntity(
                     new FuncType(fnType.argTypes, bodyVal.asTyped.type)
@@ -150,7 +156,7 @@ export class FuncLiteralExpr extends Expr {
         } else if (bodyVal.asTyped) {
             if (!fnType.retType.isBaseOf(bodyVal.asTyped.type)) {
                 throw CompilerError.type(
-                    this.#retTypeExpr.site,
+                    this.retTypeExpr.site,
                     `wrong return type, expected ${fnType.retType.toString()} but got ${bodyVal.asTyped.type.toString()}`
                 )
             }
@@ -249,10 +255,10 @@ export class FuncLiteralExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        if (this.#retTypeExpr == null) {
+        if (this.retTypeExpr == null) {
             return `(${this.#args.map((a) => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`
         } else {
-            return `(${this.#args.map((a) => a.toString()).join(", ")}) -> ${this.#retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`
+            return `(${this.#args.map((a) => a.toString()).join(", ")}) -> ${this.retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`
         }
     }
 }

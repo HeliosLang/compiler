@@ -9,6 +9,7 @@ import {
     group,
     intlit,
     oneOf,
+    reallit,
     strlit,
     symbol,
     word
@@ -90,7 +91,9 @@ export function makeChainedExprParser(parseValueExpr) {
 
             return parseIfElseExpr(ctx, kw, firstCond, firstBranch)
         } else if (
-            (m = r.matches(oneOf([intlit(), boollit(), strlit(), byteslit()])))
+            (m = r.matches(
+                oneOf([intlit(), boollit(), reallit, strlit(), byteslit()])
+            ))
         ) {
             return new PrimitiveLiteralExpr(m)
         } else if ((m = r.matches(group("(", { minLength: 1 })))) {

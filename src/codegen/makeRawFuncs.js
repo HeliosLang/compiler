@@ -1064,7 +1064,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(new RawFunc("__helios__int____add", "__core__addInteger"))
     add(new RawFunc("__helios__int____sub", "__core__subtractInteger"))
     add(new RawFunc("__helios__int____mul", "__core__multiplyInteger"))
-    add(new RawFunc("__helios__int____div", "__core__divideInteger"))
+    add(new RawFunc("__helios__int____div", "__core__quotientInteger"))
     add(new RawFunc("__helios__int____mod", "__core__modInteger"))
     add(
         new RawFunc(
@@ -1307,7 +1307,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             "__helios__int__to_hex",
             `(self) -> {
 		() -> {
-			recurse = (recurse, self, bytes) -> {
+			recurse = (self, bytes) -> {
 				digit = __core__modInteger(self, 16);
 				bytes = __core__consByteString(
 					__core__ifThenElse(
@@ -1321,7 +1321,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 					__core__lessThanInteger(self, 16),
 					() -> {bytes},
 					() -> {
-						recurse(recurse, __core__divideInteger(self, 16), bytes)
+						recurse(__core__divideInteger(self, 16), bytes)
 					}
 				)()
 			};
@@ -1331,11 +1331,11 @@ export function makeRawFunctions(simplify, isTestnet) {
 					() -> {
 						__core__consByteString(
 							45,
-							recurse(recurse, __core__multiplyInteger(self, -1), #)
+							recurse(__core__multiplyInteger(self, -1), #)
 						)
 					},
 					() -> {
-						recurse(recurse, self, #)
+						recurse(self, #)
 					}
 				)()
 			)
@@ -1920,7 +1920,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__real____div",
             `(a, b) -> {
-		__core__divideInteger(
+		__core__quotientInteger(
 			__core__multiplyInteger(a, __helios__real__ONE),
 			b
 		)
@@ -2068,25 +2068,36 @@ export function makeRawFunctions(simplify, isTestnet) {
             "__helios__real__show",
             `(self) -> {
 		() -> {
-			__helios__string____add(
+			show_positive = (x) -> {
 				__helios__string____add(
-					__core__ifThenElse(__core__lessThanInteger(self, 0), "-", ""),
 					__helios__int__show(
 						__helios__real__floor(
-							__helios__real__abs(self)()
+							__helios__real__abs(x)()
 						)()
-					)()
-				),
-				__helios__string____add(
-					".",
-					__core__decodeUtf8(
-						__helios__int__show_padded(
-							__helios__int____mod(self, __helios__real__ONE),
-							__helios__real__PRECISION
+					)(),
+					__helios__string____add(
+						".",
+						__core__decodeUtf8(
+							__helios__int__show_padded(
+								__helios__int____mod(x, __helios__real__ONE),
+								__helios__real__PRECISION
+							)
 						)
 					)
 				)
-			)
+			};
+			__core__ifThenElse(
+				__core__lessThanInteger(self, 0),
+				() -> {
+					__helios__string____add(
+						"-",
+						show_positive(__core__multiplyInteger(self, -1))
+					)
+				},
+				() -> {
+					show_positive(self)
+				}
+			)()
 		}
 	}`
         )

@@ -34,6 +34,10 @@ export function parseFuncStatement(ctx, methodOf = None) {
         const [ag, arrow] = m
 
         fnExpr = parseFuncLiteralExpr(ctx.atSite(arrow.site), ag, methodOf)
+
+        if (!fnExpr.retTypeExpr) {
+            ctx.errors.syntax(arrow.site, "missing return type")
+        }
     } else {
         r.endMatch()
     }

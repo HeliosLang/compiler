@@ -1,4 +1,4 @@
-import { DEFAULT_PARSE_OPTIONS, compile } from "@helios-lang/ir"
+import { DEFAULT_PARSE_OPTIONS, compile as compileIR } from "@helios-lang/ir"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext } from "../codegen/index.js"
 import { newEntryPoint } from "./newEntryPoint.js"
@@ -19,11 +19,11 @@ import { newEntryPoint } from "./newEntryPoint.js"
  * TODO: allow moduleSources to be of `Source[]` type
  * TODO: get rid of allowPosParams and invertEntryPoint
  * @typedef {{
- *   allowPosParams: boolean
- *   invertEntryPoint: boolean
- *   isTestnet: boolean
- *   moduleSources: string[]
- *   validatorTypes: ScriptTypes
+ *   allowPosParams?: boolean
+ *   invertEntryPoint?: boolean
+ *   isTestnet?: boolean
+ *   moduleSources?: string[]
+ *   validatorTypes?: ScriptTypes
  * }} ProgramProps
  */
 
@@ -63,11 +63,18 @@ export class Program {
 
         this.entryPoint = newEntryPoint(
             mainSource,
-            props.moduleSources,
-            props.validatorTypes,
-            props.allowPosParams,
-            props.invertEntryPoint
+            props.moduleSources ?? [],
+            props.validatorTypes ?? {},
+            props.allowPosParams ?? false,
+            props.invertEntryPoint ?? true
         )
+    }
+
+    /**
+     * @type {boolean}
+     */
+    get isForTestnet() {
+        return this.props.isTestnet ?? false
     }
 
     /**
@@ -97,7 +104,7 @@ export class Program {
      */
     get requiredParams() {
         return this.entryPoint.getRequiredParameters(
-            new ToIRContext(false, this.props.isTestnet)
+            new ToIRContext(false, this.isForTestnet)
         )
     }
 
@@ -111,15 +118,15 @@ export class Program {
     }
 
     /**
-     * @param {boolean} simplify
+     * @param {boolean} optimize
      * @returns {UplcProgramV2}
      */
-    compile(simplify = false) {
-        const ctx = new ToIRContext(simplify, this.props.isTestnet)
+    compile(optimize = false) {
+        const ctx = new ToIRContext(optimize, this.isForTestnet)
         const ir = this.entryPoint.toIR(ctx)
 
-        return compile(ir, {
-            optimize: simplify,
+        return compileIR(ir, {
+            optimize: optimize,
             parseOptions: {
                 ...DEFAULT_PARSE_OPTIONS,
                 builtinsPrefix: "__core__",

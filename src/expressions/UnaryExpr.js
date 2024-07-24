@@ -80,7 +80,12 @@ export class UnaryExpr extends Expr {
     toIR(ctx) {
         const path = expectSome(this.cache?.asTyped?.type?.asNamed).path
 
-        return $`${path}__${this.translateOp().value}${this.site}(${this.#a.toIR(ctx)})`
+        return $([
+            $(`${path}__${this.translateOp().value}`, this.site),
+            $("("),
+            this.#a.toIR(ctx),
+            $(")")
+        ])
     }
 
     /**

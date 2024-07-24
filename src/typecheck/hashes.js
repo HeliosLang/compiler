@@ -99,7 +99,7 @@ export class ScriptHashType extends GenericType {
 /**
  * @type {DataType}
  */
-export const scriptHashType = new ScriptHashType()
+export const scriptHashType = new ScriptHashType("ScriptHash", "ScriptHash")
 
 /**
  * @type {DataType}
