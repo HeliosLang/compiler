@@ -1,5 +1,5 @@
-import { describe } from "node:test";
-import { compileAndRunMany, int } from "./utils.js";
+import { describe } from "node:test"
+import { compileAndRunMany, int } from "./utils.js"
 
 describe("Assign", () => {
     compileAndRunMany([

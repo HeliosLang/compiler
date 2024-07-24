@@ -58,7 +58,10 @@ export function parseDestructExpr(ctx, switchingDepth) {
         other.end()
 
         nestedDestructExprs = g.fields.map((f) =>
-            parseDestructExpr(ctx.atSite(g.site).withReader(f), switchingDepth - 1)
+            parseDestructExpr(
+                ctx.atSite(g.site).withReader(f),
+                switchingDepth - 1
+            )
         )
         nestedDestructIsTuple = true
     } else if ((m = r.findNextMatch(group("{", { minLength: 1 })))) {

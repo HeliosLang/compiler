@@ -12,8 +12,8 @@ import { GlobalScope } from "./GlobalScope.js"
  * @implements {EvalEntity}
  */
 export class Scope extends Common {
-    /** 
-     * @type {GlobalScope | Scope} 
+    /**
+     * @type {GlobalScope | Scope}
      */
     #parent
 

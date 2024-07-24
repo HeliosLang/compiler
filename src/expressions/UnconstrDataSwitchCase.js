@@ -79,7 +79,7 @@ export class UnconstrDataSwitchCase extends SwitchCase {
          */
         let bodyVal = null
 
-        if (this.#intVarName  || this.#lstVarName ) {
+        if (this.#intVarName || this.#lstVarName) {
             let caseScope = new Scope(scope, false)
 
             if (this.#intVarName) {

@@ -54,6 +54,6 @@ export class SwitchExpr extends Expr {
     }
 
     toString() {
-        return `${this.#controlExpr.toString()}.switch{${this.#cases.map((c) => c.toString()).join(", ")}${this.#defaultCase ? (", " + this.#defaultCase.toString()) : ""}}`
+        return `${this.#controlExpr.toString()}.switch{${this.#cases.map((c) => c.toString()).join(", ")}${this.#defaultCase ? ", " + this.#defaultCase.toString() : ""}}`
     }
 }

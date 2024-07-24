@@ -259,12 +259,11 @@ export function isDataType(type) {
  * @returns {Type}
  */
 export function TupleType$(itemTypes, isAllDataTypes = null) {
-    const isData =
-        isAllDataTypes
-            ? isAllDataTypes
-            : itemTypes.every((it) => {
-                  return isDataType(it)
-              })
+    const isData = isAllDataTypes
+        ? isAllDataTypes
+        : itemTypes.every((it) => {
+              return isDataType(it)
+          })
 
     const props = {
         name: `(${itemTypes.map((it) => it.toString()).join(", ")})`,
