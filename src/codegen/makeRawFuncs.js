@@ -1897,6 +1897,67 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
 
+    add(
+        new RawFunc(
+            "__helios__ratio____sub",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+		new_bottom = __helios__int____mul(ab, bb);
+		new_top = __helios__int____sub(
+			__helios__int____mul(at, bb),
+			__helios__int____mul(bt, ab)
+		);
+		__helios__ratio__new(new_top, new_bottom)
+	}`
+        )
+    )
+
+    add(
+        new RawFunc(
+            "__helios__ratio____mul",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+		new_bottom = __helios__int____mul(ab, bb);
+		new_top = __helios__int____mul(at, bt);
+		__helios__ratio__new(new_top, new_bottom)
+	}`
+        )
+    )
+
+    add(
+        new RawFunc(
+            "__helios__ratio____div",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+		new_bottom = __helios__int____mul(ab, bt);
+		new_top = __helios__int____mul(at, bb);
+		__helios__ratio__new(new_top, new_bottom)
+	}`
+        )
+    )
+
+    add(
+        new RawFunc(
+            "__helios__ratio__floor",
+            `(self) -> {
+			() -> {
+				top = __helios__ratio__top(self);
+				bottom = __helios__ratio__bottom(self);
+				__core__divideInteger(top, bottom)
+			}
+		}`
+        )
+    )
+
     // Real builtins
     addIntLikeFuncs("__helios__real")
     add(
