@@ -1845,6 +1845,58 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
 
+    // Ratio builtins
+    addDataFuncs("__helios__ratio")
+    add(
+        new RawFunc(
+            "__helios__ratio__new",
+            `(top, bottom) -> {
+		__core__listData(
+			__core__mkCons(
+				__core__iData(top),
+				__core__mkCons(
+					__core__iData(bottom), 
+					__core__mkNilData(())
+				)
+			)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio__top",
+            `(self) -> {
+		__core__unIData(__core__headList(__core__unListData(self)))
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio__bottom",
+            `(self) -> {
+		__core__unIData(__core__headList(__core__tailList(__core__unListData(self))))
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio____add",
+            `(a, b) -> {
+		at = __helios__ratio__top(a);
+		ab = __helios__ratio__bottom(a);
+		bt = __helios__ratio__top(b);
+		bb = __helios__ratio__bottom(b);
+		new_bottom = __helios__int____mul(ab, bb);
+		new_top = __helios__int____add(
+			__helios__int____mul(at, bb),
+			__helios__int____mul(bt, ab)
+		);
+		__helios__ratio__new(new_top, new_bottom)
+	}`
+        )
+    )
+
     // Real builtins
     addIntLikeFuncs("__helios__real")
     add(

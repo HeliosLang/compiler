@@ -190,6 +190,33 @@ export const RawDataType = new GenericType({
 })
 
 /**
+ * Builtin top/bottom Ratio
+ */
+export const RatioType = new GenericType({
+    name: "Ratio",
+    genTypeDetails: (self) => ({
+        inputType: "{top: number | bigint, bottom: number | bigint}",
+        outputType: "{top: bigint, bottom: bigint}",
+        internalType: {
+            type: "Ratio"
+        }
+    }),
+    genInstanceMembers: (self) => ({
+        ...genCommonInstanceMembers(self),
+        bottom: IntType,
+        top: IntType,
+        floor: new FuncType([], IntType)
+    }),
+    genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
+        new: new FuncType([IntType, IntType], self),
+        __add: new FuncType([self, self], self),
+        __sub: new FuncType([self, self], self),
+        __mul: new FuncType([self, self], self),
+        __div: new FuncType([self, self], self)
+    })
+})
+/**
  * Builtin Real fixed point number type
  * @type {DataType}
  */

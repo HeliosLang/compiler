@@ -48,6 +48,7 @@ export {
     ByteArrayType,
     IntType,
     RawDataType,
+    RatioType,
     RealType,
     StringType,
     genCommonInstanceMembers,

@@ -6,6 +6,7 @@ import {
     ByteArrayData,
     ConstrData,
     IntData,
+    ListData,
     UplcDataValue
 } from "@helios-lang/uplc"
 import { Program } from "../src/program/Program.js"
@@ -128,6 +129,15 @@ export function cbor(d) {
  */
 export function int(i) {
     return new IntData(i)
+}
+
+/**
+ * @param {number} top
+ * @param {number} bottom
+ * @returns {UplcData}
+ */
+export function ratio(top, bottom) {
+    return new ListData([new IntData(top), new IntData(bottom)])
 }
 
 /**
