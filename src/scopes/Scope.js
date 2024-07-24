@@ -12,7 +12,9 @@ import { GlobalScope } from "./GlobalScope.js"
  * @implements {EvalEntity}
  */
 export class Scope extends Common {
-    /** @type {GlobalScope | Scope} */
+    /** 
+     * @type {GlobalScope | Scope} 
+     */
     #parent
 
     /**
@@ -63,7 +65,7 @@ export class Scope extends Common {
             }
         }
 
-        if (this.#parent !== null) {
+        if (this.#parent) {
             return this.#parent.has(name)
         } else {
             return false
@@ -177,7 +179,7 @@ export class Scope extends Common {
             }
         }
 
-        if (this.#parent !== null) {
+        if (this.#parent) {
             if (this.#parent instanceof GlobalScope) {
                 return this.#parent.get(name)
             } else {

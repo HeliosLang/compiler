@@ -41,7 +41,7 @@ export class DataSwitchExpr extends SwitchExpr {
         }
 
         // check that we have enough cases to cover the enum members
-        if (this.defaultCase === null && this.cases.length < 5) {
+        if (!this.defaultCase && this.cases.length < 5) {
             // mutate defaultCase to VoidExpr
             this.setDefaultCaseToVoid()
         }
@@ -63,7 +63,7 @@ export class DataSwitchExpr extends SwitchExpr {
             )
         }
 
-        if (this.defaultCase !== null) {
+        if (this.defaultCase) {
             const defaultVal = this.defaultCase.eval(scope)
 
             if (defaultVal) {
@@ -75,7 +75,7 @@ export class DataSwitchExpr extends SwitchExpr {
             }
         }
 
-        if (branchMultiType === null) {
+        if (!branchMultiType) {
             // only possible if each branch is an error
             return new ErrorEntity()
         } else {
@@ -160,7 +160,7 @@ export class DataSwitchExpr extends SwitchExpr {
                     cases[0] = ir
                     break
                 default:
-                    if (cases[0] !== null) {
+                    if (cases[0]) {
                         throw new Error("should've been caught before")
                     }
 
@@ -168,9 +168,9 @@ export class DataSwitchExpr extends SwitchExpr {
             }
         }
 
-        if (this.defaultCase !== null) {
+        if (this.defaultCase) {
             for (let i = 0; i < 5; i++) {
-                if (cases[i] === null) {
+                if (!cases[i]) {
                     cases[i] = $(`${ctx.indent}${TAB}def`)
                 }
             }
@@ -182,7 +182,7 @@ export class DataSwitchExpr extends SwitchExpr {
             $(`${ctx.indent})`)
         ])
 
-        if (this.defaultCase !== null) {
+        if (this.defaultCase) {
             res = $([
                 $(`${ctx.indent}(def) -> {\n`),
                 res,

@@ -1,5 +1,6 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
+import { isNone } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
@@ -79,7 +80,7 @@ export class SwitchCase {
      * @type {number}
      */
     get constrIndex() {
-        if (this.#constrIndex === null) {
+        if (isNone(this.#constrIndex)) {
             throw new Error("constrIndex not yet set")
         } else {
             return this.#constrIndex

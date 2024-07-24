@@ -260,7 +260,7 @@ export function isDataType(type) {
  */
 export function TupleType$(itemTypes, isAllDataTypes = null) {
     const isData =
-        isAllDataTypes !== null
+        isAllDataTypes
             ? isAllDataTypes
             : itemTypes.every((it) => {
                   return isDataType(it)

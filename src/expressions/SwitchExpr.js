@@ -1,3 +1,4 @@
+import { None } from "@helios-lang/type-utils"
 import { Expr } from "./Expr.js"
 import { SwitchCase } from "./SwitchCase.js"
 import { SwitchDefault } from "./SwitchDefault.js"
@@ -20,7 +21,7 @@ export class SwitchExpr extends Expr {
      * @param {SwitchCase[]} cases
      * @param {Option<SwitchDefault>} defaultCase
      */
-    constructor(site, controlExpr, cases, defaultCase = null) {
+    constructor(site, controlExpr, cases, defaultCase = None) {
         super(site)
         this.#controlExpr = controlExpr
         this.#cases = cases
@@ -35,6 +36,9 @@ export class SwitchExpr extends Expr {
         return this.#cases
     }
 
+    /**
+     * @type {Option<SwitchDefault>}
+     */
     get defaultCase() {
         return this.#defaultCase
     }
@@ -50,6 +54,6 @@ export class SwitchExpr extends Expr {
     }
 
     toString() {
-        return `${this.#controlExpr.toString()}.switch{${this.#cases.map((c) => c.toString()).join(", ")}${this.#defaultCase === null ? "" : ", " + this.#defaultCase.toString()}}`
+        return `${this.#controlExpr.toString()}.switch{${this.#cases.map((c) => c.toString()).join(", ")}${this.#defaultCase ? (", " + this.#defaultCase.toString()) : ""}}`
     }
 }

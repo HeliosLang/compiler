@@ -1,5 +1,5 @@
 import { CompilerError, StringLiteral, Word } from "@helios-lang/compiler-utils"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectSome, isSome } from "@helios-lang/type-utils"
 import { Expr, NameTypePair } from "../expressions/index.js"
 import { Scope } from "../scopes/index.js"
 import { isDataType } from "../typecheck/index.js"
@@ -36,7 +36,7 @@ export class DataField extends NameTypePair {
      * @returns {boolean}
      */
     hasTag() {
-        return this.#tag !== null
+        return isSome(this.#tag)
     }
 
     /**

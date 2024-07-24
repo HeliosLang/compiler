@@ -1,8 +1,9 @@
 import { Word } from "@helios-lang/compiler-utils"
+import { SourceMappedString } from "@helios-lang/ir"
+import { isSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
-import { SourceMappedString } from "@helios-lang/ir"
 
 /**
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
@@ -55,7 +56,7 @@ export class StructLiteralField {
      * @returns {boolean}
      */
     isNamed() {
-        return this.#name !== null
+        return isSome(this.#name)
     }
 
     /**

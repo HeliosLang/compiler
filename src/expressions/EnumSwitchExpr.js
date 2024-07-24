@@ -1,4 +1,5 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
+import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Common, ErrorEntity } from "../typecheck/index.js"
@@ -6,7 +7,6 @@ import { SwitchExpr } from "./SwitchExpr.js"
 import { $, SourceMappedString } from "@helios-lang/ir"
 import { SwitchCase } from "./SwitchCase.js"
 import { SwitchDefault } from "./SwitchDefault.js"
-import { expectSome } from "@helios-lang/type-utils"
 import { IfElseExpr } from "./IfElseExpr.js"
 
 /**
@@ -48,13 +48,13 @@ export class EnumSwitchExpr extends SwitchExpr {
         const nEnumMembers = Common.countEnumMembers(enumType)
 
         // check that we have enough cases to cover the enum members
-        if (this.defaultCase === null && nEnumMembers > this.cases.length) {
+        if (!this.defaultCase && nEnumMembers > this.cases.length) {
             // mutate defaultCase to VoidExpr
             this.setDefaultCaseToVoid()
         }
 
-        /** @type {null | Type} */
-        let branchMultiType = null
+        /** @type {Option<Type>} */
+        let branchMultiType = None
 
         for (let c of this.cases) {
             const branchVal = c.evalEnumMember(scope, enumType)
@@ -70,7 +70,7 @@ export class EnumSwitchExpr extends SwitchExpr {
             )
         }
 
-        if (this.defaultCase !== null) {
+        if (this.defaultCase) {
             const defaultVal = this.defaultCase.eval(scope)
 
             if (defaultVal) {
@@ -82,7 +82,7 @@ export class EnumSwitchExpr extends SwitchExpr {
             }
         }
 
-        if (branchMultiType === null) {
+        if (!branchMultiType) {
             return new ErrorEntity()
         } else {
             return branchMultiType.toTyped()
@@ -98,7 +98,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 
         /** @type {SwitchCase | SwitchDefault} */
         let last
-        if (this.defaultCase !== null) {
+        if (this.defaultCase) {
             last = this.defaultCase
         } else {
             last = expectSome(cases.pop())

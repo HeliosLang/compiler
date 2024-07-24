@@ -37,7 +37,7 @@ export class Module {
 
         errors.throw()
 
-        if (name !== null) {
+        if (name) {
             return new Module(name, statements)
         } else {
             throw new Error("unexpected") // should've been caught by calling src.throwErrors() above

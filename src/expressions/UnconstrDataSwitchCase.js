@@ -21,7 +21,14 @@ import { SwitchCase } from "./SwitchCase.js"
  */
 
 export class UnconstrDataSwitchCase extends SwitchCase {
+    /**
+     * @type {Option<Word>}
+     */
     #intVarName
+
+    /**
+     * @type {Option<Word>}
+     */
     #lstVarName
 
     /**
@@ -72,7 +79,7 @@ export class UnconstrDataSwitchCase extends SwitchCase {
          */
         let bodyVal = null
 
-        if (this.#intVarName !== null || this.#lstVarName !== null) {
+        if (this.#intVarName  || this.#lstVarName ) {
             let caseScope = new Scope(scope, false)
 
             if (this.#intVarName) {

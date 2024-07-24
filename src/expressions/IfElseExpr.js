@@ -58,12 +58,12 @@ export class IfElseExpr extends Expr {
 
     /**
      * @param {Site} site
-     * @param {null | Type} prevType
+     * @param {Option<Type>} prevType
      * @param {Type} newType
      * @returns {Type}
      */
     static reduceBranchType(site, prevType, newType) {
-        if (prevType === null || prevType instanceof ErrorType) {
+        if (!prevType || prevType instanceof ErrorType) {
             return newType
         } else if (newType instanceof ErrorType) {
             return prevType
@@ -127,7 +127,7 @@ export class IfElseExpr extends Expr {
 
         const newType = expectSome(newValue.asTyped).type
 
-        if (prevType === null) {
+        if (!prevType) {
             return newType
         } else {
             return IfElseExpr.reduceBranchType(site, prevType, newType)
@@ -175,7 +175,7 @@ export class IfElseExpr extends Expr {
             )
         }
 
-        if (branchMultiType === null) {
+        if (!branchMultiType) {
             // i.e. every branch throws an error
             return new ErrorEntity()
         } else {

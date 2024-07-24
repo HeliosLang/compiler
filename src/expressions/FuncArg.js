@@ -1,15 +1,19 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { $, SourceMappedString } from "@helios-lang/ir"
+import { None, isSome } from "@helios-lang/type-utils"
+import { ToIRContext } from "../codegen/ToIRContext.js"
 import { Scope } from "../scopes/index.js"
 import { ArgType } from "../typecheck/index.js"
 import { NameTypePair } from "./NameTypePair.js"
 import { Expr } from "./Expr.js"
-import { $, SourceMappedString } from "@helios-lang/ir"
-import { ToIRContext } from "../codegen/ToIRContext.js"
 
 /**
  * Function argument class
  */
 export class FuncArg extends NameTypePair {
+    /**
+     * @type {Option<Expr>}
+     */
     #defaultValueExpr
 
     /**
@@ -17,7 +21,7 @@ export class FuncArg extends NameTypePair {
      * @param {Option<Expr>} typeExpr
      * @param {Option<Expr>} defaultValueExpr
      */
-    constructor(name, typeExpr, defaultValueExpr = null) {
+    constructor(name, typeExpr, defaultValueExpr = None) {
         super(name, typeExpr)
 
         this.#defaultValueExpr = defaultValueExpr
@@ -27,7 +31,7 @@ export class FuncArg extends NameTypePair {
      * @param {Scope} scope
      */
     evalDefault(scope) {
-        if (this.#defaultValueExpr != null) {
+        if (this.#defaultValueExpr) {
             const v_ = this.#defaultValueExpr.eval(scope)
             if (!v_) {
                 return
@@ -64,7 +68,7 @@ export class FuncArg extends NameTypePair {
     evalArgType(scope) {
         const t = super.evalType(scope)
 
-        return new ArgType(this.name, t, this.#defaultValueExpr != null)
+        return new ArgType(this.name, t, isSome(this.#defaultValueExpr))
     }
 
     /**
@@ -73,7 +77,7 @@ export class FuncArg extends NameTypePair {
     toIR() {
         const name = super.toIR()
 
-        if (this.#defaultValueExpr == null) {
+        if (!this.#defaultValueExpr) {
             return name
         } else {
             return $([$(`__useopt__${this.name.toString()}`), $(", "), name])
@@ -120,7 +124,7 @@ export class FuncArg extends NameTypePair {
      * @returns {SourceMappedString}
      */
     wrapWithDefault(ctx, bodyIR) {
-        if (this.#defaultValueExpr == null) {
+        if (!this.#defaultValueExpr) {
             return bodyIR
         } else {
             const name = this.name.toString()

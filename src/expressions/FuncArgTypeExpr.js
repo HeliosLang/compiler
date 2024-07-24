@@ -39,7 +39,7 @@ export class FuncArgTypeExpr {
      * @returns {boolean}
      */
     isNamed() {
-        return this.#name == null
+        return !this.#name
     }
 
     /**

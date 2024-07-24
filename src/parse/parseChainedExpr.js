@@ -327,7 +327,7 @@ export function makeChainedExprParser(parseValueExpr) {
             } else if ((m = f.findNextMatch(symbol("=>")))) {
                 const [before, darrow] = m
 
-                const destructExpr = parseDestructExpr(ctx.withReader(before))
+                const destructExpr = parseDestructExpr(ctx.withReader(before), 2)
 
                 assertValidCaseLhs(ctx, destructExpr)
 

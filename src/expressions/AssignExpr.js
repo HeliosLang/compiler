@@ -51,10 +51,7 @@ export class AssignExpr extends ChainExpr {
                     expectSome(upstreamVal.asTyped.type.asType),
                     0
                 )
-            } else if (
-                this.upstreamExpr.isLiteral() ||
-                scope.has(this.#nameType.name)
-            ) {
+            } else {
                 // enum variant type resulting from a constructor-like associated function must be cast back into its enum type
                 if (
                     (this.upstreamExpr instanceof CallExpr &&
@@ -72,11 +69,6 @@ export class AssignExpr extends ChainExpr {
                 }
 
                 subScope.set(this.#nameType.name, upstreamVal)
-            } else {
-                throw CompilerError.type(
-                    this.site,
-                    "unable to infer type of assignment rhs"
-                )
             }
         } else if (this.#nameType.hasType()) {
             this.#nameType.evalInAssignExpr(subScope, null, 0)

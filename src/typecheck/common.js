@@ -1,5 +1,5 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectSome, isSome } from "@helios-lang/type-utils"
 
 /**
  * @typedef {(type: Type) => Option<Type[]>} ExpandTupleCallback
@@ -725,7 +725,7 @@ export class ArgType {
      * @returns {boolean}
      */
     isNamed() {
-        return this.#name !== null
+        return isSome(this.#name)
     }
 
     /**

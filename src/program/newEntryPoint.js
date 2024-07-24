@@ -123,7 +123,7 @@ function parseMainInternal(rawSrc) {
 
     errors.throw()
 
-    if (purpose !== null && name !== null) {
+    if (purpose && name) {
         /**
          * @type {Module[]}
          */

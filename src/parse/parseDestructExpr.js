@@ -7,9 +7,10 @@ import { parseTypeExpr } from "./parseTypeExpr.js"
 
 /**
  * @param {ParseContext} ctx
+ * @param {number} switchingDepth - if <= 0 then prefer a plain assignment, if > 0 prefer a typeExpr
  * @returns {DestructExpr}
  */
-export function parseDestructExpr(ctx) {
+export function parseDestructExpr(ctx, switchingDepth) {
     const r = ctx.reader
 
     /**
@@ -32,6 +33,9 @@ export function parseDestructExpr(ctx) {
      */
     let nestedDestructIsTuple = false
 
+    const isInAssign = switchingDepth <= 0
+    let isNamed = false
+
     let m
 
     if ((m = r.matches(word("_")))) {
@@ -43,6 +47,7 @@ export function parseDestructExpr(ctx) {
 
         name = n
         ctx = ctx.atSite(colon.site)
+        isNamed = true
     } else {
         r.endMatch(false)
     }
@@ -53,7 +58,7 @@ export function parseDestructExpr(ctx) {
         other.end()
 
         nestedDestructExprs = g.fields.map((f) =>
-            parseDestructExpr(ctx.atSite(g.site).withReader(f))
+            parseDestructExpr(ctx.atSite(g.site).withReader(f), switchingDepth - 1)
         )
         nestedDestructIsTuple = true
     } else if ((m = r.findNextMatch(group("{", { minLength: 1 })))) {
@@ -65,8 +70,10 @@ export function parseDestructExpr(ctx) {
         }
 
         nestedDestructExprs = g.fields.map((f) =>
-            parseDestructExpr(ctx.atSite(g.site).withReader(f))
+            parseDestructExpr(ctx.atSite(g.site).withReader(f), 0)
         )
+    } else if (isInAssign && !isNamed && (m = r.matches(anyName))) {
+        name = m
     } else {
         r.endMatch(false)
 

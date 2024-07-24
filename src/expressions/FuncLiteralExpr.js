@@ -142,7 +142,7 @@ export class FuncLiteralExpr extends Expr {
 
         let bodyVal = this.#bodyExpr.eval(subScope)
 
-        if (this.retTypeExpr == null) {
+        if (!this.retTypeExpr) {
             if (bodyVal.asTyped) {
                 return new FuncEntity(
                     new FuncType(fnType.argTypes, bodyVal.asTyped.type)
@@ -255,10 +255,10 @@ export class FuncLiteralExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        if (this.retTypeExpr == null) {
-            return `(${this.#args.map((a) => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`
-        } else {
+        if (this.retTypeExpr) {
             return `(${this.#args.map((a) => a.toString()).join(", ")}) -> ${this.retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`
+        } else {
+            return `(${this.#args.map((a) => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`
         }
     }
 }

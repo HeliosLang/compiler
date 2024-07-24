@@ -53,7 +53,7 @@ export class GenericParametricType extends GenericType {
      * @returns {Type}
      */
     infer(site, map, type) {
-        if (type !== null) {
+        if (type) {
             return this
         } else {
             let isMaybeParametric = false
@@ -93,7 +93,7 @@ export class GenericParametricEnumMemberType extends GenericEnumMemberType {
      * @returns {Type}
      */
     infer(site, map, type) {
-        if (type !== null) {
+        if (type) {
             return this
         } else {
             let isMaybeParametric = false

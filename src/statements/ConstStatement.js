@@ -1,11 +1,11 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { expectSome } from "@helios-lang/type-utils"
+import { $, SourceMappedString } from "@helios-lang/ir"
+import { expectSome, isSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Expr, LiteralDataExpr } from "../expressions/index.js"
 import { Scope, TopScope } from "../scopes/index.js"
 import { AllType, DataEntity, NamedEntity } from "../typecheck/index.js"
 import { Statement } from "./Statement.js"
-import { $, SourceMappedString } from "@helios-lang/ir"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -68,7 +68,7 @@ export class ConstStatement extends Statement {
      * @returns {boolean}
      */
     isSet() {
-        return this.#valueExpr !== null
+        return isSome(this.#valueExpr)
     }
 
     /**

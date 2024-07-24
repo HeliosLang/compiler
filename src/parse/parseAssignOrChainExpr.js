@@ -32,8 +32,7 @@ export function makeAssignOrChainExprParser(parseValueExpr) {
 
             if ((m = upstreamReader.findNextMatch(symbol("=")))) {
                 const [lhsReader, equals] = m
-                const lhs = parseDestructExpr(ctx.withReader(lhsReader))
-
+                const lhs = parseDestructExpr(ctx.withReader(lhsReader), 0)
                 const upstreamExpr = parseValueExpr(
                     ctx.withReader(upstreamReader),
                     precedence + 1

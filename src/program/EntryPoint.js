@@ -395,7 +395,7 @@ export class EntryPointImpl {
         let cs = None
 
         this.loopConstStatements((constName, constStatement) => {
-            if (cs === null) {
+            if (!cs) {
                 if (name == constName) {
                     cs = constStatement
                 }

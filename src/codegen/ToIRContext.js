@@ -112,7 +112,7 @@ export class ToIRContext {
          */
         const map = new Map()
 
-        if (matches !== null) {
+        if (matches) {
             for (let m of matches) {
                 if (
                     !ParametricName.matches(m) &&

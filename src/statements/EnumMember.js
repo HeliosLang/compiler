@@ -111,7 +111,7 @@ export class EnumMember {
      * @returns {(parent: DataType) => EnumMemberType}
      */
     evalType(scope) {
-        if (this.#parent === null) {
+        if (!this.#parent) {
             throw new Error("parent should've been registered")
         }
 

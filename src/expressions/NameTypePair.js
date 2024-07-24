@@ -1,5 +1,6 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
+import { isSome } from "@helios-lang/type-utils"
 import { Scope } from "../scopes/index.js"
 import { AllType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
@@ -83,7 +84,7 @@ export class NameTypePair {
      * @returns {boolean}
      */
     hasType() {
-        return this.#typeExpr !== null
+        return isSome(this.#typeExpr)
     }
 
     /**

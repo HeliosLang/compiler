@@ -1,6 +1,6 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
-import { None, expectSome } from "@helios-lang/type-utils"
+import { None, expectSome, isSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
@@ -60,11 +60,11 @@ export class DestructExpr {
         this.#isTuple = isTuple
 
         if (isTuple) {
-            if (!(this.destructExprs.length > 0 && this.typeExpr == null)) {
+            if (!(this.destructExprs.length > 0 && !this.typeExpr)) {
                 throw new Error("unexpected")
             }
         } else {
-            if (this.typeExpr == null && this.destructExprs.length > 0) {
+            if (!this.typeExpr && this.destructExprs.length > 0) {
                 throw new Error(`unexpected syntax: ${this.toString()}`)
             }
         }
@@ -109,7 +109,7 @@ export class DestructExpr {
      * @returns {boolean}
      */
     hasType() {
-        return this.typeExpr !== null
+        return isSome(this.typeExpr)
     }
 
     /**
