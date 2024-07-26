@@ -31,8 +31,6 @@ import { newEntryPoint } from "./newEntryPoint.js"
  * @type {ProgramProps}
  */
 export const DEFAULT_PROGRAM_PROPS = {
-    allowPosParams: false,
-    invertEntryPoint: false,
     isTestnet: true,
     moduleSources: [],
     validatorTypes: {}
@@ -64,9 +62,7 @@ export class Program {
         this.entryPoint = newEntryPoint(
             mainSource,
             props.moduleSources ?? [],
-            props.validatorTypes ?? {},
-            props.allowPosParams ?? false,
-            props.invertEntryPoint ?? true
+            props.validatorTypes ?? {}
         )
     }
 

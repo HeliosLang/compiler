@@ -1,13 +1,5 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
-
-/**
- * @typedef {import("../typecheck/index.js").DataType} DataType
- * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
- * @typedef {import("../typecheck/index.js").Func} Func
- * @typedef {import("../typecheck/index.js").Parametric} Parametric
- * @typedef {import("../typecheck/index.js").Type} Type
- * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
- */
+import { None } from "@helios-lang/type-utils"
 
 import {
     AddressType,
@@ -16,6 +8,7 @@ import {
     AssetClassType,
     BoolType,
     ByteArrayType,
+    Cip67Namespace,
     ContractContextType,
     CredentialType,
     DatumHashType,
@@ -24,6 +17,7 @@ import {
     ErrorFunc,
     IntType,
     MintingPolicyHashType,
+    MixedArgsType,
     NetworkType,
     OutputDatumType,
     PrintFunc,
@@ -33,7 +27,7 @@ import {
     RawDataType,
     RealType,
     scriptHashType,
-    ScriptContextType,
+    ScriptContextNamespace,
     ScriptPurposeType,
     ScriptsType,
     StakingCredentialType,
@@ -52,8 +46,37 @@ import {
     ValidatorHashType,
     ValueType,
     ValuableTypeClass,
-    WalletType
+    WalletType,
+    NamedNamespace
 } from "../typecheck/index.js"
+
+/**
+ * @typedef {import("../typecheck/index.js").DataType} DataType
+ * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
+ * @typedef {import("../typecheck/index.js").Func} Func
+ * @typedef {import("../typecheck/index.js").MultiValidatorInfo} MultiValidatorInfo
+ * @typedef {import("../typecheck/index.js").Named} Named
+ * @typedef {import("../typecheck/index.js").Namespace} Namespace
+ * @typedef {import("../typecheck/index.js").Parametric} Parametric
+ * @typedef {import("../typecheck/index.js").Type} Type
+ * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
+ */
+
+/**
+ * Setting information allows making the scope multi-validator aware
+ * @typedef {{
+ *   currentScript?: string
+ *   scriptTypes?: ScriptTypes
+ * }} GlobalScopeConfig
+ */
+
+/**
+ * @type {{[name: string]: (info: MultiValidatorInfo) => NamedNamespace}}
+ */
+export const builtinNamespaces = {
+    Cip67: Cip67Namespace,
+    ScriptContext: ScriptContextNamespace
+}
 
 /**
  * @type {{[name: string]: DataType}}
@@ -70,6 +93,7 @@ export const builtinTypes = {
     Duration: DurationType,
     Int: IntType,
     MintingPolicyHash: MintingPolicyHashType,
+    MixedArgs: MixedArgsType,
     OutputDatum: OutputDatumType,
     PubKey: PubKeyType,
     PubKeyHash: PubKeyHashType,
@@ -154,6 +178,33 @@ export class GlobalScope {
     }
 
     /**
+     * @param {Word} name
+     * @returns {Option<Named & Namespace>}
+     */
+    getBuiltinNamespace(name) {
+        if (name.value in builtinNamespaces) {
+            const nameEntity = this.#values.find(
+                ([n, entity]) => n.value == name.value
+            )
+
+            if (nameEntity) {
+                const entity = nameEntity[1]
+
+                if (entity.asNamed && entity.asNamespace) {
+                    return /** @type {any} */ (entity)
+                } else {
+                    return None
+                }
+            }
+        }
+
+        throw CompilerError.reference(
+            name.site,
+            `namespace ${name.value} not found`
+        )
+    }
+
+    /**
      * @returns {boolean}
      */
     isStrict() {
@@ -162,15 +213,19 @@ export class GlobalScope {
 
     /**
      * Initialize the GlobalScope with all the builtins
-     * @param {ScriptTypes} scriptTypes - types of all the scripts in a contract/ensemble
+     * @param {MultiValidatorInfo} info
      * @returns {GlobalScope}
      */
-    static new(scriptTypes = {}) {
+    static new(info) {
         let scope = new GlobalScope()
 
         // List (aka '[]'), Option, and Map types are accessed through special expressions
 
-        // fill the global scope with builtin types
+        // fill the global scope with builtin types and namespaces
+        for (let name in builtinNamespaces) {
+            scope.set(name, builtinNamespaces[name](info))
+        }
+
         for (let name in builtinTypes) {
             scope.set(name, builtinTypes[name])
         }
@@ -178,11 +233,10 @@ export class GlobalScope {
         scope.set("Any", new AnyTypeClass())
         scope.set("Valuable", new ValuableTypeClass())
 
-        if (Object.keys(scriptTypes).length > 0) {
-            scope.set("Scripts", new ScriptsType(scriptTypes))
+        if (info.scriptTypes && Object.keys(info.scriptTypes).length > 0) {
+            scope.set("Scripts", new ScriptsType(info.scriptTypes))
         }
 
-        scope.set("ScriptContext", new ScriptContextType())
         scope.set("ContractContext", new ContractContextType())
         scope.set("TxBuilder", TxBuilderType)
         scope.set("Wallet", WalletType)

@@ -1,6 +1,6 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
 import { parseScript } from "../parse/index.js"
-import { ModuleScope } from "../scopes/index.js"
+import { ModuleScope, builtinNamespaces } from "../scopes/index.js"
 import {
     ConstStatement,
     ImportFromStatement,
@@ -111,7 +111,18 @@ export class Module {
                 if (!deps.some((d) => d.name.value == mn)) {
                     let m = modules.find((m) => m.name.value == mn)
 
-                    if (m === undefined) {
+                    if (mn in builtinNamespaces) {
+                        if (m) {
+                            throw CompilerError.syntax(
+                                m.#name.site,
+                                "reserved module name"
+                            )
+                        } else {
+                            continue
+                        }
+                    }
+
+                    if (!m) {
                         throw CompilerError.reference(
                             s.site,
                             `module '${mn}' not found`

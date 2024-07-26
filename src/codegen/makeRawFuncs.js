@@ -6174,25 +6174,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // ScriptContext builtins
-    addDataFuncs("__helios__scriptcontext")
-    // TODO: test fields
-    add(
-        new RawFunc(
-            "__helios__scriptcontext__is_valid_data",
-            `(data) -> {
-		__core__chooseData(
-			data,
-			() -> {
-				true
-			},
-			() -> {false},
-			() -> {false},
-			() -> {false},
-			() -> {false}
-		)()
-	}`
-        )
-    )
+    add(new RawFunc("__helios__scriptcontext__data", "__CONTEXT"))
     add(
         new RawFunc(
             "__helios__scriptcontext__new_spending",
@@ -6245,124 +6227,110 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(
         new RawFunc(
             "__helios__scriptcontext__tx",
-            "__helios__common__enum_field_0"
+            "__helios__common__enum_field_0(__helios__scriptcontext__data)"
         )
     )
     add(
         new RawFunc(
             "__helios__scriptcontext__purpose",
-            "__helios__common__enum_field_1"
+            "__helios__common__enum_field_1(__helios__scriptcontext__data)"
         )
     )
     add(
         new RawFunc(
             "__helios__scriptcontext__get_current_input",
-            `(self) -> {
-		() -> {
-			id = __helios__scriptcontext__get_spending_purpose_output_id(self)();
-			recurse = (recurse, lst) -> {
-				__core__chooseList(
-					lst, 
-					() -> {__helios__error("not found")}, 
-					() -> {
-						item = __core__headList__safe(lst);
-						__core__ifThenElse(
-							__core__equalsData(__helios__txinput__output_id(item), id), 
-							() -> {item}, 
-							() -> {recurse(recurse, __core__tailList__safe(lst))}
-						)()
-					}
-				)()
-			};
-			recurse(recurse, __helios__tx__inputs(__helios__scriptcontext__tx(self)))
-		}
+            `() -> {
+		id = __helios__scriptcontext__get_spending_purpose_output_id();
+		recurse = (recurse, lst) -> {
+			__core__chooseList(
+				lst,
+				() -> {__helios__error("not found")},
+				() -> {
+					item = __core__headList__safe(lst);
+					__core__ifThenElse(
+						__core__equalsData(__helios__txinput__output_id(item), id),
+						() -> {item},
+						() -> {recurse(recurse, __core__tailList__safe(lst))}
+					)()
+				}
+			)()
+		};
+		recurse(recurse, __helios__tx__inputs(__helios__scriptcontext__tx))
 	}`
         )
     )
     add(
         new RawFunc(
             "__helios__scriptcontext__get_cont_outputs",
-            `(self) -> {
-		() -> {
-			vh = __helios__scriptcontext__get_current_validator_hash(self)();
-			outputs = __helios__tx__outputs(__helios__scriptcontext__tx(self));
-			__helios__common__filter_list(
-				outputs,
-				(output) -> {
-					credential = __helios__address__credential(__helios__txoutput__address(output));
-					pair = __core__unConstrData(credential);
-					__core__ifThenElse(
-						__core__equalsInteger(__core__fstPair(pair), 0),
-						() -> {
-							false
-						},
-						() -> {
-							__core__equalsByteString(__core__unBData(__core__headList(__core__sndPair(pair))), vh)
-						}
-					)()
-				}
-			)
-		}
+            `() -> {
+		vh = __helios__scriptcontext__get_current_validator_hash();
+		outputs = __helios__tx__outputs(__helios__scriptcontext__tx);
+		__helios__common__filter_list(
+			outputs,
+			(output) -> {
+				credential = __helios__address__credential(__helios__txoutput__address(output));
+				pair = __core__unConstrData(credential);
+				__core__ifThenElse(
+					__core__equalsInteger(__core__fstPair(pair), 0),
+					() -> {
+						false
+					},
+					() -> {
+						__core__equalsByteString(__core__unBData(__core__headList(__core__sndPair(pair))), vh)
+					}
+				)()
+			}
+		)
 	}`
         )
     )
     add(
         new RawFunc(
             "__helios__scriptcontext__get_spending_purpose_output_id",
-            `(self) -> {
-		() -> {
-			__helios__common__enum_field_0(__helios__common__enum_field_1(self))
-		}
+            `() -> {
+		__helios__common__enum_field_0(__helios__common__enum_field_1(__helios__scriptcontext__data))
 	}`
         )
     )
     add(
         new RawFunc(
             "__helios__scriptcontext__get_current_validator_hash",
-            `(self) -> {
-		() -> {
-			__helios__credential__validator__hash(
-				__helios__credential__validator__cast(
-					__helios__address__credential(
-						__helios__txoutput__address(
-							__helios__txinput__output(
-								__helios__scriptcontext__get_current_input(self)()
-							)
+            `() -> {
+		__helios__credential__validator__hash(
+			__helios__credential__validator__cast(
+				__helios__address__credential(
+					__helios__txoutput__address(
+						__helios__txinput__output(
+							__helios__scriptcontext__get_current_input()
 						)
 					)
 				)
 			)
-		}
+		)
 	}`
         )
     )
     add(
         new RawFunc(
             "__helios__scriptcontext__get_current_minting_policy_hash",
-            `(self) -> {
-		() -> {
-			__helios__mintingpolicyhash__from_data(__helios__scriptcontext__get_spending_purpose_output_id(self)())
-		}
+            `() -> {
+		__helios__mintingpolicyhash__from_data(__helios__scriptcontext__get_spending_purpose_output_id())
 	}`
         )
     )
     add(
         new RawFunc(
             "__helios__scriptcontext__get_staking_purpose",
-            `(self) -> {
-		() -> {
-			__helios__scriptcontext__purpose(self)
-		}
+            `() -> {
+		__helios__scriptcontext__purpose
 	}`
         )
     )
     add(
         new RawFunc(
             "__helios__scriptcontext__get_script_purpose",
-            `(self) -> {
-		() -> {
-			__helios__scriptcontext__purpose(self)
-		}
+            `() -> {
+		__helios__scriptcontext__purpose
 	}`
         )
     )
@@ -10041,6 +10009,31 @@ export function makeRawFunctions(simplify, isTestnet) {
 		};
 		recurse(recurse, self)
 	}`
+        )
+    )
+
+    // Cip67 namespace
+    add(new RawFunc(`__helios__cip67__fungible_token_label`, "#0014df10"))
+    add(new RawFunc(`__helios__cip67__reference_token_label`, "#000643b0"))
+    add(new RawFunc(`__helios__cip67__user_token_label`, "#000de140"))
+
+    // MixedArgs
+    add(
+        new RawFunc(
+            `__helios__mixedargs__other__redeemer`,
+            `__helios__common__enum_field_0`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__mixedargs__spending__datum`,
+            `__helios__common__enum_field_0`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__mixedargs__spending__redeemer`,
+            `__helios__common__enum_field_1`
         )
     )
 

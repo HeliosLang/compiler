@@ -400,9 +400,12 @@ export function makeChainedExprParser(parseValueExpr) {
             return parseValueExpr(ctx.inGroup(m), 0)
         } else {
             r.endMatch(false)
+
+            const expr = parseValueExpr(ctx, 0)
+
             r.end()
 
-            return parseValueExpr(ctx, 0)
+            return expr
         }
     }
 

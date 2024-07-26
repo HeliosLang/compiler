@@ -11,10 +11,8 @@ import { RedeemerEntryPoint } from "./RedeemerEntryPoint.js"
 export class MintingEntryPoint extends RedeemerEntryPoint {
     /**
      * @param {Module[]} modules
-     * @param {boolean} allowPosParams
-     * @param {boolean} invertEntryPoint
      */
-    constructor(modules, allowPosParams, invertEntryPoint) {
-        super("minting", modules, allowPosParams, invertEntryPoint)
+    constructor(modules) {
+        super("minting", modules)
     }
 }

@@ -45,10 +45,12 @@ export class NameTypePair {
      * @type {Type}
      */
     get type() {
-        if (this.isIgnored()) {
-            return new AllType()
-        } else if (!this.#typeExpr) {
-            throw new Error("typeExpr not set")
+        if (!this.#typeExpr) {
+            if (this.isIgnored()) {
+                return new AllType()
+            } else {
+                throw new Error("typeExpr not set")
+            }
         } else {
             // asDataType might be null if the evaluation of its TypeExpr threw a syntax error
             return this.#typeExpr.cache?.asType ?? new AllType()
@@ -93,10 +95,12 @@ export class NameTypePair {
      * @returns {Type}
      */
     evalType(scope) {
-        if (this.isIgnored()) {
-            return new AllType()
-        } else if (!this.#typeExpr) {
-            throw new Error("typeExpr not set")
+        if (!this.#typeExpr) {
+            if (this.isIgnored()) {
+                return new AllType()
+            } else {
+                throw new Error("typeExpr not set")
+            }
         } else {
             const t = this.#typeExpr.eval(scope)
 

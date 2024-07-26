@@ -9,11 +9,7 @@ import { None } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
-import {
-    BoolType,
-    DefaultTypeClass,
-    ScriptContextType
-} from "../typecheck/index.js"
+import { BoolType, DefaultTypeClass } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
 import { Module } from "./Module.js"
 
@@ -32,14 +28,10 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
     /**
      * @param {string} purpose
      * @param {Module[]} modules
-     * @param {boolean} allowPosParams
-     * @param {boolean} invertEntryPoint
      */
-    constructor(purpose, modules, allowPosParams, invertEntryPoint) {
+    constructor(purpose, modules) {
         super(modules)
         this.purpose = purpose
-        this.allowPosParams = allowPosParams
-        this.invertEntryPoint = invertEntryPoint
     }
 
     /**
@@ -54,14 +46,6 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
      */
     get datumTypeName() {
         return this.mainFunc.argTypeNames[0]
-    }
-
-    /**
-     * @protected
-     * @type {number}
-     */
-    get nPosParams() {
-        return this.mainFunc.nArgs - (this.invertEntryPoint ? 0 : 3)
     }
 
     /**
@@ -87,7 +71,7 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
      * @returns {TopScope}
      */
     evalTypes(scriptTypes) {
-        const scope = GlobalScope.new(scriptTypes)
+        const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
 
         return this.evalTypesInternal(scope)
     }
@@ -107,9 +91,15 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
      * @returns {SourceMappedString}
      */
     toIR(ctx, extra = None) {
-        const ir = this.toIRInternal(ctx)
+        let ir = this.toIRInternal(ctx)
 
-        return this.wrapEntryPoint(ctx, ir, extra)
+        ir = this.wrapEntryPoint(ctx, ir, extra)
+
+        ir = $`(__DATUM, __REDEEMER, __CONTEXT) -> {
+    ${ir}
+}`
+
+        return ir
     }
 
     /**
@@ -135,42 +125,20 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
         const retType = main.retType
         const nArgs = main.nArgs
 
-        if (this.allowPosParams) {
-            if (argTypes.length < 3) {
-                throw CompilerError.type(
-                    main.site,
-                    "expected at least 3 args for main"
-                )
-                return topScope
-            }
-        } else {
-            if (argTypes.length != 3) {
-                throw CompilerError.type(main.site, "expected 3 args for main")
-                return topScope
-            }
+        if (argTypes.length != 2) {
+            throw CompilerError.type(main.site, "expected 2 args for main")
+            return topScope
         }
 
         for (let i = 0; i < nArgs; i++) {
-            if (i == nArgs - 1) {
-                if (
-                    argTypeNames[i] != "" &&
-                    !new ScriptContextType().isBaseOf(argTypes[i])
-                ) {
-                    throw CompilerError.type(
-                        main.site,
-                        `illegal type for arg ${nArgs} in main: expected 'ScriptContext', got '${argTypes[i].toString()}'`
-                    )
-                }
-            } else {
-                if (
-                    argTypeNames[i] != "" &&
-                    !new DefaultTypeClass().isImplementedBy(argTypes[i])
-                ) {
-                    throw CompilerError.type(
-                        main.site,
-                        `illegal type for arg ${i + 1} in main ${i == nArgs - 2 ? "(datum) " : i == nArgs - 3 ? "(redeemer) " : ""}: '${argTypes[i].toString()}`
-                    )
-                }
+            if (
+                argTypeNames[i] != "" &&
+                !new DefaultTypeClass().isImplementedBy(argTypes[i])
+            ) {
+                throw CompilerError.type(
+                    main.site,
+                    `illegal type for arg ${i + 1} in main ${i == nArgs - 2 ? "(datum) " : i == nArgs - 3 ? "(redeemer) " : ""}: '${argTypes[i].toString()}`
+                )
             }
         }
 
@@ -185,27 +153,22 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
     }
 
     /**
+     * @protected
      * @param {ToIRContext} ctx
      * @returns {SourceMappedString}
      */
     toIRInternal(ctx) {
-        const outerArgNames = this.invertEntryPoint
-            ? []
-            : ["datum", "redeemer", "ctx"]
-        const nOuterArgs = outerArgNames.length
-
-        const nArgs = this.mainFunc.nArgs
         const argTypeNames = this.mainFunc.argTypeNames
 
+        const innerArgNames = [`__DATUM`, `__REDEEMER`]
         const innerArgs = this.mainArgTypes.map((t, i) => {
-            const name =
-                i >= nArgs - nOuterArgs
-                    ? outerArgNames[i - (nArgs - nOuterArgs)]
-                    : `__PARAM_${i.toString()}`
-
-            // empty path
             if (argTypeNames[i] != "") {
-                return $([$(`${t.path}__from_data`), $("("), $(name), $(")")])
+                return $([
+                    $(`${t.path}__from_data`),
+                    $("("),
+                    $(innerArgNames[i]),
+                    $(")")
+                ])
             } else {
                 // unused arg, 0 is easier to optimize
                 return $("0")
@@ -223,18 +186,6 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
             $("(", this.mainRetExprSite),
             $(")")
         ])
-
-        if (nOuterArgs > 0) {
-            const outerArgs = outerArgNames.map((n) => $(n))
-
-            ir = $([
-                $(`${TAB}/*entry point*/\n${TAB}(`),
-                $(outerArgs).join(", "),
-                $(`) -> {\n`),
-                ir,
-                $(`\n${TAB}}`)
-            ])
-        }
 
         return ir
     }

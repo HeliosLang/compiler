@@ -38,7 +38,7 @@ export class GenericEntryPoint extends EntryPointImpl {
      * @returns {TopScope}
      */
     evalTypes(scriptTypes) {
-        const scope = GlobalScope.new(scriptTypes)
+        const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
 
         const topScope = super.evalTypesInternal(scope)
 

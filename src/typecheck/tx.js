@@ -1,9 +1,11 @@
+import { None, expectSome } from "@helios-lang/type-utils"
 import {
     Common,
     DataEntity,
     FuncType,
     GenericEnumMemberType,
-    GenericType
+    GenericType,
+    NamedNamespace
 } from "./common.js"
 import {
     IteratorType$,
@@ -425,6 +427,13 @@ export class MacroType extends Common {
  */
 
 /**
+ * @typedef {{
+ *   currentScript: string
+ *   scriptTypes?: ScriptTypes
+ * }} MultiValidatorInfo
+ */
+
+/**
  * @implements {DataType}
  */
 export class ScriptsType extends MacroType {
@@ -493,86 +502,6 @@ export class ScriptsType extends MacroType {
 }
 
 /**
- * Builtin ScriptContext type
- * @implements {DataType}
- */
-export class ScriptContextType extends MacroType {
-    constructor() {
-        super()
-    }
-
-    /**
-     * @type {string}
-     */
-    get name() {
-        return "ScriptContext"
-    }
-
-    /**
-     * @type {InstanceMembers}
-     */
-    get instanceMembers() {
-        const members = {
-            ...genCommonInstanceMembers(this),
-            get_current_minting_policy_hash: new FuncType(
-                [],
-                MintingPolicyHashType
-            ),
-            get_current_input: new FuncType([], TxInputType),
-            get_cont_outputs: new FuncType([], ListType$(TxOutputType)),
-            get_current_validator_hash: new FuncType([], ValidatorHashType),
-            get_spending_purpose_output_id: new FuncType([], TxOutputIdType),
-            get_staking_purpose: new FuncType([], StakingPurposeType),
-            get_script_purpose: new FuncType([], ScriptPurposeType),
-            tx: TxType
-        }
-
-        return members
-    }
-
-    /**
-     * @type {string}
-     */
-    get path() {
-        return "__helios__scriptcontext"
-    }
-
-    /**
-     * @type {TypeMembers}
-     */
-    get typeMembers() {
-        return {
-            ...genCommonTypeMembers(this),
-            new_certifying: new FuncType(
-                [TxType, DCertType],
-                new ScriptContextType()
-            ),
-            new_minting: new FuncType(
-                [TxType, MintingPolicyHashType],
-                new ScriptContextType()
-            ),
-            new_rewarding: new FuncType(
-                [TxType, StakingCredentialType],
-                new ScriptContextType()
-            ),
-            new_spending: new FuncType(
-                [TxType, TxOutputIdType],
-                new ScriptContextType()
-            )
-        }
-    }
-
-    /**
-     * @param {Type} other
-     * @returns {boolean}
-     */
-    isBaseOf(other) {
-        return other instanceof ScriptContextType
-    }
-}
-
-/**
- * Builtin ScriptContext type
  * @implements {DataType}
  */
 export class ContractContextType extends MacroType {
@@ -1103,3 +1032,123 @@ export const TxOutputIdType = new GenericType({
         new: new FuncType([TxIdType, IntType], TxOutputIdType)
     })
 })
+
+export const MixedArgsType = new GenericType({
+    name: "MixedArgs",
+    genInstanceMembers: (self) => ({}),
+    genTypeMembers: (self) => ({
+        Other: MixedArgsOtherType,
+        Spending: MixedArgsSpendingType
+    })
+})
+
+const MixedArgsOtherType = new GenericEnumMemberType({
+    name: "Other",
+    constrIndex: 0,
+    parentType: MixedArgsType,
+    genInstanceMembers: (self) => ({
+        redeemer: RawDataType
+    }),
+    genTypeMembers: (self) => ({})
+})
+
+const MixedArgsSpendingType = new GenericEnumMemberType({
+    name: "Spending",
+    constrIndex: 1,
+    parentType: MixedArgsType,
+    genInstanceMembers: (self) => ({
+        datum: RawDataType,
+        redeemer: RawDataType
+    }),
+    genTypeMembers: (self) => ({})
+})
+
+/**
+ * @returns {NamedNamespace}
+ */
+export function Cip67Namespace() {
+    return new NamedNamespace("Cip67", "__helios__cip67", {
+        fungible_token_label: new DataEntity(ByteArrayType),
+        reference_token_label: new DataEntity(ByteArrayType),
+        user_token_label: new DataEntity(ByteArrayType)
+    })
+}
+
+/**
+ *
+ * @param {ScriptTypes} scriptTypes
+ * @returns {GenericType}
+ */
+function createScriptType(scriptTypes) {
+    const keys = Object.keys(scriptTypes).sort()
+
+    const scriptEnumType = new GenericType({
+        name: "Script",
+        genInstanceMembers: (self) => ({}),
+        genTypeMembers: (self) => ({
+            ...Object.fromEntries(children)
+        })
+    })
+
+    /**
+     * @type {[string, GenericEnumMemberType][]}
+     */
+    const children = keys.map((k, i) => {
+        return [
+            k,
+            new GenericEnumMemberType({
+                name: k,
+                constrIndex: i,
+                parentType: expectSome(scriptEnumType),
+                genInstanceMembers: (self) => ({}),
+                genTypeMembers: (self) => ({})
+            })
+        ]
+    })
+
+    return scriptEnumType
+}
+
+/**
+ * @param {MultiValidatorInfo} info
+ * @returns {NamedNamespace}
+ */
+export function ScriptContextNamespace(info) {
+    // TODO: generate an EnumType for the scripts
+    /**
+     * @type {Option<GenericType>}
+     */
+    let scriptEnum = None
+
+    if (
+        info.currentScript &&
+        info.scriptTypes &&
+        info.currentScript in info.scriptTypes
+    ) {
+        scriptEnum = createScriptType(info.scriptTypes)
+    }
+
+    return new NamedNamespace("ScriptContext", "__helios__scriptcontext", {
+        ...(scriptEnum
+            ? { Script: scriptEnum, current_script: new DataEntity(scriptEnum) }
+            : {}),
+        get_current_minting_policy_hash: new FuncType(
+            [],
+            MintingPolicyHashType
+        ),
+        get_current_input: new FuncType([], TxInputType),
+        get_cont_outputs: new FuncType([], ListType$(TxOutputType)),
+        get_current_validator_hash: new FuncType([], ValidatorHashType),
+        get_spending_purpose_output_id: new FuncType([], TxOutputIdType),
+        get_staking_purpose: new FuncType([], StakingPurposeType),
+        get_script_purpose: new FuncType([], ScriptPurposeType),
+        new_certifying: new FuncType([TxType, DCertType], RawDataType),
+        new_minting: new FuncType([TxType, MintingPolicyHashType], RawDataType),
+        new_rewarding: new FuncType(
+            [TxType, StakingCredentialType],
+            RawDataType
+        ),
+        new_spending: new FuncType([TxType, TxOutputIdType], RawDataType),
+        tx: new DataEntity(TxType)
+    })
+}

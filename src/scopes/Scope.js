@@ -4,6 +4,8 @@ import { GlobalScope } from "./GlobalScope.js"
 
 /**
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
+ * @typedef {import("../typecheck/index.js").Named} Named
+ * @typedef {import("../typecheck/index.js").Namespace} Namespace
  * @typedef {import("../typecheck/index.js").Type} Type
  */
 
@@ -154,6 +156,21 @@ export class Scope extends Common {
                 `expected Scope, got ${entity.toString()}`
             )
             return null
+        }
+    }
+
+    /**
+     * @param {Word} name
+     * @returns {Option<Named & Namespace>}
+     */
+    getBuiltinNamespace(name) {
+        if (!this.#parent) {
+            throw CompilerError.reference(
+                name.site,
+                `namespace ${name.value} not found`
+            )
+        } else {
+            return this.#parent.getBuiltinNamespace(name)
         }
     }
 

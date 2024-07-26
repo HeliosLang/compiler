@@ -21,7 +21,11 @@ export class Statement {
     site
 
     #name
-    #basePath // set by the parent Module
+
+    /**
+     * @type {string}
+     */
+    basePath // set by the parent Module
 
     /**
      * @param {Site} site
@@ -30,7 +34,7 @@ export class Statement {
     constructor(site, name) {
         this.site = site
         this.#name = name
-        this.#basePath = "__user"
+        this.basePath = "__user"
     }
 
     /**
@@ -44,7 +48,7 @@ export class Statement {
      * @type {string}
      */
     get path() {
-        return `${this.#basePath}__${this.name.toString()}`
+        return `${this.basePath}__${this.name.toString()}`
     }
 
     /**
@@ -65,7 +69,7 @@ export class Statement {
      * @param {string} basePath
      */
     setBasePath(basePath) {
-        this.#basePath = basePath
+        this.basePath = basePath
     }
 
     /**

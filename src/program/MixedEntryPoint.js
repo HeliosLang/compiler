@@ -3,7 +3,7 @@ import { $, SourceMappedString } from "@helios-lang/ir"
 import { None } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
-import { BoolType, DefaultTypeClass } from "../typecheck/index.js"
+import { BoolType, MixedArgsType } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
 import { Module } from "./Module.js"
 
@@ -17,14 +17,16 @@ import { Module } from "./Module.js"
 /**
  * @implements {EntryPoint}
  */
-export class RedeemerEntryPoint extends EntryPointImpl {
+export class MixedEntryPoint extends EntryPointImpl {
     /**
-     * @param {string} purpose
      * @param {Module[]} modules
      */
-    constructor(purpose, modules) {
+    constructor(modules) {
         super(modules)
-        this.purpose = purpose
+    }
+
+    get purpose() {
+        return "mixed"
     }
 
     /**
@@ -58,8 +60,41 @@ export class RedeemerEntryPoint extends EntryPointImpl {
 
         ir = this.wrapEntryPoint(ctx, ir, extra)
 
-        ir = $`(__REDEEMER, __CONTEXT) -> {
-    ${ir}
+        ir = $`(__DATUM_OR_REDEEMER, __REDEEMER_OR_CONTEXT) -> {
+    main = (__MIXED, __CONTEXT) -> {
+        ${ir}
+    };
+    tag = __core__fstPair(__core__unConstrData(__REDEEMER_OR_CONTEXT));
+    __core__ifThenElse(
+        __core__equalsInteger(tag, 0),
+        () -> {
+            // other (no datum)
+            mixed = __core__constrData(
+                0,
+                __core__mkCons(
+                    __core__headList(__core__sndPair(__core__unConstrData(__DATUM_OR_REDEEMER))),
+                    __core__mkNilData(())
+                )
+            );
+            main(mixed, __REDEEMER_OR_CONTEXT)
+        },
+        () -> {
+            mixed = __core__constrData(
+                1, 
+                __core__mkCons(
+                    __DATUM_OR_REDEEMER, 
+                    __core__mkCons(
+                        __core__headList(__core__sndPair(__core__unConstrData(__REDEEMER_OR_CONTEXT))),
+                        __core__mkNilData(())
+                    )
+                )
+            );
+            // spending
+            (__CONTEXT) -> {
+                main(mixed, __CONTEXT)
+            }
+        }
+    )()
 }`
 
         return ir
@@ -69,7 +104,7 @@ export class RedeemerEntryPoint extends EntryPointImpl {
      * @returns {string}
      */
     toString() {
-        return `${this.purpose} ${this.name}\n${super.toString()}`
+        return `mixed ${this.name}\n${super.toString()}`
     }
 
     /**
@@ -79,8 +114,6 @@ export class RedeemerEntryPoint extends EntryPointImpl {
      */
     evalTypesInternal(scope) {
         const topScope = super.evalTypesInternal(scope)
-
-        // check the 'main' function
 
         const main = this.mainFunc
         const argTypeNames = main.argTypeNames
@@ -93,13 +126,10 @@ export class RedeemerEntryPoint extends EntryPointImpl {
             return topScope
         }
 
-        if (
-            argTypeNames[0] != "" &&
-            !new DefaultTypeClass().isImplementedBy(argTypes[0])
-        ) {
+        if (argTypeNames[0] != "" && !MixedArgsType.isBaseOf(argTypes[0])) {
             throw CompilerError.type(
                 main.site,
-                `illegal redeemer argument type in main: '${argTypes[0].toString()}`
+                `illegal argument type in main: '${argTypes[0].toString()}`
             )
         }
 
@@ -119,34 +149,10 @@ export class RedeemerEntryPoint extends EntryPointImpl {
      * @returns {SourceMappedString}
      */
     toIRInternal(ctx) {
-        const argTypeNames = this.mainFunc.argTypeNames
-        const argTypes = this.mainArgTypes
-
-        const innerArgNames = [`__REDEEMER`]
-        const innerArgs = argTypes.map((t, i) => {
-            // empty path
-            if (argTypeNames[i] != "") {
-                if (t.path == "") {
-                    throw new Error("unexpected")
-                }
-
-                return $([
-                    $(`${t.path}__from_data`),
-                    $("("),
-                    $(innerArgNames[i]),
-                    $(")")
-                ])
-            } else {
-                // unused arg, 0 is easier to optimize
-                return $("0")
-            }
-        })
-
         let ir = $([
             $(`${TAB}${TAB}__core__ifThenElse`),
             $("(", this.mainRetExprSite),
-            $(`\n${TAB}${TAB}${TAB}${this.mainPath}(`),
-            $(innerArgs).join(", "),
+            $(`\n${TAB}${TAB}${TAB}${this.mainPath}(__MIXED`),
             $(
                 `),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__helios__error("validation returned false")}\n${TAB}${TAB})`
             ),

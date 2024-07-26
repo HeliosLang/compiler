@@ -2000,7 +2000,6 @@ export class AnyEntity extends Common {
 }
 
 /**
- * @internal
  * @implements {Namespace}
  */
 export class ModuleNamespace extends Common {
@@ -2025,6 +2024,62 @@ export class ModuleNamespace extends Common {
      * @type {Namespace}
      */
     get asNamespace() {
+        return this
+    }
+}
+
+/**
+ * @implements {Named}
+ * @implements {Namespace}
+ */
+export class NamedNamespace extends Common {
+    /**
+     * @readonly
+     * @type {string}
+     */
+    name
+
+    /**
+     * @readonly
+     * @type {string}
+     */
+    path
+
+    /**
+     * @type {NamespaceMembers}
+     */
+    #members
+
+    /**
+     * @param {string} name
+     * @param {string} path
+     * @param {NamespaceMembers} members
+     */
+    constructor(name, path, members) {
+        super()
+        this.name = name
+        this.path = path
+        this.#members = members
+    }
+
+    /**
+     * @type {NamespaceMembers}
+     */
+    get namespaceMembers() {
+        return this.#members
+    }
+
+    /**
+     * @type {Namespace}
+     */
+    get asNamespace() {
+        return this
+    }
+
+    /**
+     * @type {Named}
+     */
+    get asNamed() {
         return this
     }
 }

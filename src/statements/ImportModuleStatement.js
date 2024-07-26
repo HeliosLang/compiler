@@ -1,6 +1,6 @@
 import { Word } from "@helios-lang/compiler-utils"
 import { ToIRContext } from "../codegen/index.js"
-import { ModuleScope, Scope } from "../scopes/index.js"
+import { ModuleScope, Scope, builtinNamespaces } from "../scopes/index.js"
 import { ModuleNamespace } from "../typecheck/index.js"
 import { Statement } from "./Statement.js"
 
@@ -38,27 +38,31 @@ export class ImportModuleStatement extends Statement {
 
     /**
      * @param {ModuleScope} scope
-     * @returns {null | EvalEntity}
+     * @returns {Option<EvalEntity>}
      */
     evalInternal(scope) {
-        const importedScope = scope.getScope(this.name)
+        if (this.name.value in builtinNamespaces) {
+            return scope.getBuiltinNamespace(this.name)
+        } else {
+            const importedScope = scope.getScope(this.name)
 
-        if (!importedScope) {
-            return null
-        }
-
-        /**
-         * @type {NamespaceMembers}
-         */
-        const namespaceMembers = {}
-
-        for (let [name, entity] of importedScope.values) {
-            if (!(entity instanceof Scope)) {
-                namespaceMembers[name.value] = entity
+            if (!importedScope) {
+                return null
             }
-        }
 
-        return new ModuleNamespace(namespaceMembers)
+            /**
+             * @type {NamespaceMembers}
+             */
+            const namespaceMembers = {}
+
+            for (let [name, entity] of importedScope.values) {
+                if (!(entity instanceof Scope)) {
+                    namespaceMembers[name.value] = entity
+                }
+            }
+
+            return new ModuleNamespace(namespaceMembers)
+        }
     }
 
     /**
@@ -67,7 +71,7 @@ export class ImportModuleStatement extends Statement {
     eval(scope) {
         let v = this.evalInternal(scope)
 
-        if (v) {
+        if (v && !(this.name.value in builtinNamespaces)) {
             scope.set(this.name, v)
         }
     }

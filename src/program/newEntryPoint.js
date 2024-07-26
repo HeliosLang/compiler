@@ -7,6 +7,7 @@ import { TestingEntryPoint } from "./TestingEntryPoint.js"
 import { Module } from "./Module.js"
 import { MainModule } from "./MainModule.js"
 import { GenericEntryPoint } from "./GenericEntryPoint.js"
+import { MixedEntryPoint } from "./MixedEntryPoint.js"
 
 /**
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
@@ -20,17 +21,9 @@ import { GenericEntryPoint } from "./GenericEntryPoint.js"
  * @param {string} mainSrc
  * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
  * @param {ScriptTypes} validatorTypes
- * @param {boolean} allowPosParams
- * @param {boolean} invertEntryPoint
  * @returns {EntryPoint}
  */
-export function newEntryPoint(
-    mainSrc,
-    moduleSrcs,
-    validatorTypes,
-    allowPosParams,
-    invertEntryPoint
-) {
+export function newEntryPoint(mainSrc, moduleSrcs, validatorTypes) {
     const [purpose, modules] = parseMain(mainSrc, moduleSrcs)
 
     /**
@@ -43,25 +36,16 @@ export function newEntryPoint(
             entryPoint = new TestingEntryPoint(modules)
             break
         case "spending":
-            entryPoint = new SpendingEntryPoint(
-                modules,
-                allowPosParams,
-                invertEntryPoint
-            )
+            entryPoint = new SpendingEntryPoint(modules)
             break
         case "minting":
-            entryPoint = new MintingEntryPoint(
-                modules,
-                allowPosParams,
-                invertEntryPoint
-            )
+            entryPoint = new MintingEntryPoint(modules)
+            break
+        case "mixed":
+            entryPoint = new MixedEntryPoint(modules)
             break
         case "staking":
-            entryPoint = new StakingProgram(
-                modules,
-                allowPosParams,
-                invertEntryPoint
-            )
+            entryPoint = new StakingProgram(modules)
             break
         default:
             entryPoint = new GenericEntryPoint(purpose ?? "unknown", modules)

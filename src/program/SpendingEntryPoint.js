@@ -11,10 +11,8 @@ import { Module } from "./Module.js"
 export class SpendingEntryPoint extends DatumRedeemerEntryPoint {
     /**
      * @param {Module[]} modules
-     * @param {boolean} allowPosParams
-     * @param {boolean} invertEntryPoint
      */
-    constructor(modules, allowPosParams, invertEntryPoint) {
-        super("spending", modules, allowPosParams, invertEntryPoint)
+    constructor(modules) {
+        super("spending", modules)
     }
 }

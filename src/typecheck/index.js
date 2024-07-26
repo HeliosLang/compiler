@@ -58,14 +58,16 @@ export {
 export { DurationType, TimeType, TimeRangeType } from "./time.js"
 export {
     AddressType,
+    Cip67Namespace,
     ContractContextType,
     DCertType,
     CredentialType,
     OutputDatumType,
     MacroType,
+    MixedArgsType,
     NetworkType,
     ScriptsType,
-    ScriptContextType,
+    ScriptContextNamespace,
     ScriptPurposeType,
     StakingCredentialType,
     StakingPurposeType,
@@ -79,5 +81,6 @@ export {
 } from "./tx.js"
 
 /**
+ * @typedef {import("./tx.js").MultiValidatorInfo} MultiValidatorInfo
  * @typedef {import("./tx.js").ScriptTypes} ScriptTypes
  */

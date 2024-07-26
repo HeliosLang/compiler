@@ -1,6 +1,8 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { None } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
-import { ModuleScope, Scope } from "../scopes/index.js"
+import { ModuleScope, Scope, builtinNamespaces } from "../scopes/index.js"
+import { NamedEntity } from "../typecheck/index.js"
 import { Statement } from "./Statement.js"
 
 /**
@@ -36,26 +38,70 @@ export class ImportFromStatement extends Statement {
     }
 
     /**
+     * @type {string}
+     */
+    get origPath() {
+        return `${this.basePath}__${this.#origName.toString()}`
+    }
+
+    /**
+     * @private
+     * @returns {boolean}
+     */
+    isBuiltinNamespace() {
+        return this.#moduleName.value in builtinNamespaces
+    }
+
+    /**
      * @param {ModuleScope} scope
      * @returns {null | EvalEntity}
      */
     evalInternal(scope) {
-        const importedScope = scope.getScope(this.#moduleName)
+        if (this.isBuiltinNamespace()) {
+            const namespace = scope.getBuiltinNamespace(this.#moduleName)
 
-        if (!importedScope) {
-            return null
-        }
+            if (!namespace) {
+                return None
+            }
 
-        const importedEntity = importedScope.get(this.#origName)
+            let member = namespace.namespaceMembers[this.#origName.value]
 
-        if (importedEntity instanceof Scope) {
-            throw CompilerError.type(
-                this.#origName.site,
-                `can't import a module from a module`
+            if (!member) {
+                throw CompilerError.reference(
+                    this.#origName.site,
+                    `'${this.#moduleName.value}.${this.#origName.value}' undefined`
+                )
+
+                return null
+            }
+
+            if (member.asType?.toTyped().asFunc) {
+                member = member.asType.toTyped()
+            }
+
+            return new NamedEntity(
+                this.name.value,
+                `${namespace.path}__${this.#origName.value}`,
+                member
             )
-            return null
         } else {
-            return importedEntity
+            const importedScope = scope.getScope(this.#moduleName)
+
+            if (!importedScope) {
+                return null
+            }
+
+            const importedEntity = importedScope.get(this.#origName)
+
+            if (importedEntity instanceof Scope) {
+                throw CompilerError.type(
+                    this.#origName.site,
+                    `can't import a module from a module`
+                )
+                return null
+            } else {
+                return importedEntity
+            }
         }
     }
 
@@ -75,6 +121,6 @@ export class ImportFromStatement extends Statement {
      * @param {Definitions} map
      */
     toIR(ctx, map) {
-        // import statements only have a scoping function and don't do anything to the IR
+        // 'import from' statements only have a scoping function and don't do anything to the IR
     }
 }

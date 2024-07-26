@@ -1,5 +1,5 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
-import { SourceMappedString } from "@helios-lang/ir"
+import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { $, SourceMappedString } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
 import {
     ToIRContext,
@@ -46,10 +46,18 @@ export class EntryPointImpl {
     modules
 
     /**
+     * Used to retrieve current script index
+     * @protected
+     * @type {Option<GlobalScope>}
+     */
+    globalScope
+
+    /**
      * @param {Module[]} modules
      */
     constructor(modules) {
         this.modules = modules
+        this.globalScope = None
     }
 
     /**
@@ -199,22 +207,6 @@ export class EntryPointImpl {
 
     /**
      * @protected
-     * @type {number}
-     */
-    get nPosParams() {
-        return 0
-    }
-
-    /**
-     * @protected
-     * @type {Type[]}
-     */
-    get posParams() {
-        return this.mainArgTypes.slice(0, this.nPosParams)
-    }
-
-    /**
-     * @protected
      * @type {Option<Module>}
      */
     get postModule() {
@@ -341,6 +333,7 @@ export class EntryPointImpl {
      * @returns {TopScope}
      */
     evalTypesInternal(globalScope) {
+        this.globalScope = globalScope
         const topScope = new TopScope(globalScope)
 
         // loop through the modules
@@ -466,6 +459,52 @@ export class EntryPointImpl {
     }
 
     /**
+     * @private
+     * @param {ToIRContext} ctx
+     * @param {Definitions} map
+     */
+    addCurrentScriptIR(ctx, map) {
+        // add the current script to the context
+        if (this.globalScope) {
+            const ctx = this.globalScope.getBuiltinNamespace(
+                new Word("ScriptContext")
+            )
+
+            if (!ctx) {
+                return
+            }
+
+            const member = ctx.namespaceMembers["Script"]
+            if (!member) {
+                return
+            }
+
+            const scriptType = member.asType
+
+            if (scriptType && this.name in scriptType.typeMembers) {
+                const enumVariant =
+                    scriptType.typeMembers[this.name].asEnumMemberType
+
+                if (enumVariant) {
+                    map.set(
+                        `__helios__scriptcontext__current_script`,
+                        $(
+                            [
+                                $`__core__constrData(
+                            ${enumVariant.constrIndex.toString()},
+                            __core__mkCons(
+                                __core__mkNilData(())
+                            )
+                        )`
+                            ],
+                            this.mainModule.name.site
+                        )
+                    )
+                }
+            }
+        }
+    }
+    /**
      * @protected
      * @param {ToIRContext} ctx
      * @param {SourceMappedString} ir
@@ -480,6 +519,8 @@ export class EntryPointImpl {
                 Array.from(extra.entries()).concat(Array.from(map.entries()))
             )
         }
+
+        this.addCurrentScriptIR(ctx, map)
 
         return this.wrapInner(ctx, ir, map)
     }

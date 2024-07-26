@@ -1,7 +1,7 @@
 import assert, { strictEqual } from "node:assert"
 import { describe, it } from "node:test"
 import { bytesToHex, encodeUtf8 } from "@helios-lang/codec-utils"
-import { isLeft } from "@helios-lang/type-utils"
+import { isLeft, isRight } from "@helios-lang/type-utils"
 import {
     ByteArrayData,
     ConstrData,
@@ -18,7 +18,7 @@ import { Program } from "../src/program/Program.js"
  */
 
 /**
- * @typedef {{error: string} | UplcData} HeliosTestOutput
+ * @typedef {{error: string} | UplcData | string} HeliosTestOutput
  */
 
 /**
@@ -96,6 +96,35 @@ export function compileAndRun(test) {
 }
 
 /**
+ * @param {string} src
+ * @param {UplcData[]} dataArgs
+ * @returns {UplcData}
+ */
+export function evalSingle(src, dataArgs = []) {
+    const program = new Program(src, {
+        moduleSources: [],
+        isTestnet: true
+    })
+
+    const uplc = program.compile(false)
+
+    const args = dataArgs.map((d) => new UplcDataValue(d))
+    const res = uplc.eval(args)
+
+    if (isRight(res.result)) {
+        const resData = res.result.right
+
+        if (resData instanceof UplcDataValue) {
+            return resData.value
+        }
+    } else {
+        throw new Error(res.result.left.error ?? "unexpected")
+    }
+
+    throw new Error("unexpected")
+}
+
+/**
  * @param {boolean} b
  * @returns {UplcData}
  */
@@ -129,6 +158,22 @@ export function cbor(d) {
  */
 export function int(i) {
     return new IntData(i)
+}
+
+/**
+ * @param {UplcData} d
+ * @returns {UplcData}
+ */
+export function mixedOther(d) {
+    return new ConstrData(0, [d])
+}
+
+/**
+ * @param {UplcData} d
+ * @returns {UplcData}
+ */
+export function mixedSpending(d) {
+    return new ConstrData(1, [d])
 }
 
 /**
@@ -182,7 +227,9 @@ function cekResultToString(cekResult) {
  * @returns {string}
  */
 function expectedResultToString(result) {
-    if ("error" in result) {
+    if (typeof result == "string") {
+        return result
+    } else if ("error" in result) {
         return "error"
     } else {
         return result.toString()
