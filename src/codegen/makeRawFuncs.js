@@ -7937,6 +7937,14 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(
+        new RawFunc(
+            `__helios__data__as[${FTPP}0]`,
+            `(data) -> {
+				${FTPP}0__from_data(data)
+			}`
+        )
+    )
 
     // TxOutputId
     addDataFuncs("__helios__txoutputid")

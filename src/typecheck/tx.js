@@ -1,4 +1,5 @@
 import { None, expectSome } from "@helios-lang/type-utils"
+import { FTPP } from "../codegen/ParametricName.js"
 import {
     Common,
     DataEntity,
@@ -23,8 +24,9 @@ import {
     ValidatorHashType
 } from "./hashes.js"
 import { ValueType } from "./money.js"
-import { Parameter, ParametricFunc, DefaultTypeClass } from "./parametric.js"
-import { FTPP } from "../codegen/ParametricName.js"
+import { Parameter } from "./Parameter.js"
+import { ParametricFunc } from "./ParametricFunc.js"
+import { DefaultTypeClass } from "./parametric.js"
 import {
     BoolType,
     ByteArrayType,

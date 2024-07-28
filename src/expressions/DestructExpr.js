@@ -338,7 +338,7 @@ export class DestructExpr {
 
     /**
      * @param {Scope} scope
-     * @param {DataType} caseType
+     * @param {DataType} caseType - TODO: list of caseTypes
      */
     evalInSwitchCase(scope, caseType) {
         if (!this.isIgnored()) {
@@ -349,6 +349,7 @@ export class DestructExpr {
             this.typeExpr.cache = caseType
         }
 
+        // TODO: if more than 1 caseType -> convert to tuple
         this.evalDestructExprs(scope, caseType)
     }
 

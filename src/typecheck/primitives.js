@@ -1,4 +1,8 @@
+import { FTPP } from "../codegen/ParametricName.js"
 import { FuncType, GenericType } from "./common.js"
+import { Parameter } from "./Parameter.js"
+import { ParametricData } from "./ParametricData.js"
+import { DefaultTypeClass } from "./parametric.js"
 
 /**
  * @typedef {import("./common.js").DataType} DataType
@@ -193,7 +197,12 @@ export const RawDataType = new GenericType({
     name: "Data",
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        tag: IntType
+        tag: IntType,
+        as: (() => {
+            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass())
+
+            return new ParametricData([a], a.ref)
+        })()
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self)

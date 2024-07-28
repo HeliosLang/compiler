@@ -1,6 +1,5 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
 import { expectSome } from "@helios-lang/type-utils"
-import { ListData } from "@helios-lang/uplc"
 import {
     ArgType,
     Common,
@@ -11,12 +10,12 @@ import {
     applyTypes,
     registerExpandTupleType
 } from "./common.js"
+import { Parameter } from "./Parameter.js"
+import { ParametricFunc } from "./ParametricFunc.js"
 import {
     AnyTypeClass,
     GenericParametricType,
     GenericParametricEnumMemberType,
-    Parameter,
-    ParametricFunc,
     ParametricType,
     DefaultTypeClass,
     SummableTypeClass

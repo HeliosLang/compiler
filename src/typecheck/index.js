@@ -31,14 +31,15 @@ export {
     ValidatorHashType
 } from "./hashes.js"
 export { AssetClassType, ValueType, ValuableTypeClass } from "./money.js"
+export { Parameter } from "./Parameter.js"
+export { ParametricData } from "./ParametricData.js"
+export { ParametricFunc } from "./ParametricFunc.js"
 export {
     AnyTypeClass,
     DataTypeClassImpl,
     DefaultTypeClass,
     GenericParametricType,
     GenericParametricEnumMemberType,
-    Parameter,
-    ParametricFunc,
     ParametricType,
     SummableTypeClass,
     TypeClassImpl

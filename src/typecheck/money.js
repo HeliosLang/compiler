@@ -2,13 +2,14 @@ import { expectSome } from "@helios-lang/type-utils"
 import { DataEntity, FuncType, GenericType } from "./common.js"
 import { ListType$, MapType$ } from "./containers.js"
 import { MintingPolicyHashType } from "./hashes.js"
-import { DefaultTypeClass, Parameter, ParametricFunc } from "./parametric.js"
+import { Parameter } from "./Parameter.js"
+import { ParametricFunc } from "./ParametricFunc.js"
+import { DefaultTypeClass } from "./parametric.js"
 import { FTPP } from "../codegen/ParametricName.js"
 import {
     BoolType,
     ByteArrayType,
     IntType,
-    StringType,
     genCommonInstanceMembers,
     genCommonTypeMembers
 } from "./primitives.js"
