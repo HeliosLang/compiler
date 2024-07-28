@@ -18,7 +18,7 @@ describe("Data", () => {
             description: "parametric fails for wrong input",
             main: dataAsScript,
             inputs: [bytes("")],
-            output: {error: ""}
+            output: { error: "" }
         },
         {
             description: "data.as[] can be used with operators",
