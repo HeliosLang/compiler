@@ -1,3 +1,4 @@
+import { ErrorCollector } from "@helios-lang/compiler-utils"
 import { DEFAULT_PARSE_OPTIONS, compile as compileIR } from "@helios-lang/ir"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext } from "../codegen/index.js"
@@ -17,13 +18,14 @@ import { newEntryPoint } from "./newEntryPoint.js"
 
 /**
  * TODO: allow moduleSources to be of `Source[]` type
- * TODO: get rid of allowPosParams and invertEntryPoint
+ * `throwCompilerErrors` defaults to true
  * @typedef {{
  *   allowPosParams?: boolean
  *   invertEntryPoint?: boolean
  *   isTestnet?: boolean
  *   moduleSources?: string[]
  *   validatorTypes?: ScriptTypes
+ *   throwCompilerErrors?: boolean
  * }} ProgramProps
  */
 
@@ -52,6 +54,12 @@ export class Program {
     entryPoint
 
     /**
+     * @readonly
+     * @type {ErrorCollector}
+     */
+    errors
+
+    /**
      * TODO: allow mainSource to be of `Source` type
      * @param {string} mainSource
      * @param {ProgramProps} props
@@ -59,11 +67,18 @@ export class Program {
     constructor(mainSource, props = DEFAULT_PROGRAM_PROPS) {
         this.props = props
 
+        this.errors = new ErrorCollector()
+
         this.entryPoint = newEntryPoint(
             mainSource,
             props.moduleSources ?? [],
-            props.validatorTypes ?? {}
+            props.validatorTypes ?? {},
+            this.errors
         )
+
+        if (props.throwCompilerErrors ?? true) {
+            this.errors.throw()
+        }
     }
 
     /**

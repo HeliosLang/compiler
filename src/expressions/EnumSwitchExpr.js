@@ -1,15 +1,21 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
+import { $, SourceMappedString } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { Common, ErrorEntity } from "../typecheck/index.js"
+import {
+    ErrorEntity,
+    TupleType,
+    collectEnumMembers
+} from "../typecheck/index.js"
 import { SwitchExpr } from "./SwitchExpr.js"
-import { $, SourceMappedString } from "@helios-lang/ir"
 import { SwitchCase } from "./SwitchCase.js"
 import { SwitchDefault } from "./SwitchDefault.js"
 import { IfElseExpr } from "./IfElseExpr.js"
 
 /**
+ * @typedef {import("../typecheck/index.js").DataType} DataType
+ * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -19,10 +25,11 @@ import { IfElseExpr } from "./IfElseExpr.js"
  */
 export class EnumSwitchExpr extends SwitchExpr {
     /**
+     * @private
      * @param {Scope} scope
-     * @returns {EvalEntity}
+     * @returns {DataType[]}
      */
-    evalInternal(scope) {
+    evalControlExprTypes(scope) {
         const controlVal_ = this.controlExpr.eval(scope)
 
         const controlVal = controlVal_.asTyped
@@ -31,33 +38,221 @@ export class EnumSwitchExpr extends SwitchExpr {
             throw CompilerError.type(this.controlExpr.site, "not typed")
         }
 
-        let enumType = controlVal.type.asDataType
+        if (controlVal.type instanceof TupleType) {
+            const itemTypes = controlVal.type.itemTypes
 
-        if (!enumType) {
-            throw CompilerError.type(this.controlExpr.site, "not an enum")
+            /**
+             * @type {DataType[]}
+             */
+            let controlTypes = []
+
+            itemTypes.forEach((itemType) => {
+                let enumType = itemType.asDataType
+
+                if (!enumType) {
+                    throw CompilerError.type(
+                        this.controlExpr.site,
+                        "not an enum"
+                    )
+                }
+
+                if (itemType.asEnumMemberType) {
+                    throw CompilerError.type(
+                        this.controlExpr.site,
+                        `${itemType.toString()} is an enum variant, not an enum`
+                    )
+                }
+
+                controlTypes.push(enumType)
+            })
+
+            return controlTypes
+        } else {
+            // TODO: as list that also allows tuples
+            let enumType = controlVal.type.asDataType
+
+            if (!enumType) {
+                throw CompilerError.type(this.controlExpr.site, "not an enum")
+            }
+
+            if (controlVal.type.asEnumMemberType) {
+                throw CompilerError.type(
+                    this.controlExpr.site,
+                    `${controlVal.type.toString()} is an enum variant, not an enum`
+                )
+            }
+
+            return [enumType]
+        }
+    }
+
+    /**
+     * Throws an error if some cases can't be reached
+     * @param {DataType[]} enumTypes
+     * @returns {boolean}
+     */
+    checkCaseReachability(enumTypes) {
+        // first collect all variants for each enum type
+        /**
+         * @type {[string, EnumMemberType][][]}
+         */
+        const variants = enumTypes.map((enumType) =>
+            collectEnumMembers(enumType)
+        )
+        const strides = variants.reduce(
+            (prev, vs) => {
+                const prevStride = prev[prev.length - 1] * vs.length
+                return prev.concat([prevStride])
+            },
+            [1]
+        )
+        const nCombinations = strides[strides.length - 1]
+
+        /**
+         * @type {boolean[]}
+         */
+        const reachable = new Array(nCombinations).fill(true)
+
+        /**
+         * @param {number[]} indices
+         * @returns {number}
+         */
+        const calcIndex = (indices) => {
+            return indices.reduce((prev, i, j) => prev + i * strides[j], 0)
         }
 
-        if (controlVal.type.asEnumMemberType) {
+        /**
+         * @param {number[]} indices - '-1' is used for 'all'
+         * @returns {number[][]} - without '-1'
+         */
+        const calcPermutations = (indices) => {
+            /**
+             * @type {number[][]}
+             */
+            let result = [[]]
+
+            for (let j = 0; j < indices.length; j++) {
+                const i = indices[j]
+
+                if (i == -1) {
+                    const n = variants[j].length
+
+                    /**
+                     * @type {number[][]}
+                     */
+                    let tmp = []
+
+                    for (let k = 0; k < n; k++) {
+                        for (let lst of result) {
+                            tmp.push(lst.concat([k]))
+                        }
+                    }
+
+                    result = tmp
+                } else {
+                    result = result.map((r) => r.concat([i]))
+                }
+            }
+
+            return result
+        }
+
+        /**
+         * @param {number[]} indices - '-1' is used for 'all'
+         */
+        const markUnreachable = (indices) => {
+            calcPermutations(indices).forEach((indices) => {
+                const i = calcIndex(indices)
+                reachable[i] = false
+            })
+        }
+
+        /**
+         * @param {number[]} indices - '-1' is used for 'all'
+         * @returns {boolean}
+         */
+        const isSomeReachable = (indices) => {
+            return calcPermutations(indices).some((indices) => {
+                const i = calcIndex(indices)
+                return reachable[i]
+            })
+        }
+
+        this.cases.forEach((c) => {
+            /**
+             * @type {number[]}
+             */
+            let indices
+            if (c.lhs.isTuple()) {
+                indices = c.lhs.destructExprs.map((de, i) => {
+                    if (de.isIgnored() && !de.typeExpr) {
+                        return -1
+                    } else {
+                        const j = variants[i].findIndex(
+                            (value) => value[0] == de.typeName.value
+                        )
+                        if (j == -1) {
+                            throw new Error("unexpected")
+                        }
+
+                        return j
+                    }
+                })
+            } else {
+                indices = [
+                    variants[0].findIndex(
+                        (value) => value[0] == c.lhs.typeName.value
+                    )
+                ]
+
+                if (indices[0] == -1) {
+                    throw new Error("unexpected")
+                }
+            }
+
+            if (!isSomeReachable(indices)) {
+                throw CompilerError.type(
+                    c.lhs.site,
+                    `unreachable condition '${c.lhs.toString()}'`
+                )
+            }
+
+            markUnreachable(indices)
+        })
+
+        const someRemainingReachable = reachable.some((r) => r)
+
+        if (this.defaultCase && !someRemainingReachable) {
             throw CompilerError.type(
-                this.controlExpr.site,
-                `${controlVal.type.toString()} is an enum variant, not an enum`
+                this.defaultCase.site,
+                "unreachable default case"
             )
-            //enumType = controlVal.type.asEnumMemberType.parentType // continue with optimistic evaluation, even though compilation will fail
         }
 
-        const nEnumMembers = Common.countEnumMembers(enumType)
+        return someRemainingReachable
+    }
 
-        // check that we have enough cases to cover the enum members
-        if (!this.defaultCase && nEnumMembers > this.cases.length) {
-            // mutate defaultCase to VoidExpr
+    /**
+     * @param {Scope} scope
+     * @returns {EvalEntity}
+     */
+    evalInternal(scope) {
+        const enumTypes = this.evalControlExprTypes(scope)
+
+        const someUncovered = this.checkCaseReachability(enumTypes)
+
+        if (!this.defaultCase && someUncovered) {
             this.setDefaultCaseToVoid()
         }
 
-        /** @type {Option<Type>} */
+        /**
+         * @type {Option<Type>}
+         */
         let branchMultiType = None
 
         for (let c of this.cases) {
-            const branchVal = c.evalEnumMember(scope, enumType)
+            // TODO: pass a list of enumTypes (can be multiswitch)
+            const branchVal = c.evalEnumMember(scope, enumTypes)
 
             if (!branchVal) {
                 continue
@@ -110,10 +305,23 @@ export class EnumSwitchExpr extends SwitchExpr {
 
         // TODO: if constrIndex is null then use the case test that is defined as a builtin (needed to be able to treat StakingCredential as an enum)
         // TODO: once the null fallback has been implemented get rid of constrIndex
+
+        const nLhs = cases[0].lhs.isTuple()
+            ? cases[0].lhs.destructExprs.length
+            : 1
+        /**
+         * @type {SourceMappedString[]}
+         */
+        const es = []
+
+        for (let i = 0; i < nLhs; i++) {
+            es.push($`e${i}`)
+        }
+
         for (let i = n - 1; i >= 0; i--) {
             const c = cases[i]
 
-            const test = $`__core__equalsInteger(i, ${c.constrIndex.toString()})`
+            const test = c.toControlIR(ctx, es)
 
             res = $`__core__ifThenElse(
 				${test},
@@ -125,18 +333,28 @@ export class EnumSwitchExpr extends SwitchExpr {
 			)()`
         }
 
-        return $([
-            $(`(e) `),
-            $("->", this.site),
-            $(
-                ` {\n${ctx.indent}${TAB}(\n${ctx.indent}${TAB}${TAB}(i) -> {\n${ctx.indent}${TAB}${TAB}${TAB}`
-            ),
-            res,
-            $(
-                `\n${ctx.indent}${TAB}${TAB}}(__core__fstPair(__core__unConstrData(e)))\n${ctx.indent}${TAB})(e)\n${ctx.indent}}(`
-            ),
-            this.controlExpr.toIR(ctx),
-            $(")")
-        ])
+        if (nLhs == 1) {
+            return $([
+                $(`(e0) `),
+                $("->", this.site),
+                $(`\n${ctx.indent}${TAB}{(\n`),
+                res,
+                $(`\n${ctx.indent}${TAB})(e0)}(`),
+                this.controlExpr.toIR(ctx),
+                $(")")
+            ])
+        } else {
+            return $([
+                $(`(e) `),
+                $("->", this.site),
+                $(`\n${ctx.indent}${TAB}{(\n`),
+                $(`e((${$(es).join(", ")}) -> {
+                    ${res}
+                })`),
+                $(`\n${ctx.indent}${TAB})(e)}(`),
+                this.controlExpr.toIR(ctx),
+                $(")")
+            ])
+        }
     }
 }

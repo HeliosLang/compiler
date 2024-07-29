@@ -976,6 +976,14 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(
+        new RawFunc(
+            `__helios__common__enum_tag_equals`,
+            `(data, i) -> {
+			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), i)
+		}`
+        )
+    )
 
     // Global builtin functions
     add(
@@ -2601,6 +2609,43 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+
+    add(
+        new RawFunc(
+            `__helios__bool__and2`,
+            `(a, b) -> {
+				__core__ifThenElse(a, b, false)
+			}`
+        )
+    )
+
+    add(
+        new RawFunc(
+            `__helios__bool__and3`,
+            `(a, b, c) -> {
+			__core__ifThenElse(a, __core__ifThenElse(b, c, false), false)
+		}`
+        )
+    )
+
+    add(
+        new RawFunc(
+            `__helios__bool__and4`,
+            `(a, b, c, d) -> {
+			__core__ifThenElse(a, __core__ifThenElse(b, __core__ifThenElse(c, d, false), false), false)
+		}`
+        )
+    )
+
+    add(
+        new RawFunc(
+            `__helios__bool__and5`,
+            `(a, b, c, d, e) -> {
+			__core__ifThenElse(a, __core__ifThenElse(b, __core__ifThenElse(c, __core__ifThenElse(d, e, false), false), false), false)
+		}`
+        )
+    )
+
     add(
         new RawFunc(
             "__helios__bool__or",
@@ -6060,6 +6105,14 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            `__helios__option[${TTPP}0]__some____is`,
+            `(data) -> {
+				__helios__common__enum_tag_equals(data, 0)
+			}`
+        )
+    )
+    add(
+        new RawFunc(
             `__helios__option[${TTPP}0]__some__cast`,
             `(data) -> {
 		__helios__common__assert_constr_index(data, 0)
@@ -6109,6 +6162,14 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             `__helios__option[${TTPP}0]__none__new`,
             `__helios__option[${TTPP}0]__none____new`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__option[${TTPP}0]__none____is`,
+            `(data) -> {
+				__helios__common__enum_tag_equals(data, 1)
+			}`
         )
     )
     add(
@@ -10034,6 +10095,14 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            `__helios__mixedargs__other____is`,
+            `(data) -> {
+			__helios__common__enum_tag_equals(data, 0)
+		}`
+        )
+    )
+    add(
+        new RawFunc(
             `__helios__mixedargs__spending__datum`,
             `__helios__common__enum_field_0`
         )
@@ -10042,6 +10111,14 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             `__helios__mixedargs__spending__redeemer`,
             `__helios__common__enum_field_1`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__mixedargs__spending____is`,
+            `(data) -> {
+				__helios__common__enum_tag_equals(data, 1)
+			}`
         )
     )
 

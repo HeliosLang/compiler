@@ -18,7 +18,6 @@ import {
     AnyValueExpr,
     CallArgExpr,
     CallExpr,
-    DataSwitchExpr,
     DestructExpr,
     EnumSwitchExpr,
     Expr,
@@ -323,16 +322,20 @@ export function makeChainedExprParser(parseValueExpr) {
                 const bodyExpr = parseBracedValueExpr(
                     ctx.atSite(darrow.site).withReader(f)
                 )
+
                 def = new SwitchDefault(darrow.site, bodyExpr)
             } else if ((m = f.findNextMatch(symbol("=>")))) {
                 const [before, darrow] = m
 
-                const destructExpr = parseDestructExpr(
-                    ctx.withReader(before),
-                    2
-                )
+                let destructExpr = parseDestructExpr(ctx.withReader(before), 2)
 
-                assertValidCaseLhs(ctx, destructExpr)
+                const prevCase = cases[cases.length - 1]
+
+                destructExpr = assertValidCaseLhs(
+                    ctx,
+                    destructExpr,
+                    prevCase?.lhs
+                )
 
                 const bodyExpr = parseBracedValueExpr(
                     ctx.atSite(darrow.site).withReader(f)
@@ -350,13 +353,39 @@ export function makeChainedExprParser(parseValueExpr) {
     }
 
     /**
+     * @param {number} n
+     * @param {Site} site
+     * @returns {DestructExpr[]}
+     */
+    function createDummyDestructExprs(n, site) {
+        /**
+         * @type {DestructExpr[]}
+         */
+        let additional = []
+
+        for (let i = 0; i < n; i++) {
+            additional.push(new DestructExpr(new Word("_", site)))
+        }
+
+        return additional
+    }
+
+    /**
      * @param {ParseContext} ctx
      * @param {DestructExpr} destructExpr
+     * @param {Option<DestructExpr>} prevDestructExpr
+     * @returns {DestructExpr} - can return a modified destructexpr in order to accomodate errors
      */
-    function assertValidCaseLhs(ctx, destructExpr) {
+    function assertValidCaseLhs(ctx, destructExpr, prevDestructExpr) {
         if (destructExpr.isTuple()) {
             if (!destructExpr.isIgnored()) {
                 ctx.errors.syntax(destructExpr.site, "invalid syntax")
+                destructExpr = new DestructExpr(
+                    new Word("_", destructExpr.name.site),
+                    destructExpr.typeExpr,
+                    destructExpr.destructExprs,
+                    true
+                )
             }
 
             destructExpr.destructExprs.forEach((destructExpr) => {
@@ -367,10 +396,55 @@ export function makeChainedExprParser(parseValueExpr) {
                             "invalid case name syntax"
                         )
                     }
-                } else {
+                } else if (!destructExpr.isIgnored()) {
                     ctx.errors.syntax(destructExpr.site, "missing case name")
                 }
             })
+
+            if (prevDestructExpr) {
+                if (!prevDestructExpr.isTuple()) {
+                    ctx.errors.syntax(
+                        destructExpr.site,
+                        "inconsistent switch case condition"
+                    )
+                    destructExpr = destructExpr.destructExprs[0]
+                } else {
+                    const nDiff =
+                        prevDestructExpr.destructExprs.length -
+                        destructExpr.destructExprs.length
+                    if (nDiff < 0) {
+                        ctx.errors.syntax(
+                            destructExpr.site,
+                            "inconsistent switch case condition"
+                        )
+                        destructExpr = new DestructExpr(
+                            destructExpr.name,
+                            None,
+                            destructExpr.destructExprs.slice(
+                                0,
+                                prevDestructExpr.destructExprs.length
+                            ),
+                            true
+                        )
+                    } else if (nDiff) {
+                        ctx.errors.syntax(
+                            destructExpr.site,
+                            "inconsistent switch case condition"
+                        )
+                        destructExpr = new DestructExpr(
+                            destructExpr.name,
+                            None,
+                            destructExpr.destructExprs.concat(
+                                createDummyDestructExprs(
+                                    nDiff,
+                                    destructExpr.site
+                                )
+                            ),
+                            true
+                        )
+                    }
+                }
+            }
         } else {
             if (destructExpr.typeExpr) {
                 if (!(destructExpr.typeExpr instanceof RefExpr)) {
@@ -382,7 +456,25 @@ export function makeChainedExprParser(parseValueExpr) {
             } else {
                 ctx.errors.syntax(destructExpr.site, "missing case name")
             }
+
+            if (prevDestructExpr && prevDestructExpr.isTuple()) {
+                ctx.errors.syntax(
+                    destructExpr.site,
+                    "inconsistent switch case condition"
+                )
+                const nDiff = prevDestructExpr.destructExprs.length - 1
+                destructExpr = new DestructExpr(
+                    new Word("_", destructExpr.name.site),
+                    None,
+                    [destructExpr].concat(
+                        createDummyDestructExprs(nDiff, destructExpr.site)
+                    ),
+                    true
+                )
+            }
         }
+
+        return destructExpr
     }
 
     /**

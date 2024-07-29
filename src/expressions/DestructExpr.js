@@ -20,8 +20,9 @@ import { Expr } from "./Expr.js"
 
 /**
  * DestructExpr is for the lhs-side of assignments and for switch cases
- * `NameExpr [':' TypeExpr ['{' ... '}']]`
- * @internal
+ * `NameExpr [':' TypeExpr ['{' ... '}']]` or
+ * `TypeExpr '{' ... '}'` or
+ * `[NameExpr ':'] '(' ... ')'
  */
 export class DestructExpr {
     /**
@@ -338,19 +339,30 @@ export class DestructExpr {
 
     /**
      * @param {Scope} scope
-     * @param {DataType} caseType - TODO: list of caseTypes
+     * @param {DataType[]} caseTypes
      */
-    evalInSwitchCase(scope, caseType) {
-        if (!this.isIgnored()) {
-            scope.set(this.name, caseType.toTyped())
-        }
+    evalInSwitchCase(scope, caseTypes) {
+        if (caseTypes.length != 1) {
+            if (caseTypes.length != this.destructExprs.length) {
+                throw new Error("unexpected")
+            }
 
-        if (this.typeExpr) {
-            this.typeExpr.cache = caseType
-        }
+            caseTypes.forEach((caseType, i) => {
+                this.destructExprs[i].evalInSwitchCase(scope, [caseType])
+            })
+        } else {
+            const caseType = caseTypes[0]
+            if (!this.isIgnored()) {
+                console.log(this.name.value)
+                scope.set(this.name, caseType.toTyped())
+            }
 
-        // TODO: if more than 1 caseType -> convert to tuple
-        this.evalDestructExprs(scope, caseType)
+            if (this.typeExpr) {
+                this.typeExpr.cache = caseType
+            }
+
+            this.evalDestructExprs(scope, caseType)
+        }
     }
 
     /**

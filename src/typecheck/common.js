@@ -2083,3 +2083,21 @@ export class NamedNamespace extends Common {
         return this
     }
 }
+
+/**
+ * @param {DataType} enumType
+ * @returns {[string, EnumMemberType][]}
+ */
+export function collectEnumMembers(enumType) {
+    return /** @type {[string, EnumMemberType][]} */ (
+        Array.from(Object.entries(enumType.typeMembers)).filter(
+            ([key, variantType]) => {
+                if (variantType.asEnumMemberType) {
+                    return enumType.isBaseOf(variantType.asEnumMemberType)
+                } else {
+                    return false
+                }
+            }
+        )
+    )
+}

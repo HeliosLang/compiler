@@ -6,6 +6,7 @@ import {
     Tokenizer,
     Word
 } from "@helios-lang/compiler-utils"
+import { None } from "@helios-lang/type-utils"
 import { Statement } from "../statements/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { extractName, parseHeader } from "./parseHeader.js"
@@ -38,16 +39,19 @@ const AUTOMATIC_METHODS = [
  *   name:    Word
  *   statements: Statement[]
  *   entryPointIndex: number
- *   errors: ErrorCollector
  * }} ParsedScript
  */
 
 /**
  * @param {string | Source} src
+ * @param {Option<ErrorCollector>} errorCollector
  * @returns {ParsedScript}
  */
-export function parseScript(src) {
-    const reader = tokenizeScript(src)
+export function parseScript(src, errorCollector = None) {
+    const errors = errorCollector ?? new ErrorCollector()
+
+    const reader = tokenizeScript(src, errors)
+
     const ctx = new ParseContext(reader)
 
     const [purpose, name] = parseHeader(ctx)
@@ -56,30 +60,36 @@ export function parseScript(src) {
 
     const entryPointIndex = findEntryPoint(ctx, purpose, statements)
 
+    if (!errorCollector) {
+        errors.throw()
+    }
+
     return {
         purpose,
         name,
         statements,
-        entryPointIndex,
-        errors: ctx.errors
+        entryPointIndex
     }
 }
 
 /**
  * @param {string | Source} rawSrc
+ * @param {ErrorCollector} errorCollector
  * @returns {TokenReader}
  */
-function tokenizeScript(rawSrc) {
+function tokenizeScript(rawSrc, errorCollector) {
     const src =
         typeof rawSrc == "string"
             ? new Source((extractName(rawSrc) ?? ["", "unknown"])[1], rawSrc)
             : rawSrc
 
-    const tokenizer = new Tokenizer(src)
+    const tokenizer = new Tokenizer(src, {
+        errorCollector: errorCollector
+    })
 
     const ts = tokenizer.tokenize()
 
-    return new TokenReader(ts, tokenizer.errors)
+    return new TokenReader(ts, errorCollector)
 }
 
 /**

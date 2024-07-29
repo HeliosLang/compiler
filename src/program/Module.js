@@ -29,22 +29,6 @@ export class Module {
     }
 
     /**
-     * @param {string} rawSrc
-     * @returns {Module}
-     */
-    static new(rawSrc) {
-        const { purpose, name, statements, errors } = parseScript(rawSrc)
-
-        errors.throw()
-
-        if (name) {
-            return new Module(name, statements)
-        } else {
-            throw new Error("unexpected") // should've been caught by calling src.throwErrors() above
-        }
-    }
-
-    /**
      * @type {Word}
      */
     get name() {

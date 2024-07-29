@@ -61,7 +61,7 @@ export class UnconstrDataSwitchCase extends SwitchCase {
 
     /**
      * @param {Scope} scope
-     * @param {Type} enumType
+     * @param {Type[]} enumType
      * @returns {Instance}
      */
     evalEnumMember(scope, enumType) {

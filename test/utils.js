@@ -1,4 +1,4 @@
-import assert, { strictEqual } from "node:assert"
+import assert, { strictEqual, throws } from "node:assert"
 import { describe, it } from "node:test"
 import { bytesToHex, encodeUtf8 } from "@helios-lang/codec-utils"
 import { isLeft, isRight } from "@helios-lang/type-utils"
@@ -29,6 +29,15 @@ import { Program } from "../src/program/Program.js"
  *   inputs: UplcData[]
  *   output: HeliosTestOutput
  * }} HeliosTest
+ */
+
+/**
+ * @typedef {{
+ *   description: string
+ *   main: string
+ *   modules?: string[]
+ *   fails?: boolean
+ * }} HeliosTypeTest
  */
 
 /**
@@ -122,6 +131,36 @@ export function evalSingle(src, dataArgs = []) {
     }
 
     throw new Error("unexpected")
+}
+
+/**
+ * Throws an error if the syntax or the types are wrong
+ * @param {HeliosTypeTest} test
+ */
+export function evalTypes(test) {
+    it(test.description, () => {
+        const construct = () => {
+            new Program(test.main, {
+                moduleSources: test.modules,
+                isTestnet: true,
+                throwCompilerErrors: true
+            })
+        }
+
+        if (test.fails) {
+            throws(construct)
+        } else {
+            construct()
+        }
+    })
+}
+
+/**
+ *
+ * @param {HeliosTypeTest[]} tests
+ */
+export function evalTypesMany(tests) {
+    tests.forEach((test) => evalTypes(test))
 }
 
 /**

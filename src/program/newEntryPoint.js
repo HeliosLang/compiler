@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { CompilerError, ErrorCollector } from "@helios-lang/compiler-utils"
 import { parseScript } from "../parse/index.js"
 import { MintingEntryPoint } from "./MintingEntryPoint.js"
 import { SpendingEntryPoint } from "./SpendingEntryPoint.js"
@@ -21,10 +21,16 @@ import { MixedEntryPoint } from "./MixedEntryPoint.js"
  * @param {string} mainSrc
  * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
  * @param {ScriptTypes} validatorTypes
+ * @param {ErrorCollector} errorCollector
  * @returns {EntryPoint}
  */
-export function newEntryPoint(mainSrc, moduleSrcs, validatorTypes) {
-    const [purpose, modules] = parseMain(mainSrc, moduleSrcs)
+export function newEntryPoint(
+    mainSrc,
+    moduleSrcs,
+    validatorTypes,
+    errorCollector
+) {
+    const [purpose, modules] = parseMain(mainSrc, moduleSrcs, errorCollector)
 
     /**
      * @type {EntryPoint}
@@ -51,7 +57,16 @@ export function newEntryPoint(mainSrc, moduleSrcs, validatorTypes) {
             entryPoint = new GenericEntryPoint(purpose ?? "unknown", modules)
     }
 
-    entryPoint.evalTypes(validatorTypes)
+    // TODO: add type errors directly to ErrorCollector
+    try {
+        entryPoint.evalTypes(validatorTypes)
+    } catch (e) {
+        if (e instanceof CompilerError) {
+            errorCollector.errors.push(e)
+        } else {
+            throw e
+        }
+    }
 
     return entryPoint
 }
@@ -59,14 +74,19 @@ export function newEntryPoint(mainSrc, moduleSrcs, validatorTypes) {
 /**
  * @param {string} mainSrc
  * @param {string[]} moduleSrcs
+ * @param {ErrorCollector} errorCollector
  * @returns {[Option<string>, Module[]]}
  */
-function parseMain(mainSrc, moduleSrcs) {
-    let [purpose, modules] = parseMainInternal(mainSrc)
+function parseMain(mainSrc, moduleSrcs, errorCollector) {
+    let [purpose, modules] = parseMainInternal(mainSrc, errorCollector)
 
     const site = modules[0].name.site
 
-    const imports = parseImports(modules[0].name.value, moduleSrcs)
+    const imports = parseImports(
+        modules[0].name.value,
+        moduleSrcs,
+        errorCollector
+    )
 
     const mainImports = modules[0].filterDependencies(imports)
 
@@ -97,15 +117,15 @@ function parseMain(mainSrc, moduleSrcs) {
 }
 
 /**
- * @internal
  * @param {string} rawSrc
+ * @param {ErrorCollector} errorCollector
  * @returns {[purpose, Module[]]}
  */
-function parseMainInternal(rawSrc) {
-    const { purpose, name, statements, entryPointIndex, errors } =
-        parseScript(rawSrc)
-
-    errors.throw()
+function parseMainInternal(rawSrc, errorCollector) {
+    const { purpose, name, statements, entryPointIndex } = parseScript(
+        rawSrc,
+        errorCollector
+    )
 
     if (purpose && name) {
         /**
@@ -128,13 +148,29 @@ function parseMainInternal(rawSrc) {
 }
 
 /**
+ * @param {string} rawSrc
+ * @param {ErrorCollector} errorCollector
+ * @returns {Module}
+ */
+function parseModule(rawSrc, errorCollector) {
+    const { purpose, name, statements } = parseScript(rawSrc, errorCollector)
+
+    if (name) {
+        return new Module(name, statements)
+    } else {
+        throw new Error("unexpected") // should've been caught by calling src.throwErrors() above
+    }
+}
+
+/**
  * @param {string} mainName
  * @param {string[]} moduleSrcs
+ * @param {ErrorCollector} errorCollector
  * @returns {Module[]}
  */
-function parseImports(mainName, moduleSrcs = []) {
+function parseImports(mainName, moduleSrcs, errorCollector) {
     let imports = moduleSrcs.map((src) => {
-        return Module.new(src)
+        return parseModule(src, errorCollector)
     })
 
     /**
@@ -146,13 +182,13 @@ function parseImports(mainName, moduleSrcs = []) {
 
     for (let m of imports) {
         if (names.has(m.name.value)) {
-            throw CompilerError.syntax(
+            errorCollector.syntax(
                 m.name.site,
                 `non-unique module name '${m.name.value}'`
             )
+        } else {
+            names.add(m.name.value)
         }
-
-        names.add(m.name.value)
     }
 
     return imports

@@ -924,7 +924,8 @@ const OptionType = new ParametricType({
                 some: someType
             }),
             genTypeMembers: (self) => ({
-                ...genCommonTypeMembers(self)
+                ...genCommonTypeMembers(self),
+                __is: new FuncType([self.parentType], BoolType)
             })
         }
 
@@ -936,7 +937,8 @@ const OptionType = new ParametricType({
                 ...genCommonInstanceMembers(self)
             }),
             genTypeMembers: (self) => ({
-                ...genCommonTypeMembers(self)
+                ...genCommonTypeMembers(self),
+                __is: new FuncType([self.parentType], BoolType)
             })
         }
 
