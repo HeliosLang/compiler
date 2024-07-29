@@ -12,7 +12,7 @@
         "target": "esnext",
         "lib": ["es2020"]
     },
-    "exclude": ["node_modules", "**/*.d.ts"],
+    "exclude": ["node_modules", "**/*.d.ts", "test"],
     "include": [
         "src/**/*.js",
         "node_modules/@helios-lang/type-utils",
