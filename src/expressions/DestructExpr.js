@@ -11,6 +11,7 @@ import {
     getTupleItemTypes
 } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
+import { RefExpr } from "./RefExpr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -186,10 +187,11 @@ export class DestructExpr {
     /**
      * Evaluates the type, used by FuncLiteralExpr and DataDefinition
      * @param {Scope} scope
-     * @param {null | Type} upstreamType
+     * @param {Option<Type>} upstreamType
+     * @param {Option<Type>} downstreamType - could be enum variant
      * @returns {null | Type}
      */
-    evalType(scope, upstreamType = null) {
+    evalType(scope, upstreamType = None, downstreamType = None) {
         if (!this.typeExpr) {
             if (this.#isTuple) {
                 const upstreamItemTypes = upstreamType
@@ -217,7 +219,7 @@ export class DestructExpr {
                 throw new Error("typeExpr not set")
             }
         } else {
-            const t = this.typeExpr.evalAsType(scope)
+            const t = downstreamType ?? this.typeExpr.evalAsType(scope)
 
             if (
                 t &&
@@ -275,7 +277,7 @@ export class DestructExpr {
                 if (upstreamFieldNames.length != this.destructExprs.length) {
                     throw CompilerError.type(
                         this.site,
-                        `wrong number of destruct fields, expected ${upstreamFieldNames.length}, got ${this.destructExprs.length}`
+                        `wrong number of destruct fields, expected ${upstreamFieldNames.length} (${upstreamType.toString()}), got ${this.destructExprs.length}`
                     )
                 }
 
@@ -367,11 +369,31 @@ export class DestructExpr {
 
     /**
      * @param {Scope} scope
-     * @param {null | Type} upstreamType
+     * @param {Option<Type>} upstreamType
      * @param {number} i
      */
     evalInAssignExpr(scope, upstreamType, i) {
-        const t = this.evalType(scope)
+        /**
+         * @type {Option<Type>}
+         */
+        let t
+
+        // could be an enum variant, which requires special treatment
+        if (
+            this.typeExpr instanceof RefExpr &&
+            upstreamType &&
+            this.typeExpr.name.value in upstreamType.typeMembers &&
+            upstreamType.typeMembers[this.typeExpr.name.value].asEnumMemberType
+        ) {
+            const variant = expectSome(
+                upstreamType.typeMembers[this.typeExpr.name.value]
+                    .asEnumMemberType
+            )
+            this.typeExpr.cache = variant
+            t = variant
+        } else {
+            t = this.evalType(scope)
+        }
 
         if (!t) {
             scope.set(this.name, new DataEntity(new AnyType()))
@@ -381,7 +403,7 @@ export class DestructExpr {
         // differs from upstreamType because can be enum parent
         // if t is enum variant, get parent instead (exact variant is checked at runtime instead)
         // also do this for nested as well
-        const checkType = this.evalType(scope, upstreamType)
+        const checkType = this.evalType(scope, upstreamType, t)
 
         if (checkType && upstreamType) {
             if (!checkType.isBaseOf(upstreamType)) {

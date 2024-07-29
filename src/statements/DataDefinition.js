@@ -756,7 +756,7 @@ export class DataDefinition {
                     let getter
 
                     if (i < 20) {
-                        getter = $`(self) ${null}->${f.site} {
+                        getter = $`(self) ${$("->", f.site)} {
 							${f.type.path}__from_data(${getterBaseName}_${i}(self))
 						}`
                     } else {

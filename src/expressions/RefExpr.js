@@ -12,14 +12,18 @@ import { Expr } from "./Expr.js"
  * Simple reference class (i.e. using a Word)
  */
 export class RefExpr extends Expr {
-    #name
+    /**
+     * @readonly
+     * @type {Word}
+     */
+    name
 
     /**
      * @param {Word} name
      */
     constructor(name) {
         super(name.site)
-        this.#name = name
+        this.name = name
     }
 
     /**
@@ -27,7 +31,10 @@ export class RefExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        return scope.get(this.#name)
+        if (this.name.value == "Some") {
+            throw new Error("unexpected")
+        }
+        return scope.get(this.name)
     }
 
     /**
@@ -37,7 +44,7 @@ export class RefExpr extends Expr {
     toIR(ctx) {
         const path = this.cache?.asNamed
             ? this.cache.asNamed.path
-            : this.#name.value
+            : this.name.value
 
         return $(path, this.site)
     }
@@ -46,6 +53,6 @@ export class RefExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return this.#name.toString()
+        return this.name.toString()
     }
 }

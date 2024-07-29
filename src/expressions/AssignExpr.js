@@ -71,6 +71,7 @@ export class AssignExpr extends ChainExpr {
                 subScope.set(this.#nameType.name, upstreamVal)
             }
         } else if (this.#nameType.hasType()) {
+            // this is the fallback case if the upstream has itself a typeerror
             this.#nameType.evalInAssignExpr(subScope, null, 0)
         } else {
             throw CompilerError.type(
