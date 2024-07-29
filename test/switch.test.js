@@ -79,7 +79,7 @@ describe("Switch", () => {
             output: True
         },
         {
-            description: "multi switch with wildcard",
+            description: "multi switch with wildcard and full coverage",
             main: `testing multi_switch_wildcard
             func main() -> Bool {
                 a: Option[Int] = Option[Int]::Some{10};
@@ -93,13 +93,39 @@ describe("Switch", () => {
             }`,
             inputs: [],
             output: True
+        },
+        {
+            description: "multi switch with two custom enums",
+            main: `testing multi_switch_wildcard
+            enum MyEnum1 {
+                A
+                B
+                C
+            }
+            enum MyEnum2 {
+                D
+                E
+                F
+            }
+            func main() -> Bool {
+                a: MyEnum1 = MyEnum1::A;
+                b: MyEnum2 = MyEnum2::D;
+                
+                (a, b).switch{
+                    (B, E) => false,
+                    (A, _) => true,
+                    else => false
+                }
+            }`,
+            inputs: [],
+            output: True
         }
     ])
 
     evalTypesMany([
         {
             description: "typecheck fails for unreachable default case",
-            main: `testing multi_switch_wildcard
+            main: `testing multi_switch_wildcard_unreachable
             func main() -> Bool {
                 a: Option[Int] = Option[Int]::Some{10};
                 b: Option[ByteArray] = Option[ByteArray]::Some{#};
@@ -108,6 +134,31 @@ describe("Switch", () => {
                     (Some, _) => true,
                     (None, None) => false,
                     (_, Some) => false,
+                    else => false
+                }
+            }`,
+            fails: true
+        },
+        {
+            description: "typecheck fails if control type isn't an enum",
+            main: `testing switch_not_enum
+            func main() -> Bool {
+                a = 100;
+                a.switch{
+                    Int => true,
+                    else => false
+                }
+            }`,
+            fails: true
+        },
+        {
+            description: "typecheck fails if one of control tuple type isn't an enum",
+            main: `testing switch_not_enum
+            func main() -> Bool {
+                a = 100;
+                b: Option[Int] = Option[Int]::Some{100};
+                (b, a).switch{
+                    (Some, Int) => true,
                     else => false
                 }
             }`,

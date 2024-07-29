@@ -192,11 +192,28 @@ export function cbor(d) {
 }
 
 /**
+ * @param {number} tag 
+ * @param  {...UplcData} fields 
+ * @returns {UplcData}
+ */
+export function constr(tag, ...fields) {
+    return new ConstrData(tag, fields)
+}
+
+/**
  * @param {number | bigint} i
  * @returns {UplcData}
  */
 export function int(i) {
     return new IntData(i)
+}
+
+/**
+ * @param  {...UplcData} d 
+ * @returns {UplcData}
+ */
+export function list(...d) {
+    return new ListData(d)
 }
 
 /**

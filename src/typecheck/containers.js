@@ -8,7 +8,9 @@ import {
     GenericType,
     VoidType,
     applyTypes,
-    registerExpandTupleType
+    registerExpandTupleType,
+    registerMakeListType,
+    registerMakeMapType
 } from "./common.js"
 import { Parameter } from "./Parameter.js"
 import { ParametricFunc } from "./ParametricFunc.js"
@@ -653,13 +655,14 @@ export const ListType = new ParametricType({
 })
 
 /**
- * @internal
  * @param {Type} itemType
  * @returns {DataType}
  */
 export function ListType$(itemType) {
     return applyTypes(ListType, itemType)
 }
+
+registerMakeListType(ListType$)
 
 /**
  * Builtin map type (in reality list of key-value pairs)
@@ -856,6 +859,8 @@ export const MapType = new ParametricType({
 export function MapType$(keyType, valueType) {
     return applyTypes(MapType, keyType, valueType)
 }
+
+registerMakeMapType(MapType$)
 
 /**
  * Builtin option type

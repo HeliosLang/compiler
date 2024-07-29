@@ -57,10 +57,9 @@ export function makeChainedExprParser(parseValueExpr) {
 
     /**
      * @param {ParseContext} ctx
-     * @param {number} precedence
      * @returns {Expr}
      */
-    function parseChainedExpr(ctx, precedence) {
+    function parseChainedExpr(ctx) {
         const expr = parseChainStartExpr(ctx)
 
         return parseRemainingChainedExpr(ctx, expr)
@@ -105,7 +104,7 @@ export function makeChainedExprParser(parseValueExpr) {
             (m = r.findNextMatch(symbol("."), word("switch"), group("{")))
         ) {
             const [before, dot, kw, body] = m
-            const beforeExpr = parseChainStartExpr(ctx.withReader(before))
+            const beforeExpr = parseChainedExpr(ctx.withReader(before))
 
             return parseSwitchExpr(ctx, beforeExpr, dot, kw, body)
         } else if ((m = r.findNextMatch(group("{")))) {

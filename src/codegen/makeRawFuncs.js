@@ -171,6 +171,14 @@ export function makeRawFunctions(simplify, isTestnet) {
         add(new RawFunc(`${ns}____to_data`, "__helios__common__identity"))
         add(
             new RawFunc(
+                `${ns}____is`,
+                `(data) -> {
+			__helios__common__enum_tag_equals(data, ${constrIndex})
+		}`
+            )
+        )
+        add(
+            new RawFunc(
                 `${ns}__from_data`,
                 `(data) -> {
 			__helios__common__assert_constr_index(data, ${constrIndex})
@@ -6105,14 +6113,6 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            `__helios__option[${TTPP}0]__some____is`,
-            `(data) -> {
-				__helios__common__enum_tag_equals(data, 0)
-			}`
-        )
-    )
-    add(
-        new RawFunc(
             `__helios__option[${TTPP}0]__some__cast`,
             `(data) -> {
 		__helios__common__assert_constr_index(data, 0)
@@ -6162,14 +6162,6 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             `__helios__option[${TTPP}0]__none__new`,
             `__helios__option[${TTPP}0]__none____new`
-        )
-    )
-    add(
-        new RawFunc(
-            `__helios__option[${TTPP}0]__none____is`,
-            `(data) -> {
-				__helios__common__enum_tag_equals(data, 1)
-			}`
         )
     )
     add(
@@ -8004,6 +7996,129 @@ export function makeRawFunctions(simplify, isTestnet) {
             `(data) -> {
 				${FTPP}0__from_data(data)
 			}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__constrdata____is",
+            `(data) -> {
+		__core__chooseData(
+			data, 
+			() -> {true},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__constrdata__tag",
+            `(data) -> {
+		__core__fstPair(__core__unConstrData(data))
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__constrdata__fields",
+            `(data) -> {
+		__core__sndPair(__core__unConstrData(data))
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__mapdata____is",
+            `(data) -> {
+		__core__chooseData(
+			data, 
+			() -> {false},
+			() -> {true},
+			() -> {false},
+			() -> {false},
+			() -> {false}
+		)()
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__mapdata__entries",
+            `(data) -> {
+		__core__unMapData(data)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__listdata____is",
+            `(data) -> {
+		__core__chooseData(
+			data, 
+			() -> {false},
+			() -> {false},
+			() -> {true},
+			() -> {false},
+			() -> {false}
+		)()
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__listdata__items",
+            `(data) -> {
+		__core__unListData(data)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__intdata____is",
+            `(data) -> {
+		__core__chooseData(
+			data, 
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {true},
+			() -> {false}
+		)()
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__intdata__value",
+            `(data) -> {
+		__core__unIData(data)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__bytearraydata____is",
+            `(data) -> {
+		__core__chooseData(
+			data, 
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {false},
+			() -> {true}
+		)()
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__bytearraydata__value",
+            `(data) -> {
+		__core__unBData(data)
+	}`
         )
     )
 

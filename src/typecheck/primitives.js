@@ -1,5 +1,12 @@
+import { expectSome } from "@helios-lang/type-utils"
 import { FTPP } from "../codegen/ParametricName.js"
-import { FuncType, GenericType } from "./common.js"
+import {
+    FuncType,
+    GenericEnumMemberType,
+    GenericType,
+    makeListType,
+    makeMapType
+} from "./common.js"
 import { Parameter } from "./Parameter.js"
 import { ParametricData } from "./ParametricData.js"
 import { DefaultTypeClass } from "./parametric.js"
@@ -48,7 +55,8 @@ export function genCommonEnumTypeMembers(type, parentType) {
         __neq: new FuncType([type, parentType], BoolType),
         from_data: new FuncType([RawDataType], type),
         __to_data: new FuncType([type], RawDataType),
-        is_valid_data: new FuncType([RawDataType], BoolType)
+        is_valid_data: new FuncType([RawDataType], BoolType),
+        __is: new FuncType([parentType], BoolType)
     }
 }
 
@@ -189,8 +197,7 @@ export const IntType = new GenericType({
 
 /**
  * Type of external data that must be cast/type-checked before using
- * Not named 'Data' in Js because it's too generic
- * @internal
+ * Not named 'Data' in Js because that would be too generic
  * @type {DataType}
  */
 export const RawDataType = new GenericType({
@@ -205,7 +212,78 @@ export const RawDataType = new GenericType({
         })()
     }),
     genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self)
+        ...genCommonTypeMembers(self),
+        ConstrData: RawConstrDataType,
+        MapData: RawMapDataType,
+        ListData: RawListDataType,
+        IntData: RawIntDataType,
+        ByteArrayData: RawByteArrayDataType
+    })
+})
+
+const RawConstrDataType = new GenericEnumMemberType({
+    name: "ConstrData",
+    constrIndex: -1,
+    parentType: RawDataType,
+    fieldNames: ["tag", "fields"],
+    genInstanceMembers: (self) => ({
+        tag: IntType,
+        fields: expectSome(makeListType)(RawDataType)
+    }),
+    genTypeMembers: (self) => ({
+        __is: new FuncType([RawDataType], BoolType)
+    })
+})
+
+const RawMapDataType = new GenericEnumMemberType({
+    name: "MapData",
+    constrIndex: -1,
+    parentType: RawDataType,
+    fieldNames: ["entries"],
+    genInstanceMembers: (self) => ({
+        entries: expectSome(makeMapType)(RawDataType, RawDataType)
+    }),
+    genTypeMembers: (self) => ({
+        __is: new FuncType([RawDataType], BoolType)
+    })
+})
+
+const RawListDataType = new GenericEnumMemberType({
+    name: "ListData",
+    constrIndex: -1,
+    parentType: RawDataType,
+    fieldNames: ["items"],
+    genInstanceMembers: (self) => ({
+        items: expectSome(makeListType)(RawDataType)
+    }),
+    genTypeMembers: (self) => ({
+        __is: new FuncType([RawDataType], BoolType)
+    })
+})
+
+const RawIntDataType = new GenericEnumMemberType({
+    name: "IntData",
+    constrIndex: -1,
+    parentType: RawDataType,
+    fieldNames: ["value"],
+    genInstanceMembers: (self) => ({
+        value: IntType
+    }),
+    genTypeMembers: (self) => ({
+        __is: new FuncType([RawDataType], BoolType)
+    })
+})
+
+const RawByteArrayDataType = new GenericEnumMemberType({
+    name: "ByteArrayData",
+    constrIndex: -1,
+    parentType: RawDataType,
+    fieldNames: ["value"],
+    genInstanceMembers: (self) => ({
+        value: ByteArrayType
+    }),
+    genTypeMembers: (self) => ({
+        __is: new FuncType([RawDataType], BoolType)
     })
 })
 

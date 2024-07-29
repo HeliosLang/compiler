@@ -167,6 +167,12 @@ export class EnumMember {
             `${this.path}__serialize`,
             $(`__helios__common__serialize`, this.#dataDef.site)
         )
+        map.set(
+            `${this.path}____is`,
+            $`(data) -> {
+                __helios__common__enum_tag_equals(data, ${this.constrIndex})
+            }`
+        )
 
         map.set(
             `${this.path}__is_valid_data`,

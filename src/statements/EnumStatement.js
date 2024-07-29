@@ -1,5 +1,7 @@
 import { Word } from "@helios-lang/compiler-utils"
+import { $, SourceMappedString } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
+import { ToIRContext } from "../codegen/ToIRContext.js"
 import { Scope } from "../scopes/index.js"
 import {
     GenericParametricType,
@@ -12,8 +14,6 @@ import { EnumMember } from "./EnumMember.js"
 import { ImplDefinition } from "./ImplDefinition.js"
 import { Statement } from "./Statement.js"
 import { TypeParameters } from "./TypeParameters.js"
-import { $, SourceMappedString } from "@helios-lang/ir"
-import { ToIRContext } from "../codegen/ToIRContext.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site

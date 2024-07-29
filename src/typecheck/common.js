@@ -18,6 +18,38 @@ export function registerExpandTupleType(callback) {
 }
 
 /**
+ * @typedef {(type: Type) => DataType} MakeListCallback
+ */
+
+/**
+ * @type {Option<MakeListCallback>}
+ */
+export var makeListType
+
+/**
+ * @param {MakeListCallback} callback
+ */
+export function registerMakeListType(callback) {
+    makeListType = callback
+}
+
+/**
+ * @typedef {(keyType: Type, valueType: Type) => DataType} MakeMapCallback
+ */
+
+/**
+ * @type {Option<MakeMapCallback>}
+ */
+export var makeMapType
+
+/**
+ * @param {MakeMapCallback} callback
+ */
+export function registerMakeMapType(callback) {
+    makeMapType = callback
+}
+
+/**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  */
