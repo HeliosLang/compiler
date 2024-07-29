@@ -310,9 +310,6 @@ export class EnumSwitchExpr extends SwitchExpr {
 
         let res = last.toIR(ctx.tab().tab().tab())
 
-        // TODO: if constrIndex is null then use the case test that is defined as a builtin (needed to be able to treat StakingCredential as an enum)
-        // TODO: once the null fallback has been implemented get rid of constrIndex
-
         const nLhs = cases[0].lhs.isTuple()
             ? cases[0].lhs.destructExprs.length
             : 1

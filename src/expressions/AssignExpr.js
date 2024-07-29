@@ -122,6 +122,7 @@ export class AssignExpr extends ChainExpr {
             let upstream = this.upstreamExpr.toIR(ctx)
 
             // enum member run-time error IR
+            // TODO: should this be nestable
             if (this.#nameType.hasType()) {
                 const t = this.#nameType.type
 
