@@ -192,8 +192,8 @@ export function cbor(d) {
 }
 
 /**
- * @param {number} tag 
- * @param  {...UplcData} fields 
+ * @param {number} tag
+ * @param  {...UplcData} fields
  * @returns {UplcData}
  */
 export function constr(tag, ...fields) {
@@ -209,7 +209,7 @@ export function int(i) {
 }
 
 /**
- * @param  {...UplcData} d 
+ * @param  {...UplcData} d
  * @returns {UplcData}
  */
 export function list(...d) {

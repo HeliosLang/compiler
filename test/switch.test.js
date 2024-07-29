@@ -152,7 +152,8 @@ describe("Switch", () => {
             fails: true
         },
         {
-            description: "typecheck fails if one of control tuple type isn't an enum",
+            description:
+                "typecheck fails if one of control tuple type isn't an enum",
             main: `testing switch_not_enum
             func main() -> Bool {
                 a = 100;

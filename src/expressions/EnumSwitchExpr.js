@@ -100,12 +100,15 @@ export class EnumSwitchExpr extends SwitchExpr {
             const vs = collectEnumMembers(enumType)
 
             if (vs.length == 0) {
-                throw CompilerError.type(this.controlExpr.site, `'${enumType.name}' isn't an enum type`)
-            } 
+                throw CompilerError.type(
+                    this.controlExpr.site,
+                    `'${enumType.name}' isn't an enum type`
+                )
+            }
 
             return vs
         })
-        
+
         const strides = variants.reduce(
             (prev, vs) => {
                 const prevStride = prev[prev.length - 1] * vs.length
@@ -199,7 +202,9 @@ export class EnumSwitchExpr extends SwitchExpr {
                             (value) => value[0] == de.typeName.value
                         )
                         if (j == -1) {
-                            throw new Error(`unexpected, couldn't find ${de.typeName.value} in ${variants[i].map(v => v[0]).join(", ")}`)
+                            throw new Error(
+                                `unexpected, couldn't find ${de.typeName.value} in ${variants[i].map((v) => v[0]).join(", ")}`
+                            )
                         }
 
                         return j
@@ -213,7 +218,9 @@ export class EnumSwitchExpr extends SwitchExpr {
                 ]
 
                 if (indices[0] == -1) {
-                    throw new Error(`unexpected, couldn't find ${c.lhs.typeName.value} in ${variants[0].map(v => v[0]).join(", ")}`)
+                    throw new Error(
+                        `unexpected, couldn't find ${c.lhs.typeName.value} in ${variants[0].map((v) => v[0]).join(", ")}`
+                    )
                 }
             }
 
