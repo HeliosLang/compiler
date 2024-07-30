@@ -1,6 +1,6 @@
 {
     "name": "@helios-lang/compiler",
-    "version": "0.17.0-0",
+    "version": "0.17.0-1",
     "description": "Helios is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Helios is a non-Haskell alternative to Plutus. With this library you can compile Helios scripts and build Cardano transactions, all you need to build 100% client-side dApps for Cardano.",
     "main": "src/index.js",
     "types": "types/index.d.ts",
@@ -8,13 +8,14 @@
     "author": "Christian Schmitz",
     "license": "BSD-3-Clause",
     "scripts": {
-        "build": "npm run prettify && npm run build:types && npm run test:suite",
+        "build": "npm run test:version && npm run prettify && npm run build:types && npm run test:suite",
         "build:types": "npx tsc -p jsconfig.json --noEmit false --emitDeclarationOnly",
         "prettify": "npx prettier . --write",
-        "test": "npm run test:pretty && npm run test:types && npm run test:suite",
+        "test": "npm run test:version && npm run test:pretty && npm run test:types && npm run test:suite",
         "test:pretty": "npx prettier . --check",
         "test:suite": "node --test",
-        "test:types": "npx tsc -p jsconfig.json --noEmit"
+        "test:types": "npx tsc -p jsconfig.json --noEmit",
+        "test:version": "node -e \"import('./src/index.js').then(m => {if (m.VERSION != process.env.npm_package_version) {throw new Error(\\\"version mismatch\\\")}})\""
     },
     "repository": {
         "type": "git",
