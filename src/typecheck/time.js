@@ -17,12 +17,9 @@ import {
  */
 export var DurationType = new GenericType({
     name: "Duration",
-    genTypeDetails: (self) => ({
-        inputType: `number | bigint`,
-        outputType: `number`,
-        internalType: {
-            type: "Duration"
-        }
+    genTypeSchema: (self) => ({
+        kind: "internal",
+        name: "Duration"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
@@ -58,12 +55,9 @@ export var DurationType = new GenericType({
  */
 export var TimeType = new GenericType({
     name: "Time",
-    genTypeDetails: (self) => ({
-        inputType: `number | bigint | string | Date`,
-        outputType: `Date`,
-        internalType: {
-            type: "Time"
-        }
+    genTypeSchema: (self) => ({
+        kind: "internal",
+        name: "Time"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)

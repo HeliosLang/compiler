@@ -9,6 +9,7 @@ import { Module } from "./Module.js"
 
 /**
  * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
  * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
@@ -34,13 +35,22 @@ export class GenericEntryPoint extends EntryPointImpl {
     }
 
     /**
+     * @type {Set<string>}
+     */
+    get requiredParams() {
+        const ctx = new ToIRContext(false, false)
+        const ir = this.toIRInternal(ctx)
+
+        return this.getRequiredParametersInternal(ctx, ir)
+    }
+
+    /**
      * @param {ScriptTypes} scriptTypes
-     * @returns {TopScope}
      */
     evalTypes(scriptTypes) {
         const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
 
-        const topScope = super.evalTypesInternal(scope)
+        super.evalTypesInternal(scope)
 
         // check the 'main' function
 
@@ -68,18 +78,6 @@ export class GenericEntryPoint extends EntryPointImpl {
                 `illegal return type for main: '${retType.toString()}'`
             )
         }
-
-        return topScope
-    }
-
-    /**
-     *
-     * @param {ToIRContext} ctx
-     * @returns {[string, Type][]}
-     */
-    getRequiredParameters(ctx) {
-        const ir = this.toIRInternal(ctx)
-        return this.getRequiredParametersInternal(ctx, ir)
     }
 
     /**

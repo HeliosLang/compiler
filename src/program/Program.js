@@ -1,5 +1,11 @@
-import { ErrorCollector } from "@helios-lang/compiler-utils"
-import { DEFAULT_PARSE_OPTIONS, compile as compileIR } from "@helios-lang/ir"
+import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
+import {
+    $,
+    DEFAULT_PARSE_OPTIONS,
+    SourceMappedString,
+    compile as compileIR
+} from "@helios-lang/ir"
+import { expectSome } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext } from "../codegen/index.js"
 import { newEntryPoint } from "./newEntryPoint.js"
@@ -17,16 +23,21 @@ import { newEntryPoint } from "./newEntryPoint.js"
  */
 
 /**
- * TODO: allow moduleSources to be of `Source[]` type
  * `throwCompilerErrors` defaults to true
  * @typedef {{
- *   allowPosParams?: boolean
- *   invertEntryPoint?: boolean
  *   isTestnet?: boolean
- *   moduleSources?: string[]
+ *   moduleSources?: (string | Source)[]
  *   validatorTypes?: ScriptTypes
  *   throwCompilerErrors?: boolean
  * }} ProgramProps
+ */
+
+/**
+ * @typedef {{
+ *   optimize?: boolean
+ *   depensOnOwnHash?: boolean
+ *   hashDependencies?: Record<string, string>
+ * }} CompileOptions
  */
 
 /**
@@ -49,6 +60,7 @@ export class Program {
     props
 
     /**
+     * @readonly
      * @type {EntryPoint}
      */
     entryPoint
@@ -60,8 +72,7 @@ export class Program {
     errors
 
     /**
-     * TODO: allow mainSource to be of `Source` type
-     * @param {string} mainSource
+     * @param {string | Source} mainSource
      * @param {ProgramProps} props
      */
     constructor(mainSource, props = DEFAULT_PROGRAM_PROPS) {
@@ -103,38 +114,55 @@ export class Program {
     }
 
     /**
-     * @type {{[name: string]: DataType}}
+     * @type {Record<string, Record<string, DataType>>}
+     */
+    get userTypes() {
+        return this.entryPoint.userTypes
+    }
+
+    /**
+     * @type {Record<string, DataType>}
      */
     get paramTypes() {
         return this.entryPoint.paramTypes
     }
 
     /**
-     * Non-positional named parameters
-     * @type {[string, Type][]}
+     * @type {Set<string>}
      */
     get requiredParams() {
-        return this.entryPoint.getRequiredParameters(
-            new ToIRContext(false, this.isForTestnet)
-        )
+        return this.entryPoint.requiredParams
     }
 
     /**
      * Change the literal value of a const statements
      * @param {string} name
      * @param {UplcData} data
+     * @returns {boolean}
      */
     changeParam(name, data) {
-        this.entryPoint.changeParam(name, data)
+        return this.entryPoint.changeParam(name, data)
     }
 
     /**
-     * @param {boolean} optimize
+     * @param {boolean | CompileOptions} optimizeOrOptions
      * @returns {UplcProgramV2}
      */
-    compile(optimize = false) {
+    compile(optimizeOrOptions = false) {
+        /**
+         * @type {CompileOptions}
+         */
+        const options =
+            typeof optimizeOrOptions == "boolean"
+                ? { optimize: optimizeOrOptions }
+                : optimizeOrOptions
+        const optimize = options.optimize ?? false
+        const extra = this.injectHashes(
+            options.depensOnOwnHash ?? false,
+            options.hashDependencies ?? {}
+        )
         const ctx = new ToIRContext(optimize, this.isForTestnet)
-        const ir = this.entryPoint.toIR(ctx)
+        const ir = this.entryPoint.toIR(ctx, extra)
 
         return compileIR(ir, {
             optimize: optimize,
@@ -151,5 +179,51 @@ export class Program {
      */
     toString() {
         return this.entryPoint.toString()
+    }
+
+    /**
+     * Generate additional IR definitions
+     *   * dependency on own hash through methods defined on the ScriptContext
+     *   * dependency on hashes of other validators or dependency on own precalculated hash (eg. unoptimized program should use hash of optimized program)
+     * @private
+     * @param {boolean} dependsOnOwnHash
+     * @param {Record<string, string>} hashDeps
+     * @returns {Definitions}
+     */
+    injectHashes(dependsOnOwnHash, hashDeps) {
+        /**
+         * @type {Definitions}
+         */
+        const extra = new Map()
+
+        // inject hashes of other validators
+        Object.entries(hashDeps).forEach(([depName, dep]) => {
+            extra.set(`__helios__scripts__${depName}`, $(`#${dep}`))
+        })
+
+        if (dependsOnOwnHash) {
+            const key = `__helios__scripts__${this.name}`
+
+            const ir = expectSome(
+                /** @type {Record<string, SourceMappedString>} */ ({
+                    mixed: $(
+                        `__helios__scriptcontext__get_current_script_hash()`
+                    ),
+                    spending: $(
+                        `__helios__scriptcontext__get_current_validator_hash()`
+                    ),
+                    minting: $(
+                        `__helios__scriptcontext__get_current_minting_policy_hash()`
+                    ),
+                    staking: $(
+                        `__helios__scriptcontext__get_current_staking_validator_hash()`
+                    )
+                })[this.purpose]
+            )
+
+            extra.set(key, ir)
+        }
+
+        return extra
     }
 }

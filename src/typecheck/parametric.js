@@ -15,7 +15,7 @@ import { BoolType, ByteArrayType, RawDataType } from "./primitives.js"
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
- * @typedef {import("./common.js").TypeDetails} TypeDetails
+ * @typedef {import("./common.js").TypeSchema} TypeSchema
  * @typedef {import("./common.js").GenericTypeProps} GenericTypeProps
  * @typedef {import("./common.js").GenericEnumMemberTypeProps} GenericEnumMemberTypeProps
  * @typedef {import("./common.js").EnumMemberType} EnumMemberType
@@ -104,12 +104,34 @@ export class GenericParametricEnumMemberType extends GenericEnumMemberType {
                 }
             })
 
+            const parentType = expectSome(
+                this.parentType.infer(site, map, null).asDataType
+            )
+
+            const partialProps = this.applyInternal(site, map)
+            /**
+             * @type {GenericEnumMemberTypeProps}
+             */
             const props = {
-                ...this.applyInternal(site, map),
-                parentType: expectSome(
-                    this.parentType.infer(site, map, null).asDataType
-                ),
-                constrIndex: this.constrIndex
+                ...partialProps,
+                parentType: parentType,
+                constrIndex: this.constrIndex,
+                genTypeSchema: (self, parents) => {
+                    const typeMembers = self.typeMembers
+
+                    return {
+                        kind: "variant",
+                        tag: this.constrIndex,
+                        name: this.name,
+                        id: partialProps.path,
+                        fieldTypes: partialProps.fieldNames.map((fn) => ({
+                            name: fn,
+                            type: expectSome(
+                                typeMembers[fn].asDataType
+                            ).toSchema(parents)
+                        }))
+                    }
+                }
             }
 
             return isMaybeParametric
@@ -296,6 +318,17 @@ export class DataTypeClassImpl extends TypeClassImpl {
      */
     get path() {
         return this.#path
+    }
+
+    /**
+     * @param {Set<string>} parents
+     * @returns {TypeSchema}
+     */
+    toSchema(parents = new Set()) {
+        return {
+            kind: "internal",
+            name: "Data"
+        }
     }
 
     /**
@@ -544,10 +577,11 @@ class AppliedType extends Common {
     }
 
     /**
-     * @type {TypeDetails | undefined}
+     * @param {Set<string>} parents
+     * @returns {TypeSchema}
      */
-    get typeDetails() {
-        return this.#inner.typeDetails
+    toSchema(parents = new Set()) {
+        return this.#inner.toSchema(parents)
     }
 
     /**

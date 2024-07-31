@@ -37,13 +37,14 @@ import {
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("./common.js").DataType} DataType
  * @typedef {import("./common.js").EnumMemberType} EnumMemberType
+ * @typedef {import("./common.js").GenericTypeProps} GenericTypeProps
+ * @typedef {import("./common.js").GenericEnumMemberTypeProps} GenericEnumMemberTypeProps
  * @typedef {import("./common.js").Named} Named
  * @typedef {import("./common.js").Parametric} Parametric
  * @typedef {import("./common.js").Type} Type
  * @typedef {import("./common.js").Typed} Typed
  * @typedef {import("./common.js").InstanceMembers} InstanceMembers
  * @typedef {import("./common.js").TypeMembers} TypeMembers
- * @typedef {import("./common.js").GenericTypeProps} GenericTypeProps
  * @typedef {import("./common.js").InferenceMap} InferenceMap
  */
 
@@ -376,16 +377,15 @@ export const ListType = new ParametricType({
     apply: ([itemType_]) => {
         const itemType = expectSome(itemType_.asDataType)
 
+        /**
+         * @type {GenericTypeProps}
+         */
         const props = {
             name: `[]${itemType.toString()}`,
             path: `__helios__list[${itemType.path}]`,
-            genTypeDetails: (self) => ({
-                inputType: `(${expectSome(itemType.typeDetails?.inputType)})[]`,
-                outputType: `(${expectSome(itemType.typeDetails?.outputType)})[]`,
-                internalType: {
-                    type: "List",
-                    itemType: expectSome(itemType.typeDetails?.internalType)
-                }
+            genTypeSchema: (self, parents) => ({
+                kind: /** @type {const} */ ("list"),
+                itemType: expectSome(itemType.toSchema(parents))
             }),
             genInstanceMembers: (self) => {
                 /**
@@ -679,17 +679,16 @@ export const MapType = new ParametricType({
         const keyType = expectSome(keyType_.asDataType)
         const valueType = expectSome(valueType_.asDataType)
 
+        /**
+         * @type {GenericTypeProps}
+         */
         const props = {
             name: `Map[${keyType.toString()}]${valueType.toString()}`,
             path: `__helios__map[${keyType.path}@${valueType.path}]`,
-            genTypeDetails: (self) => ({
-                inputType: `[${expectSome(keyType.typeDetails?.inputType)}, ${expectSome(valueType.typeDetails?.inputType)}][]`,
-                outputType: `[${expectSome(keyType.typeDetails?.outputType)}, ${expectSome(valueType.typeDetails?.outputType)}][]`,
-                internalType: {
-                    type: "Map",
-                    keyType: expectSome(keyType.typeDetails?.internalType),
-                    valueType: expectSome(valueType.typeDetails?.internalType)
-                }
+            genTypeSchema: (self, parents) => ({
+                kind: /** @type {const} */ ("map"),
+                keyType: expectSome(keyType.toSchema(parents)),
+                valueType: expectSome(valueType.toSchema(parents))
             }),
             genInstanceMembers: (self) => ({
                 ...genCommonInstanceMembers(self),
@@ -883,16 +882,15 @@ const OptionType = new ParametricType({
          */
         let SomeType = null
 
+        /**
+         * @type {GenericTypeProps}
+         */
         const appliedOptionTypeProps = {
             name: `Option[${someType.toString()}]`,
             path: `__helios__option[${someTypePath}]`,
-            genTypeDetails: (self) => ({
-                inputType: `null | ${expectSome(someType.typeDetails?.inputType)}`,
-                outputType: `null | ${expectSome(someType.typeDetails?.outputType)}`,
-                internalType: {
-                    type: "Option",
-                    someType: expectSome(someType.typeDetails?.internalType)
-                }
+            genTypeSchema: (self, parents) => ({
+                kind: "option",
+                someType: expectSome(someType.toSchema(parents))
             }),
             genInstanceMembers: (self) => ({
                 ...genCommonInstanceMembers(self),
@@ -919,31 +917,66 @@ const OptionType = new ParametricType({
             })
         }
 
+        const somePath = `__helios__option[${someTypePath}]__some`
+
+        /**
+         * @type {Omit<GenericEnumMemberTypeProps, "parentType">}
+         */
         const someTypeProps = {
             name: "Some",
             constrIndex: 0,
             fieldNames: ["some"],
-            path: `__helios__option[${someTypePath}]__some`,
+            path: somePath,
+            genTypeSchema: (self, parents) => ({
+                kind: "variant",
+                tag: 0,
+                name: "Some",
+                id: somePath,
+                fieldTypes: [
+                    {
+                        name: "some",
+                        type: someType.toSchema(parents)
+                    }
+                ]
+            }),
             genInstanceMembers: (self) => ({
                 ...genCommonInstanceMembers(self),
                 some: someType
             }),
             genTypeMembers: (self) => ({
                 ...genCommonTypeMembers(self),
-                __is: new FuncType([self.parentType], BoolType)
+                __is: new FuncType(
+                    [expectSome(self.asEnumMemberType).parentType],
+                    BoolType
+                )
             })
         }
 
+        const nonePath = `__helios__option[${someTypePath}]__none`
+
+        /**
+         * @type {Omit<GenericEnumMemberTypeProps, "parentType">}
+         */
         const noneTypeProps = {
             name: "None",
             constrIndex: 1,
-            path: `__helios__option[${someTypePath}]__none`,
+            path: nonePath,
+            genTypeSchema: (self, parents) => ({
+                kind: "variant",
+                tag: 1,
+                name: "None",
+                id: nonePath,
+                fieldTypes: []
+            }),
             genInstanceMembers: (self) => ({
                 ...genCommonInstanceMembers(self)
             }),
             genTypeMembers: (self) => ({
                 ...genCommonTypeMembers(self),
-                __is: new FuncType([self.parentType], BoolType)
+                __is: new FuncType(
+                    [expectSome(self.asEnumMemberType).parentType],
+                    BoolType
+                )
             })
         }
 

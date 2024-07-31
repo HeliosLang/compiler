@@ -20,6 +20,9 @@ import { TypeParameters } from "./TypeParameters.js"
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
+ * @typedef {import("../typecheck/common.js").GenericTypeProps} GenericTypeProps
+ * @typedef {import("../typecheck/common.js").Type} Type
+ * @typedef {import("../typecheck/common.js").TypeSchema} TypeSchema
  */
 
 /**
@@ -140,37 +143,39 @@ export class EnumStatement extends Statement {
                     genFullMembers[m.name.value] = m.evalType(typeScope)
                 })
 
+                /**
+                 * @type {GenericTypeProps}
+                 */
                 const props = {
                     name: this.name.value,
                     path: this.path,
-                    genTypeDetails: (self) => {
-                        const inputEnumTypeParts = []
-                        const outputEnumTypeParts = []
-                        const internalEnumTypeParts = []
+                    /**
+                     *
+                     * @param {Type} self
+                     * @param {Set<string>} parents
+                     * @returns {TypeSchema}
+                     */
+                    genTypeSchema: (self, parents) => {
+                        if (parents.has(this.path)) {
+                            return {
+                                kind: "reference",
+                                id: this.path
+                            }
+                        }
 
-                        this.#members.forEach((member) => {
-                            const [inputType, outputType, internalTypeFields] =
-                                member.dataDefinition.genTypeDetails()
+                        const parents_ = new Set(
+                            Array.from(parents).concat([this.path])
+                        )
 
-                            inputEnumTypeParts.push(
-                                `{"${member.name.value}": ${inputType}}`
-                            )
-                            outputEnumTypeParts.push(
-                                `{"${member.name.value}": ${outputType}}`
-                            )
-                            internalEnumTypeParts.push({
-                                name: member.name.value,
-                                fieldTypes: internalTypeFields
-                            })
-                        })
+                        const internalEnumTypeParts = this.#members.map(
+                            (member) => member.toSchemaInternal(parents_)
+                        )
 
                         return {
-                            inputType: inputEnumTypeParts.join(" | "),
-                            outputType: outputEnumTypeParts.join(" | "),
-                            internalType: {
-                                type: "Enum",
-                                variantTypes: internalEnumTypeParts
-                            }
+                            kind: "enum",
+                            name: this.name.value,
+                            id: this.path,
+                            variantTypes: internalEnumTypeParts
                         }
                     },
                     genInstanceMembers: (self) => ({

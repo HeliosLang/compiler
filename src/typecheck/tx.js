@@ -49,6 +49,7 @@ import { TimeRangeType, TimeType } from "./time.js"
  * @typedef {import("./common.js").Typed} Typed
  * @typedef {import("./common.js").InstanceMembers} InstanceMembers
  * @typedef {import("./common.js").TypeMembers} TypeMembers
+ * @typedef {import("./common.js").TypeSchema} TypeSchema
  */
 
 /**
@@ -57,16 +58,13 @@ import { TimeRangeType, TimeType } from "./time.js"
  */
 export const AddressType = new GenericType({
     name: "Address",
-    genTypeDetails: (self) => ({
-        inputType: "string | helios.Address",
-        outputType: "helios.Address",
-        internalType: {
-            type: "Address"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Address"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        credential: CredentialType,
+        credential: SpendingCredentialType,
         staking_credential: OptionType$(StakingCredentialType),
         to_bytes: new FuncType([], ByteArrayType),
         to_hex: new FuncType([], StringType)
@@ -74,7 +72,7 @@ export const AddressType = new GenericType({
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
         new: new FuncType(
-            [CredentialType, OptionType$(StakingCredentialType)],
+            [SpendingCredentialType, OptionType$(StakingCredentialType)],
             self
         ),
         new_empty: new FuncType([], self),
@@ -88,6 +86,10 @@ export const AddressType = new GenericType({
  */
 export const DCertType = new GenericType({
     name: "DCert",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "DCert"
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
@@ -125,6 +127,22 @@ const DCertDelegateType = new GenericEnumMemberType({
     name: "Delegate",
     constrIndex: 2,
     parentType: DCertType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 2,
+        id: expectSome(self.asDataType).path,
+        name: "Delegate",
+        fieldTypes: [
+            {
+                name: "delegator",
+                type: StakingCredentialType.toSchema(parents)
+            },
+            {
+                name: "pool_id",
+                type: PubKeyHashType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         delegator: StakingCredentialType,
@@ -142,6 +160,18 @@ const DCertDeregisterType = new GenericEnumMemberType({
     name: "Deregister",
     constrIndex: 1,
     parentType: DCertType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 1,
+        id: expectSome(self.asDataType).path,
+        name: "Deregister",
+        fieldTypes: [
+            {
+                name: "credential",
+                type: StakingCredentialType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
@@ -158,6 +188,18 @@ const DCertRegisterType = new GenericEnumMemberType({
     name: "Register",
     constrIndex: 0,
     parentType: DCertType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 0,
+        id: expectSome(self.asDataType).path,
+        name: "Register",
+        fieldTypes: [
+            {
+                name: "credential",
+                type: StakingCredentialType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
@@ -174,6 +216,22 @@ const DCertRegisterPoolType = new GenericEnumMemberType({
     name: "RegisterPool",
     constrIndex: 3,
     parentType: DCertType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 3,
+        id: expectSome(self.asDataType).path,
+        name: "RegisterPool",
+        fieldTypes: [
+            {
+                name: "pool_id",
+                type: PubKeyHashType.toSchema(parents)
+            },
+            {
+                name: "pool_vrf",
+                type: PubKeyHashType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
@@ -191,6 +249,22 @@ const DCertRetirePoolType = new GenericEnumMemberType({
     name: "RetirePool",
     constrIndex: 4,
     parentType: DCertType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 4,
+        id: expectSome(self.asDataType).path,
+        name: "RetirePool",
+        fieldTypes: [
+            {
+                name: "pool_id",
+                type: PubKeyHashType.toSchema(parents)
+            },
+            {
+                name: "epoch",
+                type: IntType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         pool_id: PubKeyHashType,
@@ -205,129 +279,195 @@ const DCertRetirePoolType = new GenericEnumMemberType({
  * Builtin Credential type
  * @type {DataType}
  */
-export const CredentialType = new GenericType({
-    name: "Credential",
+export const SpendingCredentialType = new GenericType({
+    name: "SpendingCredential",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "SpendingCredential"
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
-        PubKey: CredentialPubKeyType,
-        Validator: CredentialValidatorType,
-        new_pubkey: new FuncType([PubKeyHashType], CredentialPubKeyType),
+        PubKey: SpendingCredentialPubKeyType,
+        Validator: SpendingCredentialValidatorType,
+        new_pubkey: new FuncType(
+            [PubKeyHashType],
+            SpendingCredentialPubKeyType
+        ),
         new_validator: new FuncType(
             [ValidatorHashType],
-            CredentialValidatorType
+            SpendingCredentialValidatorType
         )
     })
 })
 
 /**
- * Builtin Credential::PubKey
+ * Builtin SpendingCredential::PubKey
  */
-const CredentialPubKeyType = new GenericEnumMemberType({
+const SpendingCredentialPubKeyType = new GenericEnumMemberType({
     name: "PubKey",
     constrIndex: 0,
     fieldNames: ["hash"],
-    parentType: CredentialType,
+    parentType: SpendingCredentialType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 0,
+        id: expectSome(self.asDataType).path,
+        name: "PubKey",
+        fieldTypes: [
+            {
+                name: "hash",
+                type: PubKeyHashType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: PubKeyHashType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CredentialType)
+        ...genCommonEnumTypeMembers(self, SpendingCredentialType)
     })
 })
 
 /**
- * Builtin Credential::Validator type
+ * Builtin SpendingCredential::Validator type
  */
-const CredentialValidatorType = new GenericEnumMemberType({
+const SpendingCredentialValidatorType = new GenericEnumMemberType({
     name: "Validator",
     constrIndex: 1,
     fieldNames: ["hash"],
-    parentType: CredentialType,
+    parentType: SpendingCredentialType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 1,
+        id: expectSome(self.asDataType).path,
+        name: "Validator",
+        fieldTypes: [
+            {
+                name: "hash",
+                type: ValidatorHashType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: ValidatorHashType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, CredentialType)
+        ...genCommonEnumTypeMembers(self, SpendingCredentialType)
     })
 })
 
 /**
  * @type {DataType}
  */
-export const OutputDatumType = new GenericType({
-    name: "OutputDatum",
-    path: "__helios__outputdatum",
+export const TxOutputDatumType = new GenericType({
+    name: "TxOutputDatum",
+    path: "__helios__txoutputdatum",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "TxOutputDatum"
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         get_inline_data: new FuncType([], RawDataType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
-        Hash: OutputDatumHashType,
-        Inline: OutputDatumInlineType,
-        None: OutputDatumNoneType,
-        new_hash: new FuncType([DatumHashType], OutputDatumHashType),
+        Hash: TxOutputDatumHashType,
+        Inline: TxOutputDatumInlineType,
+        None: TxOutputDatumNoneType,
+        new_hash: new FuncType([DatumHashType], TxOutputDatumHashType),
         new_inline: (() => {
             const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass())
 
             return new ParametricFunc(
                 [a],
-                new FuncType([a.ref], OutputDatumInlineType)
+                new FuncType([a.ref], TxOutputDatumInlineType)
             )
         })(),
-        new_none: new FuncType([], OutputDatumNoneType)
+        new_none: new FuncType([], TxOutputDatumNoneType)
     })
 })
 
 /**
  * @type {EnumMemberType}
  */
-const OutputDatumHashType = new GenericEnumMemberType({
+const TxOutputDatumHashType = new GenericEnumMemberType({
     name: "Hash",
     constrIndex: 1,
-    parentType: OutputDatumType,
+    parentType: TxOutputDatumType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 1,
+        id: expectSome(self.asDataType).path,
+        name: "Hash",
+        fieldTypes: [
+            {
+                name: "hash",
+                type: DatumHashType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: DatumHashType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, OutputDatumType)
+        ...genCommonEnumTypeMembers(self, TxOutputDatumType)
     })
 })
 
 /**
  * @type {EnumMemberType}
  */
-const OutputDatumInlineType = new GenericEnumMemberType({
+const TxOutputDatumInlineType = new GenericEnumMemberType({
     name: "Inline",
     constrIndex: 2,
-    parentType: OutputDatumType,
+    parentType: TxOutputDatumType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 2,
+        id: expectSome(self.asDataType).path,
+        name: "Inline",
+        fieldTypes: [
+            {
+                name: "data",
+                type: RawDataType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         data: RawDataType
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, OutputDatumType)
+        ...genCommonEnumTypeMembers(self, TxOutputDatumType)
     })
 })
 
 /**
  * @type {EnumMemberType}
  */
-const OutputDatumNoneType = new GenericEnumMemberType({
+const TxOutputDatumNoneType = new GenericEnumMemberType({
     name: "None",
     constrIndex: 0,
-    parentType: OutputDatumType,
+    parentType: TxOutputDatumType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 0,
+        id: expectSome(self.asDataType).path,
+        name: "None",
+        fieldTypes: []
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
     genTypeMembers: (self) => ({
-        ...genCommonEnumTypeMembers(self, OutputDatumType)
+        ...genCommonEnumTypeMembers(self, TxOutputDatumType)
     })
 })
 
@@ -389,6 +529,17 @@ export class MacroType extends Common {
      */
     get asType() {
         return this
+    }
+
+    /**
+     * @param {Set<string>} parents
+     * @returns {TypeSchema}
+     */
+    toSchema(parents = new Set()) {
+        return {
+            kind: "internal",
+            name: "Data"
+        }
     }
 
     /**
@@ -572,6 +723,10 @@ export const NetworkType = new GenericType({
  */
 export const ScriptPurposeType = new GenericType({
     name: "ScriptPurpose",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "ScriptPurpose"
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
@@ -602,6 +757,18 @@ const ScriptPurposeCertifyingType = new GenericEnumMemberType({
     name: "Certifying",
     constrIndex: 3,
     parentType: ScriptPurposeType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 3,
+        id: expectSome(self.asDataType).path,
+        name: "Certifying",
+        fieldTypes: [
+            {
+                name: "dcert",
+                type: DCertType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         dcert: DCertType
@@ -619,6 +786,18 @@ const ScriptPurposeMintingType = new GenericEnumMemberType({
     name: "Minting",
     constrIndex: 0,
     parentType: ScriptPurposeType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        name: "Minting",
+        tag: 0,
+        id: expectSome(self.asDataType).path,
+        fieldTypes: [
+            {
+                name: "policy_hash",
+                type: MintingPolicyHashType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         policy_hash: MintingPolicyHashType
@@ -636,6 +815,18 @@ const ScriptPurposeTypeRewarding = new GenericEnumMemberType({
     name: "Rewarding",
     constrIndex: 2,
     parentType: ScriptPurposeType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        name: "Rewarding",
+        tag: 2,
+        id: expectSome(self.asDataType).path,
+        fieldTypes: [
+            {
+                name: "credential",
+                type: StakingCredentialType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
@@ -653,6 +844,18 @@ const ScriptPurposeSpendingType = new GenericEnumMemberType({
     name: "Spending",
     constrIndex: 1,
     parentType: ScriptPurposeType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        name: "Spending",
+        tag: 1,
+        id: expectSome(self.asDataType).path,
+        fieldTypes: [
+            {
+                name: "output_id",
+                type: TxOutputIdType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         output_id: TxOutputIdType
@@ -668,6 +871,10 @@ const ScriptPurposeSpendingType = new GenericEnumMemberType({
  */
 export const StakingCredentialType = new GenericType({
     name: "StakingCredential",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "StakingCredential"
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
@@ -691,6 +898,18 @@ const StakingCredentialHashType = new GenericEnumMemberType({
     name: "Hash",
     constrIndex: 0,
     parentType: StakingCredentialType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 0,
+        id: expectSome(self.asDataType).path,
+        name: "Hash",
+        fieldTypes: [
+            {
+                name: "hash",
+                type: StakingHashType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: StakingHashType
@@ -708,6 +927,13 @@ const StakingCredentialPtrType = new GenericEnumMemberType({
     name: "Ptr",
     constrIndex: 1,
     parentType: StakingCredentialType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 1,
+        id: expectSome(self.asDataType).path,
+        name: "Ptr",
+        fieldTypes: []
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
@@ -722,6 +948,10 @@ const StakingCredentialPtrType = new GenericEnumMemberType({
  */
 export const StakingPurposeType = new GenericType({
     name: "StakingPurpose",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "StakingPurpose"
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self)
     }),
@@ -740,6 +970,18 @@ const StakingPurposeCertifyingType = new GenericEnumMemberType({
     name: "Certifying",
     constrIndex: 3,
     parentType: StakingPurposeType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 3,
+        id: expectSome(self.asDataType).path,
+        name: "Certifying",
+        fieldTypes: [
+            {
+                name: "dcert",
+                type: DCertType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         dcert: DCertType
@@ -757,6 +999,18 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
     name: "Rewarding",
     constrIndex: 2,
     parentType: StakingPurposeType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        name: "Rewarding",
+        tag: 2,
+        id: expectSome(self.asDataType).path,
+        fieldTypes: [
+            {
+                name: "credential",
+                type: StakingCredentialType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         credential: StakingCredentialType
@@ -825,12 +1079,9 @@ export const TxBuilderType = new GenericType({
  */
 export const TxType = new GenericType({
     name: "Tx",
-    genTypeDetails: (self) => ({
-        inputType: "helios.Tx",
-        outputType: "helios.Tx",
-        internalType: {
-            type: "Tx"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Tx"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -946,12 +1197,9 @@ export const TxType = new GenericType({
  */
 export const TxIdType = new GenericType({
     name: "TxId",
-    genTypeDetails: (self) => ({
-        inputType: `number[] | string | helios.TxId`,
-        outputType: `helios.TxId`,
-        internalType: {
-            type: "TxId"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "TxId"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -973,13 +1221,17 @@ export const TxIdType = new GenericType({
  */
 export const TxInputType = new GenericType({
     name: "TxInput",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "TxInput"
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         output_id: TxOutputIdType,
         output: TxOutputType,
         address: AddressType,
         value: ValueType,
-        datum: OutputDatumType
+        datum: TxOutputDatumType
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
@@ -993,16 +1245,20 @@ export const TxInputType = new GenericType({
  */
 export const TxOutputType = new GenericType({
     name: "TxOutput",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "TxOutput"
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         address: AddressType,
         value: ValueType,
-        datum: OutputDatumType,
+        datum: TxOutputDatumType,
         ref_script_hash: OptionType$(scriptHashType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
-        new: new FuncType([AddressType, ValueType, OutputDatumType], self)
+        new: new FuncType([AddressType, ValueType, TxOutputDatumType], self)
     })
 })
 
@@ -1012,13 +1268,9 @@ export const TxOutputType = new GenericType({
  */
 export const TxOutputIdType = new GenericType({
     name: "TxOutputId",
-    genTypeDetails: (self) => ({
-        inputType:
-            "{txId: number[] | string | helios.TxId, utxoId: number | bigint} | helios.TxOutputId",
-        outputType: "helios.TxOutputId",
-        internalType: {
-            type: "TxOutputId"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "TxOutputId"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -1037,6 +1289,10 @@ export const TxOutputIdType = new GenericType({
 
 export const MixedArgsType = new GenericType({
     name: "MixedArgs",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Data"
+    }),
     genInstanceMembers: (self) => ({}),
     genTypeMembers: (self) => ({
         Other: MixedArgsOtherType,
@@ -1048,6 +1304,18 @@ const MixedArgsOtherType = new GenericEnumMemberType({
     name: "Other",
     constrIndex: 0,
     parentType: MixedArgsType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        name: "Other",
+        tag: 0,
+        id: expectSome(self.asDataType).path,
+        fieldTypes: [
+            {
+                name: "redeemer",
+                type: RawDataType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         redeemer: RawDataType
     }),
@@ -1058,6 +1326,22 @@ const MixedArgsSpendingType = new GenericEnumMemberType({
     name: "Spending",
     constrIndex: 1,
     parentType: MixedArgsType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        name: "Spending",
+        tag: 1,
+        id: expectSome(self.asDataType).path,
+        fieldTypes: [
+            {
+                name: "datum",
+                type: RawDataType.toSchema(parents)
+            },
+            {
+                name: "redeemer",
+                type: RawDataType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         datum: RawDataType,
         redeemer: RawDataType
@@ -1102,6 +1386,13 @@ function createScriptType(scriptTypes) {
                 name: k,
                 constrIndex: i,
                 parentType: expectSome(scriptEnumType),
+                genTypeSchema: (self, parents) => ({
+                    kind: "variant",
+                    tag: i,
+                    name: k,
+                    id: expectSome(self.asDataType).path,
+                    fieldTypes: []
+                }),
                 genInstanceMembers: (self) => ({}),
                 genTypeMembers: (self) => ({})
             })
@@ -1143,7 +1434,6 @@ export function ScriptContextNamespace(info) {
         get_current_validator_hash: new FuncType([], ValidatorHashType),
         get_spending_purpose_output_id: new FuncType([], TxOutputIdType),
         get_staking_purpose: new FuncType([], StakingPurposeType),
-        get_script_purpose: new FuncType([], ScriptPurposeType),
         new_certifying: new FuncType([TxType, DCertType], RawDataType),
         new_minting: new FuncType([TxType, MintingPolicyHashType], RawDataType),
         new_rewarding: new FuncType(
@@ -1151,6 +1441,7 @@ export function ScriptContextNamespace(info) {
             RawDataType
         ),
         new_spending: new FuncType([TxType, TxOutputIdType], RawDataType),
+        purpose: new DataEntity(ScriptPurposeType),
         tx: new DataEntity(TxType)
     })
 }

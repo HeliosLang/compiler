@@ -49,6 +49,16 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
     }
 
     /**
+     * @type {Set<string>}
+     */
+    get requiredParams() {
+        const ctx = new ToIRContext(false, false)
+        const ir = this.toIRInternal(ctx)
+
+        return this.getRequiredParametersInternal(ctx, ir)
+    }
+
+    /**
      * Used by cli
      * @param {boolean} isTestnet
      * @returns {UplcProgramV2}
@@ -68,21 +78,42 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
 
     /**
      * @param {ScriptTypes} scriptTypes
-     * @returns {TopScope}
      */
     evalTypes(scriptTypes) {
         const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
 
-        return this.evalTypesInternal(scope)
-    }
+        super.evalTypesInternal(scope)
 
-    /**
-     * @param {ToIRContext} ctx
-     * @returns {[string, Type][]}
-     */
-    getRequiredParameters(ctx) {
-        const ir = this.toIRInternal(ctx)
-        return this.getRequiredParametersInternal(ctx, ir)
+        // check the 'main' function
+
+        const main = this.mainFunc
+        const argTypeNames = main.argTypeNames
+        const argTypes = main.argTypes
+        const retType = main.retType
+        const nArgs = main.nArgs
+
+        if (argTypes.length != 2) {
+            throw CompilerError.type(main.site, "expected 2 args for main")
+        }
+
+        for (let i = 0; i < nArgs; i++) {
+            if (
+                argTypeNames[i] != "" &&
+                !new DefaultTypeClass().isImplementedBy(argTypes[i])
+            ) {
+                throw CompilerError.type(
+                    main.site,
+                    `illegal type for arg ${i + 1} in main ${i == nArgs - 2 ? "(datum) " : i == nArgs - 3 ? "(redeemer) " : ""}: '${argTypes[i].toString()}`
+                )
+            }
+        }
+
+        if (!BoolType.isBaseOf(retType)) {
+            throw CompilerError.type(
+                main.site,
+                `illegal return type for main, expected 'Bool', got '${retType.toString()}'`
+            )
+        }
     }
 
     /**
@@ -107,49 +138,6 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
      */
     toString() {
         return `${this.purpose} ${this.name}\n${super.toString()}`
-    }
-
-    /**
-     * @protected
-     * @param {GlobalScope} scope
-     * @returns {TopScope}
-     */
-    evalTypesInternal(scope) {
-        const topScope = super.evalTypesInternal(scope)
-
-        // check the 'main' function
-
-        const main = this.mainFunc
-        const argTypeNames = main.argTypeNames
-        const argTypes = main.argTypes
-        const retType = main.retType
-        const nArgs = main.nArgs
-
-        if (argTypes.length != 2) {
-            throw CompilerError.type(main.site, "expected 2 args for main")
-            return topScope
-        }
-
-        for (let i = 0; i < nArgs; i++) {
-            if (
-                argTypeNames[i] != "" &&
-                !new DefaultTypeClass().isImplementedBy(argTypes[i])
-            ) {
-                throw CompilerError.type(
-                    main.site,
-                    `illegal type for arg ${i + 1} in main ${i == nArgs - 2 ? "(datum) " : i == nArgs - 3 ? "(redeemer) " : ""}: '${argTypes[i].toString()}`
-                )
-            }
-        }
-
-        if (!BoolType.isBaseOf(retType)) {
-            throw CompilerError.type(
-                main.site,
-                `illegal return type for main, expected 'Bool', got '${retType.toString()}'`
-            )
-        }
-
-        return topScope
     }
 
     /**

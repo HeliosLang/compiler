@@ -9,6 +9,7 @@ import { Module } from "./Module.js"
 
 /**
  * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
  * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
@@ -30,24 +31,46 @@ export class MixedEntryPoint extends EntryPointImpl {
     }
 
     /**
+     * @type {Set<string>}
+     */
+    get requiredParams() {
+        const ctx = new ToIRContext(false, false)
+        const ir = this.toIRInternal(ctx)
+
+        return this.getRequiredParametersInternal(ctx, ir)
+    }
+
+    /**
      * @param {ScriptTypes} scriptTypes
-     * @returns {TopScope}
      */
     evalTypes(scriptTypes) {
         const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
 
-        return this.evalTypesInternal(scope)
-    }
+        super.evalTypesInternal(scope)
 
-    /**
-     *
-     * @param {ToIRContext} ctx
-     * @returns {[string, Type][]}
-     */
-    getRequiredParameters(ctx) {
-        const ir = this.toIRInternal(ctx)
+        const main = this.mainFunc
+        const argTypeNames = main.argTypeNames
+        const argTypes = main.argTypes
+        const retType = main.retType
+        const nArgs = argTypes.length
 
-        return this.getRequiredParametersInternal(ctx, ir)
+        if (nArgs != 1) {
+            throw CompilerError.type(main.site, "expected 1 arg for main")
+        }
+
+        if (argTypeNames[0] != "" && !MixedArgsType.isBaseOf(argTypes[0])) {
+            throw CompilerError.type(
+                main.site,
+                `illegal argument type in main: '${argTypes[0].toString()}`
+            )
+        }
+
+        if (!BoolType.isBaseOf(retType)) {
+            throw CompilerError.type(
+                main.site,
+                `illegal return type for main, expected 'Bool', got '${retType.toString()}'`
+            )
+        }
     }
 
     /**
@@ -105,42 +128,6 @@ export class MixedEntryPoint extends EntryPointImpl {
      */
     toString() {
         return `mixed ${this.name}\n${super.toString()}`
-    }
-
-    /**
-     * @protected
-     * @param {GlobalScope} scope
-     * @returns {TopScope}
-     */
-    evalTypesInternal(scope) {
-        const topScope = super.evalTypesInternal(scope)
-
-        const main = this.mainFunc
-        const argTypeNames = main.argTypeNames
-        const argTypes = main.argTypes
-        const retType = main.retType
-        const nArgs = argTypes.length
-
-        if (nArgs != 1) {
-            throw CompilerError.type(main.site, "expected 1 arg for main")
-            return topScope
-        }
-
-        if (argTypeNames[0] != "" && !MixedArgsType.isBaseOf(argTypes[0])) {
-            throw CompilerError.type(
-                main.site,
-                `illegal argument type in main: '${argTypes[0].toString()}`
-            )
-        }
-
-        if (!BoolType.isBaseOf(retType)) {
-            throw CompilerError.type(
-                main.site,
-                `illegal return type for main, expected 'Bool', got '${retType.toString()}'`
-            )
-        }
-
-        return topScope
     }
 
     /**

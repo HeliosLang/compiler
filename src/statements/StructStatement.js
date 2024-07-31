@@ -18,6 +18,9 @@ import { ImplDefinition } from "./ImplDefinition.js"
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @typedef {import("../typecheck/index.js").GenericTypeProps} GenericTypeProps
+ * @typedef {import("../typecheck/index.js").Type} Type
+ * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
  */
 
 /**
@@ -79,21 +82,32 @@ export class StructStatement extends Statement {
             scope,
             this.site,
             (typeScope) => {
+                /**
+                 * @type {GenericTypeProps}
+                 */
                 const props = {
                     fieldNames: this.#dataDef.fieldNames,
                     name: this.name.value,
                     path: this.path, // includes template parameters
-                    genTypeDetails: (self) => {
-                        const [inputType, outputType, internalTypeFields] =
-                            this.#dataDef.genTypeDetails()
+                    /**
+                     * @param {Type} self
+                     * @param {Set<string>} parents
+                     * @returns {TypeSchema}
+                     */
+                    genTypeSchema: (self, parents) => {
+                        const internalTypeFields =
+                            this.#dataDef.fieldsToSchema(parents)
 
                         return {
-                            inputType: inputType,
-                            outputType: outputType,
-                            internalType: {
-                                type: "Struct",
-                                fieldTypes: internalTypeFields
-                            }
+                            kind: "struct",
+                            format: this.#dataDef.hasTags()
+                                ? "map"
+                                : this.#dataDef.nFields == 1
+                                  ? "singleton"
+                                  : "list",
+                            id: this.path,
+                            name: this.name.value,
+                            fieldTypes: internalTypeFields
                         }
                     },
                     genInstanceMembers: (self) => ({

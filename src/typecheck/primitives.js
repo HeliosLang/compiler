@@ -66,12 +66,9 @@ export function genCommonEnumTypeMembers(type, parentType) {
  */
 export const BoolType = new GenericType({
     name: "Bool",
-    genTypeDetails: (self) => ({
-        inputType: "boolean",
-        outputType: "boolean",
-        internalType: {
-            type: "Bool"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Bool"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -100,12 +97,9 @@ export const BoolType = new GenericType({
  */
 export const ByteArrayType = new GenericType({
     name: "ByteArray",
-    genTypeDetails: (self) => ({
-        inputType: "number[] | string",
-        outputType: "number[]",
-        internalType: {
-            type: "ByteArray"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "ByteArray"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -135,12 +129,9 @@ export const ByteArrayType = new GenericType({
  */
 export const IntType = new GenericType({
     name: "Int",
-    genTypeDetails: (self) => ({
-        inputType: "number | bigint",
-        outputType: "bigint",
-        internalType: {
-            type: "Int"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Int"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -202,6 +193,10 @@ export const IntType = new GenericType({
  */
 export const RawDataType = new GenericType({
     name: "Data",
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Data"
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         tag: IntType,
@@ -225,6 +220,10 @@ const RawConstrDataType = new GenericEnumMemberType({
     name: "ConstrData",
     constrIndex: -1,
     parentType: RawDataType,
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Data"
+    }),
     fieldNames: ["tag", "fields"],
     genInstanceMembers: (self) => ({
         tag: IntType,
@@ -240,6 +239,10 @@ const RawMapDataType = new GenericEnumMemberType({
     constrIndex: -1,
     parentType: RawDataType,
     fieldNames: ["entries"],
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Data"
+    }),
     genInstanceMembers: (self) => ({
         entries: expectSome(makeMapType)(RawDataType, RawDataType)
     }),
@@ -253,6 +256,10 @@ const RawListDataType = new GenericEnumMemberType({
     constrIndex: -1,
     parentType: RawDataType,
     fieldNames: ["items"],
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Data"
+    }),
     genInstanceMembers: (self) => ({
         items: expectSome(makeListType)(RawDataType)
     }),
@@ -266,6 +273,10 @@ const RawIntDataType = new GenericEnumMemberType({
     constrIndex: -1,
     parentType: RawDataType,
     fieldNames: ["value"],
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Data"
+    }),
     genInstanceMembers: (self) => ({
         value: IntType
     }),
@@ -279,6 +290,10 @@ const RawByteArrayDataType = new GenericEnumMemberType({
     constrIndex: -1,
     parentType: RawDataType,
     fieldNames: ["value"],
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Data"
+    }),
     genInstanceMembers: (self) => ({
         value: ByteArrayType
     }),
@@ -292,12 +307,9 @@ const RawByteArrayDataType = new GenericEnumMemberType({
  */
 export const RatioType = new GenericType({
     name: "Ratio",
-    genTypeDetails: (self) => ({
-        inputType: "{top: number | bigint, bottom: number | bigint}",
-        outputType: "{top: bigint, bottom: bigint}",
-        internalType: {
-            type: "Ratio"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: /** @type {const} */ ("internal"),
+        name: "Ratio"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -332,12 +344,9 @@ export const RatioType = new GenericType({
  */
 export const RealType = new GenericType({
     name: "Real",
-    genTypeDetails: (self) => ({
-        inputType: "number",
-        outputType: "number",
-        internalType: {
-            type: "Real"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "Real"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -380,12 +389,9 @@ export const RealType = new GenericType({
  */
 export const StringType = new GenericType({
     name: "String",
-    genTypeDetails: (self) => ({
-        inputType: "string",
-        outputType: "string",
-        internalType: {
-            type: "String"
-        }
+    genTypeSchema: (self, parents) => ({
+        kind: "internal",
+        name: "String"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),

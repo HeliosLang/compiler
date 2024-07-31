@@ -1,5 +1,4 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { parseScript } from "../parse/index.js"
+import { CompilerError, Source, Word } from "@helios-lang/compiler-utils"
 import { ModuleScope, builtinNamespaces } from "../scopes/index.js"
 import {
     ConstStatement,
@@ -12,27 +11,37 @@ import {
  * A Module is a collection of statements
  */
 export class Module {
-    #name
+    /**
+     * @readonly
+     * @type {Word}
+     */
+    name
+
+    /**
+     * @type {Statement[]}
+     */
     #statements
+
+    /**
+     * @readonly
+     * @type {Source}
+     */
+    sourceCode
 
     /**
      * @param {Word} name
      * @param {Statement[]} statements
+     * @param {Source} sourceCode
      */
-    constructor(name, statements) {
-        this.#name = name
+    constructor(name, statements, sourceCode) {
+        this.name = name
         this.#statements = statements
 
         this.#statements.forEach((s) =>
-            s.setBasePath(`__module__${this.#name.toString()}`)
+            s.setBasePath(`__module__${this.name.toString()}`)
         )
-    }
 
-    /**
-     * @type {Word}
-     */
-    get name() {
-        return this.#name
+        this.sourceCode = sourceCode
     }
 
     /**
@@ -60,7 +69,6 @@ export class Module {
 
     /**
      * This module can depend on other modules
-     * TODO: detect circular dependencies
      * @param {Module[]} modules
      * @param {Module[]} stack
      * @returns {Module[]}
@@ -98,7 +106,7 @@ export class Module {
                     if (mn in builtinNamespaces) {
                         if (m) {
                             throw CompilerError.syntax(
-                                m.#name.site,
+                                m.name.site,
                                 "reserved module name"
                             )
                         } else {
@@ -138,18 +146,21 @@ export class Module {
      */
     loopConstStatements(callback) {
         /**
-         * @type {{statements: Statement[]}[]}
+         * @type {[string, {statements: Statement[]}][]}
          */
-        const stack = [this]
+        const stack = [[this.name.value, this]]
 
         let head = stack.pop()
 
         while (head) {
-            head.statements.forEach((statement) => {
+            const [path, stmnt] = head
+
+            stmnt.statements.forEach((statement) => {
+                const path_ = `${path}::${statement.name.value}`
                 if (statement instanceof ConstStatement) {
-                    callback(statement.name.value, statement)
+                    callback(path_, statement)
                 } else {
-                    stack.push(statement)
+                    stack.push([path_, statement])
                 }
             })
 

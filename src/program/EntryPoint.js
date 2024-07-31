@@ -23,17 +23,23 @@ import { Module } from "./Module.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
+ * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
  */
 
 /**
  * @typedef {{
  *   name: string
- *   paramTypes: {[name: string]: DataType}
  *   purpose: string
- *   changeParam(name: string, data: UplcData)
- *   evalTypes(scriptTypes: ScriptTypes): TopScope
- *   getRequiredParameters(ctx: ToIRContext): [string, Type][]
- *   toIR(ctx: ToIRContext): SourceMappedString
+ *   mainArgTypes: DataType[]
+ *   moduleDependencies: string[]
+ *   mainImportedModules: Module[]
+ *   mainModule: MainModule
+ *   userTypes: Record<string, Record<string, DataType>>
+ *   paramTypes: Record<string, DataType>
+ *   requiredParams: Set<string>
+ *   changeParam(name: string, data: UplcData): boolean
+ *   evalTypes(scriptTypes: ScriptTypes): void
+ *   toIR(ctx: ToIRContext, extra?: Option<Definitions>): SourceMappedString
  *   toString(): string
  * }} EntryPoint
  */
@@ -53,11 +59,17 @@ export class EntryPointImpl {
     globalScope
 
     /**
+     * @type {Option<TopScope>}
+     */
+    #topScope
+
+    /**
      * @param {Module[]} modules
      */
     constructor(modules) {
         this.modules = modules
         this.globalScope = None
+        this.#topScope = None
     }
 
     /**
@@ -68,13 +80,13 @@ export class EntryPointImpl {
     }
 
     /**
-     * @type {{[name: string]: DataType}}
+     * @type {Record<string, DataType>}
      */
     get paramTypes() {
         /**
-         * @type {{[name: string]: DataType}}
+         * @type {Record<string, DataType>}
          */
-        let res = {}
+        const res = {}
 
         this.loopConstStatements((name, constStatement) => {
             res[name] = constStatement.type
@@ -110,6 +122,53 @@ export class EntryPointImpl {
     }
 
     /**
+     * @type {Record<string, Record<string, DataType>>}
+     */
+    get userTypes() {
+        const topScope = expectSome(this.#topScope)
+
+        /**
+         * @type {Record<string, Record<string, any>>}
+         */
+        const result = {}
+
+        const moduleNames = [this.mainModule.name].concat(
+            this.mainImportedModules.map((m) => m.name)
+        )
+
+        for (let moduleName of moduleNames) {
+            const module_ =
+                moduleName.value == this.name
+                    ? this.mainModule
+                    : expectSome(
+                          this.mainImportedModules.find(
+                              (m) => m.name.value == moduleName.value
+                          ),
+                          `module ${moduleName.value} not found`
+                      )
+
+            /**
+             * @type {Record<string, any>}
+             */
+            const moduleTypes = {}
+
+            const moduleScope = topScope.getModuleScope(moduleName)
+
+            moduleScope.loopTypes((name, type) => {
+                if (module_.statements.some((s) => s.name.value == name)) {
+                    if (type?.asDataType) {
+                        moduleTypes[name] = type.asDataType
+                    }
+                }
+            })
+
+            result[moduleName.value] = moduleTypes
+        }
+
+        return result
+    }
+
+    /**
      * @protected
      * @type {string[]}
      */
@@ -118,7 +177,6 @@ export class EntryPointImpl {
     }
 
     /**
-     * @protected
      * @type {DataType[]}
      */
     get mainArgTypes() {
@@ -134,7 +192,6 @@ export class EntryPointImpl {
     }
 
     /**
-     * @protected
      * @type {Module[]}
      */
     get mainImportedModules() {
@@ -153,7 +210,6 @@ export class EntryPointImpl {
     }
 
     /**
-     * @protected
      * @type {MainModule}
      */
     get mainModule() {
@@ -220,9 +276,20 @@ export class EntryPointImpl {
     }
 
     /**
+     * @type {string[]}
+     */
+    get moduleDependencies() {
+        const allModules = this.mainImportedModules
+        return this.mainModule
+            .filterDependencies(allModules)
+            .map((m) => m.name.value)
+    }
+
+    /**
      * Change the literal value of a const statements
      * @param {string} name
      * @param {UplcData} data
+     * @returns {boolean} - returns false if not found
      */
     changeParam(name, data) {
         let found = false
@@ -236,12 +303,7 @@ export class EntryPointImpl {
             }
         })
 
-        if (!found) {
-            throw CompilerError.reference(
-                this.mainFunc.site,
-                `param '${name}' not found`
-            )
-        }
+        return found
     }
 
     /**
@@ -330,7 +392,6 @@ export class EntryPointImpl {
     /**
      * @protected
      * @param {GlobalScope} globalScope
-     * @returns {TopScope}
      */
     evalTypesInternal(globalScope) {
         this.globalScope = globalScope
@@ -358,7 +419,7 @@ export class EntryPointImpl {
             }
         }
 
-        return topScope
+        this.#topScope = topScope
     }
 
     /**
@@ -403,7 +464,7 @@ export class EntryPointImpl {
      * @protected
      * @param {ToIRContext} ctx
      * @param {SourceMappedString} ir
-     * @returns {[string, Type][]}
+     * @returns {Set<string>}
      */
     getRequiredParametersInternal(ctx, ir) {
         const definitions = this.fetchDefinitions(
@@ -411,20 +472,21 @@ export class EntryPointImpl {
             ir,
             (s) => s.name.value == "main"
         )
+
         const used = this.collectAllUsed(ir, definitions)
 
         /**
-         * @type {[string, Type][]}
+         * @type {Set<string>}
          */
-        const lst = []
+        const res = new Set()
 
         this.loopConstStatements((name, cs) => {
             if (!cs.isSet() && used.has(cs.path)) {
-                lst.push([name, cs.type])
+                res.add(name)
             }
         })
 
-        return lst
+        return res
     }
 
     /**

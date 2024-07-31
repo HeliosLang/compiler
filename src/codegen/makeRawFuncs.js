@@ -6341,7 +6341,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__scriptcontext__get_spending_purpose_output_id",
             `() -> {
-		__helios__common__enum_field_0(__helios__common__enum_field_1(__helios__scriptcontext__data))
+		__helios__common__enum_field_0(__helios__scriptcontext__purpose)
 	}`
         )
     )
@@ -6349,8 +6349,8 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__scriptcontext__get_current_validator_hash",
             `() -> {
-		__helios__credential__validator__hash(
-			__helios__credential__validator__cast(
+		__helios__spendingcredential__validator__hash(
+			__helios__spendingcredential__validator__cast(
 				__helios__address__credential(
 					__helios__txoutput__address(
 						__helios__txinput__output(
@@ -6369,6 +6369,50 @@ export function makeRawFunctions(simplify, isTestnet) {
             `() -> {
 		__helios__mintingpolicyhash__from_data(__helios__scriptcontext__get_spending_purpose_output_id())
 	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__scriptcontext__get_current_staking_validator_hash",
+            `() -> {
+		pair = __core__unConstrData(__helios__scriptcontext__purpose);
+		tag = __core__fstPair(pair);
+		data = __core__headList(__core__sndPair(pair));
+
+		hash = __core__ifThenElse(
+			__core__equalsInteger(tag, 2),
+			() -> {
+				// rewarding
+				__helios__common__enum_field_0(__helios__common__enum_field_0(data))
+			},
+			() -> {
+				// certifying
+				__helios__common__enum_field_0(__helios__common__enum_field_0(__helios__common__enum_field_0(data)))
+			}
+		)();
+
+		__helios__stakingvalidatorhash__from_data(hash)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__scriptcontext__get_current_script_hash",
+            `() -> {
+				tag = __helios__data__tag(__helios__scriptcontext__purpose);
+
+				__core__ifThenElse(
+					__core__equalsInteger(tag, 0),
+					__helios__scriptcontext__get_current_minting_policy_hash,
+					() -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 1),
+							__helios__scriptcontext__get_current_validator_hash,
+							__helios__scriptcontext__get_current_staking_validator_hash
+						)()
+					}
+				)()
+			}`
         )
     )
     add(
@@ -6455,8 +6499,8 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__wallet__hash",
             `(self) -> {
-		__helios__credential__pubkey__hash(
-			__helios__credential__pubkey__cast(
+		__helios__spendingcredential__pubkey__hash(
+			__helios__spendingcredential__pubkey__cast(
 				__helios__address__credential(
 					__helios__common__enum_field_0(self)
 				)
@@ -6980,7 +7024,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 							__helios__txoutput__new(
 								address, 
 								value, 
-								__helios__outputdatum__new_inline[__helios__data](
+								__helios__txoutputdatum__new_inline[__helios__data](
 									${FTPP}0____to_data(datum)
 								)
 							)
@@ -7017,7 +7061,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 									__helios__txoutput__new(
 										address, 
 										value, 
-										__helios__outputdatum__new_inline[__helios__data](
+										__helios__txoutputdatum__new_inline[__helios__data](
 											${FTPP}0____to_data(datum)
 										)
 									)
@@ -7827,12 +7871,12 @@ export function makeRawFunctions(simplify, isTestnet) {
 		(hash) -> {
 			credential = __helios__address__credential(__helios__txoutput__address(self));
 			__core__ifThenElse(
-				__helios__credential__is_validator(credential),
+				__helios__spendingcredential__is_validator(credential),
 				() -> {
 					__helios__validatorhash____eq(
 						hash, 
-						__helios__credential__validator__hash(
-							__helios__credential__validator__cast(credential)
+						__helios__spendingcredential__validator__hash(
+							__helios__spendingcredential__validator__cast(credential)
 						)
 					)
 				},
@@ -7849,12 +7893,12 @@ export function makeRawFunctions(simplify, isTestnet) {
 		(pkh) -> {
 			credential = __helios__address__credential(__helios__txoutput__address(self));
 			__core__ifThenElse(
-				__helios__credential__is_pubkey(credential),
+				__helios__spendingcredential__is_pubkey(credential),
 				() -> {
 					__helios__pubkeyhash____eq(
 						pkh, 
-						__helios__credential__pubkey__hash(
-							__helios__credential__pubkey__cast(credential)
+						__helios__spendingcredential__pubkey__hash(
+							__helios__spendingcredential__pubkey__cast(credential)
 						)
 					)
 				},
@@ -7883,11 +7927,11 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // OutputDatum
-    addDataFuncs("__helios__outputdatum")
+    addDataFuncs("__helios__txoutputdatum")
     // TODO: test each enum variant
     add(
         new RawFunc(
-            "__helios__outputdatum__is_valid_data",
+            "__helios__txoutputdatum__is_valid_data",
             `(data) -> {
 		__core__chooseData(
 			data,
@@ -7904,7 +7948,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__outputdatum__new_none",
+            "__helios__txoutputdatum__new_none",
             `() -> {
 		__core__constrData(0, __helios__common__list_0)
 	}`
@@ -7912,7 +7956,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__outputdatum__new_hash",
+            "__helios__txoutputdatum__new_hash",
             `(hash) -> {
 		__core__constrData(1, __helios__common__list_1(__helios__datumhash____to_data(hash)))
 	}`
@@ -7920,7 +7964,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            `__helios__outputdatum__new_inline[__helios__data]`,
+            `__helios__txoutputdatum__new_inline[__helios__data]`,
             `(data) -> {
 		__core__constrData(2, __helios__common__list_1(data))
 	}`
@@ -7928,15 +7972,15 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            `__helios__outputdatum__new_inline[${FTPP}0]`,
+            `__helios__txoutputdatum__new_inline[${FTPP}0]`,
             `(data) -> {
-		__helios__outputdatum__new_inline[__helios__data](${FTPP}0____to_data(data))
+		__helios__txoutputdatum__new_inline[__helios__data](${FTPP}0____to_data(data))
 	}`
         )
     )
     add(
         new RawFunc(
-            "__helios__outputdatum__get_inline_data",
+            "__helios__txoutputdatum__get_inline_data",
             `(self) -> {
 		() -> {
 			pair = __core__unConstrData(self);
@@ -7957,13 +8001,13 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // OutputDatum::None
-    addEnumDataFuncs("__helios__outputdatum__none", 0)
+    addEnumDataFuncs("__helios__txoutputdatum__none", 0)
 
     // OutputDatum::Hash
-    addEnumDataFuncs("__helios__outputdatum__hash", 1)
+    addEnumDataFuncs("__helios__txoutputdatum__hash", 1)
     add(
         new RawFunc(
-            "__helios__outputdatum__hash__hash",
+            "__helios__txoutputdatum__hash__hash",
             `(self) -> {
 		__helios__datumhash__from_data(__helios__common__enum_field_0(self))
 	}`
@@ -7971,10 +8015,10 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // OutputDatum::Inline
-    addEnumDataFuncs("__helios__outputdatum__inline", 2)
+    addEnumDataFuncs("__helios__txoutputdatum__inline", 2)
     add(
         new RawFunc(
-            "__helios__outputdatum__inline__data",
+            "__helios__txoutputdatum__inline__data",
             "__helios__common__enum_field_0"
         )
     )
@@ -8242,7 +8286,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 			credential = __helios__address__credential(self);
 			staking_credential = __helios__address__staking_credential(self);
 			__core__ifThenElse(
-				__helios__credential__is_pubkey(credential),
+				__helios__spendingcredential__is_pubkey(credential),
 				() -> {
 					staking_option_pair = __core__unConstrData(staking_credential);
 					__core__ifThenElse(
@@ -8250,7 +8294,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 						() -> {
 							staking_credential = __core__headList(__core__sndPair(__core__unConstrData(__helios__stakingcredential__hash__cast(__core__headList(__core__sndPair(staking_option_pair))))));
 							__core__ifThenElse(
-								__helios__credential__is_pubkey(staking_credential),
+								__helios__spendingcredential__is_pubkey(staking_credential),
 								() -> {
 									${isTestnet ? "0x00" : "0x01"}
 								},
@@ -8271,7 +8315,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 						() -> {
 							staking_credential = __core__headList(__core__sndPair(__core__unConstrData(__helios__stakingcredential__hash__cast(__core__headList(__core__sndPair(staking_option_pair))))));
 							__core__ifThenElse(
-								__helios__credential__is_pubkey(staking_credential),
+								__helios__spendingcredential__is_pubkey(staking_credential),
 								() -> {
 									${isTestnet ? "0x10" : "0x11"}
 								},
@@ -8298,7 +8342,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 			credential = __helios__address__credential(self);
 			staking_credential = __helios__address__staking_credential(self);
 			__core__ifThenElse(
-				__helios__credential__is_pubkey(credential),
+				__helios__spendingcredential__is_pubkey(credential),
 				() -> {
 					staking_option_pair = __core__unConstrData(staking_credential);
 					__core__ifThenElse(
@@ -8306,13 +8350,13 @@ export function makeRawFunctions(simplify, isTestnet) {
 						() -> {
 							staking_credential = __core__headList(__core__sndPair(__core__unConstrData(__helios__stakingcredential__hash__cast(__core__headList(__core__sndPair(staking_option_pair))))));
 							__core__ifThenElse(
-								__helios__credential__is_pubkey(staking_credential),
+								__helios__spendingcredential__is_pubkey(staking_credential),
 								() -> {
 									__core__consByteString(
 										${isTestnet ? "0x00" : "0x01"},
 										__core__appendByteString(
-											__helios__credential__pubkey__hash(credential),
-											__helios__credential__pubkey__hash(staking_credential)
+											__helios__spendingcredential__pubkey__hash(credential),
+											__helios__spendingcredential__pubkey__hash(staking_credential)
 										)
 									)
 								},
@@ -8320,8 +8364,8 @@ export function makeRawFunctions(simplify, isTestnet) {
 									__core__consByteString(
 										${isTestnet ? "0x20" : "0x21"},
 										__core__appendByteString(
-											__helios__credential__pubkey__hash(credential),
-											__helios__credential__validator__hash(staking_credential)
+											__helios__spendingcredential__pubkey__hash(credential),
+											__helios__spendingcredential__validator__hash(staking_credential)
 										)
 									)
 								}
@@ -8330,7 +8374,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 						() -> {
 							__core__consByteString(
 								${isTestnet ? "0x60" : "0x61"},
-								__helios__credential__pubkey__hash(credential)
+								__helios__spendingcredential__pubkey__hash(credential)
 							)
 						}
 					)()
@@ -8342,13 +8386,13 @@ export function makeRawFunctions(simplify, isTestnet) {
 						() -> {
 							staking_credential = __core__headList(__core__sndPair(__core__unConstrData(__helios__stakingcredential__hash__cast(__core__headList(__core__sndPair(staking_option_pair))))));
 							__core__ifThenElse(
-								__helios__credential__is_pubkey(staking_credential),
+								__helios__spendingcredential__is_pubkey(staking_credential),
 								() -> {
 									__core__consByteString(
 										${isTestnet ? "0x10" : "0x11"},
 										__core__appendByteString(
-											__helios__credential__validator__hash(credential),
-											__helios__credential__pubkey__hash(staking_credential)
+											__helios__spendingcredential__validator__hash(credential),
+											__helios__spendingcredential__pubkey__hash(staking_credential)
 										)
 									)
 								},
@@ -8356,8 +8400,8 @@ export function makeRawFunctions(simplify, isTestnet) {
 									__core__consByteString(
 										${isTestnet ? "0x30" : "0x31"},
 										__core__appendByteString(
-											__helios__credential__validator__hash(credential),
-											__helios__credential__validator__hash(staking_credential)
+											__helios__spendingcredential__validator__hash(credential),
+											__helios__spendingcredential__validator__hash(staking_credential)
 										)
 									)
 								}
@@ -8366,7 +8410,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 						() -> {
 							__core__consByteString(
 								${isTestnet ? "0x70" : "0x71"},
-								__helios__credential__validator__hash(credential)
+								__helios__spendingcredential__validator__hash(credential)
 							)
 						}
 					)()
@@ -8393,10 +8437,10 @@ export function makeRawFunctions(simplify, isTestnet) {
 							__core__equalsInteger(staking_type, 0),
 							() -> {
 								__helios__address__new(
-									__helios__credential__new_pubkey(__core__sliceByteString(1, 28, bytes)),
+									__helios__spendingcredential__new_pubkey(__core__sliceByteString(1, 28, bytes)),
 									__core__constrData(0, __helios__common__list_1(
 										__helios__stakingcredential__new_hash(
-											__helios__credential__new_pubkey(__core__sliceByteString(29, 28, bytes))
+											__helios__spendingcredential__new_pubkey(__core__sliceByteString(29, 28, bytes))
 										)
 									))
 								)
@@ -8406,10 +8450,10 @@ export function makeRawFunctions(simplify, isTestnet) {
 									__core__equalsInteger(staking_type, 1),
 									() -> {
 										__helios__address__new(
-											__helios__credential__new_pubkey(__core__sliceByteString(1, 28, bytes)),
+											__helios__spendingcredential__new_pubkey(__core__sliceByteString(1, 28, bytes)),
 											__core__constrData(0, __helios__common__list_1(
 												__helios__stakingcredential__new_hash(
-													__helios__credential__new_validator(__core__sliceByteString(29, 28, bytes))
+													__helios__spendingcredential__new_validator(__core__sliceByteString(29, 28, bytes))
 												)
 											))
 										)
@@ -8419,7 +8463,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 											__core__equalsInteger(staking_type, 3),
 											() -> {
 												__helios__address__new(
-													__helios__credential__new_pubkey(__core__sliceByteString(1, 28, bytes)),
+													__helios__spendingcredential__new_pubkey(__core__sliceByteString(1, 28, bytes)),
 													__helios__option__NONE
 												)
 											},
@@ -8437,10 +8481,10 @@ export function makeRawFunctions(simplify, isTestnet) {
 							__core__equalsInteger(staking_type, 0),
 							() -> {
 								__helios__address__new(
-									__helios__credential__new_validator(__core__sliceByteString(1, 28, bytes)),
+									__helios__spendingcredential__new_validator(__core__sliceByteString(1, 28, bytes)),
 									__core__constrData(0, __helios__common__list_1(
 										__helios__stakingcredential__new_hash(
-											__helios__credential__new_pubkey(__core__sliceByteString(29, 28, bytes))
+											__helios__spendingcredential__new_pubkey(__core__sliceByteString(29, 28, bytes))
 										)
 									))
 								)
@@ -8450,10 +8494,10 @@ export function makeRawFunctions(simplify, isTestnet) {
 									__core__equalsInteger(staking_type, 1),
 									() -> {
 										__helios__address__new(
-											__helios__credential__new_validator(__core__sliceByteString(1, 28, bytes)),
+											__helios__spendingcredential__new_validator(__core__sliceByteString(1, 28, bytes)),
 											__core__constrData(0, __helios__common__list_1(
 												__helios__stakingcredential__new_hash(
-													__helios__credential__new_validator(__core__sliceByteString(29, 28, bytes))
+													__helios__spendingcredential__new_validator(__core__sliceByteString(29, 28, bytes))
 												)
 											))
 										)
@@ -8463,7 +8507,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 											__core__equalsInteger(staking_type, 3),
 											() -> {
 												__helios__address__new(
-													__helios__credential__new_validator(__core__sliceByteString(1, 28, bytes)),
+													__helios__spendingcredential__new_validator(__core__sliceByteString(1, 28, bytes)),
 													__helios__option__NONE
 												)
 											},
@@ -8505,7 +8549,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__address__is_valid_data",
             `(data) -> {
-		__helios__common__test_constr_data_2(data, 0, __helios__credential__is_valid_data, __helios__option[__helios__stakingcredential]__is_valid_data)
+		__helios__common__test_constr_data_2(data, 0, __helios__spendingcredential__is_valid_data, __helios__option[__helios__stakingcredential]__is_valid_data)
 	}`
         )
     )
@@ -8521,7 +8565,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__address__new_empty",
             `() -> {
-		__core__constrData(0, __helios__common__list_2(__helios__credential__new_pubkey(#), __helios__option__NONE))
+		__core__constrData(0, __helios__common__list_2(__helios__spendingcredential__new_pubkey(#), __helios__option__NONE))
 	}`
         )
     )
@@ -8549,10 +8593,10 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // Credential builtins
-    addDataFuncs("__helios__credential")
+    addDataFuncs("__helios__spendingcredential")
     add(
         new RawFunc(
-            "__helios__credential__is_valid_data",
+            "__helios__spendingcredential__is_valid_data",
             `(data) -> {
 		__core__chooseData(
 			data,
@@ -8620,7 +8664,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__credential__new_pubkey",
+            "__helios__spendingcredential__new_pubkey",
             `(hash) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__pubkeyhash____to_data(hash)))
 	}`
@@ -8628,7 +8672,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__credential__new_validator",
+            "__helios__spendingcredential__new_validator",
             `(hash) -> {
 		__core__constrData(1, __helios__common__list_1(__helios__validatorhash____to_data(hash)))
 	}`
@@ -8636,7 +8680,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__credential__is_pubkey",
+            "__helios__spendingcredential__is_pubkey",
             `(self) -> {
 		__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0)
 	}`
@@ -8644,7 +8688,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__credential__is_validator",
+            "__helios__spendingcredential__is_validator",
             `(self) -> {
 		__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 1)
 	}`
@@ -8652,10 +8696,10 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // Credential::PubKey builtins
-    addEnumDataFuncs("__helios__credential__pubkey", 0)
+    addEnumDataFuncs("__helios__spendingcredential__pubkey", 0)
     add(
         new RawFunc(
-            "__helios__credential__pubkey__cast",
+            "__helios__spendingcredential__pubkey__cast",
             `(data) -> {
 		__helios__common__assert_constr_index(data, 0)
 	}`
@@ -8663,7 +8707,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__credential__pubkey__hash",
+            "__helios__spendingcredential__pubkey__hash",
             `(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__enum_field_0(self))
 	}`
@@ -8671,16 +8715,16 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // Credential::Validator builtins
-    addEnumDataFuncs("__helios__credential__validator", 1)
+    addEnumDataFuncs("__helios__spendingcredential__validator", 1)
     add(
         new RawFunc(
-            "__helios__credential__validator____new",
-            "__helios__credential__new_validator"
+            "__helios__spendingcredential__validator____new",
+            "__helios__spendingcredential__new_validator"
         )
     )
     add(
         new RawFunc(
-            "__helios__credential__validator__cast",
+            "__helios__spendingcredential__validator__cast",
             `(data) -> {
 		__helios__common__assert_constr_index(data, 1)
 	}`
@@ -8688,7 +8732,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__credential__validator__hash",
+            "__helios__spendingcredential__validator__hash",
             `(self) -> {
 		__helios__validatorhash__from_data(__helios__common__enum_field_0(self))
 	}`
@@ -8700,31 +8744,31 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(
         new RawFunc(
             "__helios__stakinghash__is_valid_data",
-            "__helios__credential__is_valid_data"
+            "__helios__spendingcredential__is_valid_data"
         )
     )
     add(
         new RawFunc(
             "__helios__stakinghash__new_stakekey",
-            "__helios__credential__new_pubkey"
+            "__helios__spendingcredential__new_pubkey"
         )
     )
     add(
         new RawFunc(
             "__helios__stakinghash__new_validator",
-            "__helios__credential__new_validator"
+            "__helios__spendingcredential__new_validator"
         )
     )
     add(
         new RawFunc(
             "__helios__stakinghash__is_stakekey",
-            "__helios__credential__is_stakekey"
+            "__helios__spendingcredential__is_stakekey"
         )
     )
     add(
         new RawFunc(
             "__helios__stakinghash__is_validator",
-            "__helios__credential__is_validator"
+            "__helios__spendingcredential__is_validator"
         )
     )
 
@@ -8733,19 +8777,19 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(
         new RawFunc(
             "__helios__stakinghash__stakekey__is_valid_data",
-            "__helios__credential__pubkey__is_valid_data"
+            "__helios__spendingcredential__pubkey__is_valid_data"
         )
     )
     add(
         new RawFunc(
             "__helios__stakinghash__stakekey__cast",
-            "__helios__credential__pubkey__cast"
+            "__helios__spendingcredential__pubkey__cast"
         )
     )
     add(
         new RawFunc(
             "__helios__stakinghash__stakekey__hash",
-            "__helios__credential__pubkey__hash"
+            "__helios__spendingcredential__pubkey__hash"
         )
     )
 
@@ -8754,19 +8798,19 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(
         new RawFunc(
             "__helios__stakinghash__validator__is_valid_data",
-            "__helios__credential__validator__is_valid_data"
+            "__helios__spendingcredential__validator__is_valid_data"
         )
     )
     add(
         new RawFunc(
             "__helios__stakinghash__validator__cast",
-            "__helios__credential__validator__cast"
+            "__helios__spendingcredential__validator__cast"
         )
     )
     add(
         new RawFunc(
             "__helios__stakinghash__validator__hash",
-            "__helios__credential__validator__hash"
+            "__helios__spendingcredential__validator__hash"
         )
     )
 

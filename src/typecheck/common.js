@@ -2,6 +2,11 @@ import { CompilerError, Word } from "@helios-lang/compiler-utils"
 import { expectSome, isSome } from "@helios-lang/type-utils"
 
 /**
+ * @typedef {import("@helios-lang/type-utils").FieldTypeSchema} FieldTypeSchema
+ * @typedef {import("@helios-lang/type-utils").TypeSchema} TypeSchema
+ * @typedef {import("@helios-lang/type-utils").VariantTypeSchema} VariantTypeSchema
+ */
+/**
  * @typedef {(type: Type) => Option<Type[]>} ExpandTupleCallback
  */
 
@@ -56,34 +61,6 @@ export function registerMakeMapType(callback) {
 
 /**
  * @typedef {{
- *   type:  string
- * } | {
- *   type:     "List"
- *   itemType: TypeSchema
- * } | {
- *   type:      "Map"
- *   keyType:   TypeSchema
- *   valueType: TypeSchema
- * } | {
- *   type:     "Option"
- *   someType: TypeSchema
- * } | {
- *   type:       "Struct"
- *   fieldTypes: NamedTypeSchema[]
- * } | {
- *   type:         "Enum"
- *   variantTypes: {name: string, fieldTypes: NamedTypeSchema[]}[]
- * }} TypeSchema
- */
-
-/**
- * @typedef {{
- * 	 name: string
- * } & TypeSchema} NamedTypeSchema
- */
-
-/**
- * @typedef {{
  *   name: string
  *   typeClass: TypeClass
  * }} ParameterI
@@ -94,20 +71,10 @@ export function registerMakeMapType(callback) {
  */
 
 /**
- * Used by the bundle cli command to generate a typescript annotations and (de)serialization code
- * inputTypes form a type union
- * @typedef {{
- *   inputType:    string
- *   outputType:   string
- *   internalType: TypeSchema
- * }} TypeDetails
- */
-
-/**
  * @typedef {Named & Type & {
  *   asDataType:   DataType
  *   fieldNames:   string[]
- *   typeDetails?: TypeDetails
+ *   toSchema(parents?: Set<string>):  TypeSchema
  *   ready:        boolean
  * }} DataType
  */
@@ -482,6 +449,16 @@ export class AllType extends Common {
     }
 
     /**
+     * @returns {TypeSchema}
+     */
+    toSchema() {
+        return {
+            kind: "internal",
+            name: "Data"
+        }
+    }
+
+    /**
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
@@ -515,7 +492,7 @@ export class AllType extends Common {
 }
 
 /**
- * @internal
+ * Untyped expressions result in AnyType
  * @implements {DataType}
  */
 export class AnyType extends Common {
@@ -525,10 +502,6 @@ export class AnyType extends Common {
 
     get fieldNames() {
         return []
-    }
-
-    get offChainType() {
-        return null
     }
 
     /**
@@ -578,6 +551,16 @@ export class AnyType extends Common {
      */
     get typeMembers() {
         return {}
+    }
+
+    /**
+     * @returns {TypeSchema}
+     */
+    toSchema() {
+        return {
+            kind: "internal",
+            name: "Any"
+        }
     }
 
     /**
@@ -1155,7 +1138,7 @@ export class FuncType extends Common {
  *   fieldNames?: string[]
  *   genInstanceMembers: (self: Type) => InstanceMembers
  *   genTypeMembers: (self: Type) => TypeMembers
- *   genTypeDetails?: (self: Type) => TypeDetails
+ *   genTypeSchema?: (self: Type, parents: Set<string>) => TypeSchema
  * }} GenericTypeProps
  */
 
@@ -1171,8 +1154,6 @@ export class GenericType extends Common {
      */
     #path
 
-    #genOffChainType
-    #offChainType
     #fieldNames
 
     /**
@@ -1198,9 +1179,9 @@ export class GenericType extends Common {
     #typeMembers
 
     /**
-     * @type {null | ((self: Type) => TypeDetails)}
+     * @type {Option<(self: Type, parents: Set<string>) => TypeSchema>}
      */
-    #genTypeDetails
+    #genTypeSchema
 
     #genDepth
 
@@ -1213,7 +1194,7 @@ export class GenericType extends Common {
         fieldNames,
         genInstanceMembers,
         genTypeMembers,
-        genTypeDetails
+        genTypeSchema
     }) {
         super()
 
@@ -1225,7 +1206,7 @@ export class GenericType extends Common {
         this.#genTypeMembers = genTypeMembers
         this.#instanceMembers = null
         this.#typeMembers = null
-        this.#genTypeDetails = genTypeDetails ?? null
+        this.#genTypeSchema = genTypeSchema ?? null
         this.#genDepth = 0
     }
 
@@ -1276,13 +1257,14 @@ export class GenericType extends Common {
     }
 
     /**
-     * @type {TypeDetails}
+     * @param {Set<string>} parents
+     * @returns {TypeSchema}
      */
-    get typeDetails() {
-        if (this.#genTypeDetails) {
-            return this.#genTypeDetails(this)
+    toSchema(parents = new Set()) {
+        if (this.#genTypeSchema) {
+            return this.#genTypeSchema(this, parents)
         } else {
-            throw new Error(`typeDetails not available for ${this.toString()}`)
+            throw new Error(`typeSchema not available for ${this.toString()}`)
         }
     }
 
@@ -1436,7 +1418,7 @@ export class GenericType extends Common {
  *   fieldNames?: string[],
  *   genInstanceMembers: (self: Type) => InstanceMembers,
  *   genTypeMembers?: (self: Type) => TypeMembers
- *   genTypeDetails?: (self: Type) => TypeDetails
+ *   genTypeSchema: (self: Type, parents: Set<string>) => TypeSchema
  * }} GenericEnumMemberTypeProps
  */
 
@@ -1460,7 +1442,7 @@ export class GenericEnumMemberType extends GenericType {
         fieldNames,
         genInstanceMembers,
         genTypeMembers,
-        genTypeDetails
+        genTypeSchema
     }) {
         super({
             name,
@@ -1468,7 +1450,7 @@ export class GenericEnumMemberType extends GenericType {
             fieldNames,
             genInstanceMembers,
             genTypeMembers: genTypeMembers ?? ((self) => ({})),
-            genTypeDetails
+            genTypeSchema: genTypeSchema
         })
 
         this.#constrIndex = constrIndex

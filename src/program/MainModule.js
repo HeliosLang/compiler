@@ -1,4 +1,4 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { CompilerError, Source, Word } from "@helios-lang/compiler-utils"
 import { FuncStatement, Statement } from "../statements/index.js"
 import { Module } from "./Module.js"
 
@@ -9,9 +9,10 @@ export class MainModule extends Module {
     /**
      * @param {Word} name
      * @param {Statement[]} statements
+     * @param {Source} src
      */
-    constructor(name, statements) {
-        super(name, statements)
+    constructor(name, statements, src) {
+        super(name, statements, src)
     }
 
     /**

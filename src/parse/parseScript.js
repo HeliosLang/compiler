@@ -74,14 +74,21 @@ export function parseScript(src, errorCollector = None) {
 
 /**
  * @param {string | Source} rawSrc
+ * @returns {Source}
+ */
+export function createSource(rawSrc) {
+    return typeof rawSrc == "string"
+        ? new Source((extractName(rawSrc) ?? ["", "unknown"])[1], rawSrc)
+        : new Source(rawSrc.name, rawSrc.content) // the input Source instance might use a class from a different package
+}
+
+/**
+ * @param {string | Source} rawSrc
  * @param {ErrorCollector} errorCollector
  * @returns {TokenReader}
  */
 function tokenizeScript(rawSrc, errorCollector) {
-    const src =
-        typeof rawSrc == "string"
-            ? new Source((extractName(rawSrc) ?? ["", "unknown"])[1], rawSrc)
-            : rawSrc
+    const src = createSource(rawSrc)
 
     const tokenizer = new Tokenizer(src, {
         errorCollector: errorCollector

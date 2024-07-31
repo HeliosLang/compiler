@@ -1,4 +1,4 @@
-import { isNone } from "@helios-lang/type-utils"
+import { expectSome } from "@helios-lang/type-utils"
 import { FuncType, GenericEnumMemberType, GenericType } from "./common.js"
 import {
     BoolType,
@@ -48,12 +48,9 @@ function genHashTypeMembers(self) {
  */
 function genHashTypeProps(offchainTypeName) {
     return {
-        genTypeDetails: (self) => ({
-            inputType: `number[] | string | helios.${offchainTypeName}`,
-            outputType: `helios.${offchainTypeName}`,
-            internalType: {
-                type: offchainTypeName
-            }
+        genTypeSchema: (self) => ({
+            kind: /** @type {const} */ ("internal"),
+            name: offchainTypeName
         })
     }
 }
@@ -64,40 +61,24 @@ function genHashTypeProps(offchainTypeName) {
 export class ScriptHashType extends GenericType {
     /**
      *
-     * @param {null | string } name
-     * @param {Option<string>} offChainTypeName
+     * @param {string } name
+     * @param {string} offChainTypeName
      */
-    constructor(name = null, offChainTypeName = null) {
-        if (offChainTypeName && name) {
-            super({
-                ...genHashTypeProps(offChainTypeName),
-                name: name,
-                genInstanceMembers: genHashInstanceMembers,
-                genTypeMembers: (self) => ({
-                    ...genHashTypeMembers(self),
-                    from_script_hash: new FuncType([scriptHashType], self)
-                })
+    constructor(name, offChainTypeName) {
+        super({
+            ...genHashTypeProps(offChainTypeName),
+            name: name,
+            genInstanceMembers: genHashInstanceMembers,
+            genTypeMembers: (self) => ({
+                ...genHashTypeMembers(self),
+                from_script_hash: new FuncType([scriptHashType], self)
             })
-        } else {
-            if (isNone(name)) {
-                throw new Error("unexpected")
-            }
-
-            super({
-                name: "ScriptHash",
-                genInstanceMembers: (self) => ({
-                    ...genCommonInstanceMembers(self)
-                }),
-                genTypeMembers: (self) => ({
-                    ...genCommonTypeMembers(self)
-                })
-            })
-        }
+        })
     }
 }
 
 /**
- * @type {DataType}
+ * @type {ScriptHashType}
  */
 export const scriptHashType = new ScriptHashType("ScriptHash", "ScriptHash")
 
@@ -171,6 +152,18 @@ export const StakingHashStakeKeyType = new GenericEnumMemberType({
     name: "StakeKey",
     constrIndex: 0,
     parentType: StakingHashType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 0,
+        name: "StakeKey",
+        id: expectSome(self.asDataType).path,
+        fieldTypes: [
+            {
+                name: "hash",
+                type: PubKeyHashType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: PubKeyHashType
@@ -187,6 +180,18 @@ export const StakingHashValidatorType = new GenericEnumMemberType({
     name: "Validator",
     constrIndex: 1,
     parentType: StakingHashType,
+    genTypeSchema: (self, parents) => ({
+        kind: "variant",
+        tag: 1,
+        name: "Validator",
+        id: expectSome(self.asDataType).path,
+        fieldTypes: [
+            {
+                name: "hash",
+                type: StakingValidatorHashType.toSchema(parents)
+            }
+        ]
+    }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
         hash: StakingValidatorHashType

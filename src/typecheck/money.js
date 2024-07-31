@@ -27,13 +27,9 @@ import {
  */
 export const AssetClassType = new GenericType({
     name: "AssetClass",
-    genTypeDetails: (self) => ({
-        inputType:
-            "string | {mph: number[] | string | helios.MintingPolicyHash, tokenName: number[] | string} | helios.AssetClass",
-        outputType: "helios.AssetClass",
-        internalType: {
-            type: "AssetClass"
-        }
+    genTypeSchema: (self) => ({
+        kind: "internal",
+        name: "AssetClass"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
@@ -62,12 +58,9 @@ export const AssetClassType = new GenericType({
  */
 export const ValueType = new GenericType({
     name: "Value",
-    genTypeDetails: (self) => ({
-        inputType: `number | bigint | {lovelace?: number | bigint, assets: [string, number | bigint][] | [number[] | string | helios.MintingPolicyHash, [number[] | string, number | bigint][]][] | helios.Assets} | helios.Value`,
-        outputType: `helios.Value`,
-        internalType: {
-            type: "Value"
-        }
+    genTypeSchema: (self) => ({
+        kind: "internal",
+        name: "Value"
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),

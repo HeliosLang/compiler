@@ -1,5 +1,9 @@
-import { CompilerError, ErrorCollector } from "@helios-lang/compiler-utils"
-import { parseScript } from "../parse/index.js"
+import {
+    CompilerError,
+    ErrorCollector,
+    Source
+} from "@helios-lang/compiler-utils"
+import { createSource, parseScript } from "../parse/index.js"
 import { MintingEntryPoint } from "./MintingEntryPoint.js"
 import { SpendingEntryPoint } from "./SpendingEntryPoint.js"
 import { StakingProgram } from "./StakingEntryPoint.js"
@@ -18,8 +22,8 @@ import { MixedEntryPoint } from "./MixedEntryPoint.js"
 /**
  * Creates a new entry point
  * This function can't be placed inside EntryPoint.js because that would create a circular import dependency
- * @param {string} mainSrc
- * @param {string[]} moduleSrcs - optional sources of modules, which can be used for imports
+ * @param {string | Source} mainSrc
+ * @param {(string | Source)[]} moduleSrcs - optional sources of modules, which can be used for imports
  * @param {ScriptTypes} validatorTypes
  * @param {ErrorCollector} errorCollector
  * @returns {EntryPoint}
@@ -72,8 +76,8 @@ export function newEntryPoint(
 }
 
 /**
- * @param {string} mainSrc
- * @param {string[]} moduleSrcs
+ * @param {string | Source} mainSrc
+ * @param {(string | Source)[]} moduleSrcs
  * @param {ErrorCollector} errorCollector
  * @returns {[Option<string>, Module[]]}
  */
@@ -117,13 +121,15 @@ function parseMain(mainSrc, moduleSrcs, errorCollector) {
 }
 
 /**
- * @param {string} rawSrc
+ * @param {string | Source} rawSrc
  * @param {ErrorCollector} errorCollector
  * @returns {[purpose, Module[]]}
  */
 function parseMainInternal(rawSrc, errorCollector) {
+    const src = createSource(rawSrc)
+
     const { purpose, name, statements, entryPointIndex } = parseScript(
-        rawSrc,
+        src,
         errorCollector
     )
 
@@ -132,12 +138,12 @@ function parseMainInternal(rawSrc, errorCollector) {
          * @type {Module[]}
          */
         const modules = [
-            new MainModule(name, statements.slice(0, entryPointIndex + 1))
+            new MainModule(name, statements.slice(0, entryPointIndex + 1), src)
         ]
 
         if (entryPointIndex < statements.length - 1) {
             modules.push(
-                new Module(name, statements.slice(entryPointIndex + 1))
+                new Module(name, statements.slice(entryPointIndex + 1), src)
             )
         }
 
@@ -148,15 +154,17 @@ function parseMainInternal(rawSrc, errorCollector) {
 }
 
 /**
- * @param {string} rawSrc
+ * @param {string | Source} rawSrc
  * @param {ErrorCollector} errorCollector
  * @returns {Module}
  */
 function parseModule(rawSrc, errorCollector) {
-    const { purpose, name, statements } = parseScript(rawSrc, errorCollector)
+    const src = createSource(rawSrc)
+
+    const { name, statements } = parseScript(src, errorCollector)
 
     if (name) {
-        return new Module(name, statements)
+        return new Module(name, statements, src)
     } else {
         throw new Error("unexpected") // should've been caught by calling src.throwErrors() above
     }
@@ -164,7 +172,7 @@ function parseModule(rawSrc, errorCollector) {
 
 /**
  * @param {string} mainName
- * @param {string[]} moduleSrcs
+ * @param {(string | Source)[]} moduleSrcs
  * @param {ErrorCollector} errorCollector
  * @returns {Module[]}
  */

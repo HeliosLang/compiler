@@ -18,7 +18,7 @@ import { DataField } from "./DataField.js"
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").InstanceMembers} InstanceMembers
- * @typedef {import("../typecheck/index.js").NamedTypeSchema} NamedTypeSchema
+ * @typedef {import("../typecheck/index.js").FieldTypeSchema} FieldTypeSchema
  * @typedef {import("../typecheck/index.js").Type} Type
  * @typedef {import("../typecheck/index.js").TypeMembers} TypeMembers
  */
@@ -226,28 +226,22 @@ export class DataDefinition {
     }
 
     /**
-     * @returns {[string, string, NamedTypeSchema[]]}
+     * @param {Set<string>} parents
+     * @returns {FieldTypeSchema[]}
      */
-    genTypeDetails() {
-        const inputTypeParts = []
-        const outputTypeParts = []
-        const internalTypeParts = []
+    fieldsToSchema(parents) {
+        const fieldSchemas = []
 
         this.fieldNames.forEach((fn, i) => {
-            const ftd = expectSome(this.getFieldType(i).typeDetails)
-            inputTypeParts.push(`${fn}: ${ftd.inputType}`)
-            outputTypeParts.push(`${fn}: ${ftd.outputType}`)
-            internalTypeParts.push({
-                ...ftd.internalType,
-                name: fn
+            const externalName = this.hasTags() ? this.#fields[i].tag : fn
+            const ts = expectSome(this.getFieldType(i).toSchema(parents))
+            fieldSchemas.push({
+                type: ts,
+                name: externalName
             })
         })
 
-        return [
-            `{${inputTypeParts.join(", ")}}`,
-            `{${outputTypeParts.join(", ")}}`,
-            internalTypeParts
-        ]
+        return fieldSchemas
     }
 
     /**

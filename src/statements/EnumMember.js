@@ -16,6 +16,9 @@ import { DataDefinition } from "./DataDefinition.js"
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
+ * @typedef {import("../typecheck/common.js").GenericEnumMemberTypeProps} GenericEnumMemberTypeProps
+ * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
+ * @typedef {import("../typecheck/index.js").VariantTypeSchema} VariantTypeSchema
  */
 
 /**
@@ -118,12 +121,18 @@ export class EnumMember {
         return (parent) => {
             const path = `${parent.path}__${this.#dataDef.name.value}`
 
+            /**
+             * @type {GenericEnumMemberTypeProps}
+             */
             const props = {
                 name: this.#dataDef.name.value,
                 path: path,
                 constrIndex: this.constrIndex,
                 parentType: parent,
                 fieldNames: this.#dataDef.fieldNames,
+                genTypeSchema: (self, parents) => {
+                    return this.toSchema(parents)
+                },
                 genInstanceMembers: (self) => {
                     const res = {
                         ...genCommonInstanceMembers(self),
@@ -284,5 +293,46 @@ export class EnumMember {
 			)
 		}`
         )
+    }
+
+    /**
+     * @param {Set<string>} parents
+     * @returns {VariantTypeSchema}
+     */
+    toSchemaInternal(parents) {
+        const fieldTypes = this.#dataDef.fieldsToSchema(parents)
+
+        return {
+            kind: "variant",
+            tag: this.constrIndex,
+            id: this.path,
+            name: this.name.value,
+            fieldTypes: fieldTypes
+        }
+    }
+
+    /**
+     * @param {Set<string>} parents
+     * @returns {TypeSchema}
+     */
+    toSchema(parents) {
+        if (parents.has(this.path)) {
+            return {
+                kind: "reference",
+                id: this.path
+            }
+        } else {
+            const parents_ = new Set(Array.from(parents).concat([this.path]))
+
+            const fieldTypes = this.#dataDef.fieldsToSchema(parents_)
+
+            return {
+                kind: "variant",
+                tag: this.constrIndex,
+                id: this.path,
+                name: this.name.value,
+                fieldTypes: fieldTypes
+            }
+        }
     }
 }
