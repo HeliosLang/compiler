@@ -1,4 +1,6 @@
+import { strictEqual } from "node:assert"
 import { describe, it } from "node:test"
+import { ConstrData } from "@helios-lang/uplc"
 import {
     compileAndRun,
     evalSingle,
@@ -6,8 +8,6 @@ import {
     mixedOther,
     mixedSpending
 } from "./utils.js"
-import { strictEqual } from "node:assert"
-import { ConstrData } from "@helios-lang/uplc"
 
 const dummyBytes28_1 =
     "01234567890123456789012345678901234567890123456789012345"
