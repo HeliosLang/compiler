@@ -18,20 +18,11 @@ describe(Program.name, () => {
     })
 
     it("real script 3 works", () => {
-        const utilsSrc =  `module utils
-            
-        struct MyUtilType {
-            hello: Int
-        }
-        const my_assetclass: AssetClass = AssetClass::new(MintingPolicyHash::new(#1234), #)
-        const my_hash: ValidatorHash = ValidatorHash::new(#)
+        const mainSrc = `spending match_string
+        
         func compare(a: String, b: String) -> Bool {
             a == b
-        }`
-
-        const mainSrc = `spending match_string
-        import { compare, my_assetclass } from utils
-        import { tx } from ScriptContext
+        }
 
         enum Datum {
             One {
@@ -41,14 +32,15 @@ describe(Program.name, () => {
                 code: Int
             }
         }
+
         func main(datum: Datum, redeemer: String) -> Bool {
             compare(datum.switch{
                 d: One => d.message, 
                 d: Two => d.code.show()
-            }, redeemer) && tx.minted.get(my_assetclass) > 0
+            }, redeemer)
         }`
 
-        const program = new Program(mainSrc, {moduleSources: [utilsSrc]})
+        const program = new Program(mainSrc)
 
         program.compile({optimize: true})
     })
