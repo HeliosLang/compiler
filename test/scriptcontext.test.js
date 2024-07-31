@@ -34,7 +34,7 @@ function genSimpleSpendingScriptContext() {
     func main() -> Data {
         pub_key_hash_bytes = #${pubKeyHashBytes};
         tx_id_in = TxId::new(#${txIdInBytes});
-        address_in = Address::new(Credential::new_pubkey(PubKeyHash::new(pub_key_hash_bytes)), Option[StakingCredential]::None);
+        address_in = Address::new(SpendingCredential::new_pubkey(PubKeyHash::new(pub_key_hash_bytes)), Option[StakingCredential]::None);
         address_out = address_in;
         input_lovelace = ${inputLovelace.toString()};
         input_value = Value::lovelace(input_lovelace);
@@ -49,7 +49,7 @@ function genSimpleSpendingScriptContext() {
                         TxOutput::new(
                             address_in, 
                             input_value, 
-                            OutputDatum::new_none()
+                            TxOutputDatum::new_none()
                         )
                     )
                 },
@@ -60,7 +60,7 @@ function genSimpleSpendingScriptContext() {
                     TxOutput::new(
                         address_out,
                         input_value - Value::lovelace(${feeLovelace.toString()}),
-                        OutputDatum::new_none()
+                        TxOutputDatum::new_none()
                     )
                 },
                 // fee
@@ -111,7 +111,7 @@ function genSimpleMintingScriptContext() {
         tx_id_in = TxId::new(#${txIdInBytes});
         current_mph_bytes = #${currentMphBytes};
         current_mph = MintingPolicyHash::new(current_mph_bytes);
-        address_in = Address::new(Credential::new_pubkey(PubKeyHash::new(pub_key_hash_bytes)), Option[StakingCredential]::None);
+        address_in = Address::new(SpendingCredential::new_pubkey(PubKeyHash::new(pub_key_hash_bytes)), Option[StakingCredential]::None);
         address_out = address_in;
         input_lovelace = ${inputLovelace.toString()};
         input_value = Value::lovelace(input_lovelace);
@@ -126,7 +126,7 @@ function genSimpleMintingScriptContext() {
                         TxOutput::new(
                             address_in, 
                             input_value, 
-                            OutputDatum::new_none()
+                            TxOutputDatum::new_none()
                         )
                     )
                 },
@@ -137,7 +137,7 @@ function genSimpleMintingScriptContext() {
                     TxOutput::new(
                         address_out,
                         input_value + minted_value,
-                        OutputDatum::new_none()
+                        TxOutputDatum::new_none()
                     )
                 },
                 // fee
