@@ -319,7 +319,6 @@ export class DataDefinition {
     }
 
     /**
-     * @internal
      * @param {ToIRContext} ctx
      * @param {string} path
      * @param {Definitions} map
@@ -732,7 +731,7 @@ export class DataDefinition {
                 const f = this.fields[0]
                 const key = `${path}__${f.name.value}`
 
-                const getter = $`__helios__common__identity${f.site}`
+                const getter = $(`__helios__common__identity`, f.site)
 
                 map.set(key, getter)
 
@@ -766,7 +765,7 @@ export class DataDefinition {
 
                         inner = $`${f.type.path}__from_data(__core__headList(${inner}))`
 
-                        getter = $`(self) ${null}->${f.site} {${inner}}`
+                        getter = $`(self) ${$("->", f.site)} {${inner}}`
                     }
 
                     map.set(key, getter)

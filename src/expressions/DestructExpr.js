@@ -355,7 +355,6 @@ export class DestructExpr {
         } else {
             const caseType = caseTypes[0]
             if (!this.isIgnored()) {
-                console.log(this.name.value)
                 scope.set(this.name, caseType.toTyped())
             }
 
