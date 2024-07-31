@@ -173,8 +173,8 @@ function analyzeModule(m, allModules, allTypes) {
  * @returns {Record<string, string[]>}
  */
 function buildDag(programs) {
-    if (programs.length < 2) {
-        throw new Error("not a multi-validator contract")
+    if (programs.length == 0) {
+        throw new Error("expected at least 1 program")
     }
 
     /**
