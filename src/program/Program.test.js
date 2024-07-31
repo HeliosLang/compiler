@@ -18,26 +18,20 @@ describe(Program.name, () => {
     })
 
     it("real script 3 works", () => {
-        const mainSrc = `spending match_string
-        
-        func compare(a: String, b: String) -> Bool {
-            a == b
-        }
+        const mainSrc = `testing match_string
 
         enum Datum {
-            One {
-                message: String
-            }
+            One
             Two {
                 code: Int
             }
         }
 
-        func main(datum: Datum, redeemer: String) -> Bool {
-            compare(datum.switch{
-                d: One => d.message, 
+        func main(datum: Datum) -> String {
+            datum.switch{
+                One => "", 
                 d: Two => d.code.show()
-            }, redeemer)
+            }
         }`
 
         const program = new Program(mainSrc)
