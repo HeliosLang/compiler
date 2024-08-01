@@ -36,6 +36,6 @@ describe(Program.name, () => {
 
         const program = new Program(mainSrc)
 
-        program.compile({optimize: true})
+        program.compile({ optimize: true })
     })
 })
