@@ -54,6 +54,8 @@ export function parseStatements(ctx) {
             topLevelParsers[m.value](ctx.atSite(m.site), statements)
         } else {
             r.endMatch()
+
+            break
         }
     }
 

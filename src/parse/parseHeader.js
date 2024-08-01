@@ -75,6 +75,10 @@ function parseScriptPurpose(ctx) {
 
     if ((m = r.matches(anyScriptPurpose))) {
         return m
+    } else if ((m = r.matches(anyWord))) {
+        ctx.errors.syntax(m.site, `invalid script purpose '${m.value}'`)
+
+        return m
     } else {
         r.endMatch()
 

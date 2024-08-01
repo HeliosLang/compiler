@@ -1,6 +1,4 @@
-import { describe, it } from "node:test"
-import { encodeUtf8 } from "@helios-lang/codec-utils"
-import { ByteArrayData, ConstrData, IntData } from "@helios-lang/uplc"
+import { describe } from "node:test"
 import { cbor, compileAndRunMany, False, True, str, int } from "./utils.js"
 
 describe("Bool", () => {
