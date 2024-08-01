@@ -52,6 +52,63 @@ describe("Value", () => {
         (Value::ZERO - Value::lovelace(a)).get(AssetClass::ADA)
     }`
 
+    const dummyLovelaceSubScript = `testing dummy_lovelace_sub
+    func main(a: Int) -> Bool {
+        (Value::lovelace(a) - Value::lovelace(a)).is_zero()
+    }`
+
+    const lovelaceSubScript = `testing lovelace_sub
+    func main(a: Int, b: Int) -> Int {
+        (Value::lovelace(a) - Value::lovelace(b)).get(AssetClass::ADA)
+    }`
+
+    const dummyLovelaceMulScript = `testing dummy_lovelace_mul
+    func main(a: Int) -> Int {
+        (Value::lovelace(a)*1).get(AssetClass::ADA)
+    }`
+
+    const lovelaceMulScript = `testing lovelace_mul
+    func main(a: Int, b: Int) -> Int {
+        (Value::lovelace(a)*b).get(AssetClass::ADA)
+    }`
+
+    const valueAddMulScript = `testing value_add_mul
+    const MY_NFT: AssetClass = AssetClass::new(MintingPolicyHash::new(#abcd), #abcd)
+    func main(a: Int, b: Int, c: Int) -> Int {
+        ((Value::lovelace(a) + Value::new(MY_NFT, b))*c).get(AssetClass::ADA)
+    }`
+
+    const dummyLovelaceDivScript = `testing dummy_lovelace_div
+    func main(a: Int) -> Int {
+        (Value::lovelace(a)/1).get(AssetClass::ADA)
+    }`
+
+    const lovelaceDivScript = `testing lovelace_div
+    func main(a: Int, b: Int) -> Int {
+        (Value::lovelace(a)/b).get(AssetClass::ADA)
+    }`
+
+    const valueAddDivScript = `testing value_add_div
+    const MY_NFT: AssetClass = AssetClass::new(MintingPolicyHash::new(#abcd), #abcd)
+    func main(a: Int, b: Int, c: Int) -> Int {
+        ((Value::lovelace(a) + Value::new(MY_NFT, b))/c).get(AssetClass::ADA)
+    }`
+
+    const dummyLovelaceGeqScript = `testing dummy_lovelace_geq
+    func main(a: Int) -> Bool {
+        Value::lovelace(a) >= Value::lovelace(a)
+    }`
+
+    const lovelaceGeqScript = `testing lovelace_geq
+    func main(a: Int, b: Int) -> Bool {
+        Value::lovelace(a) >= Value::lovelace(b)
+    }`
+
+    const lovelaceContainsScript = `testing lovelace_contains
+    func main(a: Int, b: Int) -> Bool {
+        Value::lovelace(a).contains(Value::lovelace(b))
+    }`
+
     compileAndRunMany([
         {
             description: "1 lovelace isn't zero",
@@ -134,6 +191,95 @@ describe("Value", () => {
             main: zeroSubLovelaceScript,
             inputs: [int(1_000_000)],
             output: int(-1_000_000)
+        },
+        {
+            description: "lovelace subtracted from self is always zero",
+            main: dummyLovelaceSubScript,
+            inputs: [int(-1_000_001)],
+            output: True
+        },
+        {
+            description: "subtracting 1_000_000 from 1_000_001 returns 1",
+            main: lovelaceSubScript,
+            inputs: [int(1_000_001), int(1_000_000)],
+            output: int(1)
+        },
+        {
+            description: "1_000_000 lovelace multiplied by 1 returns 1_000_000",
+            main: dummyLovelaceMulScript,
+            inputs: [int(1_000_000)],
+            output: int(1_000_000)
+        },
+        {
+            description:
+                "1_000_000 lovelace multiplied by 3 returns 3_000_000 lovelace",
+            main: lovelaceMulScript,
+            inputs: [int(1_000_000), int(3)],
+            output: int(3_000_000)
+        },
+        {
+            description:
+                "1_000_000 lovelace multipled by 3 after adding an NFT returns 3_000_000 lovelace as well",
+            main: valueAddMulScript,
+            inputs: [int(1_000_000), int(1), int(3)],
+            output: int(3_000_000)
+        },
+        {
+            description:
+                "1_000_000 lovelace divided by 1 returns 1_000_000 lovelace",
+            main: dummyLovelaceDivScript,
+            inputs: [int(1_000_000)],
+            output: int(1_000_000)
+        },
+        {
+            description: "1_000_000 lovelace divided by zero throws error",
+            main: lovelaceDivScript,
+            inputs: [int(1_000_000), int(0)],
+            output: { error: "" }
+        },
+        {
+            description:
+                "1_000_000 lovelace divided by -1 returns -1_000_000 lovelace",
+            main: lovelaceDivScript,
+            inputs: [int(1_000_000), int(-1)],
+            output: int(-1_000_000)
+        },
+        {
+            description:
+                "3_000_000 lovelace divided by -3 after adding an NFT still returns -1_000_000 lovelace",
+            main: valueAddDivScript,
+            inputs: [int(3_000_000), int(1), int(-3)],
+            output: int(-1_000_000)
+        },
+        {
+            description: "lovelace >= self always returns true",
+            main: dummyLovelaceGeqScript,
+            inputs: [int(1_000_000)],
+            output: True
+        },
+        {
+            description: "0 lovelace >= 0 lovelace return true",
+            main: lovelaceGeqScript,
+            inputs: [int(0), int(0)],
+            output: True
+        },
+        {
+            description: "-1 lovelace >= 0 lovelace return false",
+            main: lovelaceGeqScript,
+            inputs: [int(-1), int(0)],
+            output: False
+        },
+        {
+            description: "1 lovelace >= 0 lovelace return true",
+            main: lovelaceGeqScript,
+            inputs: [int(1), int(0)],
+            output: True
+        },
+        {
+            description: "1_000_000 lovelace contains 999_999 lovelace",
+            main: lovelaceContainsScript,
+            inputs: [int(1_000_000), int(999_999)],
+            output: True
         }
     ])
 })
