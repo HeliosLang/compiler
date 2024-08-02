@@ -2017,36 +2017,6 @@ export class AnyEntity extends Common {
  * @implements {Namespace}
  */
 export class ModuleNamespace extends Common {
-    #members
-
-    /**
-     * @param {NamespaceMembers} members
-     */
-    constructor(members) {
-        super()
-        this.#members = members
-    }
-
-    /**
-     * @type {NamespaceMembers}
-     */
-    get namespaceMembers() {
-        return this.#members
-    }
-
-    /**
-     * @type {Namespace}
-     */
-    get asNamespace() {
-        return this
-    }
-}
-
-/**
- * @implements {Named}
- * @implements {Namespace}
- */
-export class NamedNamespace extends Common {
     /**
      * @readonly
      * @type {string}
@@ -2055,24 +2025,17 @@ export class NamedNamespace extends Common {
 
     /**
      * @readonly
-     * @type {string}
-     */
-    path
-
-    /**
      * @type {NamespaceMembers}
      */
     #members
 
     /**
      * @param {string} name
-     * @param {string} path
      * @param {NamespaceMembers} members
      */
-    constructor(name, path, members) {
+    constructor(name, members) {
         super()
         this.name = name
-        this.path = path
         this.#members = members
     }
 
@@ -2091,17 +2054,39 @@ export class NamedNamespace extends Common {
     }
 
     /**
-     * @type {Named}
-     */
-    get asNamed() {
-        return this
-    }
-
-    /**
      * @returns {string}
      */
     toString() {
         return this.name
+    }
+}
+
+/**
+ * @implements {Named}
+ * @implements {Namespace}
+ */
+export class NamedNamespace extends ModuleNamespace {
+    /**
+     * @readonly
+     * @type {string}
+     */
+    path
+
+    /**
+     * @param {string} name
+     * @param {string} path
+     * @param {NamespaceMembers} members
+     */
+    constructor(name, path, members) {
+        super(name, members)
+        this.path = path
+    }
+
+    /**
+     * @type {Named}
+     */
+    get asNamed() {
+        return this
     }
 }
 

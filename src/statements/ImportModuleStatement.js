@@ -61,7 +61,7 @@ export class ImportModuleStatement extends Statement {
                 }
             }
 
-            return new ModuleNamespace(namespaceMembers)
+            return new ModuleNamespace(this.name.value, namespaceMembers)
         }
     }
 
