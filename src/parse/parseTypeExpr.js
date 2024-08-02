@@ -119,6 +119,8 @@ export function parseTypeExpr(ctx) {
                 typeExpr = new RefExpr(m)
             } else {
                 r.endMatch()
+
+                r.end()
             }
         } else {
             if ((m = r.matches(symbol("::"), anyWord))) {
@@ -132,6 +134,8 @@ export function parseTypeExpr(ctx) {
                 typeExpr = new ParametricExpr(m.site, typeExpr, paramExprs)
             } else {
                 r.endMatch()
+
+                r.end()
             }
         }
     }

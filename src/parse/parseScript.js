@@ -78,8 +78,8 @@ export function parseScript(src, errorCollector = None) {
  */
 export function createSource(rawSrc) {
     return typeof rawSrc == "string"
-        ? new Source((extractName(rawSrc) ?? ["", "unknown"])[1], rawSrc)
-        : new Source(rawSrc.name, rawSrc.content) // the input Source instance might use a class from a different package
+        ? new Source(rawSrc, { name: extractName(rawSrc) ?? "unknown" })
+        : new Source(rawSrc.content, { name: rawSrc.name }) // the input Source instance might use a class from a different package
 }
 
 /**

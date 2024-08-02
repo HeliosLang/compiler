@@ -59,4 +59,20 @@ describe(parseScript.name, () => {
             )
         })
     })
+
+    it("doesn't allow parametric return types", () => {
+        throws(() => {
+            parseScript(`module Tokens
+        
+            func contains[V: Valuable](v: V, asset_class: AssetClass) -> Bool {
+                v.value.get_safe(asset_class) > 0
+            } 
+            
+            func contains_reimbursement(id: Int) -> [V: Valuable](v: V) -> Bool {
+                [V: Valuable](v: V) -> {
+                    contains(v, reimbursement(id))
+                }
+            }`)
+        })
+    })
 })

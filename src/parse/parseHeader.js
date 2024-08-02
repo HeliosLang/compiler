@@ -34,7 +34,7 @@ export function parseHeader(ctx) {
 export function extractName(rawSrc) {
     return CompilerError.catch(
         () => {
-            const src = new Source(rawSrc, "")
+            const src = new Source(rawSrc)
             const tokenizer = new Tokenizer(src)
             const gen = tokenizer.stream()
 
