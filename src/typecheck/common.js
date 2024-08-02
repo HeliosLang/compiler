@@ -2096,6 +2096,13 @@ export class NamedNamespace extends Common {
     get asNamed() {
         return this
     }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return this.name
+    }
 }
 
 /**
