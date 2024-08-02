@@ -1,5 +1,5 @@
 import { describe } from "node:test"
-import { False, True, compileAndRunMany, int } from "./utils.js"
+import { False, True, bytes, compileAndRunMany, int } from "./utils.js"
 
 describe("Value", () => {
     const intLovelaceIsZeroScript = `testing lovelace_is_zero
@@ -107,6 +107,30 @@ describe("Value", () => {
     const lovelaceContainsScript = `testing lovelace_contains
     func main(a: Int, b: Int) -> Bool {
         Value::lovelace(a).contains(Value::lovelace(b))
+    }`
+
+    const valueSingletonScript = `testing value_singleton
+    func main(n_lovelace: Int, mph: MintingPolicyHash, name: ByteArray, qty: Int) -> Bool {
+        asset_class = AssetClass::new(mph, name);
+        value = Value::lovelace(n_lovelace) + Value::new(asset_class, qty);
+
+        value.get_singleton_asset_class() == asset_class
+    }`
+
+    const twoAssetClassesValueSingletonScript = `testing value_singleton_two_asset_classes
+    func main(n_lovelace: Int, mph1: MintingPolicyHash, name1: ByteArray, qty1: Int, mph2: MintingPolicyHash, name2: ByteArray, qty2: Int) -> Bool {
+        asset_class1 = AssetClass::new(mph1, name1);
+        asset_class2 = AssetClass::new(mph2, name2);
+        value = Value::lovelace(n_lovelace) + Value::new(asset_class1, qty1) + Value::new(asset_class2, qty2);
+
+        value.get_singleton_asset_class() == asset_class1
+    }`
+
+    const lovelaceValueSingletonScript = `testing lovelace_value_singleton
+    func main(n_lovelace: Int) -> Bool {
+        value = Value::lovelace(n_lovelace);
+
+        value.get_singleton_asset_class() == AssetClass::ADA
     }`
 
     compileAndRunMany([
@@ -280,6 +304,68 @@ describe("Value", () => {
             main: lovelaceContainsScript,
             inputs: [int(1_000_000), int(999_999)],
             output: True
+        },
+        {
+            description: "get_singleton_asset_class doesn't fail for singleton",
+            main: valueSingletonScript,
+            inputs: [int(1_000_000), bytes("abcd"), bytes("abcd"), int(1)],
+            output: True
+        },
+        {
+            description:
+                "get_singleton_asset_class doesn't fail for singleton for zero lovelace",
+            main: valueSingletonScript,
+            inputs: [int(0), bytes("abcd"), bytes("abcd"), int(1)],
+            output: True
+        },
+        {
+            description: "get_singleton_asset_class fails for non-singleton",
+            main: valueSingletonScript,
+            inputs: [int(1_000_000), bytes("abcd"), bytes("abcd"), int(2)],
+            output: { error: "" }
+        },
+        {
+            description:
+                "get_singleton_asset_class fails for negative singleton",
+            main: valueSingletonScript,
+            inputs: [int(1_000_000), bytes("abcd"), bytes("abcd"), int(-1)],
+            output: { error: "" }
+        },
+        {
+            description: "get_singleton_asset_class fails for lovelace only",
+            main: lovelaceValueSingletonScript,
+            inputs: [int(1_000_000)],
+            output: { error: "" }
+        },
+        {
+            description:
+                "get_singleton_asset_class fails for two different asset classes",
+            main: twoAssetClassesValueSingletonScript,
+            inputs: [
+                int(0),
+                bytes("abcd"),
+                bytes("abcd"),
+                int(1),
+                bytes("abcdef"),
+                bytes(""),
+                int(1)
+            ],
+            output: { error: "" }
+        },
+        {
+            description:
+                "get_singleton_asset_class fails for two different token names",
+            main: twoAssetClassesValueSingletonScript,
+            inputs: [
+                int(0),
+                bytes("abcd"),
+                bytes("abcd"),
+                int(1),
+                bytes("abcd"),
+                bytes(""),
+                int(1)
+            ],
+            output: { error: "" }
         }
     ])
 })

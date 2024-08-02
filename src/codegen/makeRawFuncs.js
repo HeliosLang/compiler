@@ -10109,6 +10109,81 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__value__get_singleton_asset_class",
+            `(self) -> {
+			() -> {
+				recurse = (map, found, asset_class) -> {
+					__core__chooseList(
+						map,
+						() -> {
+							__core__ifThenElse(
+								found,
+								() -> {
+									asset_class
+								},
+								() -> {
+									__helios__error("doesn't contain a singleton asset class")
+								}
+							)()
+						},
+						() -> {
+							head = __core__headList(map);
+							tail = __core__tailList(map);
+							mph = __core__unBData(__core__fstPair(head));
+
+							__core__ifThenElse(
+								// ignore ada
+								__core__equalsByteString(mph, #),
+								() -> {
+									recurse(tail, found, asset_class)
+								},
+								() -> {
+									__core__ifThenElse(
+										found,
+										() -> {
+											__helios__error("not singleton, contains multiple assetclasses")
+										},
+										() -> {
+											// parse asset class entry
+											tokens = __core__unMapData(__core__sndPair(head));
+			
+											// assert no other tokens
+											__core__chooseList(
+												__core__tailList(tokens),
+												() -> {
+													first = __core__headList(tokens);
+													qty = __core__unIData(__core__sndPair(first));
+
+													// assert qty is 1
+													__core__ifThenElse(
+														__core__equalsInteger(qty, 1),
+														() -> {
+															name = __core__unBData(__core__fstPair(first));
+															recurse(tail, true, __helios__assetclass__new(mph, name))
+														},
+														() -> {
+															__helios__error("not singleton, qty is not 1")
+														}
+													)()
+												},
+												() -> {
+													__helios__error("not singleton, has other token names")
+												}
+											)()
+										}
+									)()
+								}
+							)()
+						}
+					)()
+				};
+				recurse(self, false, ())
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__value__get_policy",
             `(self) -> {
 		(mph) -> {

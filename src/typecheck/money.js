@@ -68,6 +68,7 @@ export const ValueType = new GenericType({
         contains_policy: new FuncType([MintingPolicyHashType], BoolType),
         get: new FuncType([AssetClassType], IntType),
         get_assets: new FuncType([], ValueType),
+        get_singleton_asset_class: new FuncType([], AssetClassType),
         get_lovelace: new FuncType([], IntType),
         get_policy: new FuncType(
             [MintingPolicyHashType],
