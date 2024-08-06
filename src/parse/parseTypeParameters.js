@@ -17,7 +17,7 @@ export function parseTypeParameters(ctx, isForFunc = false) {
 
     if ((m = r.matches(group("[", { minLength: 1 })))) {
         const params = m.fields.reduce((lst, f) => {
-            if ((m = r.matches(anyName))) {
+            if ((m = f.matches(anyName))) {
                 const name = m
 
                 /**
@@ -25,11 +25,11 @@ export function parseTypeParameters(ctx, isForFunc = false) {
                  */
                 let typeClassExpr = None
 
-                if ((m = r.matches(symbol(":")))) {
-                    typeClassExpr = parseTypeClassRef(ctx.atSite(m.site))
+                if ((m = f.matches(symbol(":")))) {
+                    typeClassExpr = parseTypeClassRef(ctx.atSite(m.site).withReader(f))
                 } else {
-                    r.endMatch(false)
-                    r.end()
+                    f.endMatch(false)
+                    f.end()
                 }
 
                 lst.push(new TypeParameter(name, typeClassExpr))

@@ -7716,7 +7716,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__txinput__is_valid_data",
             `(data) -> {
-		__helios__common__test_constr_data_2(data 0, __helios__txoutputid__is_valid_data, __helios__txoutput__is_valid_data)
+		__helios__common__test_constr_data_2(data, 0, __helios__txoutputid__is_valid_data, __helios__txoutput__is_valid_data)
 	}`
         )
     )

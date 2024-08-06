@@ -133,6 +133,26 @@ describe("Value", () => {
         value.get_singleton_asset_class() == AssetClass::ADA
     }`
 
+    const valuableSingletonScript = `testing valuable_singleton_script
+    
+    func get_singleton_wrapper[V: Valuable](v: V) -> AssetClass {
+        v.value.get_singleton_asset_class()
+    }
+    
+    func main(lovelace: Int) -> Bool {
+        pub_key_hash_bytes = #01234567890123456789012345678901234567890123456789012345;
+        address = Address::new(SpendingCredential::new_pubkey(PubKeyHash::new(pub_key_hash_bytes)), Option[StakingCredential]::None);
+        asset_class = AssetClass::new(MintingPolicyHash::new(#abcd), #abcd);
+        value = Value::lovelace(lovelace) + Value::new(asset_class, 1);
+        output = TxOutput::new(
+            address, 
+            value, 
+            TxOutputDatum::new_none()
+        );
+
+        get_singleton_wrapper(output) == asset_class
+    }`
+
     compileAndRunMany([
         {
             description: "1 lovelace isn't zero",
@@ -366,6 +386,12 @@ describe("Value", () => {
                 int(1)
             ],
             output: { error: "" }
+        },
+        {
+            description: "get_singleton_asset_class works on Valuable.value",
+            main: valuableSingletonScript,
+            inputs: [int(1_000_000)],
+            output: True
         }
     ])
 })
