@@ -5456,11 +5456,67 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            `__helios__map[${TTPP}0@${TTPP}1]__all_keys`,
+            `(self) -> {
+		(fn) -> {
+			fn = (pair) -> {
+				fn(
+					${TTPP}0__from_data(__core__fstPair(pair))
+				)
+			};
+			__helios__common__all(self, fn)
+		}	
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__map[${TTPP}0@${TTPP}1]__all_values`,
+            `(self) -> {
+		(fn) -> {
+			fn = (pair) -> {
+				fn(
+					${TTPP}1__from_data(__core__sndPair(pair))
+				)
+			};
+			__helios__common__all(self, fn)
+		}	
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__any`,
             `(self) -> {
 		(fn) -> {
 			fn = (pair) -> {
 				fn(${TTPP}0__from_data(__core__fstPair(pair)), ${TTPP}1__from_data(__core__sndPair(pair)))
+			};
+			__helios__common__any(self, fn)
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__map[${TTPP}0@${TTPP}1]__any_key`,
+            `(self) -> {
+		(fn) -> {
+			fn = (pair) -> {
+				fn(${TTPP}0__from_data(__core__fstPair(pair)))
+			};
+			__helios__common__any(self, fn)
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__map[${TTPP}0@${TTPP}1]__any_value`,
+            `(self) -> {
+		(fn) -> {
+			fn = (pair) -> {
+				fn(${TTPP}1__from_data(__core__sndPair(pair)))
 			};
 			__helios__common__any(self, fn)
 		}

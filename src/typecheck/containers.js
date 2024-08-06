@@ -696,8 +696,24 @@ export const MapType = new ParametricType({
                     [new FuncType([keyType, valueType], BoolType)],
                     BoolType
                 ),
+                all_keys: new FuncType(
+                    [new FuncType([keyType], BoolType)],
+                    BoolType
+                ),
+                all_values: new FuncType(
+                    [new FuncType([valueType], BoolType)],
+                    BoolType
+                ),
                 any: new FuncType(
                     [new FuncType([keyType, valueType], BoolType)],
+                    BoolType
+                ),
+                any_key: new FuncType(
+                    [new FuncType([keyType], BoolType)],
+                    BoolType
+                ),
+                any_value: new FuncType(
+                    [new FuncType([valueType], BoolType)],
                     BoolType
                 ),
                 append: new FuncType([keyType, valueType], self),

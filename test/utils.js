@@ -7,6 +7,7 @@ import {
     ConstrData,
     IntData,
     ListData,
+    MapData,
     UplcDataValue
 } from "@helios-lang/uplc"
 import { Program } from "../src/program/Program.js"
@@ -206,6 +207,14 @@ export function constr(tag, ...fields) {
  */
 export function int(i) {
     return new IntData(i)
+}
+
+/**
+ * @param {[UplcData, UplcData][]} pairs
+ * @returns {UplcData}
+ */
+export function map(pairs) {
+    return new MapData(pairs)
 }
 
 /**
