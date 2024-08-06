@@ -26,7 +26,9 @@ export function parseTypeParameters(ctx, isForFunc = false) {
                 let typeClassExpr = None
 
                 if ((m = f.matches(symbol(":")))) {
-                    typeClassExpr = parseTypeClassRef(ctx.atSite(m.site).withReader(f))
+                    typeClassExpr = parseTypeClassRef(
+                        ctx.atSite(m.site).withReader(f)
+                    )
                 } else {
                     f.endMatch(false)
                     f.end()
