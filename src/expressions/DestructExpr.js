@@ -213,6 +213,8 @@ export class DestructExpr {
                 })
 
                 return TupleType$(nestedTypes)
+            } else if (upstreamType) {
+                return upstreamType
             } else if (this.isIgnored()) {
                 return new AllType()
             } else {
@@ -391,7 +393,7 @@ export class DestructExpr {
             this.typeExpr.cache = variant
             t = variant
         } else {
-            t = this.evalType(scope)
+            t = this.evalType(scope, upstreamType)
         }
 
         if (!t) {

@@ -51,6 +51,20 @@ describe("Assign", () => {
             }`,
             inputs: [int(1)],
             output: int(1)
+        },
+        {
+            description: "infers types when assigning to tuple",
+            main: `testing destruct_tuple_infered_types
+            
+            func main(a: Int, b: Int) -> Int {
+                c = (a, b);
+
+                (d, e) = c;
+
+                d + e
+            }`,
+            inputs: [int(1), int(1)],
+            output: int(2)
         }
     ])
 })

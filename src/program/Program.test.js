@@ -1,3 +1,4 @@
+import { throws } from "assert"
 import { describe, it } from "node:test"
 import { Program } from "./Program.js"
 
@@ -48,5 +49,21 @@ describe(Program.name, () => {
         }`
 
         new Program(mainSrc, { throwCompilerErrors: false })
+    })
+
+    it("throws a type error when destructuring wrong tuple type", () => {
+        const mainSrc = `testing destruct_tuple_infered_types
+            
+        func main(a: Int, b: Bool) -> Int {
+            c = (a, b);
+
+            (d, e) = c;
+
+            d + e
+        }`
+
+        throws(() => {
+            new Program(mainSrc)
+        })
     })
 })
