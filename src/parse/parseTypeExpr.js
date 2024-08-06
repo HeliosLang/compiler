@@ -155,7 +155,7 @@ function parseFuncArgTypes(ctx, ag) {
 
     if (
         argExprs.some((a) => a.isNamed()) &&
-        !argExprs.some((a) => !a.isNamed())
+        argExprs.some((a) => !a.isNamed())
     ) {
         ctx.errors.syntax(
             ag.site,

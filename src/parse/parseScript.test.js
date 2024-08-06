@@ -75,4 +75,16 @@ describe(parseScript.name, () => {
             }`)
         })
     })
+
+    it("allows parsing a higher order function with unnamed args", () => {
+        parseScript(`testing higher_order
+        
+        func higher_order() -> (Int, Int) -> Int {
+            (a: Int, b: Int) -> {a + b}
+        }
+        
+        func main() -> Bool {
+            higher_order()(1, 1)
+        }`)
+    })
 })
