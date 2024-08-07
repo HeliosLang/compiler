@@ -3698,6 +3698,40 @@ export function makeRawFunctions(simplify, isTestnet) {
 
         add(
             new RawFunc(
+                `${basePath}__all`,
+                `(self) -> {
+		(fn) -> {
+			recurse = (recurse, iterator) -> {
+				iterator(
+					(is_null, ${head}, next_iterator) -> {
+						__core__ifThenElse(
+							is_null,
+							() -> {
+								true
+							},
+							() -> {
+								__core__ifThenElse(
+									fn(${head}),
+									() -> {
+										recurse(recurse, next_iterator)
+									},
+									() -> {
+										false
+									}
+								)()
+							}
+						)()
+					}
+				)
+			};
+			recurse(recurse, self)
+		}	
+	}`
+            )
+        )
+
+        add(
+            new RawFunc(
                 `${basePath}__prepend`,
                 `(self) -> {
 		(${head}) -> {

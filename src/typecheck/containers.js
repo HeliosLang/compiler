@@ -63,6 +63,10 @@ export function IteratorType$(itemTypes) {
                 itemTypes.length == 1 ? itemTypes[0] : TupleType$(itemTypes)
 
             const members = {
+                all: new FuncType(
+                    [new FuncType(itemTypes, BoolType)],
+                    BoolType
+                ),
                 any: new FuncType(
                     [new FuncType(itemTypes, BoolType)],
                     BoolType
