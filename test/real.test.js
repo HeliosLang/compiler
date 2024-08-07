@@ -85,6 +85,16 @@ describe("Real", () => {
         a.to_ratio()
     }`
 
+    const realMinScript = `testing real_min
+    func main(a: Real, b: Real) -> Real {
+        Real::min(a, b)
+    }`
+
+    const realMaxScript = `testing real_max
+    func main(a: Real, b: Real) -> Real {
+        Real::max(a, b)
+    }`
+
     compileAndRunMany([
         {
             description: "literal 0.0",
@@ -490,6 +500,18 @@ describe("Real", () => {
             main: realToRatioScript,
             inputs: [real(2.5)],
             output: ratio(2_500_000, 1_000_000)
+        },
+        {
+            description: "Real::min(-1.0, -1.1) == -1.1",
+            main: realMinScript,
+            inputs: [real(-1.0), real(-1.1)],
+            output: real(-1.1)
+        },
+        {
+            description: "Real::max(-1.0, -1.1) == -1.0",
+            main: realMaxScript,
+            inputs: [real(-1.0), real(-1.1)],
+            output: real(-1.0)
         }
     ])
 })

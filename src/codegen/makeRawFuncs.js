@@ -2497,6 +2497,8 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(new RawFunc("__helios__real__min", "__helios__int__min"))
+    add(new RawFunc("__helios__real__max", "__helios__int__max"))
 
     // Bool builtins
     addSerializeFunc("__helios__bool")
