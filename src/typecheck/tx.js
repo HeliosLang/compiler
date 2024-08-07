@@ -900,6 +900,7 @@ const StakingCredentialHashType = new GenericEnumMemberType({
     name: "Hash",
     constrIndex: 0,
     parentType: StakingCredentialType,
+    fieldNames: ["hash"],
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 0,

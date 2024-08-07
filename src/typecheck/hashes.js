@@ -153,6 +153,7 @@ export const StakingHashStakeKeyType = new GenericEnumMemberType({
     name: "StakeKey",
     constrIndex: 0,
     parentType: StakingHashType,
+    fieldNames: ["hash"],
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 0,
@@ -181,6 +182,7 @@ export const StakingHashValidatorType = new GenericEnumMemberType({
     name: "Validator",
     constrIndex: 1,
     parentType: StakingHashType,
+    fieldNames: ["hash"],
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 1,
