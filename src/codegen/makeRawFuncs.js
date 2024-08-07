@@ -8046,22 +8046,20 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__txoutputdatum__get_inline_data",
+            "__helios__txoutputdatum__inline",
             `(self) -> {
-		() -> {
-			pair = __core__unConstrData(self);
-			index = __core__fstPair(pair);
-			fields = __core__sndPair(pair);
-			__core__ifThenElse(
-				__core__equalsInteger(index, 2),
-				() -> {
-					__core__headList(fields)
-				},
-				() -> {
-					__helios__error("not an inline datum")
-				}
-			)()
-		}
+		pair = __core__unConstrData(self);
+		index = __core__fstPair(pair);
+		fields = __core__sndPair(pair);
+		__core__ifThenElse(
+			__core__equalsInteger(index, 2),
+			() -> {
+				__core__headList(fields)
+			},
+			() -> {
+				__helios__error("not an inline datum")
+			}
+		)()
 	}`
         )
     )

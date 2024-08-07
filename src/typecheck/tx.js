@@ -375,7 +375,7 @@ export const TxOutputDatumType = new GenericType({
     }),
     genInstanceMembers: (self) => ({
         ...genCommonInstanceMembers(self),
-        get_inline_data: new FuncType([], RawDataType)
+        inline: RawDataType
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
