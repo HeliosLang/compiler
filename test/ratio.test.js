@@ -1,5 +1,5 @@
 import { describe } from "node:test"
-import { False, True, compileAndRunMany, int, ratio } from "./utils.js"
+import { False, True, compileAndRunMany, int, ratio, real } from "./utils.js"
 
 describe("Ratio", () => {
     const ratioNewTopScript = `testing ratio_new_first
@@ -77,6 +77,11 @@ describe("Ratio", () => {
         a.floor()
     }`
 
+    const ratioTruncScript = `testing ratio_trunc
+    func main(a: Ratio) -> Int {
+        a.trunc()
+    }`
+
     const ratioLtScript = `testing ratio_lt
     func main(a: Ratio, b: Ratio) -> Bool {
         a < b
@@ -135,6 +140,11 @@ describe("Ratio", () => {
     const intGeqRatioScript = `testing int_geq_ratio
     func main(a: Int, b: Ratio) -> Bool {
         a >= b
+    }`
+
+    const ratioToRealScript = `testing ratio_to_real
+    func main(a: Int, b: Int) -> Real {
+        Ratio::new(a, b).to_real()
     }`
 
     compileAndRunMany([
@@ -232,6 +242,18 @@ describe("Ratio", () => {
             description: "1/2.floor() == 0",
             main: ratioFloorScript,
             inputs: [ratio(1, 2)],
+            output: int(0)
+        },
+        {
+            description: "-1/2.floor() == -1",
+            main: ratioFloorScript,
+            inputs: [ratio(-1, 2)],
+            output: int(-1)
+        },
+        {
+            description: "-1/2.trunc() == 0",
+            main: ratioTruncScript,
+            inputs: [ratio(-1, 2)],
             output: int(0)
         },
         {
@@ -335,6 +357,30 @@ describe("Ratio", () => {
             main: intGeqRatioScript,
             inputs: [int(-1), ratio(1, 2)],
             output: False
+        },
+        {
+            description: "3/2.to_real() == 1.5",
+            main: ratioToRealScript,
+            inputs: [int(3), int(2)],
+            output: real(1.5)
+        },
+        {
+            description: "-3/2.to_real() == -1.5",
+            main: ratioToRealScript,
+            inputs: [int(-3), int(2)],
+            output: real(-1.5)
+        },
+        {
+            description: "-1/1000000.to_real() == -0.000001",
+            main: ratioToRealScript,
+            inputs: [int(-1), int(1000000)],
+            output: real(-0.000001)
+        },
+        {
+            description: "-1/10000000.to_real() == 0",
+            main: ratioToRealScript,
+            inputs: [int(-1), int(10000000)],
+            output: real(0)
         }
     ])
 })

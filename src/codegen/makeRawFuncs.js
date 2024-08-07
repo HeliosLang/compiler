@@ -2226,6 +2226,33 @@ export function makeRawFunctions(simplify, isTestnet) {
 		}`
         )
     )
+    add(
+        new RawFunc(
+            "__helios__ratio__trunc",
+            `(self) -> {
+			() -> {
+				top = __helios__ratio__top(self);
+				bottom = __helios__ratio__bottom(self);
+				__core__quotientInteger(top, bottom)
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio__to_real",
+            `(self) -> {
+		() -> {
+			top = __helios__ratio__top(self);
+			bottom = __helios__ratio__bottom(self);
+			__core__quotientInteger(
+				__core__multiplyInteger(top, __helios__real__ONE),
+				bottom
+			)
+		}
+	}`
+        )
+    )
 
     // Real builtins
     addIntLikeFuncs("__helios__real")
