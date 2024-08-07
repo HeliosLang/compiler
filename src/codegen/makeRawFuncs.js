@@ -5772,6 +5772,33 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            `__helios__map[${TTPP}0@${TTPP}1]__fold_with_list[${FTPP}0@${FTPP}1]`,
+            `(self) -> {
+		(fn, z0, list) -> {
+			recurse = (map, list) -> {
+				__core__chooseList(
+					map,
+					() -> {
+						z0
+					},
+					() -> {
+						z = recurse(__core__tailList(map), __core__tailList(list));
+						item = ${FTPP}1__from_data(__core__headList(list));
+						key_value = __core__headList(map);
+						key = ${TTPP}0__from_data(__core__fstPair(key_value));
+						value = ${TTPP}1__from_data(__core__sndPair(key_value));
+						fn(z, key, value, item)
+					}
+				)()
+			};
+
+			recurse(self, list)
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__for_each`,
             `(self) -> {
 		(fn) -> {

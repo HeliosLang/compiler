@@ -789,6 +789,29 @@ export const MapType = new ParametricType({
                         )
                     )
                 })(),
+                fold_with_list: (() => {
+                    const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass())
+                    const b = new Parameter(
+                        "b",
+                        `${FTPP}1`,
+                        new DefaultTypeClass()
+                    )
+
+                    return new ParametricFunc(
+                        [a, b],
+                        new FuncType(
+                            [
+                                new FuncType(
+                                    [a.ref, keyType, valueType, b.ref],
+                                    a.ref
+                                ),
+                                a.ref,
+                                ListType$(b.ref)
+                            ],
+                            a.ref
+                        )
+                    )
+                })(),
                 for_each: new FuncType(
                     [new FuncType([keyType, valueType], new VoidType())],
                     new VoidType()

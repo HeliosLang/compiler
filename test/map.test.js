@@ -1,5 +1,5 @@
 import { describe } from "node:test"
-import { compileAndRunMany, True, map, int, False } from "./utils.js"
+import { compileAndRunMany, True, map, int, False, list } from "./utils.js"
 
 describe("Map", () => {
     const mapEqScript = `testing map_eq
@@ -25,6 +25,13 @@ describe("Map", () => {
     const mapAnyValueScript = `testing map_any_value
     func main(a: Map[Int]Int, k: Int) -> Bool {
         a.any_value((k_: Int) -> {k_ == k})
+    }`
+
+    const mapFoldWithListScript = `testing map_fold_with_list
+    func main(a: Map[Int]Int, z0: Int, b: []Int) -> Int {
+        a.fold_with_list((z: Int, key: Int, value: Int, item: Int) -> {
+            z + (key + value)*item
+        }, z0, b)
     }`
 
     compileAndRunMany([
@@ -125,6 +132,50 @@ describe("Map", () => {
                 int(3)
             ],
             output: True
+        },
+        {
+            description:
+                "fold_with_list throws an error if the list is shorter",
+            main: mapFoldWithListScript,
+            inputs: [
+                map([
+                    [int(1), int(1)],
+                    [int(2), int(2)],
+                    [int(3), int(3)]
+                ]),
+                int(0),
+                list(int(1), int(1))
+            ],
+            output: { error: "" }
+        },
+        {
+            description: "fold_with_list correctly sums",
+            main: mapFoldWithListScript,
+            inputs: [
+                map([
+                    [int(1), int(1)],
+                    [int(2), int(2)],
+                    [int(3), int(3)]
+                ]),
+                int(0),
+                list(int(1), int(1), int(1))
+            ],
+            output: int(12)
+        },
+        {
+            description:
+                "fold_with_list correctly sums even if list is too long",
+            main: mapFoldWithListScript,
+            inputs: [
+                map([
+                    [int(1), int(1)],
+                    [int(2), int(2)],
+                    [int(3), int(3)]
+                ]),
+                int(0),
+                list(int(1), int(1), int(1), int(1))
+            ],
+            output: int(12)
         }
     ])
 })
