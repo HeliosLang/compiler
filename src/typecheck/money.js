@@ -66,6 +66,7 @@ export const ValueType = new GenericType({
         ...genCommonInstanceMembers(self),
         contains: new FuncType([self], BoolType),
         contains_policy: new FuncType([MintingPolicyHashType], BoolType),
+        flatten: new FuncType([], MapType$(AssetClassType, IntType)),
         get: new FuncType([AssetClassType], IntType),
         get_assets: new FuncType([], ValueType),
         get_singleton_asset_class: new FuncType([], AssetClassType),

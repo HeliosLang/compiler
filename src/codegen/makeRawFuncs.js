@@ -10389,6 +10389,72 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(
+        new RawFunc(
+            `__helios__value__flatten`,
+            `(self) -> {
+		() -> {
+			recurse_inner = (mph_data, inner, tail) -> {
+				__core__chooseList(
+					inner,
+					() -> {
+						tail
+					},
+					() -> {
+						token_qty = __core__headList(inner);
+						token_name_data = __core__fstPair(token_qty);
+						qty_data = __core__sndPair(token_qty);
+						asset_class = __core__constrData(0, __helios__common__list_2(
+							mph_data, 
+							token_name_data
+						));
+						entry = __core__mkPairData(
+							asset_class,
+							qty_data
+						);
+						__core__mkCons(
+							entry, 
+							recurse_inner(mph_data, __core__tailList(inner), tail)
+						)
+					}
+				)()
+			};
+
+			recurse_outer = (outer) -> {
+				__core__chooseList(
+					outer,
+					() -> {
+						__core__mkNilPairData(())
+					},
+					() -> {
+						tail = recurse_outer(__core__tailList(outer));
+						mph_tokens = __core__headList(outer);
+						mph_data = __core__fstPair(mph_tokens); 
+						tokens = __core__unMapData(__core__sndPair(mph_tokens));
+
+						__core__ifThenElse(
+							__core__equalsData(mph_data, __core__bData(#)),
+							() -> {
+								lovelace_data = __core__sndPair(__core__headList(tokens));
+								entry = __core__mkPairData(
+									__helios__assetclass__ADA,
+									lovelace_data
+								);
+								__core__mkCons(entry, tail)
+							},
+							() -> {		
+								recurse_inner(mph_data, tokens, tail)
+							}
+						)()
+					}
+				)()
+			};
+
+			recurse_outer(self)
+		}
+	}`
+        )
+    )
 
     // Cip67 namespace
     add(new RawFunc(`__helios__cip67__fungible_token_label`, "#0014df10"))

@@ -1,5 +1,13 @@
 import { describe } from "node:test"
-import { False, True, bytes, compileAndRunMany, int } from "./utils.js"
+import {
+    False,
+    True,
+    bytes,
+    compileAndRunMany,
+    constr,
+    int,
+    map
+} from "./utils.js"
 
 describe("Value", () => {
     const intLovelaceIsZeroScript = `testing lovelace_is_zero
@@ -151,6 +159,15 @@ describe("Value", () => {
         );
 
         get_singleton_wrapper(output) == asset_class
+    }`
+
+    const valueFlattenScript = `testing value_flatten
+    func main(n_lovelace: Int, mph1: MintingPolicyHash, name1: ByteArray, qty1: Int, mph2: MintingPolicyHash, name2: ByteArray, qty2: Int) -> Map[AssetClass]Int {
+        asset_class1 = AssetClass::new(mph1, name1);
+        asset_class2 = AssetClass::new(mph2, name2);
+        value = Value::lovelace(n_lovelace) + Value::new(asset_class1, qty1) + Value::new(asset_class2, qty2);
+
+        value.flatten()
     }`
 
     compileAndRunMany([
@@ -392,6 +409,38 @@ describe("Value", () => {
             main: valuableSingletonScript,
             inputs: [int(1_000_000)],
             output: True
+        },
+        {
+            description: "value.flatten works for 3 entries",
+            main: valueFlattenScript,
+            inputs: [
+                int(2_000_000),
+                bytes("abcd"),
+                bytes("abcd"),
+                int(1),
+                bytes("abcdef"),
+                bytes(""),
+                int(1)
+            ],
+            output: map([
+                [constr(0, bytes(""), bytes("")), int(2_000_000)],
+                [constr(0, bytes("abcd"), bytes("abcd")), int(1)],
+                [constr(0, bytes("abcdef"), bytes("")), int(1)]
+            ])
+        },
+        {
+            description: "value.flatten works for 0 entries",
+            main: valueFlattenScript,
+            inputs: [
+                int(0),
+                bytes("abcd"),
+                bytes("abcd"),
+                int(0),
+                bytes("abcdef"),
+                bytes(""),
+                int(0)
+            ],
+            output: map([])
         }
     ])
 })
