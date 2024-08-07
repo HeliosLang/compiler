@@ -34,6 +34,15 @@ describe("Map", () => {
         }, z0, b)
     }`
 
+    const mapFold2Script = `testing map_fold2
+    func main(a: Map[Int]Int) -> Int {
+        (ks, vs) = a.fold2((ks: Int, vs: Int, key: Int, value: Int) -> {
+            (ks + key, vs + value)
+        }, 0, 0);
+
+        ks*vs
+    }`
+
     compileAndRunMany([
         {
             description: "{1: 1} == {1: 1} is true",
@@ -176,6 +185,32 @@ describe("Map", () => {
                 list(int(1), int(1), int(1), int(1))
             ],
             output: int(12)
+        },
+        {
+            description: "fold2 can correctly sums keys and values separately",
+            main: mapFold2Script,
+            inputs: [
+                map([
+                    [int(1), int(1)],
+                    [int(2), int(2)],
+                    [int(3), int(3)]
+                ])
+            ],
+            output: int(36)
+        },
+        {
+            description:
+                "fold2 can correctly sums keys and values separately with single entry",
+            main: mapFold2Script,
+            inputs: [map([[int(1), int(1)]])],
+            output: int(1)
+        },
+        {
+            description:
+                "fold2 can correctly sums keys and values separately with no entries",
+            main: mapFold2Script,
+            inputs: [map([])],
+            output: int(0)
         }
     ])
 })

@@ -5828,6 +5828,30 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            `__helios__map[${TTPP}0@${TTPP}1]__fold2[${FTPP}0@${FTPP}1]`,
+            `(self) -> {
+		(fn, a0, b0) -> {
+			__helios__common__fold(
+				self,
+				(prev, pair) -> {
+					prev(
+						(a, b) -> {
+							key = ${TTPP}0__from_data(__core__fstPair(pair));
+							value = ${TTPP}1__from_data(__core__sndPair(pair));
+							fn(a, b, key, value)
+						}
+					)
+				},
+				(callback) -> {
+					callback(a0, b0)
+				}
+			)
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__for_each`,
             `(self) -> {
 		(fn) -> {

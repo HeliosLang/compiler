@@ -812,6 +812,24 @@ export const MapType = new ParametricType({
                         )
                     )
                 })(),
+                fold2: (() => {
+                    const a = new Parameter("a", `${FTPP}0`, new AnyTypeClass())
+                    const b = new Parameter("b", `${FTPP}0`, new AnyTypeClass())
+                    return new ParametricFunc(
+                        [a, b],
+                        new FuncType(
+                            [
+                                new FuncType(
+                                    [a.ref, b.ref, keyType, valueType],
+                                    TupleType$([a.ref, b.ref])
+                                ),
+                                a.ref,
+                                b.ref
+                            ],
+                            TupleType$([a.ref, b.ref])
+                        )
+                    )
+                })(),
                 for_each: new FuncType(
                     [new FuncType([keyType, valueType], new VoidType())],
                     new VoidType()
