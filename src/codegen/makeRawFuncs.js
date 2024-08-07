@@ -10482,6 +10482,39 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(
+        new RawFunc(
+            `__helios__value__delete_policy`,
+            `(self) -> {
+		(mph) -> {
+			recurse = (map) -> {
+				__core__chooseList(
+					map,
+					() -> {
+						map
+					},
+					() -> {
+						head = __core__headList(map);
+						head_mph = __helios__mintingpolicyhash__from_data(__core__fstPair(head));
+						tail = recurse(__core__tailList(map));
+						__core__ifThenElse(
+							__core__equalsByteString(mph, head_mph),
+							() -> {
+								tail
+							},
+							() -> {
+								__core__mkCons(head, tail)
+							}
+						)()
+					}
+				)()
+			};
+
+			recurse(self)
+		}
+	}`
+        )
+    )
 
     // Cip67 namespace
     add(new RawFunc(`__helios__cip67__fungible_token_label`, "#0014df10"))

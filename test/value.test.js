@@ -2,6 +2,7 @@ import { describe } from "node:test"
 import {
     False,
     True,
+    assetclass,
     bytes,
     compileAndRunMany,
     constr,
@@ -168,6 +169,24 @@ describe("Value", () => {
         value = Value::lovelace(n_lovelace) + Value::new(asset_class1, qty1) + Value::new(asset_class2, qty2);
 
         value.flatten()
+    }`
+
+    const valueDeletePolicyScript = `testing value_delete_policy
+    func  main(
+        n_lovelace: Int, 
+        mph1: MintingPolicyHash, 
+        name1: ByteArray, 
+        qty1: Int, 
+        mph2: MintingPolicyHash, 
+        name2: ByteArray, 
+        qty2: Int, 
+        mph_to_delete: MintingPolicyHash
+    ) -> Map[AssetClass]Int {
+        asset_class1 = AssetClass::new(mph1, name1);
+        asset_class2 = AssetClass::new(mph2, name2);
+        value = Value::lovelace(n_lovelace) + Value::new(asset_class1, qty1) + Value::new(asset_class2, qty2);
+
+        value.delete_policy(mph_to_delete).flatten()
     }`
 
     compileAndRunMany([
@@ -423,9 +442,9 @@ describe("Value", () => {
                 int(1)
             ],
             output: map([
-                [constr(0, bytes(""), bytes("")), int(2_000_000)],
-                [constr(0, bytes("abcd"), bytes("abcd")), int(1)],
-                [constr(0, bytes("abcdef"), bytes("")), int(1)]
+                [assetclass("", ""), int(2_000_000)],
+                [assetclass("abcd", "abcd"), int(1)],
+                [assetclass("abcdef", ""), int(1)]
             ])
         },
         {
@@ -441,6 +460,56 @@ describe("Value", () => {
                 int(0)
             ],
             output: map([])
+        },
+        {
+            description:
+                "value.delete_policy doesn't change anything for 0 entries",
+            main: valueDeletePolicyScript,
+            inputs: [
+                int(0),
+                bytes("abcd"),
+                bytes("abcd"),
+                int(0),
+                bytes("abcdef"),
+                bytes(""),
+                int(0),
+                bytes("")
+            ],
+            output: map([])
+        },
+        {
+            description:
+                "value.delete_policy removes multiple tokens with same policy",
+            main: valueDeletePolicyScript,
+            inputs: [
+                int(1_000_000),
+                bytes("abcd"),
+                bytes("abcd"),
+                int(1),
+                bytes("abcd"),
+                bytes(""),
+                int(1),
+                bytes("abcd")
+            ],
+            output: map([[assetclass("", ""), int(1_000_000)]])
+        },
+        {
+            description: "value.delete_policy can delete lovelace",
+            main: valueDeletePolicyScript,
+            inputs: [
+                int(1_000_000),
+                bytes("abcd"),
+                bytes("abcd"),
+                int(1),
+                bytes("abcd"),
+                bytes(""),
+                int(1),
+                bytes("")
+            ],
+            output: map([
+                [assetclass("abcd", "abcd"), int(1)],
+                [assetclass("abcd", ""), int(1)]
+            ])
         }
     ])
 })

@@ -176,6 +176,14 @@ export const False = bool(false)
 export const True = bool(true)
 
 /**
+ * @param {ByteArrayLike} mph
+ * @param {ByteArrayLike} name
+ */
+export function assetclass(mph, name) {
+    return constr(0, bytes(mph), bytes(name))
+}
+
+/**
  *
  * @param {ByteArrayLike} bs
  * @returns {UplcData}
