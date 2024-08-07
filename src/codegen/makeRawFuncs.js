@@ -10662,6 +10662,16 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(
+        new RawFunc(
+            `__helios__value__delete_lovelace`,
+            `(self) -> {
+				() -> {
+					__helios__value__delete_policy(self)(#)
+				}
+			}`
+        )
+    )
 
     // Cip67 namespace
     add(new RawFunc(`__helios__cip67__fungible_token_label`, "#0014df10"))

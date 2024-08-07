@@ -189,6 +189,23 @@ describe("Value", () => {
         value.delete_policy(mph_to_delete).flatten()
     }`
 
+    const valueDeleteLovelaceScript = `testing value_delete_lovelace
+    func  main(
+        n_lovelace: Int, 
+        mph1: MintingPolicyHash, 
+        name1: ByteArray, 
+        qty1: Int, 
+        mph2: MintingPolicyHash, 
+        name2: ByteArray, 
+        qty2: Int
+    ) -> Map[AssetClass]Int {
+        asset_class1 = AssetClass::new(mph1, name1);
+        asset_class2 = AssetClass::new(mph2, name2);
+        value = Value::lovelace(n_lovelace) + Value::new(asset_class1, qty1) + Value::new(asset_class2, qty2);
+
+        value.delete_lovelace().flatten()
+    }`
+
     compileAndRunMany([
         {
             description: "1 lovelace isn't zero",
@@ -505,6 +522,23 @@ describe("Value", () => {
                 bytes(""),
                 int(1),
                 bytes("")
+            ],
+            output: map([
+                [assetclass("abcd", "abcd"), int(1)],
+                [assetclass("abcd", ""), int(1)]
+            ])
+        },
+        {
+            description: "value.delete_lovelace deletes lovelace",
+            main: valueDeleteLovelaceScript,
+            inputs: [
+                int(1_000_000),
+                bytes("abcd"),
+                bytes("abcd"),
+                int(1),
+                bytes("abcd"),
+                bytes(""),
+                int(1)
             ],
             output: map([
                 [assetclass("abcd", "abcd"), int(1)],
