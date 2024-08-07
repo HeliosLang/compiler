@@ -8647,8 +8647,19 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(
+        new RawFunc(
+            "__helios__address__from_validator",
+            `(vh) -> {
+			__helios__address__new(
+				__helios__spendingcredential__new_validator(vh),
+				__helios__option__NONE
+			)
+		}`
+        )
+    )
 
-    // Credential builtins
+    // SpendingCredential builtins
     addDataFuncs("__helios__spendingcredential")
     add(
         new RawFunc(

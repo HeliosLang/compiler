@@ -66,6 +66,7 @@ export const AddressType = new GenericType({
         ...genCommonInstanceMembers(self),
         credential: SpendingCredentialType,
         staking_credential: OptionType$(StakingCredentialType),
+        is_staked: new FuncType([], BoolType),
         to_bytes: new FuncType([], ByteArrayType),
         to_hex: new FuncType([], StringType)
     }),
@@ -77,7 +78,8 @@ export const AddressType = new GenericType({
         ),
         new_empty: new FuncType([], self),
         from_bytes: new FuncType([ByteArrayType], self),
-        from_hex: new FuncType([StringType], self)
+        from_hex: new FuncType([StringType], self),
+        from_validator: new FuncType([ValidatorHashType], self)
     })
 })
 
