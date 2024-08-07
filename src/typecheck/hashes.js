@@ -24,7 +24,8 @@ import {
 function genHashInstanceMembers(self) {
     return {
         ...genCommonInstanceMembers(self),
-        bytes: ByteArrayType
+        bytes: ByteArrayType,
+        to_script_hash: new FuncType([], scriptHashType)
     }
 }
 

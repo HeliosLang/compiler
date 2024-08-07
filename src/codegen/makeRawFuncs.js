@@ -6261,6 +6261,16 @@ export function makeRawFunctions(simplify, isTestnet) {
                 "__helios__common__identity"
             )
         )
+        add(
+            new RawFunc(
+                `__helios__${hash}__to_script_hash`,
+                `(self) -> {
+					() -> {
+						__helios__common__identity(self)
+					}
+				}`
+            )
+        )
     }
 
     // PubKey builtin
