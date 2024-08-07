@@ -8,7 +8,7 @@ import {
 import { ParseContext } from "./ParseContext.js"
 import { None, isNone } from "@helios-lang/type-utils"
 import { parseTypeExpr } from "./parseTypeExpr.js"
-import { anyName, parseName } from "./parseName.js"
+import { parseName } from "./parseName.js"
 
 /**
  * @typedef {import("./ValueExprParser.js").ValueExprParser} ValueExprParser

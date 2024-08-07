@@ -79,7 +79,7 @@ export class NameTypePair {
      * @returns {boolean}
      */
     isIgnored() {
-        return this.name.value === "_"
+        return this.name.value.startsWith("_")
     }
 
     /**
@@ -99,7 +99,10 @@ export class NameTypePair {
             if (this.isIgnored()) {
                 return new AllType()
             } else {
-                throw new Error("typeExpr not set")
+                throw CompilerError.type(
+                    this.site,
+                    `missing type for arg '${this.name.value}'`
+                )
             }
         } else {
             const t = this.#typeExpr.eval(scope)

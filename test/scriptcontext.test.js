@@ -220,7 +220,7 @@ describe("Entry points", () => {
         description: "can validate minting script based on tx",
         main: `minting always_succeeds
         import { tx } from ScriptContext
-        func main(_) -> Bool {
+        func main(_unused_redeemer) -> Bool {
             tx.fee > Value::ZERO
         }`,
         inputs: [int(0), mintingScriptContext.data],

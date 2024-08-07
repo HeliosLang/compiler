@@ -66,4 +66,33 @@ describe(Program.name, () => {
             new Program(mainSrc)
         })
     })
+
+    it("doesn't throw an error for an unused arg", () => {
+        const mainSrc = `testing unused_arg 
+        func main(_a: Int, b: Int) -> Int {
+            b
+        }`
+
+        new Program(mainSrc)
+    })
+
+    it("an unused arg doesn't need a type", () => {
+        const mainSrc = `testing unused_arg_without_type
+        func main(_a, b: Int) -> Int {
+            b
+        }`
+
+        new Program(mainSrc)
+    })
+
+    it("throws an error when trying to access an unused arg", () => {
+        const mainSrc = `testing trying_to_use_unused_arg
+        func main(_a: Int, b: Int) -> Int {
+            _a + b
+        }`
+
+        throws(() => {
+            new Program(mainSrc)
+        })
+    })
 })

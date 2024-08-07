@@ -104,7 +104,7 @@ export class DestructExpr {
      * @returns {boolean}
      */
     isIgnored() {
-        return this.name.value === "_"
+        return this.name.value.startsWith("_")
     }
 
     /**
@@ -397,7 +397,9 @@ export class DestructExpr {
         }
 
         if (!t) {
-            scope.set(this.name, new DataEntity(new AnyType()))
+            if (!this.isIgnored()) {
+                scope.set(this.name, new DataEntity(new AnyType()))
+            }
             return
         }
 
