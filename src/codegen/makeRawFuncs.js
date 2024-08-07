@@ -7738,6 +7738,42 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__tx__is_approved_by",
+            `(self) -> {
+		(cred) -> {
+			spends_from_cred = () -> {
+				__helios__common__any(
+					__helios__tx__inputs(self),
+					(input_data) -> {
+						input = __helios__txinput__from_data(input_data);
+						input_cred = __helios__address__credential(__helios__txinput__address(input));
+						__core__equalsData(cred, input_cred)
+					}
+				)
+			};
+			pair = __core__unConstrData(cred);
+			tag = __core__fstPair(pair);
+			__core__ifThenElse(
+				__core__equalsInteger(tag, 0),
+				() -> {
+					pkh = __helios__pubkeyhash__from_data(__core__headList(__core__sndPair(pair)));
+
+					__core__ifThenElse(
+						__helios__tx__is_signed_by(self)(pkh),
+						() -> {
+							true
+						},
+						spends_from_cred
+					)()
+				},
+				spends_from_cred
+			)()
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__tx__is_signed_by",
             `(self) -> {
 		(hash) -> {

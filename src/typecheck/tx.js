@@ -1162,6 +1162,7 @@ export const TxType = new GenericType({
                 new FuncType([AddressType, a.ref], ValueType)
             )
         })(),
+        is_approved_by: new FuncType([SpendingCredentialType], BoolType),
         is_signed_by: new FuncType([PubKeyHashType], BoolType)
     }),
     genTypeMembers: (self) => ({

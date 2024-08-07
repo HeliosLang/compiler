@@ -2,6 +2,7 @@ import { strictEqual } from "node:assert"
 import { describe, it } from "node:test"
 import { ConstrData } from "@helios-lang/uplc"
 import {
+    bytes,
     compileAndRun,
     evalSingle,
     int,
@@ -223,6 +224,30 @@ describe("Entry points", () => {
             tx.fee > Value::ZERO
         }`,
         inputs: [int(0), mintingScriptContext.data],
+        output: "()"
+    })
+
+    const mintingApprovedByScript = `minting approved_by
+    import { tx  } from ScriptContext
+    func main(pkh: PubKeyHash) -> Bool {
+        cred = SpendingCredential::new_pubkey(pkh);
+        tx.is_approved_by(cred)
+    }`
+
+    compileAndRun({
+        description: "wrong spending credential doesn't approve tx",
+        main: mintingApprovedByScript,
+        inputs: [bytes(""), mintingScriptContext.data],
+        output: { error: "" }
+    })
+
+    compileAndRun({
+        description: "correct spending credential approves tx",
+        main: mintingApprovedByScript,
+        inputs: [
+            bytes(mintingScriptContext.pubKeyHashBytes),
+            mintingScriptContext.data
+        ],
         output: "()"
     })
 })
