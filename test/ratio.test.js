@@ -82,6 +82,11 @@ describe("Ratio", () => {
         a.trunc()
     }`
 
+    const ratioCeilScript = `testing ratio_ceil
+    func main(a: Ratio) -> Int {
+        a.ceil()
+    }`
+
     const ratioLtScript = `testing ratio_lt
     func main(a: Ratio, b: Ratio) -> Bool {
         a < b
@@ -255,6 +260,36 @@ describe("Ratio", () => {
             main: ratioTruncScript,
             inputs: [ratio(-1, 2)],
             output: int(0)
+        },
+        {
+            description: "-1/2.ceil() == 0",
+            main: ratioCeilScript,
+            inputs: [ratio(-1, 2)],
+            output: int(0)
+        },
+        {
+            description: "1/2.ceil() == 1",
+            main: ratioCeilScript,
+            inputs: [ratio(1, 2)],
+            output: int(1)
+        },
+        {
+            description: "-2/2.ceil() == -1",
+            main: ratioCeilScript,
+            inputs: [ratio(-2, 2)],
+            output: int(-1)
+        },
+        {
+            description: "2/2.ceil() == 1",
+            main: ratioCeilScript,
+            inputs: [ratio(2, 2)],
+            output: int(1)
+        },
+        {
+            description: "10000001/10000000.ceil() == 2",
+            main: ratioCeilScript,
+            inputs: [ratio(10000001, 10000000)],
+            output: int(2)
         },
         {
             description: "1/2 < 1/4 == false",

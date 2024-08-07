@@ -315,6 +315,7 @@ export const RatioType = new GenericType({
         ...genCommonInstanceMembers(self),
         bottom: IntType,
         top: IntType,
+        ceil: new FuncType([], IntType),
         floor: new FuncType([], IntType),
         to_real: new FuncType([], RealType),
         trunc: new FuncType([], IntType)

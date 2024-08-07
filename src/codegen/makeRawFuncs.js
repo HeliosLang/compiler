@@ -2216,6 +2216,30 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__ratio__ceil",
+            `(self) -> {
+		() -> {
+			top = __helios__ratio__top(self);
+			bottom = __helios__ratio__bottom(self);
+
+			__core__ifThenElse(
+				__core__equalsInteger(bottom, 1),
+				() -> {
+					top
+				},
+				() -> {
+					__core__divideInteger(
+						__core__addInteger(top, __core__subtractInteger(bottom, 1)),
+						bottom
+					)
+				}
+			)()
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__ratio__floor",
             `(self) -> {
 			() -> {
