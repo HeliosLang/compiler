@@ -95,4 +95,25 @@ describe(Program.name, () => {
             new Program(mainSrc)
         })
     })
+
+    it("can access const defined inside struct inside module", () => {
+        const mainSrc = `testing get_struct_const
+        import { MyType } from MyModule
+        func main() -> Int {
+            MyType::MY_CONST
+        }`
+
+        const moduleSrc = `module MyModule
+        
+        struct MyType {
+            field1: Int
+
+            const MY_CONST: Int = 10
+        }`
+
+        const program = new Program(mainSrc, { moduleSources: [moduleSrc] })
+
+        program.compile(false)
+        program.compile(true)
+    })
 })

@@ -64,29 +64,19 @@ export function injectMutualRecursions(mainIR, map) {
     for (let i = keys.length - 1; i >= 0; i--) {
         const k = keys[i]
 
-        // don't make a final const statement self-recursive (makes evalParam easier)
         // don't make __helios builtins mutually recursive
         // don't make __from_data and ____<op> methods mutually recursive (used frequently inside the entrypoint)
-        if (
-            (k.startsWith("__const") && i == keys.length - 1) ||
-            k.startsWith("__helios") ||
-            k.includes("____")
-        ) {
+        if (k.startsWith("__helios") || k.includes("____")) {
             continue
         }
 
-        let prefix = expectSome(k.match(/(__const)?([^[]+)(\[|$)/))[0]
+        let prefix = expectSome(k.match(/([^[]+)(\[|$)/))[0]
 
         // get all following definitions including self, excluding constants
         // also don't mutual recurse helios functions
         const potentialDependencies = keys
             .slice(i)
-            .filter(
-                (k) =>
-                    (k.startsWith(prefix) ||
-                        k.startsWith(`__const${prefix}`)) &&
-                    !k.includes("____")
-            )
+            .filter((k) => k.startsWith(prefix) && !k.includes("____"))
 
         const dependencies = filterMutualDependencies(k, potentialDependencies)
 

@@ -17,7 +17,6 @@ import { Statement } from "./Statement.js"
 
 /**
  * Const value statement
- * @internal
  */
 export class ConstStatement extends Statement {
     /**
@@ -54,14 +53,6 @@ export class ConstStatement extends Statement {
                 this.#valueExpr?.toString() ??
                 "Any"
         )
-    }
-
-    /**
-     * Include __const prefix in path so that mutual recursion injection isn't applied
-     * @type {string}
-     */
-    get path() {
-        return `__const${super.path}`
     }
 
     /**
@@ -122,7 +113,10 @@ export class ConstStatement extends Statement {
             }
         }
 
-        return new DataEntity(expectSome(type))
+        const data = new DataEntity(expectSome(type))
+        const res = new NamedEntity(this.name.value, this.path, data)
+
+        return res
     }
 
     /**
@@ -130,23 +124,9 @@ export class ConstStatement extends Statement {
      * @param {TopScope} scope
      */
     eval(scope) {
-        const data = this.evalInternal(scope)
+        const res = this.evalInternal(scope)
 
-        if (!data) {
-            scope.set(
-                this.name,
-                new NamedEntity(
-                    this.name.value,
-                    this.path,
-                    new DataEntity(new AllType())
-                )
-            )
-        } else {
-            scope.set(
-                this.name,
-                new NamedEntity(this.name.value, this.path, data)
-            )
-        }
+        scope.set(this.name, res)
     }
 
     /**
