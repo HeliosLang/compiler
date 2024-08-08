@@ -2,100 +2,18 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
-    compileAndRunMany,
+    bytes,
     compileForRun,
+    constr,
     int,
+    list,
+    map,
     ratio,
     real,
     str
 } from "./utils.js"
 
 describe("Real", () => {
-    const realEq1Script = `testing real_eq_1
-    func main(a: Real) -> Bool {
-        a == 1.0
-    }`
-
-    const realEqScript = `testing real_eq
-    func main(a: Real, b: Real) -> Bool {
-        a == b
-    }`
-
-    const realNeqScript = `testing real_neq
-    func main(a: Real, b: Real) -> Bool {
-        a != b
-    }`
-
-    const realNegScript = `testing real_neg
-    func main(a: Real) -> Real {
-        -a
-    }`
-
-    const realAddScript = `testing real_add
-    func main(a: Real, b: Real) -> Real {
-        a + b
-    }`
-
-    const realSubScript = `testing real_sub
-    func main(a: Real, b: Real) -> Real {
-        a - b
-    }`
-
-    const realMulScript = `testing real_mul
-    func main(a: Real, b: Real) -> Real {
-        a * b
-    }`
-
-    const realDivScript = `testing real_div
-    func main(a: Real, b: Real) -> Real {
-        a / b
-    }`
-
-    const realTruncScript = `testing real_trunc
-    func main(a: Real) -> Int {
-        a.trunc()
-    }`
-
-    const realFloorScript = `testing real_floor
-    func main(a: Real) -> Int {
-        a.floor()
-    }`
-
-    const realCeilScript = `testing real_ceil
-    func main(a: Real) -> Int {
-        a.ceil()
-    }`
-
-    const realSqrtScript = `testing real_sqrt
-    func main(a: Real) -> Real {
-        Real::sqrt(a)
-    }`
-
-    const realFromDataScript = `testing real_from_data
-    func main(a: Data) -> Real {
-        Real::from_data(a)
-    }`
-
-    const realShowScript = `testing real_show
-    func main(a: Real) -> String {
-        a.show()
-    }`
-
-    const realToRatioScript = `testing real_to_ratio
-    func main(a: Real) -> Ratio {
-        a.to_ratio()
-    }`
-
-    const realMinScript = `testing real_min
-    func main(a: Real, b: Real) -> Real {
-        Real::min(a, b)
-    }`
-
-    const realMaxScript = `testing real_max
-    func main(a: Real, b: Real) -> Real {
-        Real::max(a, b)
-    }`
-
     describe("Literals", () => {
         it("literal 0.0", () => {
             const runner = compileForRun(`testing lit_real_0
@@ -565,6 +483,33 @@ describe("Real", () => {
 
         it("max(-1.0, -1.1) == -1.0", () => {
             runner([real(-1.0), real(-1.1)], real(-1.0))
+        })
+    })
+
+    describe("Real::is_valid_data", () => {
+        const runner = compileForRun(`testing real_is_valid_data
+        func main(a: Data) -> Bool {
+            Real::is_valid_data(a)
+        }`)
+
+        it("ok for iData", () => {
+            runner([int(0)], True)
+        })
+
+        it("nok for bData", () => {
+            runner([bytes("")], False)
+        })
+
+        it("nok for list", () => {
+            runner([list()], False)
+        })
+
+        it("nok for map", () => {
+            runner([map([])], False)
+        })
+
+        it("nok for constr", () => {
+            runner([constr(0)], False)
         })
     })
 })

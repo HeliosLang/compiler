@@ -986,6 +986,88 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__common__test_constr_data",
+            `(data, fn) -> {
+			__core__chooseList(
+				() -> {
+					pair = __core__unConstrData(data);
+					fn(__core__fstPair(pair), __core__sndPair(pair))
+				},
+				() -> {false},
+				() -> {false},
+				() -> {false},
+				() -> {false}
+			)()
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__common__test_map_data",
+            `(data, fn) -> {
+			__core__chooseData(
+				data,
+				() -> {false},
+				() -> {fn(__core__unMapData(data))},
+				() -> {false},
+				() -> {false},
+				() -> {false}
+			)()	
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__common__test_list_data",
+            `(data, fn) -> {
+			__core__chooseData(
+				data,
+				() -> {false},
+				() -> {false},
+				() -> {fn(__core__unListData(data))},
+				() -> {false},
+				() -> {false}
+			)()
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__common__test_list_head_data",
+            `(test_head, test_tail) -> {
+			(list) -> {
+				__core__chooseList(
+					list,
+					() -> {
+						false
+					},
+					() -> {
+						__core__ifThenElse(
+							test_head(__core__headList(list)),
+							() -> {
+								test_tail(__core__tailList(list))
+							},
+							() -> {
+								false
+							}
+						)()
+					}
+				)()
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__common__test_list_empty",
+            `(list) -> {
+			__core__chooseList(list, true, false)
+		}`
+        )
+    )
+    add(new RawFunc("__helios__common__test_list_any", `(list) -> {true}`))
+    add(
+        new RawFunc(
             `__helios__common__enum_tag_equals`,
             `(data, i) -> {
 			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), i)
@@ -1958,6 +2040,23 @@ export function makeRawFunctions(simplify, isTestnet) {
 
     // Ratio builtins
     addDataFuncs("__helios__ratio")
+    add(
+        new RawFunc(
+            "__helios__ratio__is_valid_data",
+            `(data) -> {
+			__helios__common__test_list_data(
+				data,
+				__helios__common__test_list_head_data(
+					__helios__int__is_valid_data,
+					__helios__common__test_list_head_data(
+						__helios__int__is_valid_data,
+						__helios__common__test_list_empty
+					)
+				)
+			)
+		}`
+        )
+    )
     add(
         new RawFunc(
             "__helios__ratio__new",

@@ -1,421 +1,490 @@
-import { describe } from "node:test"
-import { False, True, compileAndRunMany, int, ratio, real } from "./utils.js"
+import { describe, it } from "node:test"
+import {
+    False,
+    True,
+    bytes,
+    compileForRun,
+    constr,
+    int,
+    list,
+    map,
+    ratio,
+    real
+} from "./utils.js"
 
 describe("Ratio", () => {
-    const ratioNewTopScript = `testing ratio_new_first
-    func main(a: Int, b: Int) -> Int {
-        Ratio::new(a, b).top
-    }`
+    describe("Ratio.top", () => {
+        const runner1 = compileForRun(`testing ratio_new_top
+        func main(a: Int, b: Int) -> Int {
+            Ratio::new(a, b).top
+        }`)
 
-    const ratioNewBottomScript = `testing ratio_new_second
-    func main(a: Int, b: Int) -> Int {
-        Ratio::new(a, b).bottom
-    }`
+        it("new(1,2).top == 1", () => {
+            runner1([int(1), int(2)], int(1))
+        })
 
-    const ratioAddScript = `testing ratio_add
-    func main(a: Ratio, b: Ratio) -> Ratio {
-        a + b
-    }`
+        const runner2 = compileForRun(`testing ratio_top
+        func main(r: Ratio) -> Int {
+            r.top
+        }`)
 
-    const ratioAddIntScript = `testing ratio_add_int
-    func main(a: Ratio, b: Int) -> Ratio {
-        a + b
-    }`
+        it("(1/2).top == 1", () => {
+            runner2([ratio(1, 2)], int(1))
+        })
+    })
 
-    const intAddRatioScript = `testing int_add_ratio
-    func main(a: Int, b: Ratio) -> Ratio {
-        a + b
-    }`
+    describe("Ratio.bottom", () => {
+        const runner1 = compileForRun(`testing ratio_new_bottom
+        func main(a: Int, b: Int) -> Int {
+            Ratio::new(a, b).bottom
+        }`)
 
-    const ratioSubScript = `testing ratio_sub
-    func main(a: Ratio, b: Ratio) -> Ratio {
-        a - b
-    }`
+        it("new(1,2).bottom == 2", () => {
+            runner1([int(1), int(2)], int(2))
+        })
 
-    const ratioSubIntScript = `testing ratio_sub_int
-    func main(a: Ratio, b: Int) -> Ratio {
-        a - b
-    }`
+        const runner2 = compileForRun(`testing ratio_bottom
+        func main(r: Ratio) -> Int {
+            r.bottom
+        }`)
 
-    const intSubRatioScript = `testing int_sub_ratio
-    func main(a: Int, b: Ratio) -> Ratio {
-        a - b
-    }`
+        it("(1/2).bottom == 2", () => {
+            runner2([ratio(1, 2)], int(2))
+        })
+    })
 
-    const ratioMulScript = `testing ratio_mul
-    func main(a: Ratio, b: Ratio) -> Ratio {
-        a * b
-    }`
+    describe("Ratio + Ratio", () => {
+        const runner = compileForRun(`testing ratio_add
+        func main(a: Ratio, b: Ratio) -> Ratio {
+            a + b
+        }`)
 
-    const ratioMulIntScript = `testing ratio_mul_int
-    func main(a: Ratio, b: Int) -> Ratio {
-        a * b
-    }`
+        it("1/2 + 1/4 == 6/8", () => {
+            runner([ratio(1, 2), ratio(1, 4)], ratio(6, 8))
+        })
+    })
 
-    const intMulRatioScript = `testing int_mul_ratio
-    func main(a: Int, b: Ratio) -> Ratio {
-        a * b
-    }`
+    describe("Ratio + Int", () => {
+        const runner1 = compileForRun(`testing ratio_add_int
+        func main(a: Ratio, b: Int) -> Ratio {
+            a + b
+        }`)
 
-    const ratioDivScript = `testing ratio_div
-    func main(a: Ratio, b: Ratio) -> Ratio {
-        a/b
-    }`
+        it("1/2 + 1 == 3/2", () => {
+            runner1([ratio(1, 2), int(1)], ratio(3, 2))
+        })
 
-    const ratioDivIntScript = `testing ratio_div_int
-    func main(a: Ratio, b: Int) -> Ratio {
-        a/b
-    }`
+        const runner2 = compileForRun(`testing int_add_ratio
+        func main(a: Int, b: Ratio) -> Ratio {
+            a + b
+        }`)
 
-    const intDivRatioScript = `testing int_div_ratio
-    func main(a: Int, b: Ratio) -> Ratio {
-        a/b
-    }`
+        it("1 + 1/2 == 3/2", () => {
+            runner2([int(1), ratio(1, 2)], ratio(3, 2))
+        })
+    })
 
-    const ratioFloorScript = `testing ratio_floor
-    func main(a: Ratio) -> Int {
-        a.floor()
-    }`
+    describe("Ratio - Ratio", () => {
+        const runner = compileForRun(`testing ratio_sub
+        func main(a: Ratio, b: Ratio) -> Ratio {
+            a - b
+        }`)
 
-    const ratioTruncScript = `testing ratio_trunc
-    func main(a: Ratio) -> Int {
-        a.trunc()
-    }`
+        it("1/2 - 1/4 == 2/8", () => {
+            runner([ratio(1, 2), ratio(1, 4)], ratio(2, 8))
+        })
+    })
 
-    const ratioCeilScript = `testing ratio_ceil
-    func main(a: Ratio) -> Int {
-        a.ceil()
-    }`
+    describe("Ratio - Int", () => {
+        const runner = compileForRun(`testing ratio_sub_int
+        func main(a: Ratio, b: Int) -> Ratio {
+            a - b
+        }`)
 
-    const ratioLtScript = `testing ratio_lt
-    func main(a: Ratio, b: Ratio) -> Bool {
-        a < b
-    }`
+        it("1/2 - 1 = -1/2", () => {
+            runner([ratio(1, 2), int(1)], ratio(-1, 2))
+        })
+    })
 
-    const ratioLtIntScript = `testing ratio_lt_int
-    func main(a: Ratio, b: Int) -> Bool {
-        a < b
-    }`
+    describe("Int - Ratio", () => {
+        const runner = compileForRun(`testing int_sub_ratio
+        func main(a: Int, b: Ratio) -> Ratio {
+            a - b
+        }`)
 
-    const intLtRatioScript = `testing int_lt_ratio
-    func main(a: Int, b: Ratio) -> Bool {
-        a < b
-    }`
+        it("1 - 1/2 = 1/2", () => {
+            runner([int(1), ratio(1, 2)], ratio(1, 2))
+        })
+    })
 
-    const ratioLeqScript = `testing ratio_leq
-    func main(a: Ratio, b: Ratio) -> Bool {
-        a <= b
-    }`
+    describe("Ratio * Ratio", () => {
+        const runner = compileForRun(`testing ratio_mul
+        func main(a: Ratio, b: Ratio) -> Ratio {
+            a * b
+        }`)
 
-    const ratioLeqIntScript = `testing ratio_leq_int
-    func main(a: Ratio, b: Int) -> Bool {
-        a <= b
-    }`
+        it("1/2 * 1/4 == 1/8", () => {
+            runner([ratio(1, 2), ratio(1, 4)], ratio(1, 8))
+        })
+    })
 
-    const intLeqRatioScript = `testing int_leq_ratio
-    func main(a: Int, b: Ratio) -> Bool {
-        a <= b
-    }`
+    describe("Ratio * Int", () => {
+        const runner1 = compileForRun(`testing ratio_mul_int
+        func main(a: Ratio, b: Int) -> Ratio {
+            a * b
+        }`)
 
-    const ratioGtScript = `testing ratio_gt
-    func main(a: Ratio, b: Ratio) -> Bool {
-        a > b
-    }`
+        it("1/2 * 2 == 2/2", () => {
+            runner1([ratio(1, 2), int(2)], ratio(2, 2))
+        })
 
-    const ratioGtIntScript = `testing ratio_gt_int
-    func main(a: Ratio, b: Int) -> Bool {
-        a > b
-    }`
+        const runner2 = compileForRun(`testing int_mul_ratio
+        func main(a: Int, b: Ratio) -> Ratio {
+            a * b
+        }`)
 
-    const intGtRatioScript = `testing int_gt_ratio
-    func main(a: Int, b: Ratio) -> Bool {
-        a > b
-    }`
+        it("2 * 1/2 == 2/2", () => {
+            runner2([int(2), ratio(1, 2)], ratio(2, 2))
+        })
+    })
 
-    const ratioGeqScript = `testing ratio_geq
-    func main(a: Ratio, b: Ratio) -> Bool {
-        a >= b
-    }`
+    describe("Ratio / Ratio", () => {
+        const runner = compileForRun(`testing ratio_div
+        func main(a: Ratio, b: Ratio) -> Ratio {
+            a/b
+        }`)
 
-    const ratioGeqIntScript = `testing ratio_geq_int
-    func main(a: Ratio, b: Int) -> Bool {
-        a >= b
-    }`
+        it("1/2 / 1/4 == 4/2", () => {
+            runner([ratio(1, 2), ratio(1, 4)], ratio(4, 2))
+        })
+    })
 
-    const intGeqRatioScript = `testing int_geq_ratio
-    func main(a: Int, b: Ratio) -> Bool {
-        a >= b
-    }`
+    describe("Ratio / Int", () => {
+        const runner = compileForRun(`testing ratio_div_int
+        func main(a: Ratio, b: Int) -> Ratio {
+            a/b
+        }`)
 
-    const ratioToRealScript = `testing ratio_to_real
-    func main(a: Int, b: Int) -> Real {
-        Ratio::new(a, b).to_real()
-    }`
+        it("1/2 / 0 == 1/0", () => {
+            runner([ratio(1, 2), int(0)], ratio(1, 0))
+        })
 
-    compileAndRunMany([
-        {
-            description: "Ratio::new(1, 2).top == 1",
-            main: ratioNewTopScript,
-            inputs: [int(1), int(2)],
-            output: int(1)
-        },
-        {
-            description: "Ratio::new(1, 2).bottom == 2",
-            main: ratioNewBottomScript,
-            inputs: [int(1), int(2)],
-            output: int(2)
-        },
-        {
-            description: "1/2 + 1/4 == 6/8",
-            main: ratioAddScript,
-            inputs: [ratio(1, 2), ratio(1, 4)],
-            output: ratio(6, 8)
-        },
-        {
-            description: "1/2 + 1 == 3/2",
-            main: ratioAddIntScript,
-            inputs: [ratio(1, 2), int(1)],
-            output: ratio(3, 2)
-        },
-        {
-            description: "1 + 1/2 == 3/2",
-            main: intAddRatioScript,
-            inputs: [int(1), ratio(1, 2)],
-            output: ratio(3, 2)
-        },
-        {
-            description: "1/2 - 1/4 == 2/8",
-            main: ratioSubScript,
-            inputs: [ratio(1, 2), ratio(1, 4)],
-            output: ratio(2, 8)
-        },
-        {
-            description: "1/2 - 1 = -1/2",
-            main: ratioSubIntScript,
-            inputs: [ratio(1, 2), int(1)],
-            output: ratio(-1, 2)
-        },
-        {
-            description: "1 - 1/2 = 1/2",
-            main: intSubRatioScript,
-            inputs: [int(1), ratio(1, 2)],
-            output: ratio(1, 2)
-        },
-        {
-            description: "1/2 * 1/4 == 1/8",
-            main: ratioMulScript,
-            inputs: [ratio(1, 2), ratio(1, 4)],
-            output: ratio(1, 8)
-        },
-        {
-            description: "1/2 * 2 == 2/2",
-            main: ratioMulIntScript,
-            inputs: [ratio(1, 2), int(2)],
-            output: ratio(2, 2)
-        },
-        {
-            description: "2 * 1/2 == 2/2",
-            main: intMulRatioScript,
-            inputs: [int(2), ratio(1, 2)],
-            output: ratio(2, 2)
-        },
-        {
-            description: "1/2 / 1/4 == 4/2",
-            main: ratioDivScript,
-            inputs: [ratio(1, 2), ratio(1, 4)],
-            output: ratio(4, 2)
-        },
-        {
-            description: "1/2 / 0 == 1/0",
-            main: ratioDivIntScript,
-            inputs: [ratio(1, 2), int(0)],
-            output: ratio(1, 0)
-        },
-        {
-            description: "1/2 / 10 == 1/20",
-            main: ratioDivIntScript,
-            inputs: [ratio(1, 2), int(10)],
-            output: ratio(1, 20)
-        },
-        {
-            description: "10 / 1/2 == 20/1",
-            main: intDivRatioScript,
-            inputs: [int(10), ratio(1, 2)],
-            output: ratio(20, 1)
-        },
-        {
-            description: "1/2.floor() == 0",
-            main: ratioFloorScript,
-            inputs: [ratio(1, 2)],
-            output: int(0)
-        },
-        {
-            description: "-1/2.floor() == -1",
-            main: ratioFloorScript,
-            inputs: [ratio(-1, 2)],
-            output: int(-1)
-        },
-        {
-            description: "-1/2.trunc() == 0",
-            main: ratioTruncScript,
-            inputs: [ratio(-1, 2)],
-            output: int(0)
-        },
-        {
-            description: "-1/2.ceil() == 0",
-            main: ratioCeilScript,
-            inputs: [ratio(-1, 2)],
-            output: int(0)
-        },
-        {
-            description: "1/2.ceil() == 1",
-            main: ratioCeilScript,
-            inputs: [ratio(1, 2)],
-            output: int(1)
-        },
-        {
-            description: "-2/2.ceil() == -1",
-            main: ratioCeilScript,
-            inputs: [ratio(-2, 2)],
-            output: int(-1)
-        },
-        {
-            description: "2/2.ceil() == 1",
-            main: ratioCeilScript,
-            inputs: [ratio(2, 2)],
-            output: int(1)
-        },
-        {
-            description: "10000001/10000000.ceil() == 2",
-            main: ratioCeilScript,
-            inputs: [ratio(10000001, 10000000)],
-            output: int(2)
-        },
-        {
-            description: "1/2 < 1/4 == false",
-            main: ratioLtScript,
-            inputs: [ratio(1, 2), ratio(1, 4)],
-            output: False
-        },
-        {
-            description: "1/2 < 1 == true",
-            main: ratioLtIntScript,
-            inputs: [ratio(1, 2), int(1)],
-            output: True
-        },
-        {
-            description: "1 < 1/2 == false",
-            main: intLtRatioScript,
-            inputs: [int(1), ratio(1, 2)],
-            output: False
-        },
-        {
-            description: "1/2 <= 1/4 == false",
-            main: ratioLeqScript,
-            inputs: [ratio(1, 2), ratio(1, 4)],
-            output: False
-        },
-        {
-            description: "1/2 <= 2/4 == true",
-            main: ratioLeqScript,
-            inputs: [ratio(1, 2), ratio(2, 4)],
-            output: True
-        },
-        {
-            description: "2/2 <= 2/4 == false",
-            main: ratioLeqScript,
-            inputs: [ratio(2, 2), ratio(2, 4)],
-            output: False
-        },
-        {
-            description: "1/2 <= 1 == true",
-            main: ratioLeqIntScript,
-            inputs: [ratio(1, 2), int(1)],
-            output: True
-        },
-        {
-            description: "1 <= 1/2 == false",
-            main: intLeqRatioScript,
-            inputs: [int(1), ratio(1, 2)],
-            output: False
-        },
-        {
-            description: "1/2 > 1/4 == true",
-            main: ratioGtScript,
-            inputs: [ratio(1, 2), ratio(1, 4)],
-            output: True
-        },
-        {
-            description: "1/2 > 2/4 == false",
-            main: ratioGtScript,
-            inputs: [ratio(1, 2), ratio(2, 4)],
-            output: False
-        },
-        {
-            description: "1/2 > 1 == false",
-            main: ratioGtIntScript,
-            inputs: [ratio(1, 2), int(1)],
-            output: False
-        },
-        {
-            description: "1/0 > 1 == false",
-            main: ratioGtIntScript,
-            inputs: [ratio(1, 0), int(1)],
-            output: True
-        },
-        {
-            description: "1 > 1/2 == true",
-            main: intGtRatioScript,
-            inputs: [int(1), ratio(1, 2)],
-            output: True
-        },
-        {
-            description: "1/2 >= 1/4 == true",
-            main: ratioGeqScript,
-            inputs: [ratio(1, 2), ratio(1, 4)],
-            output: True
-        },
-        {
-            description: "1/2 >= 2/4 == true",
-            main: ratioGeqScript,
-            inputs: [ratio(1, 2), ratio(2, 4)],
-            output: True
-        },
-        {
-            description: "1/2 >= -1 == true",
-            main: ratioGeqIntScript,
-            inputs: [ratio(1, 2), int(-1)],
-            output: True
-        },
-        {
-            description: "-1 >= 1/2 == false",
-            main: intGeqRatioScript,
-            inputs: [int(-1), ratio(1, 2)],
-            output: False
-        },
-        {
-            description: "3/2.to_real() == 1.5",
-            main: ratioToRealScript,
-            inputs: [int(3), int(2)],
-            output: real(1.5)
-        },
-        {
-            description: "-3/2.to_real() == -1.5",
-            main: ratioToRealScript,
-            inputs: [int(-3), int(2)],
-            output: real(-1.5)
-        },
-        {
-            description: "-1/1000000.to_real() == -0.000001",
-            main: ratioToRealScript,
-            inputs: [int(-1), int(1000000)],
-            output: real(-0.000001)
-        },
-        {
-            description: "-1/10000000.to_real() == 0",
-            main: ratioToRealScript,
-            inputs: [int(-1), int(10000000)],
-            output: real(0)
-        }
-    ])
+        it("1/2 / 10 == 1/20", () => {
+            runner([ratio(1, 2), int(10)], ratio(1, 20))
+        })
+    })
+
+    describe("Int / Ratio", () => {
+        const runner = compileForRun(`testing int_div_ratio
+        func main(a: Int, b: Ratio) -> Ratio {
+            a/b
+        }`)
+
+        it("10 / 1/2 == 20/1", () => {
+            runner([int(10), ratio(1, 2)], ratio(20, 1))
+        })
+    })
+
+    describe("Ratio.floor", () => {
+        const runner = compileForRun(`testing ratio_floor
+        func main(a: Ratio) -> Int {
+            a.floor()
+        }`)
+
+        it("1/2.floor() == 0", () => {
+            runner([ratio(1, 2)], int(0))
+        })
+
+        it("-1/2.floor() == -1", () => {
+            runner([ratio(-1, 2)], int(-1))
+        })
+    })
+
+    describe("Ratio.trunc", () => {
+        const runner = compileForRun(`testing ratio_trunc
+        func main(a: Ratio) -> Int {
+            a.trunc()
+        }`)
+
+        it("1/2.trunc() == 0", () => {
+            runner([ratio(1, 2)], int(0))
+        })
+
+        it("-1/2.trunc() == 0", () => {
+            runner([ratio(-1, 2)], int(0))
+        })
+    })
+
+    describe("Ratio.ceil", () => {
+        const runner = compileForRun(`testing ratio_ceil
+        func main(a: Ratio) -> Int {
+            a.ceil()
+        }`)
+
+        it("-1/2.ceil() == 0", () => {
+            runner([ratio(-1, 2)], int(0))
+        })
+
+        it("1/2.ceil() == 1", () => {
+            runner([ratio(1, 2)], int(1))
+        })
+
+        it("-2/2.ceil() == -1", () => {
+            runner([ratio(-2, 2)], int(-1))
+        })
+
+        it("2/2.ceil() == 1", () => {
+            runner([ratio(2, 2)], int(1))
+        })
+
+        it("10000001/10000000.ceil() == 2", () => {
+            runner([ratio(10000001, 10000000)], int(2))
+        })
+    })
+
+    describe("Ratio < Ratio", () => {
+        const runner = compileForRun(`testing ratio_lt
+        func main(a: Ratio, b: Ratio) -> Bool {
+            a < b
+        }`)
+
+        it("1/2 < 1/4 == false", () => {
+            runner([ratio(1, 2), ratio(1, 4)], False)
+        })
+
+        it("1/4 < 1/2 == true", () => {
+            runner([ratio(1, 4), ratio(1, 2)], True)
+        })
+    })
+
+    describe("Ratio < Int", () => {
+        const runner = compileForRun(`testing ratio_lt_int
+        func main(a: Ratio, b: Int) -> Bool {
+            a < b
+        }`)
+
+        it("1/2 < 1 == true", () => {
+            runner([ratio(1, 2), int(1)], True)
+        })
+
+        it("1/2 < 0 == false", () => {
+            runner([ratio(1, 2), int(0)], False)
+        })
+
+        it("2/2 < 1 == false", () => {
+            runner([ratio(2, 2), int(1)], False)
+        })
+    })
+
+    describe("Int < Ratio", () => {
+        const runner = compileForRun(`testing int_lt_ratio
+        func main(a: Int, b: Ratio) -> Bool {
+            a < b
+        }`)
+
+        it("1 < 1/2 == false", () => {
+            runner([int(1), ratio(1, 2)], False)
+        })
+
+        it("0 < 1/2 == true", () => {
+            runner([int(0), ratio(1, 2)], True)
+        })
+
+        it("1 < 2/2 == false", () => {
+            runner([int(1), ratio(2, 2)], False)
+        })
+    })
+
+    describe("Ratio <= Ratio", () => {
+        const runner = compileForRun(`testing ratio_leq
+        func main(a: Ratio, b: Ratio) -> Bool {
+            a <= b
+        }`)
+
+        it("1/2 <= 1/4 == false", () => {
+            runner([ratio(1, 2), ratio(1, 4)], False)
+        })
+
+        it("1/2 <= 2/4 == true", () => {
+            runner([ratio(1, 2), ratio(2, 4)], True)
+        })
+
+        it("2/2 <= 2/4 == false", () => {
+            runner([ratio(2, 2), ratio(2, 4)], False)
+        })
+    })
+
+    describe("Ratio <= Int", () => {
+        const runner = compileForRun(`testing ratio_leq_int
+        func main(a: Ratio, b: Int) -> Bool {
+            a <= b
+        }`)
+
+        it("1/2 <= 1 == true", () => {
+            runner([ratio(1, 2), int(1)], True)
+        })
+
+        it("2/2 <= 1 == true", () => {
+            runner([ratio(2, 2), int(1)], True)
+        })
+
+        it("1000001/1000000 <= 1 == false", () => {
+            runner([ratio(1000001, 1000000), int(1)], False)
+        })
+    })
+
+    describe("Int <= Ratio", () => {
+        const runner = compileForRun(`testing int_leq_ratio
+        func main(a: Int, b: Ratio) -> Bool {
+            a <= b
+        }`)
+
+        it("1 <= 1/2 == false", () => {
+            runner([int(1), ratio(1, 2)], False)
+        })
+    })
+
+    describe("Ratio > Ratio", () => {
+        const runner = compileForRun(`testing ratio_gt
+        func main(a: Ratio, b: Ratio) -> Bool {
+            a > b
+        }`)
+
+        it("1/2 > 1/4 == true", () => {
+            runner([ratio(1, 2), ratio(1, 4)], True)
+        })
+
+        it("1/2 > 2/4 == false", () => {
+            runner([ratio(1, 2), ratio(2, 4)], False)
+        })
+    })
+
+    describe("Ratio > Int", () => {
+        const runner = compileForRun(`testing ratio_gt_int
+        func main(a: Ratio, b: Int) -> Bool {
+            a > b
+        }`)
+
+        it("1/2 > 1 == false", () => {
+            runner([ratio(1, 2), int(1)], False)
+        })
+
+        it("1/0 > 1 == false", () => {
+            runner([ratio(1, 0), int(1)], True)
+        })
+    })
+
+    describe("Int > Ratio", () => {
+        const runner = compileForRun(`testing int_gt_ratio
+        func main(a: Int, b: Ratio) -> Bool {
+            a > b
+        }`)
+
+        it("1 > 1/2 == true", () => {
+            runner([int(1), ratio(1, 2)], True)
+        })
+    })
+
+    describe("Ratio >= Ratio", () => {
+        const runner = compileForRun(`testing ratio_geq
+        func main(a: Ratio, b: Ratio) -> Bool {
+            a >= b
+        }`)
+
+        it("1/2 >= 1/4 == true", () => {
+            runner([ratio(1, 2), ratio(1, 4)], True)
+        })
+
+        it("1/2 >= 2/4 == true", () => {
+            runner([ratio(1, 2), ratio(2, 4)], True)
+        })
+    })
+
+    describe("Ratio >= Int", () => {
+        const runner = compileForRun(`testing ratio_geq_int
+        func main(a: Ratio, b: Int) -> Bool {
+            a >= b
+        }`)
+
+        it("1/2 >= -1 == true", () => {
+            runner([ratio(1, 2), int(-1)], True)
+        })
+    })
+
+    describe("Int >= Ratio", () => {
+        const runner = compileForRun(`testing int_geq_ratio
+        func main(a: Int, b: Ratio) -> Bool {
+            a >= b
+        }`)
+
+        it("-1 >= 1/2 == false", () => {
+            runner([int(-1), ratio(1, 2)], False)
+        })
+    })
+
+    describe("Ratio.to_real", () => {
+        const runner = compileForRun(`testing ratio_to_real
+        func main(a: Int, b: Int) -> Real {
+            Ratio::new(a, b).to_real()
+        }`)
+
+        it("3/2.to_real() == 1.5", () => {
+            runner([int(3), int(2)], real(1.5))
+        })
+
+        it("-3/2.to_real() == -1.5", () => {
+            runner([int(-3), int(2)], real(-1.5))
+        })
+
+        it("-1/1000000.to_real() == -0.000001", () => {
+            runner([int(-1), int(1000000)], real(-0.000001))
+        })
+
+        it("-1/10000000.to_real() == 0", () => {
+            runner([int(-1), int(10000000)], real(0))
+        })
+    })
+
+    describe("Ratio::is_valid_data", () => {
+        const runner = compileForRun(`testing ratio_is_valid_data
+        func main(data: Data) -> Bool {
+            Ratio::is_valid_data(data)
+        }`)
+
+        it("true for ratio", () => {
+            runner([ratio(1, 1)], True)
+        })
+
+        it("true for list of two ints", () => {
+            runner([list(int(1), int(1))], True)
+        })
+
+        it("false for int", () => {
+            runner([int(1)], False)
+        })
+
+        it("false for bytes", () => {
+            runner([bytes("")], False)
+        })
+
+        it("false for constr", () => {
+            runner([constr(0)], False)
+        })
+
+        it("false for map", () => {
+            runner([map([])], False)
+        })
+
+        it("false for empty list", () => {
+            runner([list()], False)
+        })
+
+        it("false for list with wrong entry", () => {
+            runner([list(int(0), bytes(""))], False)
+        })
+
+        it("false for list with too many entries", () => {
+            runner([list(int(0), int(0), int(0))], False)
+        })
+    })
 })

@@ -1,216 +1,258 @@
-import { describe } from "node:test"
-import { compileAndRunMany, True, map, int, False, list } from "./utils.js"
+import { describe, it } from "node:test"
+import { True, map, int, False, list, compileForRun, bytes } from "./utils.js"
 
 describe("Map", () => {
-    const mapEqScript = `testing map_eq
-    func main(a: Map[Int]Int, b: Map[Int]Int) -> Bool {
-        a == b
-    }`
+    describe("Map[Int]Int == Map[Int]Int", () => {
+        const runner = compileForRun(`testing map_eq
+        func main(a: Map[Int]Int, b: Map[Int]Int) -> Bool {
+            a == b
+        }`)
 
-    const mapAllKeysGtScript = `testing map_all_keys_gt
-    func main(a: Map[Int]Int, gt: Int) -> Bool {
-        a.all_keys((k: Int) -> {k > gt})
-    }`
+        it("{1: 1} == {1: 1} is true", () => {
+            runner([map([[int(1), int(1)]]), map([[int(1), int(1)]])], True)
+        })
 
-    const mapAllValuesGtScript = `testing map_all_values_gt
-    func main(a: Map[Int]Int, gt: Int) -> Bool {
-        a.all_values((v: Int) -> {v > gt})
-    }`
+        it("{1: 1} == {1: 2} is false", () => {
+            runner([map([[int(1), int(1)]]), map([[int(1), int(2)]])], False)
+        })
+    })
 
-    const mapAnyKeyScript = `testing map_any_key
-    func main(a: Map[Int]Int, k: Int) -> Bool {
-        a.any_key((k_: Int) -> {k_ == k})
-    }`
+    describe("Map[Int]Int.all_keys", () => {
+        const runner = compileForRun(`testing map_all_keys_gt
+        func main(a: Map[Int]Int, gt: Int) -> Bool {
+            a.all_keys((k: Int) -> {k > gt})
+        }`)
 
-    const mapAnyValueScript = `testing map_any_value
-    func main(a: Map[Int]Int, k: Int) -> Bool {
-        a.any_value((k_: Int) -> {k_ == k})
-    }`
+        it("all_keys of {1: 1, 2: 2} > 2 is false", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)]
+                    ]),
+                    int(2)
+                ],
+                False
+            )
+        })
 
-    const mapFoldWithListScript = `testing map_fold_with_list
-    func main(a: Map[Int]Int, z0: Int, b: []Int) -> Int {
-        a.fold_with_list((z: Int, key: Int, value: Int, item: Int) -> {
-            z + (key + value)*item
-        }, z0, b)
-    }`
+        it("all_keys of {1: 1, 2: 2} > 0 is true", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)]
+                    ]),
+                    int(0)
+                ],
+                True
+            )
+        })
+    })
 
-    const mapFold2Script = `testing map_fold2
-    func main(a: Map[Int]Int) -> Int {
-        (ks, vs) = a.fold2((ks: Int, vs: Int, key: Int, value: Int) -> {
-            (ks + key, vs + value)
-        }, 0, 0);
+    describe("Map[Int]Int.all_values", () => {
+        const runner = compileForRun(`testing map_all_values_gt
+        func main(a: Map[Int]Int, gt: Int) -> Bool {
+            a.all_values((v: Int) -> {v > gt})
+        }`)
 
-        ks*vs
-    }`
+        it("all_values of {1: 1, 2: 2} > 2 is false", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)]
+                    ]),
+                    int(2)
+                ],
+                False
+            )
+        })
 
-    compileAndRunMany([
-        {
-            description: "{1: 1} == {1: 1} is true",
-            main: mapEqScript,
-            inputs: [map([[int(1), int(1)]]), map([[int(1), int(1)]])],
-            output: True
-        },
-        {
-            description: "{1: 1} == {1: 2} is false",
-            main: mapEqScript,
-            inputs: [map([[int(1), int(1)]]), map([[int(1), int(2)]])],
-            output: False
-        },
-        {
-            description: "all_keys of {1: 1, 2: 2} > 2 is false",
-            main: mapAllKeysGtScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)]
-                ]),
-                int(2)
-            ],
-            output: False
-        },
-        {
-            description: "all_keys of {1: 1, 2: 2} > 0 is true",
-            main: mapAllKeysGtScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)]
-                ]),
-                int(0)
-            ],
-            output: True
-        },
-        {
-            description: "all_values of {1: 1, 2: 2} > 2 is false",
-            main: mapAllValuesGtScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)]
-                ]),
-                int(2)
-            ],
-            output: False
-        },
-        {
-            description: "any_key of {1: 1, 2: 2} is 3 is false",
-            main: mapAnyKeyScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)]
-                ]),
-                int(3)
-            ],
-            output: False
-        },
-        {
-            description: "any_key of {1: 1, 2: 2, 3: 3} is 3 is true",
-            main: mapAnyKeyScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)],
-                    [int(3), int(3)]
-                ]),
-                int(3)
-            ],
-            output: True
-        },
-        {
-            description: "any_value of {1: 1, 2: 2} is 3 is false",
-            main: mapAnyValueScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)]
-                ]),
-                int(3)
-            ],
-            output: False
-        },
-        {
-            description: "any_value of {1: 1, 2: 2, 3: 3} is 3 is true",
-            main: mapAnyValueScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)],
-                    [int(3), int(3)]
-                ]),
-                int(3)
-            ],
-            output: True
-        },
-        {
-            description:
-                "fold_with_list throws an error if the list is shorter",
-            main: mapFoldWithListScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)],
-                    [int(3), int(3)]
-                ]),
-                int(0),
-                list(int(1), int(1))
-            ],
-            output: { error: "" }
-        },
-        {
-            description: "fold_with_list correctly sums",
-            main: mapFoldWithListScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)],
-                    [int(3), int(3)]
-                ]),
-                int(0),
-                list(int(1), int(1), int(1))
-            ],
-            output: int(12)
-        },
-        {
-            description:
-                "fold_with_list correctly sums even if list is too long",
-            main: mapFoldWithListScript,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)],
-                    [int(3), int(3)]
-                ]),
-                int(0),
-                list(int(1), int(1), int(1), int(1))
-            ],
-            output: int(12)
-        },
-        {
-            description: "fold2 can correctly sums keys and values separately",
-            main: mapFold2Script,
-            inputs: [
-                map([
-                    [int(1), int(1)],
-                    [int(2), int(2)],
-                    [int(3), int(3)]
-                ])
-            ],
-            output: int(36)
-        },
-        {
-            description:
-                "fold2 can correctly sums keys and values separately with single entry",
-            main: mapFold2Script,
-            inputs: [map([[int(1), int(1)]])],
-            output: int(1)
-        },
-        {
-            description:
-                "fold2 can correctly sums keys and values separately with no entries",
-            main: mapFold2Script,
-            inputs: [map([])],
-            output: int(0)
-        }
-    ])
+        it("all_values of {1: 1, 2: 2} > 0 is true", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)]
+                    ]),
+                    int(0)
+                ],
+                True
+            )
+        })
+    })
+
+    describe("Map[Int]Int.any_key", () => {
+        const runner = compileForRun(`testing map_any_key_equal
+        func main(a: Map[Int]Int, k: Int) -> Bool {
+            a.any_key((k_: Int) -> {k_ == k})
+        }`)
+
+        it("any_key of {1: 1, 2: 2} is 3 is false", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)]
+                    ]),
+                    int(3)
+                ],
+                False
+            )
+        })
+
+        it("any_key of {1: 1, 2: 2, 3: 3} is 3 is true", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)],
+                        [int(3), int(3)]
+                    ]),
+                    int(3)
+                ],
+                True
+            )
+        })
+    })
+
+    describe("Map[Int]Int.any_value", () => {
+        const runner = compileForRun(`testing map_any_value_equal
+        func main(a: Map[Int]Int, k: Int) -> Bool {
+            a.any_value((k_: Int) -> {k_ == k})
+        }`)
+
+        it("any_value of {1: 1, 2: 2} is 3 is false", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)]
+                    ]),
+                    int(3)
+                ],
+                False
+            )
+        })
+
+        it("any_value of {1: 1, 2: 2, 3: 3} is 3 is true", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)],
+                        [int(3), int(3)]
+                    ]),
+                    int(3)
+                ],
+                True
+            )
+        })
+    })
+
+    describe("Map[Int]Int.fold_with_list", () => {
+        const runner = compileForRun(`testing map_fold_with_list
+        func main(a: Map[Int]Int, z0: Int, b: []Int) -> Int {
+            a.fold_with_list((z: Int, key: Int, value: Int, item: Int) -> {
+                z + (key + value)*item
+            }, z0, b)
+        }`)
+
+        it("fold_with_list throws an error if the list is shorter", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)],
+                        [int(3), int(3)]
+                    ]),
+                    int(0),
+                    list(int(1), int(1))
+                ],
+                { error: "" }
+            )
+        })
+
+        it("fold_with_list correctly sums", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)],
+                        [int(3), int(3)]
+                    ]),
+                    int(0),
+                    list(int(1), int(1), int(1))
+                ],
+                int(12)
+            )
+        })
+
+        it("fold_with_list correctly sums even if list is too long", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)],
+                        [int(3), int(3)]
+                    ]),
+                    int(0),
+                    list(int(1), int(1), int(1), int(1))
+                ],
+                int(12)
+            )
+        })
+    })
+
+    describe("Map[Int]Int.fold2", () => {
+        const runner = compileForRun(`testing map_fold2
+        func main(a: Map[Int]Int) -> Int {
+            (ks, vs) = a.fold2((ks: Int, vs: Int, key: Int, value: Int) -> {
+                (ks + key, vs + value)
+            }, 0, 0);
+    
+            ks*vs
+        }`)
+
+        it("fold2 can correctly sums keys and values separately", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)],
+                        [int(3), int(3)]
+                    ])
+                ],
+                int(36)
+            )
+        })
+
+        it("fold2 can correctly sums keys and values separately with single entry", () => {
+            runner([map([[int(1), int(1)]])], int(1))
+        })
+
+        it("fold2 can correctly sums keys and values separately with no entries", () => {
+            runner([map([])], int(0))
+        })
+    })
+
+    describe("Map[Int]Int::is_valid_data", () => {
+        const runner = compileForRun(`testing map_is_valid_data
+        func main(data: Data) -> Bool {
+            Map[Int]Int::is_valid_data(data)
+        }`)
+
+        it("ok for empty map", () => {
+            runner([map([])], True)
+        })
+
+        it("ok for map with 1 entry", () => {
+            runner([map([[int(0), int(0)]])], True)
+        })
+
+        it("ok for map with 1 wrong entry", () => {
+            runner([map([[int(0), bytes("")]])], False)
+        })
+    })
 })
