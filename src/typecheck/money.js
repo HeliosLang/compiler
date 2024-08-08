@@ -79,6 +79,7 @@ export const ValueType = new GenericType({
         ),
         get_safe: new FuncType([AssetClassType], IntType),
         is_zero: new FuncType([], BoolType),
+        sort: new FuncType([], self),
         to_map: new FuncType(
             [],
             MapType$(MintingPolicyHashType, MapType$(ByteArrayType, IntType))
@@ -108,6 +109,10 @@ export const ValueType = new GenericType({
                 self
             ),
             from_flat: new FuncType([MapType$(AssetClassType, IntType)], self),
+            from_flat_safe: new FuncType(
+                [MapType$(AssetClassType, IntType)],
+                self
+            ),
             // TODO: should be getter
             lovelace: new FuncType([IntType], self),
             new: new FuncType([AssetClassType, IntType], self),

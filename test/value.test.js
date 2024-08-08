@@ -624,6 +624,22 @@ describe("Value", () => {
             )
         })
 
+        it("ignores 0s", () => {
+            runner(
+                [
+                    map([
+                        [assetclass("abcd", "abcd"), int(1)],
+                        [assetclass("abcd", ""), int(0)],
+                        [assetclass("ef01", ""), int(2)]
+                    ])
+                ],
+                map([
+                    [bytes("abcd"), map([[bytes("abcd"), int(1)]])],
+                    [bytes("ef01"), map([[bytes(""), int(2)]])]
+                ])
+            )
+        })
+
         it("fails for two tokens with same policy but different name, and other pair with same asset class that sorts after", () => {
             runner(
                 [
@@ -635,6 +651,128 @@ describe("Value", () => {
                     ])
                 ],
                 { error: "" }
+            )
+        })
+    })
+
+    describe("Value::from_flat_safe", () => {
+        const runner = compileForRun(`testing value_from_flat_safe
+        func main(v: Map[AssetClass]Int) -> Value {
+            Value::from_flat_safe(v)
+        }`)
+
+        it("ok for two tokens with same policy but different name, and other pair with same asset class that sorts after", () => {
+            runner(
+                [
+                    map([
+                        [assetclass("ef01", ""), int(2)],
+                        [assetclass("abcd", "abcd"), int(1)],
+                        [assetclass("abcd", ""), int(1)],
+                        [assetclass("ef01", ""), int(2)]
+                    ])
+                ],
+                map([
+                    [
+                        bytes("abcd"),
+                        map([
+                            [bytes(""), int(1)],
+                            [bytes("abcd"), int(1)]
+                        ])
+                    ],
+                    [bytes("ef01"), map([[bytes(""), int(4)]])]
+                ])
+            )
+        })
+
+        it("ignores tokens that sum to 0", () => {
+            runner(
+                [
+                    map([
+                        [assetclass("ef01", ""), int(2)],
+                        [assetclass("abcd", "abcd"), int(1)],
+                        [assetclass("abcd", ""), int(1)],
+                        [assetclass("ef01", ""), int(-2)]
+                    ])
+                ],
+                map([
+                    [
+                        bytes("abcd"),
+                        map([
+                            [bytes(""), int(1)],
+                            [bytes("abcd"), int(1)]
+                        ])
+                    ]
+                ])
+            )
+        })
+    })
+
+    describe("Value.sort", () => {
+        const runner = compileForRun(`testing value_sort
+        func main(v: Value) -> Value {
+            v.sort()
+        }`)
+
+        it("ok for empty", () => {
+            runner([map([])], map([]))
+        })
+
+        it("ok for single mph with two different tokens", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes("abcd"),
+                            map([
+                                [bytes("abcd"), int(1)],
+                                [bytes(""), int(1)]
+                            ])
+                        ]
+                    ])
+                ],
+                map([
+                    [
+                        bytes("abcd"),
+                        map([
+                            [bytes(""), int(1)],
+                            [bytes("abcd"), int(1)]
+                        ])
+                    ]
+                ])
+            )
+        })
+
+        it("ok for single mph with two identical tokens", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes("abcd"),
+                            map([
+                                [bytes("abcd"), int(1)],
+                                [bytes("abcd"), int(1)]
+                            ])
+                        ]
+                    ])
+                ],
+                map([[bytes("abcd"), map([[bytes("abcd"), int(2)]])]])
+            )
+        })
+
+        it("ignores quantities that sum to 0", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes("abcd"),
+                            map([
+                                [bytes("abcd"), int(1)],
+                                [bytes("abcd"), int(-1)]
+                            ])
+                        ]
+                    ])
+                ],
+                map([])
             )
         })
     })

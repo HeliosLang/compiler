@@ -10690,8 +10690,85 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            `__helios__value__from_flat`,
-            `(flat_map) -> {
+            `__helios__value__prepend_inner`,
+            `(inner_tail, token_name_data, qty_data) -> {
+			__core__ifThenElse(
+				__core__equalsData(qty_data, __core__iData(0)),
+				() -> {
+					inner_tail
+				},
+				() -> {
+					__core__mkCons(
+						__core__mkPairData(
+							token_name_data,
+							qty_data
+						),
+						inner_tail
+					)
+				}
+			)()
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__value__prepend_outer`,
+            `(outer_tail, mph_data, tokens) -> {
+			__core__chooseList(
+				tokens,
+				() -> {
+					outer_tail
+				},
+				() -> {
+					__core__mkCons(
+						__core__mkPairData(
+							mph_data,
+							__core__mapData(tokens)
+						),
+						outer_tail
+					)
+				}
+			)()
+		}`
+        )
+    )
+    // Value::from_flat and Value::from_flat_safe
+    ;[
+        {
+            suffix: "",
+            handleInnerDuplicate: `__helios__error("duplicate assetclass in flat map (inner)")`,
+            handleOuterDuplicate: `__helios__error("duplicate assetclass in flat map (outer)")`
+        },
+        {
+            suffix: "_safe",
+            handleInnerDuplicate: `recurse_inner(
+				tail,
+				this_mph_data, 
+				this_token_name_data, 
+				__core__iData(
+					__core__addInteger(
+						__core__unIData(this_qty_data),
+						__core__unIData(next_qty_data)
+					)
+				)
+			)`,
+            handleOuterDuplicate: `recurse_outer(
+				tail, 
+				this_mph_data, 
+				this_token_name_data, 
+				__core__iData(
+					__core__addInteger(
+						__core__unIData(this_qty_data),
+						__core__unIData(next_qty_data)
+					)
+				)
+			)`
+        }
+    ].forEach(({ suffix, handleInnerDuplicate, handleOuterDuplicate }) => {
+        add(
+            new RawFunc(
+                `__helios__value__from_flat${suffix}`,
+                `(flat_map) -> {
 				__core__chooseList(
 					flat_map,
 					() -> {
@@ -10706,20 +10783,14 @@ export function makeRawFunctions(simplify, isTestnet) {
 							__core__chooseList(
 								flat_map,
 								() -> {
-									__core__mkCons(
-										__core__mkPairData(
-											this_mph_data,
-											__core__mapData(
-												__core__mkCons(
-													__core__mkPairData(
-														this_token_name_data,
-														this_qty_data
-													),
-													__core__mkNilPairData(())
-												)
-											)
-										),
-										__core__mkNilPairData(())
+									__helios__value__prepend_outer(
+										__core__mkNilPairData(()),
+										this_mph_data,
+										__helios__value__prepend_inner(
+											__core__mkNilPairData(()),
+											this_token_name_data,
+											this_qty_data
+										)
 									)
 								},
 								() -> {
@@ -10736,7 +10807,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 											__core__ifThenElse(
 												__core__equalsData(this_token_name_data, next_token_name_data),
 												() -> {
-													__helios__error("duplicate assetclass in flat map (outer)")
+													${handleOuterDuplicate}
 												},
 												() -> {
 													// recurse_inner keeps inner and outer map separate
@@ -10746,12 +10817,10 @@ export function makeRawFunctions(simplify, isTestnet) {
 															() -> {
 																(callback) -> {
 																	callback(
-																		__core__mkCons(
-																			__core__mkPairData(
-																				this_token_name_data,
-																				this_qty_data
-																			),
-																			__core__mkNilPairData(())
+																		__helios__value__prepend_inner(
+																			__core__mkNilPairData(()),
+																			this_token_name_data,
+																			this_qty_data
 																		),
 																		__core__mkNilPairData(())
 																	)
@@ -10771,20 +10840,23 @@ export function makeRawFunctions(simplify, isTestnet) {
 																		__core__ifThenElse(
 																			__core__equalsData(this_token_name_data, next_token_name_data),
 																			() -> {
-																				__helios__error("duplicate assetclass in flat map (inner)")
+																				${handleInnerDuplicate}
 																			},
 																			() -> {
-																				callback_tail = recurse_inner(tail, next_mph_data, next_token_name_data, next_qty_data);
+																				callback_tail = recurse_inner(
+																					tail, 
+																					next_mph_data, 
+																					next_token_name_data, 
+																					next_qty_data
+																				);
 
 																				callback_tail((inner_tail, outer_tail) -> {
 																					(callback) -> {
 																						callback(
-																							__core__mkCons(
-																								__core__mkPairData(
-																									this_token_name_data, 
-																									this_qty_data
-																								),
-																								inner_tail
+																							__helios__value__prepend_inner(
+																								inner_tail,
+																								this_token_name_data, 
+																								this_qty_data
 																							),
 																							outer_tail
 																						)
@@ -10794,16 +10866,19 @@ export function makeRawFunctions(simplify, isTestnet) {
 																		)()
 																	},
 																	() -> {
-																		outer_tail = recurse_outer(tail, next_mph_data, next_token_name_data, next_qty_data);
+																		outer_tail = recurse_outer(
+																			tail, 
+																			next_mph_data, 
+																			next_token_name_data, 
+																			next_qty_data
+																		);
 
 																		(callback) -> {
 																			callback(
-																				__core__mkCons(
-																					__core__mkPairData(
-																						this_token_name_data,
-																						this_qty_data
-																					),
-																					__core__mkNilPairData(())
+																				__helios__value__prepend_inner(
+																					__core__mkNilPairData(()),
+																					this_token_name_data,
+																					this_qty_data
 																				),
 																				outer_tail
 																			)
@@ -10814,45 +10889,45 @@ export function makeRawFunctions(simplify, isTestnet) {
 														)()
 													};
 
-													callback = recurse_inner(tail, next_mph_data, next_token_name_data, next_qty_data);
+													callback = recurse_inner(
+														tail, 
+														next_mph_data, 
+														next_token_name_data, 
+														next_qty_data
+													);
 
 													callback((inner_tail, outer_tail) -> {
-														inner = __core__mkCons(
-															__core__mkPairData(
-																this_token_name_data,
-																this_qty_data
-															),
-															inner_tail
+														inner = __helios__value__prepend_inner(
+															inner_tail,
+															this_token_name_data,
+															this_qty_data
 														);
 		
-														__core__mkCons(
-															__core__mkPairData(
-																this_mph_data,
-																__core__mapData(inner)
-															),
-															outer_tail
+														__helios__value__prepend_outer(
+															outer_tail,
+															this_mph_data,
+															inner
 														)
 													})
 												}
 											)()
 										},
 										() -> {
-											outer_tail = recurse_outer(__core__tailList(flat_map), next_mph_data, next_token_name_data, next_qty_data);
+											outer_tail = recurse_outer(
+												__core__tailList(flat_map), 
+												next_mph_data, 
+												next_token_name_data, 
+												next_qty_data
+											);
 
-											__core__mkCons(
-												__core__mkPairData(
-													this_mph_data,
-													__core__mapData(
-														__core__mkCons(
-															__core__mkPairData(
-																this_token_name_data,
-																this_qty_data
-															),
-															__core__mkNilPairData(())
-														)
-													)
-												),
-												outer_tail
+											__helios__value__prepend_outer(
+												outer_tail,
+												this_mph_data,
+												__helios__value__prepend_inner(
+													__core__mkNilPairData(()),
+													this_token_name_data,
+													this_qty_data
+												)
 											)
 										}
 									)()
@@ -10872,6 +10947,17 @@ export function makeRawFunctions(simplify, isTestnet) {
 				)()
 				
 			}`
+            )
+        )
+    })
+    add(
+        new RawFunc(
+            `__helios__value__sort`,
+            `(self) -> {
+			() -> {
+				__helios__value__from_flat_safe(__helios__value__flatten(self)())
+			}
+		}`
         )
     )
 
