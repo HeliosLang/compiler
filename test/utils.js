@@ -1,5 +1,5 @@
 import assert, { strictEqual, throws } from "node:assert"
-import { describe, it } from "node:test"
+import { it } from "node:test"
 import { bytesToHex, encodeUtf8 } from "@helios-lang/codec-utils"
 import { isLeft, isRight } from "@helios-lang/type-utils"
 import {
@@ -103,6 +103,62 @@ export function compileAndRun(test) {
             )
         }
     })
+}
+
+/**
+ * @param {string} mainSrc
+ * @param {string[]} moduleSrcs
+ * @returns {(inputs: UplcData[], output: HeliosTestOutput) => void}
+ */
+export function compileForRun(mainSrc, moduleSrcs = []) {
+    const program = new Program(mainSrc, {
+        moduleSources: moduleSrcs,
+        isTestnet: true
+    })
+
+    const uplc0 = program.compile(false)
+    const hash0 = bytesToHex(uplc0.hash())
+    const uplc1 = program.compile(true)
+    const hash1 = bytesToHex(uplc1.hash())
+
+    return (inputs, output) => {
+        const args = inputs.map((d) => new UplcDataValue(d))
+
+        const result0 = uplc0.eval(args)
+
+        resultEquals(result0, output)
+
+        if (hash1 != hash0) {
+            const result1 = uplc1.eval(args)
+
+            resultEquals(result1, output)
+
+            // also make sure the costs and size are smaller
+            const size0 = uplc0.toCbor().length
+            const size1 = uplc1.toCbor().length
+
+            assert(
+                size1 < size0,
+                `optimization didn't improve size (!(${size1} < ${size0}))`
+            )
+
+            const costMem0 = result0.cost.mem
+            const costMem1 = result1.cost.mem
+
+            assert(
+                costMem1 < costMem0,
+                `optimization didn't improve mem cost (!(${costMem1.toString()} < ${costMem0.toString()}))`
+            )
+
+            const costCpu0 = result0.cost.cpu
+            const costCpu1 = result1.cost.cpu
+
+            assert(
+                costCpu1 < costCpu0,
+                `optimization didn't improve cpu cost (!(${costCpu1.toString()} < ${costCpu0.toString()}))`
+            )
+        }
+    }
 }
 
 /**
@@ -316,7 +372,3 @@ function expectedResultToString(result) {
 function resultEquals(actual, expected) {
     strictEqual(cekResultToString(actual), expectedResultToString(expected))
 }
-
-describe("utils", () => {
-    it("dummy", () => {})
-})

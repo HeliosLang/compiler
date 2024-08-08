@@ -107,6 +107,8 @@ export const ValueType = new GenericType({
                 ],
                 self
             ),
+            from_flat: new FuncType([MapType$(AssetClassType, IntType)], self),
+            // TODO: should be getter
             lovelace: new FuncType([IntType], self),
             new: new FuncType([AssetClassType, IntType], self),
             sum: (() => {

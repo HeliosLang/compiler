@@ -9508,9 +9508,25 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__assetclass__mph_data",
+            `(self) -> {
+		__helios__common__enum_field_0(self)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__assetclass__token_name",
             `(self) -> {
 		__helios__bytearray__from_data(__helios__common__enum_field_1(self))
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__assetclass__token_name_data",
+            `(self) -> {
+		__helios__common__enum_field_1(self)			
 	}`
         )
     )
@@ -10669,6 +10685,192 @@ export function makeRawFunctions(simplify, isTestnet) {
 				() -> {
 					__helios__value__delete_policy(self)(#)
 				}
+			}`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__value__from_flat`,
+            `(flat_map) -> {
+				__core__chooseList(
+					flat_map,
+					() -> {
+						__core__mkNilPairData(())
+					},
+					() -> {
+						sorted_map = __helios__map[__helios__assetclass@__helios__int]__sort(flat_map)((keya, _, keyb, _) -> {
+							__helios__assetclass____lt(keya, keyb)
+						});
+
+						recurse_outer = (flat_map, this_mph_data, this_token_name_data, this_qty_data) -> {
+							__core__chooseList(
+								flat_map,
+								() -> {
+									__core__mkCons(
+										__core__mkPairData(
+											this_mph_data,
+											__core__mapData(
+												__core__mkCons(
+													__core__mkPairData(
+														this_token_name_data,
+														this_qty_data
+													),
+													__core__mkNilPairData(())
+												)
+											)
+										),
+										__core__mkNilPairData(())
+									)
+								},
+								() -> {
+									head = __core__headList(flat_map);
+									tail = __core__tailList(flat_map);
+									next_assetclass = __helios__assetclass__from_data(__core__fstPair(head));							
+									next_mph_data = __helios__assetclass__mph_data(next_assetclass);
+									next_token_name_data = __helios__assetclass__token_name_data(next_assetclass);
+									next_qty_data = __core__sndPair(head);
+
+									__core__ifThenElse(
+										__core__equalsData(this_mph_data, next_mph_data),
+										() -> {
+											__core__ifThenElse(
+												__core__equalsData(this_token_name_data, next_token_name_data),
+												() -> {
+													__helios__error("duplicate assetclass in flat map (outer)")
+												},
+												() -> {
+													// recurse_inner keeps inner and outer map separate
+													recurse_inner = (flat_map, this_mph_data, this_token_name_data, this_qty_data) -> {
+														__core__chooseList(
+															flat_map,
+															() -> {
+																(callback) -> {
+																	callback(
+																		__core__mkCons(
+																			__core__mkPairData(
+																				this_token_name_data,
+																				this_qty_data
+																			),
+																			__core__mkNilPairData(())
+																		),
+																		__core__mkNilPairData(())
+																	)
+																}
+															},
+															() -> {
+																head = __core__headList(flat_map);
+																tail = __core__tailList(flat_map);
+																next_assetclass = __helios__assetclass__from_data(__core__fstPair(head));							
+																next_mph_data = __helios__assetclass__mph_data(next_assetclass);
+																next_token_name_data = __helios__assetclass__token_name_data(next_assetclass);
+																next_qty_data = __core__sndPair(head);
+
+																__core__ifThenElse(
+																	__core__equalsData(this_mph_data, next_mph_data),
+																	() -> {
+																		__core__ifThenElse(
+																			__core__equalsData(this_token_name_data, next_token_name_data),
+																			() -> {
+																				__helios__error("duplicate assetclass in flat map (inner)")
+																			},
+																			() -> {
+																				callback_tail = recurse_inner(tail, next_mph_data, next_token_name_data, next_qty_data);
+
+																				callback_tail((inner_tail, outer_tail) -> {
+																					(callback) -> {
+																						callback(
+																							__core__mkCons(
+																								__core__mkPairData(
+																									this_token_name_data, 
+																									this_qty_data
+																								),
+																								inner_tail
+																							),
+																							outer_tail
+																						)
+																					}
+																				})
+																			}
+																		)()
+																	},
+																	() -> {
+																		outer_tail = recurse_outer(tail, next_mph_data, next_token_name_data, next_qty_data);
+
+																		(callback) -> {
+																			callback(
+																				__core__mkCons(
+																					__core__mkPairData(
+																						this_token_name_data,
+																						this_qty_data
+																					),
+																					__core__mkNilPairData(())
+																				),
+																				outer_tail
+																			)
+																		}
+																	}
+																)()
+															}
+														)()
+													};
+
+													callback = recurse_inner(tail, next_mph_data, next_token_name_data, next_qty_data);
+
+													callback((inner_tail, outer_tail) -> {
+														inner = __core__mkCons(
+															__core__mkPairData(
+																this_token_name_data,
+																this_qty_data
+															),
+															inner_tail
+														);
+		
+														__core__mkCons(
+															__core__mkPairData(
+																this_mph_data,
+																__core__mapData(inner)
+															),
+															outer_tail
+														)
+													})
+												}
+											)()
+										},
+										() -> {
+											outer_tail = recurse_outer(__core__tailList(flat_map), next_mph_data, next_token_name_data, next_qty_data);
+
+											__core__mkCons(
+												__core__mkPairData(
+													this_mph_data,
+													__core__mapData(
+														__core__mkCons(
+															__core__mkPairData(
+																this_token_name_data,
+																this_qty_data
+															),
+															__core__mkNilPairData(())
+														)
+													)
+												),
+												outer_tail
+											)
+										}
+									)()
+								}
+							)()
+						};
+		
+						head = __core__headList(sorted_map);
+						head_assetclass = __helios__assetclass__from_data(__core__fstPair(head));
+						recurse_outer(
+							__core__tailList(sorted_map), 
+							__helios__assetclass__mph_data(head_assetclass), 
+							__helios__assetclass__token_name_data(head_assetclass),
+							__core__sndPair(head)
+						)
+					}
+				)()
+				
 			}`
         )
     )
