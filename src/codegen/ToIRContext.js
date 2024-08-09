@@ -8,18 +8,20 @@ import { wrapWithDefs, TAB } from "./Definitions.js"
  * @typedef {import("./Definitions.js").Definitions} Definitions
  */
 
+/**
+ * @typedef {{
+ *   optimize: boolean
+ *   isTestnet: boolean
+ *   makeParamsSubstitutable?: boolean
+ * }} ToIRContextProps
+ */
+
 export class ToIRContext {
     /**
      * @readonly
-     * @type {boolean}
+     * @type {ToIRContextProps}
      */
-    simplify
-
-    /**
-     * @readonly
-     * @type {boolean}
-     */
-    isTestnet
+    props
 
     /**
      * @readonly
@@ -33,29 +35,14 @@ export class ToIRContext {
     #db
 
     /**
-     * @param {boolean} simplify
-     * @param {boolean} isTestnet
+     * @param {ToIRContextProps} props
      * @param {string} indent
      * @param {Map<string, RawFunc>} db
      */
-    constructor(simplify, isTestnet, indent = "", db = new Map()) {
-        this.simplify = simplify
-        this.isTestnet = isTestnet
+    constructor(props, indent = "", db = new Map()) {
+        this.props = props
         this.indent = indent
-
         this.#db = db
-    }
-
-    /**
-     * @returns {ToIRContext}
-     */
-    tab() {
-        return new ToIRContext(
-            this.simplify,
-            this.isTestnet,
-            this.indent + TAB,
-            this.#db
-        )
     }
 
     /**
@@ -63,10 +50,38 @@ export class ToIRContext {
      */
     get db() {
         if (this.#db.size == 0) {
-            this.#db = makeRawFunctions(this.simplify, this.isTestnet)
+            this.#db = makeRawFunctions(this.optimize, this.isTestnet)
         }
 
         return this.#db
+    }
+
+    /**
+     * @type {boolean}
+     */
+    get paramsSubsitutable() {
+        return this.props.makeParamsSubstitutable ?? false
+    }
+
+    /**
+     * @type {boolean}
+     */
+    get optimize() {
+        return this.props.optimize
+    }
+
+    /**
+     * @type {boolean}
+     */
+    get isTestnet() {
+        return this.props.isTestnet
+    }
+
+    /**
+     * @returns {ToIRContext}
+     */
+    tab() {
+        return new ToIRContext(this.props, this.indent + TAB, this.#db)
     }
 
     /**

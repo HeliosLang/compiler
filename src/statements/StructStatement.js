@@ -169,7 +169,7 @@ export class StructStatement extends Statement {
                 $(`__helios__common__identity`, this.site)
             )
 
-            if (!ctx.simplify) {
+            if (!ctx.optimize) {
                 map.set(
                     `${this.path}__from_data`,
                     $(
@@ -216,7 +216,7 @@ export class StructStatement extends Statement {
             )
 
             // the from_data method can include field checks
-            if (this.#dataDef.fieldNames.length == 1 || !!ctx.simplify) {
+            if (this.#dataDef.fieldNames.length == 1 || !!ctx.optimize) {
                 map.set(
                     `${this.path}__from_data`,
                     $(`${implPath}__from_data`, this.site)

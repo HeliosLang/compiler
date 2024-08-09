@@ -4,9 +4,11 @@
  */
 
 import { readHeader } from "@helios-lang/compiler-utils"
-import { $ } from "@helios-lang/ir"
+import {
+    collectParams,
+    prepare as prepareIR,
+} from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
-import { ToIRContext } from "../codegen/index.js"
 import {
     MintingPolicyHashType,
     ScriptHashType,
@@ -15,7 +17,7 @@ import {
     scriptHashType
 } from "../typecheck/index.js"
 import { Module } from "./Module.js"
-import { Program } from "./Program.js"
+import { IR_PARSE_OPTIONS, Program } from "./Program.js"
 import { VERSION } from "./version.js"
 
 /**
@@ -191,19 +193,60 @@ function buildDag(programs) {
 
     programs.forEach((v) => {
         const ir = v.toIR({
-            optimize: false,
+            optimize: true,
             dependsOnOwnHash: false,
+            makeParamSubstitutable: true,
             hashDependencies: Object.fromEntries(
                 validatorNames.map((name) => [name, "#"])
             )
         })
 
+        const expr = prepareIR(ir, {
+            optimize: true,
+            parseOptions: IR_PARSE_OPTIONS
+        })
+
+        const params = collectParams(expr)
+
         dag[v.name] = validatorNames.filter((name) =>
-            ir.includes(`__helios__scripts__${name}`)
+            params.has(`__helios__scripts__${name}`)
         )
     })
 
+    assertNonCircularDag(dag)
+
     return dag
+}
+
+/**
+ * Throws an error if the DAG has a circular dependency (and thus isn't actually a DAG)
+ * @param {Record<string, string[]>} dag
+ */
+function assertNonCircularDag(dag) {
+    /**
+     * Simply recursive algorithms
+     * @param {string} name
+     * @param {string[]} dependents
+     */
+    function assertNonCircular(name, dependents) {
+        const i = dependents.findIndex((d) => d == name)
+
+        if (i != -1) {
+            throw new Error(
+                `invalid DAG, circular dependecy detected: ${dependents.slice(i).join(" -> ")} -> ${name}`
+            )
+        }
+
+        const dependencies = dag[name] ?? []
+
+        dependencies.forEach((d) => {
+            assertNonCircular(d, dependents.concat([name]))
+        })
+    }
+
+    for (let name in dag) {
+        assertNonCircular(name, [])
+    }
 }
 
 /**

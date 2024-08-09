@@ -304,7 +304,7 @@ export class EnumStatement extends Statement {
         map.set(`${this.path}__show`, this.toIR_show())
 
         // there could be circular dependencies here, which is ok
-        if (!ctx.simplify) {
+        if (!ctx.optimize) {
             map.set(
                 `${this.path}__from_data`,
                 $(

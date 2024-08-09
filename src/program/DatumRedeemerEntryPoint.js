@@ -52,7 +52,11 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
      * @type {Set<string>}
      */
     get requiredParams() {
-        const ctx = new ToIRContext(false, false)
+        const ctx = new ToIRContext({
+            optimize: false,
+            isTestnet: false
+        })
+
         const ir = this.toIRInternal(ctx)
 
         return this.getRequiredParametersInternal(ctx, ir)
@@ -64,7 +68,8 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
      * @returns {UplcProgramV2}
      */
     compileDatumCheck(isTestnet) {
-        const ir = this.datumCheckToIR(new ToIRContext(false, isTestnet))
+        const ctx = new ToIRContext({ optimize: false, isTestnet: isTestnet })
+        const ir = this.datumCheckToIR(ctx)
 
         return compile(ir, {
             optimize: false,

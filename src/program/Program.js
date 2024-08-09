@@ -8,10 +8,12 @@ import {
 import { expectSome } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext } from "../codegen/index.js"
+import { PARAM_IR_MACRO, PARAM_IR_PREFIX } from "../statements/index.js"
 import { newEntryPoint } from "./newEntryPoint.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").ParseOptions} ParseOptions
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("@helios-lang/uplc").UplcValue} UplcValue
  * @typedef {import("../codegen/index.js").Definitions} Definitions
@@ -47,6 +49,16 @@ export const DEFAULT_PROGRAM_PROPS = {
     isTestnet: true,
     moduleSources: [],
     validatorTypes: {}
+}
+
+/**
+ * @type {ParseOptions}
+ */
+export const IR_PARSE_OPTIONS = {
+    ...DEFAULT_PARSE_OPTIONS,
+    builtinsPrefix: "__core__",
+    errorPrefix: "",
+    paramPrefix: PARAM_IR_PREFIX
 }
 
 /**
@@ -166,11 +178,7 @@ export class Program {
 
         return compileIR(ir, {
             optimize: optimize,
-            parseOptions: {
-                ...DEFAULT_PARSE_OPTIONS,
-                builtinsPrefix: "__core__",
-                errorPrefix: ""
-            }
+            parseOptions: IR_PARSE_OPTIONS
         })
     }
 
@@ -178,11 +186,20 @@ export class Program {
      * Generate additional IR definitions
      *   * dependency on own hash through methods defined on the ScriptContext
      *   * dependency on hashes of other validators or dependency on own precalculated hash (eg. unoptimized program should use hash of optimized program)
-     * @param {{dependsOnOwnHash: boolean, hashDependencies: Record<string, string>, optimize: boolean}} options
+     * @param {{
+     *   dependsOnOwnHash: boolean,
+     *   hashDependencies: Record<string, string>,
+     *   optimize: boolean,
+     *   makeParamSubstitutable?: boolean
+     * }} options
      * @returns {SourceMappedString}
      */
     toIR(options) {
-        const ctx = new ToIRContext(options.optimize, this.isForTestnet)
+        const ctx = new ToIRContext({
+            optimize: options.optimize,
+            isTestnet: this.isForTestnet,
+            makeParamsSubstitutable: options.makeParamSubstitutable
+        })
 
         /**
          * @type {Definitions}
@@ -191,7 +208,10 @@ export class Program {
 
         // inject hashes of other validators
         Object.entries(options.hashDependencies).forEach(([depName, dep]) => {
-            extra.set(`__helios__scripts__${depName}`, $(`#${dep}`))
+            dep = dep.startsWith("#") ? dep : `#${dep}`
+
+            const key = `__helios__scripts__${depName}`
+            extra.set(key, $`${PARAM_IR_MACRO}("${key}", ${dep})`)
         })
 
         if (options.dependsOnOwnHash) {

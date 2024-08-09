@@ -209,7 +209,7 @@ export class EnumMember {
 		}`
         )
 
-        if (!ctx.simplify) {
+        if (!ctx.optimize) {
             map.set(
                 `${this.path}__from_data`,
                 $`(data) -> {

@@ -34,7 +34,7 @@ export class MixedEntryPoint extends EntryPointImpl {
      * @type {Set<string>}
      */
     get requiredParams() {
-        const ctx = new ToIRContext(false, false)
+        const ctx = new ToIRContext({ optimize: false, isTestnet: false })
         const ir = this.toIRInternal(ctx)
 
         return this.getRequiredParametersInternal(ctx, ir)

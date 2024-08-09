@@ -15,6 +15,9 @@ import { Statement } from "./Statement.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
+export const PARAM_IR_PREFIX = "__"
+export const PARAM_IR_MACRO = `${PARAM_IR_PREFIX}param`
+
 /**
  * Const value statement
  */
@@ -137,17 +140,15 @@ export class ConstStatement extends Statement {
         let ir = expectSome(this.#valueExpr).toIR(ctx)
 
         if (this.#valueExpr instanceof LiteralDataExpr) {
-            /*ir = new IR([
-				new IR(`${this.#valueExpr.type.path}__from_data`),
-				new IR("(", this.site),
-				ir,
-				new IR(")")
-			]);*/
-
-            ir = $`${this.#valueExpr.type.path}__from_data${null}(${this.site}${ir})`
+            ir = $`${this.#valueExpr.type.path}__from_data${$("(", this.site)}${ir})`
         }
 
-        return ir
+        // if this.#valueExpr is None, and paramsSubstitutable is true -> param macro with single argument
+        if (ctx.paramsSubsitutable) {
+            return $`${PARAM_IR_MACRO}("${this.path}", ${ir})`
+        } else {
+            return ir
+        }
     }
 
     /**
