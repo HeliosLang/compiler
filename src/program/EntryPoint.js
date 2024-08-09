@@ -554,9 +554,7 @@ export class EntryPointImpl {
                             [
                                 $`__core__constrData(
                             ${enumVariant.constrIndex.toString()},
-                            __core__mkCons(
-                                __core__mkNilData(())
-                            )
+                            __core__mkNilData(())
                         )`
                             ],
                             this.mainModule.name.site

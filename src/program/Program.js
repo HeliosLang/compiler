@@ -224,6 +224,21 @@ export class Program {
             extra.set(key, ir)
         }
 
+        // also add script enum __is methods
+        if (this.props.validatorTypes) {
+            Object.keys(this.props.validatorTypes).forEach((scriptName) => {
+                const key = `__helios__script__${scriptName}____is`
+
+                // only way to instantiate a Script is via ScriptContext::current_script
+
+                const ir = $`(_) -> {
+                    ${this.name == scriptName ? "true" : "false"}
+                }`
+
+                extra.set(key, ir)
+            })
+        }
+
         return extra
     }
 }

@@ -1,6 +1,8 @@
-import { throws } from "assert"
+import { strictEqual, throws } from "node:assert"
 import { describe, it } from "node:test"
+import { removeWhitespace } from "@helios-lang/codec-utils"
 import { Program } from "./Program.js"
+import { getScriptHashType } from "./multi.js"
 
 describe(Program.name, () => {
     const basic = `testing test
@@ -115,5 +117,54 @@ describe(Program.name, () => {
 
         program.compile(false)
         program.compile(true)
+    })
+
+    it("can use Script enum", () => {
+        const mainSrc = `spending always_succeeds_script_enum
+        import { current_script } from ScriptContext
+        
+        func main(_, _) -> Bool {
+            current_script.switch{
+                always_succeeds_script_enum => true,
+                other_script => false
+            }
+        }`
+
+        const program = new Program(mainSrc, {
+            validatorTypes: {
+                always_succeeds_script_enum: getScriptHashType("spending"),
+                other_script: getScriptHashType("minting")
+            }
+        })
+
+        program.compile(false)
+        const uplc = program.compile(true)
+
+        strictEqual(
+            removeWhitespace(uplc.toString()),
+            removeWhitespace(
+                "(lam __DATUM (lam __REDEEMER (lam __CONTEXT (con unit ()))))"
+            )
+        )
+    })
+
+    it("fails if a wrong Script name is used", () => {
+        const mainSrc = `spending always_succeeds_script_enum
+        import { current_script } from ScriptContext
+        
+        func main(_, _) -> Bool {
+            current_script.switch{
+                always_succeeds_script_enum => true,
+                other_script => false
+            }
+        }`
+
+        throws(() => {
+            new Program(mainSrc, {
+                validatorTypes: {
+                    always_succeeds_script_enum: getScriptHashType("spending")
+                }
+            })
+        })
     })
 })

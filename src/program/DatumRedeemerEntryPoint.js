@@ -8,7 +8,7 @@ import {
 import { None } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { TAB, ToIRContext } from "../codegen/index.js"
-import { GlobalScope, TopScope } from "../scopes/index.js"
+import { GlobalScope } from "../scopes/index.js"
 import { BoolType, DefaultTypeClass } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
 import { Module } from "./Module.js"
