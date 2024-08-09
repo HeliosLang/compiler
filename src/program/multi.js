@@ -187,17 +187,18 @@ function buildDag(programs) {
         "validatorTypes unset"
     )
 
+    const validatorNames = Object.keys(validatorTypes)
+
     programs.forEach((v) => {
-        const ctx = new ToIRContext(false, true)
-        const extra = new Map()
+        const ir = v.toIR({
+            optimize: false,
+            dependsOnOwnHash: false,
+            hashDependencies: Object.fromEntries(
+                validatorNames.map((name) => [name, "#"])
+            )
+        })
 
-        for (let validatorName in validatorTypes) {
-            extra.set(`__helios__scripts__${validatorName}`, $`#`)
-        }
-
-        const ir = v.entryPoint.toIR(ctx, extra)
-
-        dag[v.name] = Object.keys(validatorTypes).filter((name) =>
+        dag[v.name] = validatorNames.filter((name) =>
             ir.includes(`__helios__scripts__${name}`)
         )
     })

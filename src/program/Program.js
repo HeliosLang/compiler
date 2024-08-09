@@ -35,7 +35,7 @@ import { newEntryPoint } from "./newEntryPoint.js"
 /**
  * @typedef {{
  *   optimize?: boolean
- *   depensOnOwnHash?: boolean
+ *   dependsOnOwnHash?: boolean
  *   hashDependencies?: Record<string, string>
  * }} CompileOptions
  */
@@ -157,12 +157,12 @@ export class Program {
                 ? { optimize: optimizeOrOptions }
                 : optimizeOrOptions
         const optimize = options.optimize ?? false
-        const extra = this.injectHashes(
-            options.depensOnOwnHash ?? false,
-            options.hashDependencies ?? {}
-        )
-        const ctx = new ToIRContext(optimize, this.isForTestnet)
-        const ir = this.entryPoint.toIR(ctx, extra)
+
+        const ir = this.toIR({
+            dependsOnOwnHash: options.dependsOnOwnHash ?? false,
+            hashDependencies: options.hashDependencies ?? {},
+            optimize: optimize
+        })
 
         return compileIR(ir, {
             optimize: optimize,
@@ -175,33 +175,26 @@ export class Program {
     }
 
     /**
-     * @returns {string}
-     */
-    toString() {
-        return this.entryPoint.toString()
-    }
-
-    /**
      * Generate additional IR definitions
      *   * dependency on own hash through methods defined on the ScriptContext
      *   * dependency on hashes of other validators or dependency on own precalculated hash (eg. unoptimized program should use hash of optimized program)
-     * @private
-     * @param {boolean} dependsOnOwnHash
-     * @param {Record<string, string>} hashDeps
-     * @returns {Definitions}
+     * @param {{dependsOnOwnHash: boolean, hashDependencies: Record<string, string>, optimize: boolean}} options
+     * @returns {SourceMappedString}
      */
-    injectHashes(dependsOnOwnHash, hashDeps) {
+    toIR(options) {
+        const ctx = new ToIRContext(options.optimize, this.isForTestnet)
+
         /**
          * @type {Definitions}
          */
         const extra = new Map()
 
         // inject hashes of other validators
-        Object.entries(hashDeps).forEach(([depName, dep]) => {
+        Object.entries(options.hashDependencies).forEach(([depName, dep]) => {
             extra.set(`__helios__scripts__${depName}`, $(`#${dep}`))
         })
 
-        if (dependsOnOwnHash) {
+        if (options.dependsOnOwnHash) {
             const key = `__helios__scripts__${this.name}`
 
             const ir = expectSome(
@@ -239,6 +232,13 @@ export class Program {
             })
         }
 
-        return extra
+        return this.entryPoint.toIR(ctx, extra)
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return this.entryPoint.toString()
     }
 }
