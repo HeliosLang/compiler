@@ -19,11 +19,11 @@ describe("String", () => {
             a == b
         }`)
 
-        it("\"Hello\" is same as \"Hello\"", () => {
+        it('"Hello" is same as "Hello"', () => {
             runner2([str("Hello"), str("Hello")], True)
         })
 
-        it("\"Hello\" is not same as \"hello\"", () => {
+        it('"Hello" is not same as "hello"', () => {
             runner2([str("Hello"), str("hello")], False)
         })
     })
@@ -45,11 +45,11 @@ describe("String", () => {
             a != b
         }`)
 
-        it("\"Hello\" != \"Hello\" is false", () => {
+        it('"Hello" != "Hello" is false', () => {
             runner2([str("Hello"), str("Hello")], False)
         })
 
-        it("\"Hello\" != \"hello\" is true", () => {
+        it('"Hello" != "hello" is true', () => {
             runner2([str("Hello"), str("hello")], True)
         })
     })
@@ -61,11 +61,11 @@ describe("String", () => {
             a + ""
         }`)
 
-        it("\"Hello\" + empty string is \"Hello\"", () => {
+        it('"Hello" + empty string is "Hello"', () => {
             runner1([str("Hello")], str("Hello"))
         })
 
-        it("\"\" + empty string is \"\"", () => {
+        it('"" + empty string is ""', () => {
             runner1([str("")], str(""))
         })
 
@@ -75,11 +75,11 @@ describe("String", () => {
             "" + a
         }`)
 
-        it("empty string + \"Hello\" is \"Hello\"", () => {
+        it('empty string + "Hello" is "Hello"', () => {
             runner2([str("Hello")], str("Hello"))
         })
 
-        it("empty string + \"\" is \"\"", () => {
+        it('empty string + "" is ""', () => {
             runner2([str("")], str(""))
         })
 
@@ -89,7 +89,7 @@ describe("String", () => {
             a + b
         }`)
 
-        it("\"Hello\" + \" World\" is \"Hello World\"", () => {
+        it('"Hello" + " World" is "Hello World"', () => {
             runner3([str("Hello"), str(" World")], str("Hello World"))
         })
     })
@@ -104,7 +104,7 @@ describe("String", () => {
         it("empty string always starts with self", () => {
             runner1([str(""), str("a")], True)
         })
-        
+
         it("non-empty string always starts with self", () => {
             runner1([str("abc"), str("def")], True)
         })

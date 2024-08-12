@@ -4,10 +4,7 @@
  */
 
 import { readHeader } from "@helios-lang/compiler-utils"
-import {
-    collectParams,
-    prepare as prepareIR,
-} from "@helios-lang/ir"
+import { collectParams, prepare as prepareIR } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import {
     MintingPolicyHashType,

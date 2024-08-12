@@ -106,13 +106,18 @@ export function compileAndRun(test) {
 }
 
 /**
+ * @typedef {{
+ *   moduleSources?: string[]
+ * }} CompileForRunOptions
+ */
+/**
  * @param {string} mainSrc
- * @param {string[]} moduleSrcs
+ * @param {CompileForRunOptions} options
  * @returns {(inputs: UplcData[], output: HeliosTestOutput) => void}
  */
-export function compileForRun(mainSrc, moduleSrcs = []) {
+export function compileForRun(mainSrc, options = {}) {
     const program = new Program(mainSrc, {
-        moduleSources: moduleSrcs,
+        moduleSources: options.moduleSources ?? [],
         isTestnet: true
     })
 
