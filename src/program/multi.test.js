@@ -1,4 +1,4 @@
-import { deepEqual, throws } from "node:assert"
+import { deepEqual, strictEqual, throws } from "node:assert"
 import { describe, it } from "node:test"
 import { analyzeMulti } from "./multi.js"
 
@@ -66,5 +66,29 @@ describe(analyzeMulti.name, () => {
         }`
 
         analyzeMulti([src1, src2], [module1])
+    })
+
+    it("doesn't throw an error if a validator depends on itself in a dag", () => {
+        const src1 = `spending spend
+        import { tx } from ScriptContext
+        func main(_, _) -> Bool {
+            tx.minted.get_policy(Scripts::mint).length > 0 &&
+            tx.is_approved_by(
+                SpendingCredential::new_validator(Scripts::spend)
+            )
+        }`
+
+        const src2 = `minting mint
+        func main(_) -> Bool {
+            true
+        }`
+
+        const analysis = analyzeMulti([src1, src2], [])
+        strictEqual(
+            analysis.validators["spend"].hashDependencies.some(
+                (d) => d == "spend"
+            ),
+            true
+        )
     })
 })

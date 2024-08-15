@@ -234,7 +234,7 @@ function assertNonCircularDag(dag) {
             )
         }
 
-        const dependencies = dag[name] ?? []
+        const dependencies = (dag[name] ?? []).filter((n) => n != name)
 
         dependencies.forEach((d) => {
             assertNonCircular(d, dependents.concat([name]))
