@@ -99,6 +99,81 @@ describe("List", () => {
         })
     })
 
+    describe("[]Int.fold", () => {
+        const runner = compileForRun(`
+        testing list_fold
+        func main(a: []Int) -> Int {
+            a.fold((sum: Int, x: Int) -> Int {sum + x}, 0)
+        }`)
+
+        it("sums [1,2,3] as 6", () => {
+            runner([list(int(1), int(2), int(3))], int(6))
+        })
+    })
+
+    describe("[]Int.fold2", () => {
+        const runner = compileForRun(`
+        testing list_fold_as_fold2
+        func main(a: []Int) -> Int {
+            (sa: Int, sb: Int) = a.fold((sum: () -> (Int, Int), x: Int) -> () -> (Int, Int) {
+                (sa_: Int, sb_: Int) = sum();
+                () -> {(sa_ + x, sb_ + x)}
+            }, () -> {(0, 0)})();
+            (sa + sb)/2
+        }`)
+
+        it("sums [1,2,3] as 6 (using internally fold)", () => {
+            runner([list(int(1), int(2), int(3))], int(6))
+        })
+
+        const runner2 = compileForRun(`
+        testing list_fold2
+        func main(a: []Int) -> Int {
+            (sum0: Int, sum1: Int) = a.fold2((sum0: Int, sum1: Int, x: Int) -> {(sum0 + x, sum1 + x)}, 0, 0);
+            (sum0 + sum1)/2
+        }`)
+
+        it("sums [1,2,3] as 6 (using fold2 internally)", () => {
+            runner2([list(int(1), int(2), int(3))], int(6))
+        })
+    })
+
+    describe("[]Int.fold2_lazy", () => {
+        const runner = compileForRun(`
+        testing list_fold2_lazy
+        func main(a: []Int) -> Int {
+            (sum0: Int, sum1: Int) = a.fold2_lazy((item: Int, sum: () -> (Int, Int)) -> {
+                (sum0: Int, sum1: Int) = sum(); 
+                (item + sum0, item + sum1)
+            }, 0, 0);
+            (sum0 + sum1)/2
+        }`)
+
+        it("sums [1,2,3] as 6", () => {
+            runner([list(int(1), int(2), int(3))], int(6))
+        })
+    })
+
+    describe("[]Int.fold3", () => {
+        const runner = compileForRun(`
+        testing list_fold3
+        func main(a: [][]Int) -> Int {
+            (sum0, _sum1, _) = a.fold3((s0: Int, s1: Int, s2: Int, item_: []Int) -> {
+                (inner_sum0, inner_sum1) = item_.fold2((s0: Int, s1: Int, item: Int) -> {
+                    (s0 + item, s1 + item)
+                }, s0, s1);
+
+                (inner_sum0, inner_sum1, 0)
+            }, 0, 0, 0);
+
+            sum0
+        }`)
+
+        it("sums [[1],[2],[3]] as 6", () => {
+            runner([list(list(int(1)), list(int(2)), list(int(3)))], int(6))
+        })
+    })
+
     describe("[]Bool.any", () => {
         const runner = compileForRun(`
         testing list_wrong_data
