@@ -1,4 +1,4 @@
-import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
+import { ErrorCollector, Source, Word } from "@helios-lang/compiler-utils"
 import {
     $,
     DEFAULT_PARSE_OPTIONS,
@@ -8,8 +8,18 @@ import {
 import { expectSome } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext } from "../codegen/index.js"
-import { PARAM_IR_MACRO, PARAM_IR_PREFIX } from "../statements/index.js"
+import {
+    EnumStatement,
+    FuncStatement,
+    PARAM_IR_MACRO,
+    PARAM_IR_PREFIX,
+    StructStatement,
+    TypeParameters
+} from "../statements/index.js"
 import { newEntryPoint } from "./newEntryPoint.js"
+import { Module } from "./Module.js"
+import { MainModule } from "./MainModule.js"
+import { UserFuncEntryPoint } from "./UserFuncEntryPoint.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -123,6 +133,82 @@ export class Program {
      */
     get purpose() {
         return this.entryPoint.purpose
+    }
+
+    /**
+     * @type {Record<string, Record<string, EntryPoint>>}
+     */
+    get userFunctions() {
+        const importedModules = this.entryPoint.mainImportedModules.slice()
+        const allModules = importedModules.concat([this.entryPoint.mainModule])
+
+        /**
+         * @type {Record<string, Record<string, EntryPoint>>}
+         */
+        const res = {}
+
+        /**
+         * @param {Module} m
+         * @param {FuncStatement} fn
+         */
+        const addFunc = (m, fn) => {
+            const moduleName = m.name.value
+            const prev = res[moduleName] ?? {}
+
+            const fnName = fn.name.value
+
+            // make sure all arg types and return type are compatible and that the function doesn't have any typeparameters
+            if (
+                fn.argTypes.every((a) => !!a.asDataType) &&
+                !!fn.retType.asDataType &&
+                !fn.typeParameters.hasParameters()
+            ) {
+                // by using the same funcExpr instance, we take something that has already been typechecked
+                // TODO: properly handle mutual recursion
+                const newFuncStatement = new FuncStatement(
+                    fn.site,
+                    new Word("main", fn.name.site),
+                    new TypeParameters([], true),
+                    fn.funcExpr
+                )
+                const mainStatements = m.statements.concat([newFuncStatement])
+                const newMainModule = new MainModule(
+                    new Word(fnName, fn.name.site),
+                    mainStatements,
+                    m.sourceCode
+                )
+                const filteredImportedModules =
+                    newMainModule.filterDependencies(importedModules)
+                const newEntryPoint = new UserFuncEntryPoint(
+                    filteredImportedModules.concat([newMainModule])
+                )
+                prev[fnName] = newEntryPoint
+            }
+        }
+
+        allModules.forEach((m) => {
+            const statements = m.statements
+
+            statements.forEach((s, i) => {
+                if (s instanceof FuncStatement) {
+                    addFunc(m, s)
+                } else if (s instanceof EnumStatement) {
+                    s.statements.forEach((s) => {
+                        if (s instanceof FuncStatement) {
+                            addFunc(m, s)
+                        }
+                    })
+                } else if (s instanceof StructStatement) {
+                    s.statements.forEach((s) => {
+                        if (s instanceof FuncStatement) {
+                            addFunc(m, s)
+                        }
+                    })
+                }
+            })
+        })
+
+        return res
     }
 
     /**

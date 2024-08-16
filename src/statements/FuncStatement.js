@@ -20,7 +20,14 @@ import { TypeParameters } from "./TypeParameters.js"
  * @internal
  */
 export class FuncStatement extends Statement {
+    /**
+     * @type {TypeParameters}
+     */
     #parameters
+
+    /**
+     * @type {FuncLiteralExpr}
+     */
     #funcExpr
 
     /**
@@ -33,6 +40,13 @@ export class FuncStatement extends Statement {
         super(site, name)
         this.#parameters = parameters
         this.#funcExpr = funcExpr
+    }
+
+    /**
+     * @type {TypeParameters}
+     */
+    get typeParameters() {
+        return this.#parameters
     }
 
     /**
@@ -68,6 +82,13 @@ export class FuncStatement extends Statement {
      */
     get argTypeNames() {
         return this.#funcExpr.argTypeNames
+    }
+
+    /**
+     * @type {FuncLiteralExpr}
+     */
+    get funcExpr() {
+        return this.#funcExpr
     }
 
     /**

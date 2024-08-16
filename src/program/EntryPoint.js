@@ -31,6 +31,7 @@ import { Module } from "./Module.js"
  *   name: string
  *   purpose: string
  *   mainArgTypes: DataType[]
+ *   mainFunc: FuncStatement
  *   moduleDependencies: string[]
  *   mainImportedModules: Module[]
  *   mainModule: MainModule
@@ -184,7 +185,6 @@ export class EntryPointImpl {
     }
 
     /**
-     * @protected
      * @type {FuncStatement}
      */
     get mainFunc() {

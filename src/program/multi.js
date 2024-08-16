@@ -16,10 +16,24 @@ import {
 import { Module } from "./Module.js"
 import { IR_PARSE_OPTIONS, Program } from "./Program.js"
 import { VERSION } from "./version.js"
+import { ToIRContext } from "../codegen/ToIRContext.js"
 
 /**
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
+ * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
+ */
+
+/**
+ * @typedef {{
+ *   requiresScriptContext: boolean
+ *   requiresCurrentScript: boolean
+ *   arguments: {
+ *     name: string
+ *     type: TypeSchema
+ *   }[]
+ *   returns: TypeSchema
+ * }} AnalyzedFunction
  */
 
 /**
@@ -28,7 +42,8 @@ import { VERSION } from "./version.js"
  *   purpose: string
  *   sourceCode: string
  *   moduleDepedencies: string[]
- *   types: {[name: string]: TypeSchema}
+ *   types: Record<string, TypeSchema>
+ *   functions: Record<string, AnalyzedFunction>
  * }} AnalyzedModule
  */
 
@@ -92,8 +107,14 @@ export function analyzeMulti(validatorSources, moduleSources) {
     // collect the validators and the modules from the typechecked programs
     for (let p of validatorPrograms) {
         const allTypes = p.userTypes
+        const allFunctions = p.userFunctions
 
-        analyzedValidators[p.name] = analyzeValidator(p, dag, allTypes)
+        analyzedValidators[p.name] = analyzeValidator(
+            p,
+            dag,
+            allTypes,
+            allFunctions
+        )
 
         // add any module dependencies that haven't been added before
         const allModules = p.entryPoint.mainImportedModules
@@ -102,7 +123,12 @@ export function analyzeMulti(validatorSources, moduleSources) {
             const name = m.name.value
 
             if (!(name in analyzedModules)) {
-                analyzedModules[name] = analyzeModule(m, allModules, allTypes)
+                analyzedModules[name] = analyzeModule(
+                    m,
+                    allModules,
+                    allTypes,
+                    allFunctions
+                )
             }
         }
     }
@@ -117,14 +143,16 @@ export function analyzeMulti(validatorSources, moduleSources) {
  * @param {Program} program
  * @param {Record<string, string[]>} dag
  * @param {Record<string, Record<string, DataType>>} allTypes
+ * @param {Record<string, Record<string, EntryPoint>>} allFunctions
  * @returns {AnalyzedValidator}
  */
-function analyzeValidator(program, dag, allTypes) {
+function analyzeValidator(program, dag, allTypes, allFunctions) {
     const name = program.name
     const purpose = program.purpose
     const hashDependencies = dag[name]
     const moduleDeps = program.entryPoint.moduleDependencies
     const moduleTypes = allTypes[name]
+    const moduleFunctions = allFunctions[name] ?? {}
     const isSpending = purpose == "spending"
     const redeemer =
         program.entryPoint.mainArgTypes[isSpending ? 1 : 0].toSchema()
@@ -139,6 +167,7 @@ function analyzeValidator(program, dag, allTypes) {
         moduleDepedencies: moduleDeps,
         sourceCode: program.entryPoint.mainModule.sourceCode.content,
         types: createTypeSchemas(moduleTypes),
+        functions: analyzeFunctions(moduleFunctions),
         Redeemer: redeemer,
         Datum: datum
     }
@@ -149,21 +178,63 @@ function analyzeValidator(program, dag, allTypes) {
  * @param {Module} m
  * @param {Module[]} allModules
  * @param {Record<string, Record<string, DataType>>} allTypes
+ * @param {Record<string, Record<string, EntryPoint>>} allFunctions
  * @returns {AnalyzedModule}
  */
-function analyzeModule(m, allModules, allTypes) {
+function analyzeModule(m, allModules, allTypes, allFunctions) {
     const name = m.name.value
 
     const moduleDeps = m.filterDependencies(allModules).map((m) => m.name.value)
     const moduleTypes = allTypes[name]
+    const moduleFunctions = allFunctions[name] ?? {}
 
     return {
         name: name,
         purpose: "module",
         moduleDepedencies: moduleDeps,
         sourceCode: m.sourceCode.content,
-        types: createTypeSchemas(moduleTypes)
+        types: createTypeSchemas(moduleTypes),
+        functions: analyzeFunctions(moduleFunctions)
     }
+}
+
+/**
+ * @param {Record<string, EntryPoint>} fns
+ * @returns {Record<string, AnalyzedFunction>}
+ */
+function analyzeFunctions(fns) {
+    return Object.fromEntries(
+        Object.entries(fns).map(([key, fn]) => {
+            const main = fn.mainFunc
+
+            const ctx = new ToIRContext({ optimize: false, isTestnet: false })
+            const ir = fn.toIR(ctx)
+
+            const requiresCurrentScript = ir.includes(
+                "__helios__scriptcontext__current_script"
+            )
+            const requiresScriptContext = ir.includes(
+                "__helios__scriptcontext__data"
+            )
+
+            return [
+                key,
+                {
+                    requiresCurrentScript: requiresCurrentScript,
+                    requiresScriptContext: requiresScriptContext,
+                    arguments: main.argNames.map((name, i) => {
+                        const type = main.argTypes[i]
+
+                        return {
+                            name: name,
+                            type: expectSome(type.asDataType).toSchema()
+                        }
+                    }),
+                    returns: expectSome(main.retType.asDataType).toSchema()
+                }
+            ]
+        })
+    )
 }
 
 /**
@@ -188,8 +259,8 @@ function buildDag(programs) {
 
     const validatorNames = Object.keys(validatorTypes)
 
-    programs.forEach((v) => {
-        const ir = v.toIR({
+    programs.forEach((p) => {
+        const ir = p.toIR({
             optimize: true,
             dependsOnOwnHash: false,
             makeParamSubstitutable: true,
@@ -205,7 +276,7 @@ function buildDag(programs) {
 
         const params = collectParams(expr)
 
-        dag[v.name] = validatorNames.filter((name) =>
+        dag[p.name] = validatorNames.filter((name) =>
             params.has(`__helios__scripts__${name}`)
         )
     })
@@ -234,6 +305,7 @@ function assertNonCircularDag(dag) {
             )
         }
 
+        // depending on itself doesn't create a problem
         const dependencies = (dag[name] ?? []).filter((n) => n != name)
 
         dependencies.forEach((d) => {
