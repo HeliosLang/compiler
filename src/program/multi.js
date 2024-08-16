@@ -4,7 +4,7 @@
  */
 
 import { readHeader } from "@helios-lang/compiler-utils"
-import { collectParams, prepare as prepareIR } from "@helios-lang/ir"
+import { $, collectParams, prepare as prepareIR } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import {
     MintingPolicyHashType,
@@ -14,11 +14,12 @@ import {
     scriptHashType
 } from "../typecheck/index.js"
 import { Module } from "./Module.js"
-import { IR_PARSE_OPTIONS, Program } from "./Program.js"
+import { IR_PARSE_OPTIONS, Program, genProgramEntryPointIR } from "./Program.js"
 import { VERSION } from "./version.js"
 import { ToIRContext } from "../codegen/ToIRContext.js"
 
 /**
+ * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
  * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
@@ -86,7 +87,11 @@ export function getScriptHashType(purpose) {
  * }}
  */
 export function analyzeMulti(validatorSources, moduleSources) {
+    /**
+     * @type {Record<string, ScriptHashType>}
+     */
     const validatorTypes = getValidatorTypes(validatorSources)
+
     const validatorPrograms = createPrograms(
         validatorSources,
         moduleSources,
@@ -111,6 +116,7 @@ export function analyzeMulti(validatorSources, moduleSources) {
 
         analyzedValidators[p.name] = analyzeValidator(
             p,
+            validatorTypes,
             dag,
             allTypes,
             allFunctions
@@ -125,6 +131,7 @@ export function analyzeMulti(validatorSources, moduleSources) {
             if (!(name in analyzedModules)) {
                 analyzedModules[name] = analyzeModule(
                     m,
+                    validatorTypes,
                     allModules,
                     allTypes,
                     allFunctions
@@ -141,12 +148,19 @@ export function analyzeMulti(validatorSources, moduleSources) {
 
 /**
  * @param {Program} program
+ * @param {Record<string, ScriptHashType>} validatorTypes
  * @param {Record<string, string[]>} dag
  * @param {Record<string, Record<string, DataType>>} allTypes
  * @param {Record<string, Record<string, EntryPoint>>} allFunctions
  * @returns {AnalyzedValidator}
  */
-function analyzeValidator(program, dag, allTypes, allFunctions) {
+function analyzeValidator(
+    program,
+    validatorTypes,
+    dag,
+    allTypes,
+    allFunctions
+) {
     const name = program.name
     const purpose = program.purpose
     const hashDependencies = dag[name]
@@ -167,21 +181,21 @@ function analyzeValidator(program, dag, allTypes, allFunctions) {
         moduleDepedencies: moduleDeps,
         sourceCode: program.entryPoint.mainModule.sourceCode.content,
         types: createTypeSchemas(moduleTypes),
-        functions: analyzeFunctions(moduleFunctions),
+        functions: analyzeFunctions(moduleFunctions, validatorTypes),
         Redeemer: redeemer,
         Datum: datum
     }
 }
 
 /**
- *
  * @param {Module} m
+ * @param {Record<string, ScriptHashType>} validatorTypes
  * @param {Module[]} allModules
  * @param {Record<string, Record<string, DataType>>} allTypes
  * @param {Record<string, Record<string, EntryPoint>>} allFunctions
  * @returns {AnalyzedModule}
  */
-function analyzeModule(m, allModules, allTypes, allFunctions) {
+function analyzeModule(m, validatorTypes, allModules, allTypes, allFunctions) {
     const name = m.name.value
 
     const moduleDeps = m.filterDependencies(allModules).map((m) => m.name.value)
@@ -194,25 +208,40 @@ function analyzeModule(m, allModules, allTypes, allFunctions) {
         moduleDepedencies: moduleDeps,
         sourceCode: m.sourceCode.content,
         types: createTypeSchemas(moduleTypes),
-        functions: analyzeFunctions(moduleFunctions)
+        functions: analyzeFunctions(moduleFunctions, validatorTypes)
     }
 }
 
 /**
  * @param {Record<string, EntryPoint>} fns
+ * @param {Record<string, ScriptHashType>} validatorTypes
  * @returns {Record<string, AnalyzedFunction>}
  */
-function analyzeFunctions(fns) {
+function analyzeFunctions(fns, validatorTypes) {
     return Object.fromEntries(
         Object.entries(fns).map(([key, fn]) => {
             const main = fn.mainFunc
 
-            const ctx = new ToIRContext({ optimize: false, isTestnet: false })
-            const ir = fn.toIR(ctx)
+            const ir = genProgramEntryPointIR(fn, {
+                optimize: false,
+                isTestnet: false,
+                dependsOnOwnHash: false,
+                hashDependencies: Object.fromEntries(
+                    Array.from(Object.keys(validatorTypes)).map((name) => [
+                        name,
+                        "#"
+                    ])
+                ),
+                validatorTypes: validatorTypes,
+                purpose: "testing",
+                name: main.name.value,
+                dummyCurrentScript: true
+            })
 
             const requiresCurrentScript = ir.includes(
                 "__helios__scriptcontext__current_script"
             )
+
             const requiresScriptContext = ir.includes(
                 "__helios__scriptcontext__data"
             )

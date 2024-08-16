@@ -6,6 +6,10 @@ describe(analyzeMulti.name, () => {
     it("DAG ok for two validators", () => {
         const src1 = `spending checks_mint
         import { tx } from ScriptContext
+        func test_int() -> Int {
+            0
+        }
+
         func main(_, _) -> Bool {
             tx.minted.get_policy(Scripts::always_succeeds).length > 0
         }`
@@ -22,6 +26,15 @@ describe(analyzeMulti.name, () => {
         ])
 
         deepEqual(validators["always_succeeds"].hashDependencies, [])
+
+        strictEqual(
+            "test_int" in validators["checks_mint"].functions &&
+                validators["checks_mint"].functions["test_int"]
+                    .requiresScriptContext &&
+                !validators["checks_mint"].functions["test_int"]
+                    .requiresCurrentScript,
+            true
+        )
     })
 
     it("invalid DAG throws an error", () => {

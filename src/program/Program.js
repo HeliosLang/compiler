@@ -184,6 +184,8 @@ export class Program {
                 )
                 prev[fnName] = newEntryPoint
             }
+
+            res[moduleName] = prev
         }
 
         allModules.forEach((m) => {
@@ -273,72 +275,21 @@ export class Program {
      *   * dependency on own hash through methods defined on the ScriptContext
      *   * dependency on hashes of other validators or dependency on own precalculated hash (eg. unoptimized program should use hash of optimized program)
      * @param {{
-     *   dependsOnOwnHash: boolean,
-     *   hashDependencies: Record<string, string>,
-     *   optimize: boolean,
+     *   dependsOnOwnHash: boolean
+     *   hashDependencies: Record<string, string>
+     *   optimize: boolean
      *   makeParamSubstitutable?: boolean
      * }} options
      * @returns {SourceMappedString}
      */
     toIR(options) {
-        const ctx = new ToIRContext({
-            optimize: options.optimize,
+        return genProgramEntryPointIR(this.entryPoint, {
+            ...options,
             isTestnet: this.isForTestnet,
-            makeParamsSubstitutable: options.makeParamSubstitutable
+            name: this.name,
+            purpose: this.purpose,
+            validatorTypes: this.props.validatorTypes
         })
-
-        /**
-         * @type {Definitions}
-         */
-        const extra = new Map()
-
-        // inject hashes of other validators
-        Object.entries(options.hashDependencies).forEach(([depName, dep]) => {
-            dep = dep.startsWith("#") ? dep : `#${dep}`
-
-            const key = `__helios__scripts__${depName}`
-            extra.set(key, $`${PARAM_IR_MACRO}("${key}", ${dep})`)
-        })
-
-        if (options.dependsOnOwnHash) {
-            const key = `__helios__scripts__${this.name}`
-
-            const ir = expectSome(
-                /** @type {Record<string, SourceMappedString>} */ ({
-                    mixed: $(
-                        `__helios__scriptcontext__get_current_script_hash()`
-                    ),
-                    spending: $(
-                        `__helios__scriptcontext__get_current_validator_hash()`
-                    ),
-                    minting: $(
-                        `__helios__scriptcontext__get_current_minting_policy_hash()`
-                    ),
-                    staking: $(
-                        `__helios__scriptcontext__get_current_staking_validator_hash()`
-                    )
-                })[this.purpose]
-            )
-
-            extra.set(key, ir)
-        }
-
-        // also add script enum __is methods
-        if (this.props.validatorTypes) {
-            Object.keys(this.props.validatorTypes).forEach((scriptName) => {
-                const key = `__helios__script__${scriptName}____is`
-
-                // only way to instantiate a Script is via ScriptContext::current_script
-
-                const ir = $`(_) -> {
-                    ${this.name == scriptName ? "true" : "false"}
-                }`
-
-                extra.set(key, ir)
-            })
-        }
-
-        return this.entryPoint.toIR(ctx, extra)
     }
 
     /**
@@ -347,4 +298,81 @@ export class Program {
     toString() {
         return this.entryPoint.toString()
     }
+}
+
+/**
+ * @param {EntryPoint} entryPoint
+ * @param {{
+ *   dependsOnOwnHash: boolean
+ *   hashDependencies: Record<string, string>
+ *   optimize: boolean
+ *   makeParamSubstitutable?: boolean
+ *   isTestnet: boolean
+ *   name: string
+ *   purpose: string
+ *   validatorTypes?: ScriptTypes
+ *   dummyCurrentScript?: boolean
+ * }} options
+ */
+export function genProgramEntryPointIR(entryPoint, options) {
+    const ctx = new ToIRContext({
+        optimize: options.optimize,
+        isTestnet: options.isTestnet,
+        makeParamsSubstitutable: options.makeParamSubstitutable
+    })
+
+    /**
+     * @type {Definitions}
+     */
+    const extra = new Map()
+
+    // inject hashes of other validators
+    Object.entries(options.hashDependencies).forEach(([depName, dep]) => {
+        dep = dep.startsWith("#") ? dep : `#${dep}`
+
+        const key = `__helios__scripts__${depName}`
+        extra.set(key, $`${PARAM_IR_MACRO}("${key}", ${dep})`)
+    })
+
+    if (options.dependsOnOwnHash) {
+        const key = `__helios__scripts__${options.name}`
+
+        const ir = expectSome(
+            /** @type {Record<string, SourceMappedString>} */ ({
+                mixed: $(`__helios__scriptcontext__get_current_script_hash()`),
+                spending: $(
+                    `__helios__scriptcontext__get_current_validator_hash()`
+                ),
+                minting: $(
+                    `__helios__scriptcontext__get_current_minting_policy_hash()`
+                ),
+                staking: $(
+                    `__helios__scriptcontext__get_current_staking_validator_hash()`
+                )
+            })[options.purpose]
+        )
+
+        extra.set(key, ir)
+    }
+
+    if (options.dummyCurrentScript) {
+        extra.set(`__helios__scriptcontext__current_script`, $`#`)
+    }
+
+    // also add script enum __is methods
+    if (options.validatorTypes) {
+        Object.keys(options.validatorTypes).forEach((scriptName) => {
+            const key = `__helios__script__${scriptName}____is`
+
+            // only way to instantiate a Script is via ScriptContext::current_script
+
+            const ir = $`(_) -> {
+                ${options.name == scriptName ? "true" : "false"}
+            }`
+
+            extra.set(key, ir)
+        })
+    }
+
+    return entryPoint.toIR(ctx, extra)
 }
