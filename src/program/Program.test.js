@@ -167,4 +167,27 @@ describe(Program.name, () => {
             })
         })
     })
+
+    it("can get mainFunc in user function for a type with a method and can gen IR", () => {
+        const src = `testing user_func_methods
+        
+        struct Pair {
+            a: Int
+            b: Int
+
+            func sum(self) -> Int {
+                self.a + self.b
+            }
+        }
+
+        func main() -> Int {
+            0
+        }`
+
+        const program = new Program(src)
+
+        const fn = program.userFunctions["user_func_methods"]["sum"]
+        fn.mainFunc
+        fn.toIR({})
+    })
 })

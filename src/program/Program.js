@@ -182,9 +182,11 @@ export class Program {
                     s instanceof EnumStatement ||
                     s instanceof StructStatement
                 ) {
-                    s.statements.forEach((s) => {
-                        if (s instanceof FuncStatement) {
-                            addFunc(m, s, `${s.name.value}::`)
+                    const prefix = `${s.name.value}::`
+
+                    s.statements.forEach((ss) => {
+                        if (ss instanceof FuncStatement) {
+                            addFunc(m, ss, prefix)
                         }
                     })
                 }
