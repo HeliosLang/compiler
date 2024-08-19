@@ -1,6 +1,5 @@
-import { ErrorCollector, Source, Word } from "@helios-lang/compiler-utils"
+import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
 import {
-    $,
     DEFAULT_PARSE_OPTIONS,
     SourceMappedString,
     compile as compileIR
@@ -12,10 +11,11 @@ import {
     FuncStatement,
     StructStatement
 } from "../statements/index.js"
+import { isDataType } from "../typecheck/index.js"
 import { newEntryPoint } from "./newEntryPoint.js"
 import { Module } from "./Module.js"
-import { UserFunc } from "./UserFunc.js"
 import { ModuleCollection } from "./ModuleCollection.js"
+import { UserFunc } from "./UserFunc.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -156,8 +156,8 @@ export class Program {
 
             // make sure all arg types and return type are compatible and that the function doesn't have any typeparameters
             if (
-                fn.argTypes.every((a) => !!a.asDataType) &&
-                !!fn.retType.asDataType &&
+                fn.argTypes.every((a) => isDataType(a)) &&
+                isDataType(fn.retType) &&
                 !fn.typeParameters.hasParameters()
             ) {
                 const filteredImportedModules =

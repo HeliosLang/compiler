@@ -3,7 +3,7 @@ import { $, SourceMappedString } from "@helios-lang/ir"
 import { None } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
-import { BoolType, DefaultTypeClass } from "../typecheck/index.js"
+import { BoolType, isDataType } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
@@ -58,10 +58,7 @@ export class RedeemerEntryPoint extends EntryPointImpl {
             throw CompilerError.type(main.site, "expected 1 arg for main")
         }
 
-        if (
-            argTypeNames[0] != "" &&
-            !new DefaultTypeClass().isImplementedBy(argTypes[0])
-        ) {
+        if (argTypeNames[0] != "" && !isDataType(argTypes[0])) {
             throw CompilerError.type(
                 main.site,
                 `illegal redeemer argument type in main: '${argTypes[0].toString()}`

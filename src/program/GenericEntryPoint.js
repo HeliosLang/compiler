@@ -3,7 +3,7 @@ import { $, SourceMappedString } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
-import { DefaultTypeClass } from "../typecheck/index.js"
+import { isDataType } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
@@ -60,10 +60,7 @@ export class GenericEntryPoint extends EntryPointImpl {
         const retType = main.retType
 
         argTypeNames.forEach((argTypeName, i) => {
-            if (
-                argTypeName != "" &&
-                !new DefaultTypeClass().isImplementedBy(argTypes[i])
-            ) {
+            if (argTypeName != "" && !isDataType(argTypes[i])) {
                 throw CompilerError.type(
                     main.site,
                     `illegal argument type in main: '${argTypes[i].toString()}`
@@ -71,8 +68,7 @@ export class GenericEntryPoint extends EntryPointImpl {
             }
         })
 
-        // TODO: support tuple return values ?
-        if (!new DefaultTypeClass().isImplementedBy(retType)) {
+        if (!isDataType(retType)) {
             throw CompilerError.type(
                 main.site,
                 `illegal return type for main: '${retType.toString()}'`

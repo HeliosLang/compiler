@@ -271,9 +271,26 @@ export function TupleType$(itemTypes, isAllDataTypes = null) {
               return isDataType(it)
           })
 
+    /**
+     * @type {GenericTypeProps}
+     */
     const props = {
         name: `(${itemTypes.map((it) => it.toString()).join(", ")})`,
         path: `__helios__tuple[${itemTypes.map((it) => (it.asDataType ? it.asDataType.path : "__helios__func")).join("@")}]`,
+        genTypeSchema: (self) => {
+            if (isData) {
+                return {
+                    kind: "tuple",
+                    itemTypes: itemTypes.map((it) =>
+                        expectSome(it.asDataType).toSchema()
+                    )
+                }
+            } else {
+                throw new Error(
+                    `TypeSchema not available for ${self.toString()}`
+                )
+            }
+        },
         genInstanceMembers: (self) => {
             const members = isData ? genCommonInstanceMembers(self) : {}
 

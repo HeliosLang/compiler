@@ -9,7 +9,7 @@ import { None } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
-import { BoolType, DefaultTypeClass } from "../typecheck/index.js"
+import { BoolType, isDataType } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
@@ -102,10 +102,7 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
         }
 
         for (let i = 0; i < nArgs; i++) {
-            if (
-                argTypeNames[i] != "" &&
-                !new DefaultTypeClass().isImplementedBy(argTypes[i])
-            ) {
+            if (argTypeNames[i] != "" && !isDataType(argTypes[i])) {
                 throw CompilerError.type(
                     main.site,
                     `illegal type for arg ${i + 1} in main ${i == nArgs - 2 ? "(datum) " : i == nArgs - 3 ? "(redeemer) " : ""}: '${argTypes[i].toString()}`

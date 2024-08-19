@@ -1,4 +1,4 @@
-import { strictEqual, throws } from "node:assert"
+import { deepEqual, strictEqual, throws } from "node:assert"
 import { describe, it } from "node:test"
 import { removeWhitespace } from "@helios-lang/codec-utils"
 import { Program } from "./Program.js"
@@ -189,5 +189,37 @@ describe(Program.name, () => {
         const fn = program.userFunctions["user_func_methods"]["sum"]
         fn.mainFunc
         fn.toIR({})
+    })
+
+    it("tuple type schema ok", () => {
+        const src = `testing m
+        
+        func my_func() -> (Int, Int) {
+            (0, 0)
+        }
+        
+        func main() -> Int {
+            0
+        }`
+
+        const program = new Program(src)
+
+        const fns = program.userFunctions["m"]
+
+        deepEqual(Object.keys(fns), ["my_func", "main"])
+
+        deepEqual(fns["my_func"].mainFunc.retType.asDataType?.toSchema(), {
+            kind: "tuple",
+            itemTypes: [
+                {
+                    kind: "internal",
+                    name: "Int"
+                },
+                {
+                    kind: "internal",
+                    name: "Int"
+                }
+            ]
+        })
     })
 })
