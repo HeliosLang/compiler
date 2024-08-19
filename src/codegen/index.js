@@ -1,4 +1,11 @@
-export { TAB, wrapWithDefs } from "./Definitions.js"
+export {
+    PARAM_IR_MACRO,
+    PARAM_IR_PREFIX,
+    TAB,
+    collectAllUsed,
+    genExtraDefs,
+    wrapWithDefs
+} from "./Definitions.js"
 export { applyTypeParameters } from "./generics.js"
 export {
     ParametricName,

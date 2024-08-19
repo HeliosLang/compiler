@@ -6,8 +6,9 @@ describe(analyzeMulti.name, () => {
     it("DAG ok for two validators", () => {
         const src1 = `spending checks_mint
         import { tx } from ScriptContext
+        import { parametric } from utils
         func test_int() -> Int {
-            0
+            parametric(0) + tx.inputs.length
         }
 
         func main(_, _) -> Bool {
@@ -19,7 +20,13 @@ describe(analyzeMulti.name, () => {
             true
         }`
 
-        const { validators } = analyzeMulti([src1, src2], [])
+        const srcM = `module utils
+        
+        func parametric[V](v: V) -> V {
+            v
+        }`
+
+        const { validators } = analyzeMulti([src1, src2], [srcM])
 
         deepEqual(validators["checks_mint"].hashDependencies, [
             "always_succeeds"

@@ -12,6 +12,7 @@ import { Module } from "./Module.js"
 import { MainModule } from "./MainModule.js"
 import { GenericEntryPoint } from "./GenericEntryPoint.js"
 import { MixedEntryPoint } from "./MixedEntryPoint.js"
+import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
@@ -36,6 +37,8 @@ export function newEntryPoint(
 ) {
     const [purpose, modules] = parseMain(mainSrc, moduleSrcs, errorCollector)
 
+    const moduleCol = new ModuleCollection(modules)
+
     /**
      * @type {EntryPoint}
      */
@@ -43,22 +46,22 @@ export function newEntryPoint(
 
     switch (purpose) {
         case "testing":
-            entryPoint = new TestingEntryPoint(modules)
+            entryPoint = new TestingEntryPoint(moduleCol)
             break
         case "spending":
-            entryPoint = new SpendingEntryPoint(modules)
+            entryPoint = new SpendingEntryPoint(moduleCol)
             break
         case "minting":
-            entryPoint = new MintingEntryPoint(modules)
+            entryPoint = new MintingEntryPoint(moduleCol)
             break
         case "mixed":
-            entryPoint = new MixedEntryPoint(modules)
+            entryPoint = new MixedEntryPoint(moduleCol)
             break
         case "staking":
-            entryPoint = new StakingProgram(modules)
+            entryPoint = new StakingProgram(moduleCol)
             break
         default:
-            entryPoint = new GenericEntryPoint(purpose ?? "unknown", modules)
+            entryPoint = new GenericEntryPoint(purpose ?? "unknown", moduleCol)
     }
 
     // TODO: add type errors directly to ErrorCollector

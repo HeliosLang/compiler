@@ -2,10 +2,10 @@ import { CompilerError } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
-import { GlobalScope, TopScope } from "../scopes/index.js"
+import { GlobalScope } from "../scopes/index.js"
 import { DefaultTypeClass } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
-import { Module } from "./Module.js"
+import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @typedef {import("../codegen/index.js").Definitions} Definitions
@@ -27,7 +27,7 @@ export class GenericEntryPoint extends EntryPointImpl {
 
     /**
      * @param {string} purpose
-     * @param {Module[]} modules
+     * @param {ModuleCollection} modules
      */
     constructor(purpose, modules) {
         super(modules)

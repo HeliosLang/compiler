@@ -1,5 +1,5 @@
 import { DatumRedeemerEntryPoint } from "./DatumRedeemerEntryPoint.js"
-import { Module } from "./Module.js"
+import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
@@ -10,7 +10,7 @@ import { Module } from "./Module.js"
  */
 export class SpendingEntryPoint extends DatumRedeemerEntryPoint {
     /**
-     * @param {Module[]} modules
+     * @param {ModuleCollection} modules
      */
     constructor(modules) {
         super("spending", modules)

@@ -5,21 +5,17 @@ import {
     SourceMappedString,
     compile as compileIR
 } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
-import { ToIRContext } from "../codegen/index.js"
+import { ToIRContext, PARAM_IR_PREFIX, genExtraDefs } from "../codegen/index.js"
 import {
     EnumStatement,
     FuncStatement,
-    PARAM_IR_MACRO,
-    PARAM_IR_PREFIX,
-    StructStatement,
-    TypeParameters
+    StructStatement
 } from "../statements/index.js"
 import { newEntryPoint } from "./newEntryPoint.js"
 import { Module } from "./Module.js"
-import { MainModule } from "./MainModule.js"
-import { UserFuncEntryPoint } from "./UserFuncEntryPoint.js"
+import { UserFunc } from "./UserFunc.js"
+import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -136,22 +132,23 @@ export class Program {
     }
 
     /**
-     * @type {Record<string, Record<string, EntryPoint>>}
+     * @type {Record<string, Record<string, UserFunc>>}
      */
     get userFunctions() {
         const importedModules = this.entryPoint.mainImportedModules.slice()
         const allModules = importedModules.concat([this.entryPoint.mainModule])
 
         /**
-         * @type {Record<string, Record<string, EntryPoint>>}
+         * @type {Record<string, Record<string, UserFunc>>}
          */
         const res = {}
 
         /**
          * @param {Module} m
          * @param {FuncStatement} fn
+         * @param {string} prefix
          */
-        const addFunc = (m, fn) => {
+        const addFunc = (m, fn, prefix) => {
             const moduleName = m.name.value
             const prev = res[moduleName] ?? {}
 
@@ -163,24 +160,11 @@ export class Program {
                 !!fn.retType.asDataType &&
                 !fn.typeParameters.hasParameters()
             ) {
-                // by using the same funcExpr instance, we take something that has already been typechecked
-                // TODO: properly handle mutual recursion
-                const newFuncStatement = new FuncStatement(
-                    fn.site,
-                    new Word("main", fn.name.site),
-                    new TypeParameters([], true),
-                    fn.funcExpr
-                )
-                const mainStatements = m.statements.concat([newFuncStatement])
-                const newMainModule = new MainModule(
-                    new Word(fnName, fn.name.site),
-                    mainStatements,
-                    m.sourceCode
-                )
                 const filteredImportedModules =
-                    newMainModule.filterDependencies(importedModules)
-                const newEntryPoint = new UserFuncEntryPoint(
-                    filteredImportedModules.concat([newMainModule])
+                    m.filterDependencies(importedModules)
+                const newEntryPoint = new UserFunc(
+                    new ModuleCollection(filteredImportedModules.concat([m])),
+                    `${prefix}${fnName}`
                 )
                 prev[fnName] = newEntryPoint
             }
@@ -193,17 +177,14 @@ export class Program {
 
             statements.forEach((s, i) => {
                 if (s instanceof FuncStatement) {
-                    addFunc(m, s)
-                } else if (s instanceof EnumStatement) {
+                    addFunc(m, s, "")
+                } else if (
+                    s instanceof EnumStatement ||
+                    s instanceof StructStatement
+                ) {
                     s.statements.forEach((s) => {
                         if (s instanceof FuncStatement) {
-                            addFunc(m, s)
-                        }
-                    })
-                } else if (s instanceof StructStatement) {
-                    s.statements.forEach((s) => {
-                        if (s instanceof FuncStatement) {
-                            addFunc(m, s)
+                            addFunc(m, s, `${s.name.value}::`)
                         }
                     })
                 }
@@ -283,13 +264,21 @@ export class Program {
      * @returns {SourceMappedString}
      */
     toIR(options) {
-        return genProgramEntryPointIR(this.entryPoint, {
-            ...options,
+        const ctx = new ToIRContext({
+            optimize: options.optimize,
             isTestnet: this.isForTestnet,
+            makeParamsSubstitutable: options.makeParamSubstitutable
+        })
+
+        const extra = genExtraDefs({
             name: this.name,
+            dependsOnOwnHash: options.dependsOnOwnHash,
+            hashDependencies: options.hashDependencies,
             purpose: this.purpose,
             validatorTypes: this.props.validatorTypes
         })
+
+        return this.entryPoint.toIR(ctx, extra)
     }
 
     /**
@@ -298,81 +287,4 @@ export class Program {
     toString() {
         return this.entryPoint.toString()
     }
-}
-
-/**
- * @param {EntryPoint} entryPoint
- * @param {{
- *   dependsOnOwnHash: boolean
- *   hashDependencies: Record<string, string>
- *   optimize: boolean
- *   makeParamSubstitutable?: boolean
- *   isTestnet: boolean
- *   name: string
- *   purpose: string
- *   validatorTypes?: ScriptTypes
- *   dummyCurrentScript?: boolean
- * }} options
- */
-export function genProgramEntryPointIR(entryPoint, options) {
-    const ctx = new ToIRContext({
-        optimize: options.optimize,
-        isTestnet: options.isTestnet,
-        makeParamsSubstitutable: options.makeParamSubstitutable
-    })
-
-    /**
-     * @type {Definitions}
-     */
-    const extra = new Map()
-
-    // inject hashes of other validators
-    Object.entries(options.hashDependencies).forEach(([depName, dep]) => {
-        dep = dep.startsWith("#") ? dep : `#${dep}`
-
-        const key = `__helios__scripts__${depName}`
-        extra.set(key, $`${PARAM_IR_MACRO}("${key}", ${dep})`)
-    })
-
-    if (options.dependsOnOwnHash) {
-        const key = `__helios__scripts__${options.name}`
-
-        const ir = expectSome(
-            /** @type {Record<string, SourceMappedString>} */ ({
-                mixed: $(`__helios__scriptcontext__get_current_script_hash()`),
-                spending: $(
-                    `__helios__scriptcontext__get_current_validator_hash()`
-                ),
-                minting: $(
-                    `__helios__scriptcontext__get_current_minting_policy_hash()`
-                ),
-                staking: $(
-                    `__helios__scriptcontext__get_current_staking_validator_hash()`
-                )
-            })[options.purpose]
-        )
-
-        extra.set(key, ir)
-    }
-
-    if (options.dummyCurrentScript) {
-        extra.set(`__helios__scriptcontext__current_script`, $`#`)
-    }
-
-    // also add script enum __is methods
-    if (options.validatorTypes) {
-        Object.keys(options.validatorTypes).forEach((scriptName) => {
-            const key = `__helios__script__${scriptName}____is`
-
-            // only way to instantiate a Script is via ScriptContext::current_script
-
-            const ir = $`(_) -> {
-                ${options.name == scriptName ? "true" : "false"}
-            }`
-
-            extra.set(key, ir)
-        })
-    }
-
-    return entryPoint.toIR(ctx, extra)
 }

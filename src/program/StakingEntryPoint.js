@@ -1,4 +1,4 @@
-import { Module } from "./Module.js"
+import { ModuleCollection } from "./ModuleCollection.js"
 import { RedeemerEntryPoint } from "./RedeemerEntryPoint.js"
 
 /**
@@ -10,7 +10,7 @@ import { RedeemerEntryPoint } from "./RedeemerEntryPoint.js"
  */
 export class StakingProgram extends RedeemerEntryPoint {
     /**
-     * @param {Module[]} modules
+     * @param {ModuleCollection} modules
      */
     constructor(modules) {
         super("staking", modules)

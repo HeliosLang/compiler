@@ -1,13 +1,8 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { Word } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
-import {
-    ToIRContext,
-    applyTypeParameters,
-    injectMutualRecursions,
-    wrapWithDefs
-} from "../codegen/index.js"
-import { GlobalScope, ModuleScope, TopScope } from "../scopes/index.js"
+import { ToIRContext } from "../codegen/index.js"
+import { GlobalScope, TopScope } from "../scopes/index.js"
 import {
     ConstStatement,
     FuncStatement,
@@ -15,6 +10,7 @@ import {
 } from "../statements/index.js"
 import { MainModule } from "./MainModule.js"
 import { Module } from "./Module.js"
+import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -48,7 +44,7 @@ import { Module } from "./Module.js"
 export class EntryPointImpl {
     /**
      * @protected
-     * @type {Module[]}
+     * @type {ModuleCollection}
      */
     modules
 
@@ -65,7 +61,7 @@ export class EntryPointImpl {
     #topScope
 
     /**
-     * @param {Module[]} modules
+     * @param {ModuleCollection} modules
      */
     constructor(modules) {
         this.modules = modules
@@ -101,25 +97,7 @@ export class EntryPointImpl {
      * @type {[Statement, boolean][]} - boolean value marks if statement is import or not
      */
     get allStatements() {
-        /**
-         * @type {[Statement, boolean][]}
-         */
-        let statements = []
-
-        for (let i = 0; i < this.modules.length; i++) {
-            let m = this.modules[i]
-
-            // MainModule or PostModule => isImport == false
-            let isImport = !(
-                m instanceof MainModule || i == this.modules.length - 1
-            )
-
-            statements = statements.concat(
-                m.statements.map((s) => [s, isImport])
-            )
-        }
-
-        return statements
+        return this.modules.allStatements
     }
 
     /**
@@ -195,31 +173,14 @@ export class EntryPointImpl {
      * @type {Module[]}
      */
     get mainImportedModules() {
-        /** @type {Module[]} */
-        let ms = []
-
-        for (let m of this.modules) {
-            if (m instanceof MainModule) {
-                break
-            } else {
-                ms.push(m)
-            }
-        }
-
-        return ms
+        return this.modules.nonMainModules
     }
 
     /**
      * @type {MainModule}
      */
     get mainModule() {
-        for (let m of this.modules) {
-            if (m instanceof MainModule) {
-                return m
-            }
-        }
-
-        throw new Error("MainModule not found")
+        return this.modules.mainModule
     }
 
     /**
@@ -228,21 +189,6 @@ export class EntryPointImpl {
      */
     get mainPath() {
         return this.mainFunc.path
-    }
-
-    /**
-     * Needed to list the paramTypes, and to call changeParam
-     * @protected
-     * @type {Statement[]}
-     */
-    get mainAndPostStatements() {
-        let statements = this.mainModule.statements
-
-        if (this.postModule != null) {
-            statements = statements.concat(this.postModule.statements)
-        }
-
-        return statements
     }
 
     /**
@@ -259,20 +205,6 @@ export class EntryPointImpl {
      */
     get mainStatements() {
         return this.mainModule.statements
-    }
-
-    /**
-     * @protected
-     * @type {Option<Module>}
-     */
-    get postModule() {
-        let m = this.modules[this.modules.length - 1]
-
-        if (m instanceof MainModule) {
-            return None
-        } else {
-            return m
-        }
     }
 
     /**
@@ -310,7 +242,7 @@ export class EntryPointImpl {
      * @returns {string}
      */
     toString() {
-        return this.modules.map((m) => m.toString()).join("\n")
+        return this.modules.toString()
     }
 
     /**
@@ -354,87 +286,15 @@ export class EntryPointImpl {
 
     /**
      * @protected
-     * @param {SourceMappedString} ir
-     * @param {Definitions} definitions
-     * @returns {Definitions}
-     */
-    eliminateUnused(ir, definitions) {
-        const used = this.collectAllUsed(ir, definitions)
-
-        // eliminate all definitions that are not in set
-
-        /**
-         * @type {Definitions}
-         */
-        const result = new Map()
-
-        for (let [k, ir] of definitions) {
-            if (used.has(k)) {
-                result.set(k, ir)
-            }
-        }
-
-        // Loop internal const statemtsn
-        this.loopConstStatements((name, cs) => {
-            const path = cs.path
-
-            if (used.has(path) && !definitions.has(cs.path)) {
-                throw CompilerError.reference(
-                    cs.site,
-                    `used unset const '${name}' (hint: use program.parameters['${name}'] = ...)`
-                )
-            }
-        })
-
-        return result
-    }
-
-    /**
-     * @protected
      * @param {GlobalScope} globalScope
      */
     evalTypesInternal(globalScope) {
         this.globalScope = globalScope
         const topScope = new TopScope(globalScope)
 
-        // loop through the modules
-
-        for (let i = 0; i < this.modules.length; i++) {
-            const m = this.modules[i]
-
-            // reuse main ModuleScope for post module
-            const moduleScope =
-                m === this.postModule
-                    ? topScope.getModuleScope(this.mainModule.name)
-                    : new ModuleScope(topScope)
-
-            m.evalTypes(moduleScope)
-
-            if (m instanceof MainModule) {
-                topScope.setStrict(false)
-            }
-
-            if (m !== this.postModule) {
-                topScope.setScope(m.name, moduleScope)
-            }
-        }
+        this.modules.evalTypes(topScope)
 
         this.#topScope = topScope
-    }
-
-    /**
-     * Loops over all statements, until endCond == true (includes the matches statement)
-     * Then applies type parameters
-     * @protected
-     * @param {ToIRContext} ctx
-     * @param {SourceMappedString} ir
-     * @param {(s: Statement) => boolean} endCond
-     * @returns {Definitions}
-     */
-    fetchDefinitions(ctx, ir, endCond) {
-        let map = this.statementsToIR(ctx, endCond)
-
-        return applyTypeParameters(ctx, ir, map)
     }
 
     /**
@@ -467,7 +327,7 @@ export class EntryPointImpl {
      * @returns {Set<string>}
      */
     getRequiredParametersInternal(ctx, ir) {
-        const definitions = this.fetchDefinitions(
+        const definitions = this.modules.fetchDefinitions(
             ctx,
             ir,
             (s) => s.name.value == "main"
@@ -494,30 +354,7 @@ export class EntryPointImpl {
      * @param {(name: string, statement: ConstStatement) => void} callback
      */
     loopConstStatements(callback) {
-        this.modules.forEach((m) => m.loopConstStatements(callback))
-    }
-
-    /**
-     * @protected
-     * @param {ToIRContext} ctx
-     * @param {(s: Statement, isImport: boolean) => boolean} endCond
-     * @returns {Definitions}
-     */
-    statementsToIR(ctx, endCond) {
-        /**
-         * @type {Definitions}
-         */
-        const map = new Map()
-
-        for (let [statement, isImport] of this.allStatements) {
-            statement.toIR(ctx, map)
-
-            if (endCond(statement, isImport)) {
-                break
-            }
-        }
-
-        return map
+        this.modules.loopConstStatements(callback)
     }
 
     /**
@@ -572,38 +409,15 @@ export class EntryPointImpl {
      * @returns {SourceMappedString}
      */
     wrapEntryPoint(ctx, ir, extra = None) {
-        let map = this.fetchDefinitions(ctx, ir, (s) => s.name.value == "main")
-
-        if (extra) {
-            map = new Map(
-                Array.from(extra.entries()).concat(Array.from(map.entries()))
-            )
-        }
+        const map = this.modules.fetchDefinitions(
+            ctx,
+            ir,
+            (s) => s.name.value == "main",
+            extra
+        )
 
         this.addCurrentScriptIR(ctx, map)
 
-        return this.wrapInner(ctx, ir, map)
-    }
-
-    /**
-     * @protected
-     * @param {ToIRContext} ctx
-     * @param {SourceMappedString} ir
-     * @param {Definitions} definitions
-     * @returns {SourceMappedString}
-     */
-    wrapInner(ctx, ir, definitions) {
-        ir = injectMutualRecursions(ir, definitions)
-
-        definitions = this.eliminateUnused(ir, definitions)
-
-        ir = wrapWithDefs(ir, definitions)
-
-        // add builtins as late as possible, to make sure we catch as many dependencies as possible
-        const builtins = ctx.fetchRawFunctions(ir, definitions)
-
-        ir = wrapWithDefs(ir, builtins)
-
-        return ir
+        return this.modules.wrap(ctx, ir, map)
     }
 }

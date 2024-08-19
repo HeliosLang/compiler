@@ -1,8 +1,4 @@
-export {
-    ConstStatement,
-    PARAM_IR_MACRO,
-    PARAM_IR_PREFIX
-} from "./ConstStatement.js"
+export { ConstStatement } from "./ConstStatement.js"
 export { DataField } from "./DataField.js"
 export { EnumMember } from "./EnumMember.js"
 export { EnumStatement } from "./EnumStatement.js"

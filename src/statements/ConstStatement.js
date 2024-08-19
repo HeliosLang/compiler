@@ -1,10 +1,10 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
 import { expectSome, isSome } from "@helios-lang/type-utils"
-import { ToIRContext } from "../codegen/index.js"
+import { ToIRContext, PARAM_IR_MACRO } from "../codegen/index.js"
 import { Expr, LiteralDataExpr } from "../expressions/index.js"
 import { Scope, TopScope } from "../scopes/index.js"
-import { AllType, DataEntity, NamedEntity } from "../typecheck/index.js"
+import { DataEntity, NamedEntity } from "../typecheck/index.js"
 import { Statement } from "./Statement.js"
 
 /**
@@ -14,9 +14,6 @@ import { Statement } from "./Statement.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
-
-export const PARAM_IR_PREFIX = "__"
-export const PARAM_IR_MACRO = `${PARAM_IR_PREFIX}param`
 
 /**
  * Const value statement

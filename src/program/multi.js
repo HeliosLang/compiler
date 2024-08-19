@@ -4,7 +4,7 @@
  */
 
 import { readHeader } from "@helios-lang/compiler-utils"
-import { $, collectParams, prepare as prepareIR } from "@helios-lang/ir"
+import { collectParams, prepare as prepareIR } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import {
     MintingPolicyHashType,
@@ -14,9 +14,9 @@ import {
     scriptHashType
 } from "../typecheck/index.js"
 import { Module } from "./Module.js"
-import { IR_PARSE_OPTIONS, Program, genProgramEntryPointIR } from "./Program.js"
+import { IR_PARSE_OPTIONS, Program } from "./Program.js"
 import { VERSION } from "./version.js"
-import { ToIRContext } from "../codegen/ToIRContext.js"
+import { UserFunc } from "./UserFunc.js"
 
 /**
  * @typedef {import("../codegen/index.js").Definitions} Definitions
@@ -151,7 +151,7 @@ export function analyzeMulti(validatorSources, moduleSources) {
  * @param {Record<string, ScriptHashType>} validatorTypes
  * @param {Record<string, string[]>} dag
  * @param {Record<string, Record<string, DataType>>} allTypes
- * @param {Record<string, Record<string, EntryPoint>>} allFunctions
+ * @param {Record<string, Record<string, UserFunc>>} allFunctions
  * @returns {AnalyzedValidator}
  */
 function analyzeValidator(
@@ -192,7 +192,7 @@ function analyzeValidator(
  * @param {Record<string, ScriptHashType>} validatorTypes
  * @param {Module[]} allModules
  * @param {Record<string, Record<string, DataType>>} allTypes
- * @param {Record<string, Record<string, EntryPoint>>} allFunctions
+ * @param {Record<string, Record<string, UserFunc>>} allFunctions
  * @returns {AnalyzedModule}
  */
 function analyzeModule(m, validatorTypes, allModules, allTypes, allFunctions) {
@@ -213,7 +213,7 @@ function analyzeModule(m, validatorTypes, allModules, allTypes, allFunctions) {
 }
 
 /**
- * @param {Record<string, EntryPoint>} fns
+ * @param {Record<string, UserFunc>} fns
  * @param {Record<string, ScriptHashType>} validatorTypes
  * @returns {Record<string, AnalyzedFunction>}
  */
@@ -221,30 +221,8 @@ function analyzeFunctions(fns, validatorTypes) {
     return Object.fromEntries(
         Object.entries(fns).map(([key, fn]) => {
             const main = fn.mainFunc
-
-            const ir = genProgramEntryPointIR(fn, {
-                optimize: false,
-                isTestnet: false,
-                dependsOnOwnHash: false,
-                hashDependencies: Object.fromEntries(
-                    Array.from(Object.keys(validatorTypes)).map((name) => [
-                        name,
-                        "#"
-                    ])
-                ),
-                validatorTypes: validatorTypes,
-                purpose: "testing",
-                name: main.name.value,
-                dummyCurrentScript: true
-            })
-
-            const requiresCurrentScript = ir.includes(
-                "__helios__scriptcontext__current_script"
-            )
-
-            const requiresScriptContext = ir.includes(
-                "__helios__scriptcontext__data"
-            )
+            const { requiresCurrentScript, requiresScriptContext } =
+                fn.toIR(validatorTypes)
 
             return [
                 key,

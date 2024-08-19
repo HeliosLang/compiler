@@ -11,7 +11,7 @@ import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
 import { BoolType, DefaultTypeClass } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
-import { Module } from "./Module.js"
+import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @typedef {import("../codegen/index.js").Definitions} Definitions
@@ -27,7 +27,7 @@ import { Module } from "./Module.js"
 export class DatumRedeemerEntryPoint extends EntryPointImpl {
     /**
      * @param {string} purpose
-     * @param {Module[]} modules
+     * @param {ModuleCollection} modules
      */
     constructor(purpose, modules) {
         super(modules)
