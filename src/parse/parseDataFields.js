@@ -1,5 +1,6 @@
 import {
     StringLiteral,
+    TokenReader,
     Word,
     strlit,
     symbol
@@ -89,6 +90,9 @@ export function parseDataFields(ctx, allowTags = false) {
             let typeReader = r.readUntil(anyName, symbol(":"))
 
             if ((m = typeReader.findLastMatch(strlit()))) {
+                /**
+                 * @satisfies {[TokenReader, StringLiteral]}
+                 */
                 const [before, tag] = m
                 typeReader.end()
                 typeReader = before
@@ -99,7 +103,7 @@ export function parseDataFields(ctx, allowTags = false) {
                     assertUniqueTag(tag.site, tag.value)
                 }
 
-                tags.set(name.value, tag.value)
+                tags.set(name.value, tag)
             } else {
                 r.endMatch(false)
 

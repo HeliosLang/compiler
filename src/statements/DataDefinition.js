@@ -232,12 +232,12 @@ export class DataDefinition {
     fieldsToSchema(parents) {
         const fieldSchemas = []
 
-        this.fieldNames.forEach((fn, i) => {
-            const externalName = this.hasTags() ? this.#fields[i].tag : fn
-            const ts = expectSome(this.getFieldType(i).toSchema(parents))
+        this.#fields.forEach((f) => {
+            const externalName = this.hasTags() ? f.tag : f.name.value
+            const ts = expectSome(f.type.toSchema(parents))
             fieldSchemas.push({
-                type: ts,
-                name: externalName
+                name: externalName,
+                type: ts
             })
         })
 

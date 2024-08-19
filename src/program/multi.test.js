@@ -111,4 +111,27 @@ describe(analyzeMulti.name, () => {
             true
         )
     })
+
+    it("detects module function", () => {
+        const src1 = `spending s
+        import { ok } from utils
+        func main(_, _) -> Bool {
+            ok()
+        }`
+
+        const src2 = `minting m 
+        func main(_) -> Bool {
+            true
+        }`
+
+        const mod = `module utils
+
+        func ok() -> Bool {
+            true
+        }`
+
+        const analysis = analyzeMulti([src1, src2], [mod])
+
+        console.log(analysis.modules)
+    })
 })
