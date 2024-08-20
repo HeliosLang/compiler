@@ -118,7 +118,10 @@ export class UserFunc {
         })
 
         const fn = this.mainFunc
-        let ir = $`${fn.path}(${fn.argNames.join(", ")})`
+        const isMethod = fn.funcExpr.isMethod()
+        let ir = isMethod
+            ? $`${fn.path}(${fn.argNames[0]})(${fn.argNames.slice(1).join(", ")})`
+            : $`${fn.path}(${fn.argNames.join(", ")})`
 
         const defs = this.modules.fetchDefinitions(
             ctx,
