@@ -47,7 +47,7 @@ export class ModuleCollection {
         for (let i = 0; i < this.modules.length; i++) {
             let m = this.modules[i]
 
-            // MainModule or PostModule => isImport == false
+            // MainModule or last Module => isImport == false
             let isImport = !(
                 m instanceof MainModule || i == this.modules.length - 1
             )
@@ -160,7 +160,7 @@ export class ModuleCollection {
      * Then applies type parameters
      * @param {ToIRContext} ctx
      * @param {SourceMappedString} ir
-     * @param {(s: Statement) => boolean} endCond
+     * @param {(s: Statement, isImport: boolean) => boolean} endCond
      * @param {Option<Definitions>} extra
      * @returns {Definitions}
      */

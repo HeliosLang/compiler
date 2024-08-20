@@ -123,7 +123,8 @@ export class UserFunc {
         const defs = this.modules.fetchDefinitions(
             ctx,
             ir,
-            (s) => s.name.value == this.name.split("::")[0],
+            (s, isImport) =>
+                !isImport && s.name.value == this.name.split("::")[0],
             extra
         )
 
