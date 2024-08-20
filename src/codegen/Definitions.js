@@ -52,6 +52,7 @@ export function wrapWithDefs(inner, definitions) {
  *   hashDependencies: Record<string, string>
  *   validatorTypes?: ScriptTypes
  *   dummyCurrentScript?: boolean
+ *   makeParamsSubstitutable: boolean
  * }} ExtraDefOptions
  */
 
@@ -70,7 +71,11 @@ export function genExtraDefs(options) {
         dep = dep.startsWith("#") ? dep : `#${dep}`
 
         const key = `__helios__scripts__${depName}`
-        extra.set(key, $`${PARAM_IR_MACRO}("${key}", ${dep})`)
+        if (options.makeParamsSubstitutable) {
+            extra.set(key, $`${PARAM_IR_MACRO}("${key}", ${dep})`)
+        } else {
+            extra.set(key, $(dep))
+        }
     })
 
     if (options.dependsOnOwnHash) {

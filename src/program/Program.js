@@ -311,7 +311,8 @@ export class Program {
             dependsOnOwnHash: options.dependsOnOwnHash,
             hashDependencies: options.hashDependencies,
             purpose: this.purpose,
-            validatorTypes: this.props.validatorTypes
+            validatorTypes: this.props.validatorTypes,
+            makeParamsSubstitutable: options.makeParamSubstitutable ?? false
         })
 
         return this.entryPoint.toIR(ctx, extra)

@@ -50,6 +50,7 @@ import { UserFunc } from "./UserFunc.js"
  */
 
 /**
+ * Note: `hashDependencies` doesn't contain the indirect dependencies! It must be kept to a minimum in order to inform in which order the validators must be compiled
  * @typedef {AnalyzedModule & {
  *   hashDependencies: string[]
  *   Redeemer: TypeSchema

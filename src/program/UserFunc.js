@@ -104,6 +104,7 @@ export class UserFunc {
 
         const extra = genExtraDefs({
             dependsOnOwnHash: false,
+            makeParamsSubstitutable: false,
             hashDependencies:
                 props.hashDependencies ??
                 Object.fromEntries(
