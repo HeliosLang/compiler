@@ -186,7 +186,7 @@ describe(Program.name, () => {
 
         const program = new Program(src)
 
-        const fn = program.userFunctions["user_func_methods"]["sum"]
+        const fn = program.userFunctions["user_func_methods"]["Pair::sum"]
         fn.mainFunc
         fn.toIR({})
     })

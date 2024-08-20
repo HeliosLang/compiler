@@ -151,8 +151,7 @@ export class Program {
         const addFunc = (m, fn, prefix) => {
             const moduleName = m.name.value
             const prev = res[moduleName] ?? {}
-
-            const fnName = fn.name.value
+            const fullName = `${prefix}${fn.name.value}`
 
             // make sure all arg types and return type are compatible and that the function doesn't have any typeparameters
             if (
@@ -164,9 +163,9 @@ export class Program {
                     m.filterDependencies(importedModules)
                 const newEntryPoint = new UserFunc(
                     new ModuleCollection(filteredImportedModules.concat([m])),
-                    `${prefix}${fnName}`
+                    fullName
                 )
-                prev[fnName] = newEntryPoint
+                prev[fullName] = newEntryPoint
             }
 
             res[moduleName] = prev
