@@ -1,7 +1,9 @@
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $, SourceMappedString, compile as compileIR } from "@helios-lang/ir"
+import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
 import { FuncStatement } from "../statements/index.js"
 import { ModuleCollection } from "./ModuleCollection.js"
+import { IR_PARSE_OPTIONS } from "../parse/index.js"
 
 /**
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
@@ -59,30 +61,58 @@ export class UserFunc {
     }
 
     /**
-     * @param {ScriptTypes} validatorTypes
+     * @param {{
+     *   optimize: boolean
+     *   validatorTypes: ScriptTypes
+     *   hashDependencies: Record<string, string>
+     * }} props
+     * @returns {UplcProgramV2}
+     */
+    compile(props) {
+        const { ir } = this.toIR({
+            validatorTypes: props.validatorTypes,
+            optimize: props.optimize,
+            hashDependencies: props.hashDependencies
+        })
+
+        const uplc = compileIR(ir, {
+            optimize: props.optimize,
+            parseOptions: IR_PARSE_OPTIONS
+        })
+
+        return uplc
+    }
+
+    /**
+     * @param {{
+     *   validatorTypes: ScriptTypes
+     *   optimize?: boolean
+     *   hashDependencies?: Record<string, string>
+     * }} props
      * @returns {{
      *   ir: SourceMappedString
      *   requiresScriptContext: boolean
      *   requiresCurrentScript: boolean
      * }}
      */
-    toIR(validatorTypes) {
+    toIR(props) {
         const ctx = new ToIRContext({
-            optimize: false,
+            optimize: props.optimize ?? false,
             isTestnet: false,
             makeParamsSubstitutable: false
         })
 
         const extra = genExtraDefs({
             dependsOnOwnHash: false,
-            hashDependencies: Object.fromEntries(
-                Array.from(Object.keys(validatorTypes)).map((name) => [
-                    name,
-                    "#"
-                ])
-            ),
+            hashDependencies:
+                props.hashDependencies ??
+                Object.fromEntries(
+                    Array.from(Object.keys(props.validatorTypes)).map(
+                        (name) => [name, "#"]
+                    )
+                ),
             name: this.name,
-            validatorTypes: validatorTypes,
+            validatorTypes: props.validatorTypes,
             dummyCurrentScript: true // TODO: configurable
         })
 

@@ -1,11 +1,8 @@
 import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
-import {
-    DEFAULT_PARSE_OPTIONS,
-    SourceMappedString,
-    compile as compileIR
-} from "@helios-lang/ir"
+import { SourceMappedString, compile as compileIR } from "@helios-lang/ir"
 import { UplcProgramV2 } from "@helios-lang/uplc"
-import { ToIRContext, PARAM_IR_PREFIX, genExtraDefs } from "../codegen/index.js"
+import { ToIRContext, genExtraDefs } from "../codegen/index.js"
+import { IR_PARSE_OPTIONS } from "../parse/index.js"
 import {
     EnumStatement,
     FuncStatement,
@@ -16,6 +13,7 @@ import { newEntryPoint } from "./newEntryPoint.js"
 import { Module } from "./Module.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 import { UserFunc } from "./UserFunc.js"
+import { bytesToHex } from "@helios-lang/codec-utils"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -45,6 +43,8 @@ import { UserFunc } from "./UserFunc.js"
  *   optimize?: boolean
  *   dependsOnOwnHash?: boolean
  *   hashDependencies?: Record<string, string>
+ *   onCompileUserFunc?: (name: string, uplc: UplcProgramV2) => void
+ *   excludeUserFuncs?: Set<string>
  * }} CompileOptions
  */
 
@@ -55,16 +55,6 @@ export const DEFAULT_PROGRAM_PROPS = {
     isTestnet: true,
     moduleSources: [],
     validatorTypes: {}
-}
-
-/**
- * @type {ParseOptions}
- */
-export const IR_PARSE_OPTIONS = {
-    ...DEFAULT_PARSE_OPTIONS,
-    builtinsPrefix: "__core__",
-    errorPrefix: "",
-    paramPrefix: PARAM_IR_PREFIX
 }
 
 /**
@@ -238,17 +228,62 @@ export class Program {
             typeof optimizeOrOptions == "boolean"
                 ? { optimize: optimizeOrOptions }
                 : optimizeOrOptions
+
+        const hashDependencies = options.hashDependencies ?? {}
         const optimize = options.optimize ?? false
 
         const ir = this.toIR({
             dependsOnOwnHash: options.dependsOnOwnHash ?? false,
-            hashDependencies: options.hashDependencies ?? {},
+            hashDependencies: hashDependencies,
             optimize: optimize
         })
 
-        return compileIR(ir, {
+        const uplc = compileIR(ir, {
             optimize: optimize,
             parseOptions: IR_PARSE_OPTIONS
+        })
+
+        // userfuncs might depend on own hash, which is easer to inject after compilation of main program
+        if (options.onCompileUserFunc) {
+            if (options.optimize) {
+                hashDependencies[this.name] = bytesToHex(uplc.hash())
+            }
+
+            this.compileUserFuncs(options.onCompileUserFunc, {
+                optimize: optimize,
+                excludeUserFuncs: options.excludeUserFuncs ?? new Set(),
+                hashDependencies: hashDependencies
+            })
+        }
+
+        return uplc
+    }
+
+    /**
+     * @param {(name: string, uplc: UplcProgramV2) => void} onCompile
+     * @param {{
+     *   optimize: boolean
+     *   excludeUserFuncs: Set<string>
+     *   hashDependencies: Record<string, string>
+     * }} options
+     */
+    compileUserFuncs(onCompile, options) {
+        const allFuncs = this.userFunctions
+
+        Object.entries(allFuncs).forEach(([moduleName, fns]) => {
+            Object.entries(fns).forEach(([funcName, fn]) => {
+                const fullName = `${moduleName}::${funcName}`
+
+                if (!options.excludeUserFuncs.has(fullName)) {
+                    const uplc = fn.compile({
+                        optimize: options.optimize,
+                        hashDependencies: options.hashDependencies,
+                        validatorTypes: this.props.validatorTypes ?? {}
+                    })
+
+                    onCompile(fullName, uplc)
+                }
+            })
         })
     }
 

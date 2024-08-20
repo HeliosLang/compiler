@@ -188,7 +188,7 @@ describe(Program.name, () => {
 
         const fn = program.userFunctions["user_func_methods"]["Pair::sum"]
         fn.mainFunc
-        fn.toIR({})
+        fn.toIR({ validatorTypes: {} })
     })
 
     it("tuple type schema ok", () => {

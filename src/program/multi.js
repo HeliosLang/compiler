@@ -6,6 +6,7 @@
 import { readHeader } from "@helios-lang/compiler-utils"
 import { collectParams, prepare as prepareIR } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
+import { IR_PARSE_OPTIONS } from "../parse/index.js"
 import {
     MintingPolicyHashType,
     ScriptHashType,
@@ -14,7 +15,7 @@ import {
     scriptHashType
 } from "../typecheck/index.js"
 import { Module } from "./Module.js"
-import { IR_PARSE_OPTIONS, Program } from "./Program.js"
+import { Program } from "./Program.js"
 import { VERSION } from "./version.js"
 import { UserFunc } from "./UserFunc.js"
 
@@ -221,8 +222,9 @@ function analyzeFunctions(fns, validatorTypes) {
     return Object.fromEntries(
         Object.entries(fns).map(([key, fn]) => {
             const main = fn.mainFunc
-            const { requiresCurrentScript, requiresScriptContext } =
-                fn.toIR(validatorTypes)
+            const { requiresCurrentScript, requiresScriptContext } = fn.toIR({
+                validatorTypes
+            })
 
             return [
                 key,
