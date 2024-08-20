@@ -170,10 +170,15 @@ function analyzeValidator(
     const moduleFunctions = allFunctions[name] ?? {}
     const isSpending = purpose == "spending"
     const redeemer =
-        program.entryPoint.mainArgTypes[isSpending ? 1 : 0].toSchema()
-    const datum = isSpending
-        ? program.entryPoint.mainArgTypes[0].toSchema()
-        : undefined
+        purpose == "mixed"
+            ? { kind: /** @type {const} */ ("internal"), name: "Data" }
+            : program.entryPoint.mainArgTypes[isSpending ? 1 : 0].toSchema()
+    const datum =
+        purpose == "mixed"
+            ? { kind: /** @type {const} */ ("internal"), name: "Data" }
+            : isSpending
+              ? program.entryPoint.mainArgTypes[0].toSchema()
+              : undefined
 
     return {
         name: name,
