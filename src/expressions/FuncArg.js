@@ -28,6 +28,13 @@ export class FuncArg extends NameTypePair {
     }
 
     /**
+     * @type {boolean}
+     */
+    get isOptional() {
+        return isSome(this.#defaultValueExpr)
+    }
+
+    /**
      * @param {Scope} scope
      */
     evalDefault(scope) {

@@ -4,6 +4,8 @@ import { ToIRContext, genExtraDefs } from "../codegen/index.js"
 import { FuncStatement } from "../statements/index.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
+import { FuncArg } from "../expressions/FuncArg.js"
+import { expectSome } from "@helios-lang/type-utils"
 
 /**
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
@@ -122,11 +124,42 @@ export class UserFunc {
             currentScriptValue: props.currentScriptValue ?? "__CURRENT_SCRIPT"
         })
 
+        /**
+         * @param {FuncArg[]} args
+         * @returns {string}
+         */
+        const argsToString = (args) => {
+            return args
+                .map((arg) => {
+                    const name = arg.name.value
+                    const typePath = expectSome(arg.type.asDataType).path
+
+                    if (arg.isIgnored()) {
+                        return "()"
+                    } else if (arg.isOptional) {
+                        // assume outer arg is wrapped in data-option
+                        const cond = `__helios__option__is_some(${name})`
+                        const value = `__core__ifThenElse(
+                        ${cond}, 
+                        () -> {
+                            __helios__option[${typePath}]__some__some(${name})
+                        }, 
+                        () -> {()}
+                    )()`
+
+                        return `${cond}, ${value}`
+                    } else {
+                        return `${typePath}__from_data(${name})`
+                    }
+                })
+                .join(", ")
+        }
+
         const fn = this.mainFunc
         const isMethod = fn.funcExpr.isMethod()
         let ir = isMethod
-            ? $`${fn.path}(${fn.argNames[0]})(${fn.argNames.slice(1).join(", ")})`
-            : $`${fn.path}(${fn.argNames.join(", ")})`
+            ? $`${fn.path}(${fn.argNames[0]})(${argsToString(fn.args.slice(1))})`
+            : $`${fn.path}(${argsToString(fn.args)})`
 
         const defs = this.modules.fetchDefinitions(
             ctx,
@@ -145,11 +178,13 @@ export class UserFunc {
             "__helios__scriptcontext__data"
         )
 
-        const argNames = fn.argNames
+        const outerArgNames = fn.args
+            .filter((arg) => !arg.isIgnored())
+            .map((arg) => arg.name.value)
             .concat(requiresScriptContext ? ["__CONTEXT"] : [])
             .concat(requiresCurrentScript ? ["__CURRENT_SCRIPT"] : [])
 
-        ir = $`(${argNames.join(", ")}) -> {
+        ir = $`(${outerArgNames.join(", ")}) -> {
             ${ir}
         }`
 

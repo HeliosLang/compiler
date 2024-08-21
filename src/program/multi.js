@@ -32,6 +32,7 @@ import { UserFunc } from "./UserFunc.js"
  *   requiresCurrentScript: boolean
  *   arguments: {
  *     name: string
+ *     isOptional: boolean
  *     type: TypeSchema
  *   }[]
  *   returns: TypeSchema
@@ -240,14 +241,17 @@ function analyzeFunctions(fns, validatorTypes) {
                 {
                     requiresCurrentScript: requiresCurrentScript,
                     requiresScriptContext: requiresScriptContext,
-                    arguments: main.argNames.map((name, i) => {
-                        const type = main.argTypes[i]
+                    arguments: main.args
+                        .filter((arg) => !arg.isIgnored())
+                        .map((arg) => {
+                            const type = arg.type
 
-                        return {
-                            name: name,
-                            type: expectSome(type.asDataType).toSchema()
-                        }
-                    }),
+                            return {
+                                name: arg.name.value,
+                                isOptional: arg.isOptional,
+                                type: expectSome(type.asDataType).toSchema()
+                            }
+                        }),
                     returns: expectSome(main.retType.asDataType).toSchema()
                 }
             ]

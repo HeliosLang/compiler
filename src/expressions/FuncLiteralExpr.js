@@ -19,7 +19,11 @@ import { FuncArg } from "./FuncArg.js"
  * @internal
  */
 export class FuncLiteralExpr extends Expr {
-    #args
+    /**
+     * @readonly
+     * @type {FuncArg[]}
+     */
+    args
 
     /**
      * @readonly
@@ -37,7 +41,7 @@ export class FuncLiteralExpr extends Expr {
      */
     constructor(site, args, retTypeExpr, bodyExpr) {
         super(site)
-        this.#args = args
+        this.args = args
         this.retTypeExpr = retTypeExpr
         this.#bodyExpr = bodyExpr
     }
@@ -46,28 +50,28 @@ export class FuncLiteralExpr extends Expr {
      * @type {number}
      */
     get nArgs() {
-        return this.#args.length
+        return this.args.length
     }
 
     /**
      * @type {string[]}
      */
     get argNames() {
-        return this.#args.map((a) => a.name.value)
+        return this.args.map((a) => a.name.value)
     }
 
     /**
      * @type {Type[]}
      */
     get argTypes() {
-        return this.#args.map((a) => a.type)
+        return this.args.map((a) => a.type)
     }
 
     /**
      * @type {string[]}
      */
     get argTypeNames() {
-        return this.#args.map((a) => a.typeName)
+        return this.args.map((a) => a.typeName)
     }
 
     /**
@@ -106,7 +110,7 @@ export class FuncLiteralExpr extends Expr {
      * @returns {FuncType}
      */
     evalType(scope) {
-        let args = this.#args
+        let args = this.args
         if (this.isMethod()) {
             args = args.slice(1)
         }
@@ -128,15 +132,15 @@ export class FuncLiteralExpr extends Expr {
         const fnType = this.evalType(scope)
 
         // argTypes is calculated separately again here so it includes self
-        const argTypes = this.#args.map((a) => a.evalType(scope))
+        const argTypes = this.args.map((a) => a.evalType(scope))
 
         const subScope = new Scope(scope, true)
 
         argTypes.forEach((a, i) => {
-            if (a && !this.#args[i].isIgnored()) {
-                this.#args[i].evalDefault(subScope)
+            if (a && !this.args[i].isIgnored()) {
+                this.args[i].evalDefault(subScope)
 
-                subScope.set(this.#args[i].name, a.toTyped())
+                subScope.set(this.args[i].name, a.toTyped())
             }
         })
 
@@ -173,14 +177,14 @@ export class FuncLiteralExpr extends Expr {
     }
 
     isMethod() {
-        return this.#args.length > 0 && this.#args[0].name.toString() == "self"
+        return this.args.length > 0 && this.args[0].name.toString() == "self"
     }
 
     /**
      * @returns {SourceMappedString}
      */
     argsToIR() {
-        let args = this.#args.map((a) => a.toIR())
+        let args = this.args.map((a) => a.toIR())
         if (this.isMethod()) {
             args = args.slice(1)
         }
@@ -195,7 +199,7 @@ export class FuncLiteralExpr extends Expr {
      * @returns {SourceMappedString}
      */
     wrapWithDefaultArgs(ctx, innerIR) {
-        const args = this.#args.slice().reverse()
+        const args = this.args.slice().reverse()
 
         for (let arg of args) {
             innerIR = arg.wrapWithDefault(ctx, innerIR)
@@ -256,9 +260,9 @@ export class FuncLiteralExpr extends Expr {
      */
     toString() {
         if (this.retTypeExpr) {
-            return `(${this.#args.map((a) => a.toString()).join(", ")}) -> ${this.retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`
+            return `(${this.args.map((a) => a.toString()).join(", ")}) -> ${this.retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`
         } else {
-            return `(${this.#args.map((a) => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`
+            return `(${this.args.map((a) => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`
         }
     }
 }

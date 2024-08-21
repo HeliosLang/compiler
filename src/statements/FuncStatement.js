@@ -1,7 +1,7 @@
 import { Word } from "@helios-lang/compiler-utils"
 import { SourceMappedString } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
-import { FuncLiteralExpr } from "../expressions/index.js"
+import { FuncArg, FuncLiteralExpr } from "../expressions/index.js"
 import { Scope } from "../scopes/index.js"
 import { FuncType, NamedEntity, ParametricFunc } from "../typecheck/index.js"
 import { Statement } from "./Statement.js"
@@ -61,6 +61,13 @@ export class FuncStatement extends Statement {
      */
     get nArgs() {
         return this.#funcExpr.nArgs
+    }
+
+    /**
+     * @type {FuncArg[]}
+     */
+    get args() {
+        return this.#funcExpr.args
     }
 
     /**
