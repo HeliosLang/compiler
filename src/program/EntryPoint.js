@@ -393,30 +393,6 @@ export class EntryPointImpl {
     }
 
     /**
-     * @private
-     * @param {ToIRContext} ctx
-     * @param {Definitions} map
-     */
-    addCurrentScriptIR(ctx, map) {
-        const index = this.currentScriptIndex
-
-        if (isSome(index)) {
-            map.set(
-                `__helios__scriptcontext__current_script`,
-                $(
-                    [
-                        $`__core__constrData(
-                    ${index.toString()},
-                    __core__mkNilData(())
-                )`
-                    ],
-                    this.mainModule.name.site
-                )
-            )
-        }
-    }
-
-    /**
      * @protected
      * @param {ToIRContext} ctx
      * @param {SourceMappedString} ir
@@ -427,11 +403,9 @@ export class EntryPointImpl {
         const map = this.modules.fetchDefinitions(
             ctx,
             ir,
-            (s) => s.name.value == "main",
+            (s, isImport) => !isImport && s.name.value == "main",
             extra
         )
-
-        this.addCurrentScriptIR(ctx, map)
 
         return this.modules.wrap(ctx, ir, map)
     }

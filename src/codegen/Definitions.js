@@ -52,7 +52,7 @@ export function wrapWithDefs(inner, definitions) {
  *   hashDependencies: Record<string, string>
  *   validatorTypes?: ScriptTypes
  *   validatorIndices?: Record<string, number>
- *   dummyCurrentScript?: boolean
+ *   currentScriptValue?: string
  *   makeParamsSubstitutable: boolean
  * }} ExtraDefOptions
  */
@@ -100,8 +100,11 @@ export function genExtraDefs(options) {
         extra.set(key, ir)
     }
 
-    if (options.dummyCurrentScript) {
-        extra.set(`__helios__scriptcontext__current_script`, $`#`)
+    if (options.currentScriptValue) {
+        extra.set(
+            `__helios__scriptcontext__current_script`,
+            $(options.currentScriptValue)
+        )
     }
 
     // also add script enum `__is` methods

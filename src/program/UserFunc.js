@@ -91,7 +91,7 @@ export class UserFunc {
      *   validatorIndices?: Record<string, number>
      *   optimize?: boolean
      *   hashDependencies?: Record<string, string>
-     *   dummyCurrentScript?: boolean
+     *   currentScriptValue?: string
      * }} props
      * @returns {{
      *   ir: SourceMappedString
@@ -119,7 +119,7 @@ export class UserFunc {
             name: this.name,
             validatorTypes: props.validatorTypes,
             validatorIndices: props.validatorIndices,
-            dummyCurrentScript: props.dummyCurrentScript ?? false
+            currentScriptValue: props.currentScriptValue ?? "__CURRENT_SCRIPT"
         })
 
         const fn = this.mainFunc
@@ -147,11 +147,7 @@ export class UserFunc {
 
         const argNames = fn.argNames
             .concat(requiresScriptContext ? ["__CONTEXT"] : [])
-            .concat(
-                requiresCurrentScript
-                    ? ["__helios__scriptcontext__current_script"]
-                    : []
-            )
+            .concat(requiresCurrentScript ? ["__CURRENT_SCRIPT"] : [])
 
         ir = $`(${argNames.join(", ")}) -> {
             ${ir}

@@ -1,6 +1,7 @@
 import { bytesToHex } from "@helios-lang/codec-utils"
 import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
 import { SourceMappedString, compile as compileIR } from "@helios-lang/ir"
+import { isSome } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
@@ -331,7 +332,13 @@ export class Program {
             purpose: this.purpose,
             validatorTypes: this.props.validatorTypes,
             validatorIndices: options.validatorIndices,
-            makeParamsSubstitutable: options.makeParamSubstitutable ?? false
+            makeParamsSubstitutable: options.makeParamSubstitutable ?? false,
+            currentScriptValue: isSome(this.currentScriptIndex)
+                ? `__core__constrData(
+                ${this.currentScriptIndex.toString()},
+                __core__mkNilData(())
+            )`
+                : undefined
         })
 
         return this.entryPoint.toIR(ctx, extra)

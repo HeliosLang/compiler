@@ -232,7 +232,7 @@ function analyzeFunctions(fns, validatorTypes) {
             const main = fn.mainFunc
             const { requiresCurrentScript, requiresScriptContext } = fn.toIR({
                 validatorTypes,
-                dummyCurrentScript: true
+                currentScriptValue: "#"
             })
 
             return [
