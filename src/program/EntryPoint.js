@@ -1,6 +1,6 @@
 import { Word } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
-import { None, expectSome } from "@helios-lang/type-utils"
+import { None, expectSome, isSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
 import {
@@ -26,6 +26,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
  * @typedef {{
  *   name: string
  *   purpose: string
+ *   currentScriptIndex: Option<number>
  *   mainArgTypes: DataType[]
  *   mainFunc: FuncStatement
  *   moduleDependencies: string[]
@@ -67,6 +68,40 @@ export class EntryPointImpl {
         this.modules = modules
         this.globalScope = None
         this.#topScope = None
+    }
+
+    /**
+     * @type {Option<number>}
+     */
+    get currentScriptIndex() {
+        // add the current script to the context
+        if (this.globalScope) {
+            const ctx = this.globalScope.getBuiltinNamespace(
+                new Word("ScriptContext")
+            )
+
+            if (!ctx) {
+                return None
+            }
+
+            const member = ctx.namespaceMembers["Script"]
+            if (!member) {
+                return None
+            }
+
+            const scriptType = member.asType
+
+            if (scriptType && this.name in scriptType.typeMembers) {
+                const enumVariant =
+                    scriptType.typeMembers[this.name].asEnumMemberType
+
+                if (enumVariant) {
+                    return enumVariant.constrIndex
+                }
+            }
+        }
+
+        return None
     }
 
     /**
@@ -363,44 +398,24 @@ export class EntryPointImpl {
      * @param {Definitions} map
      */
     addCurrentScriptIR(ctx, map) {
-        // add the current script to the context
-        if (this.globalScope) {
-            const ctx = this.globalScope.getBuiltinNamespace(
-                new Word("ScriptContext")
+        const index = this.currentScriptIndex
+
+        if (isSome(index)) {
+            map.set(
+                `__helios__scriptcontext__current_script`,
+                $(
+                    [
+                        $`__core__constrData(
+                    ${index.toString()},
+                    __core__mkNilData(())
+                )`
+                    ],
+                    this.mainModule.name.site
+                )
             )
-
-            if (!ctx) {
-                return
-            }
-
-            const member = ctx.namespaceMembers["Script"]
-            if (!member) {
-                return
-            }
-
-            const scriptType = member.asType
-
-            if (scriptType && this.name in scriptType.typeMembers) {
-                const enumVariant =
-                    scriptType.typeMembers[this.name].asEnumMemberType
-
-                if (enumVariant) {
-                    map.set(
-                        `__helios__scriptcontext__current_script`,
-                        $(
-                            [
-                                $`__core__constrData(
-                            ${enumVariant.constrIndex.toString()},
-                            __core__mkNilData(())
-                        )`
-                            ],
-                            this.mainModule.name.site
-                        )
-                    )
-                }
-            }
         }
     }
+
     /**
      * @protected
      * @param {ToIRContext} ctx

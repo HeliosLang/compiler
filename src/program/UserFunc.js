@@ -64,6 +64,7 @@ export class UserFunc {
      * @param {{
      *   optimize: boolean
      *   validatorTypes: ScriptTypes
+     *   validatorIndices?: Record<string, number>
      *   hashDependencies: Record<string, string>
      * }} props
      * @returns {UplcProgramV2}
@@ -72,7 +73,8 @@ export class UserFunc {
         const { ir } = this.toIR({
             validatorTypes: props.validatorTypes,
             optimize: props.optimize,
-            hashDependencies: props.hashDependencies
+            hashDependencies: props.hashDependencies,
+            validatorIndices: props.validatorIndices
         })
 
         const uplc = compileIR(ir, {
@@ -86,8 +88,10 @@ export class UserFunc {
     /**
      * @param {{
      *   validatorTypes: ScriptTypes
+     *   validatorIndices?: Record<string, number>
      *   optimize?: boolean
      *   hashDependencies?: Record<string, string>
+     *   dummyCurrentScript?: boolean
      * }} props
      * @returns {{
      *   ir: SourceMappedString
@@ -114,7 +118,8 @@ export class UserFunc {
                 ),
             name: this.name,
             validatorTypes: props.validatorTypes,
-            dummyCurrentScript: true // TODO: configurable
+            validatorIndices: props.validatorIndices,
+            dummyCurrentScript: props.dummyCurrentScript ?? false
         })
 
         const fn = this.mainFunc

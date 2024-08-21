@@ -51,6 +51,7 @@ export function wrapWithDefs(inner, definitions) {
  *   name: string
  *   hashDependencies: Record<string, string>
  *   validatorTypes?: ScriptTypes
+ *   validatorIndices?: Record<string, number>
  *   dummyCurrentScript?: boolean
  *   makeParamsSubstitutable: boolean
  * }} ExtraDefOptions
@@ -103,12 +104,25 @@ export function genExtraDefs(options) {
         extra.set(`__helios__scriptcontext__current_script`, $`#`)
     }
 
-    // also add script enum __is methods
-    if (options.validatorTypes) {
-        Object.keys(options.validatorTypes).forEach((scriptName) => {
+    // also add script enum `__is` methods
+    if (options.validatorIndices) {
+        const validatorIndices = options.validatorIndices
+        Object.keys(validatorIndices).forEach((scriptName) => {
             const key = `__helios__script__${scriptName}____is`
 
-            // only way to instantiate a Script is via ScriptContext::current_script
+            // only way to instantiate a Script is via ScriptContext::current_script, so `__new` functions aren't needed
+
+            const index = validatorIndices[scriptName]
+            const ir = $`(cs) -> {
+                __core__equalsInteger(__core__fstPair(__core__unConstrData(cs)), ${index})
+            }`
+
+            extra.set(key, ir)
+        })
+    } else if (options.validatorTypes) {
+        // backup way of defining __helios__script__<name>____is
+        Object.keys(options.validatorTypes).forEach((scriptName) => {
+            const key = `__helios__script__${scriptName}____is`
 
             const ir = $`(_) -> {
                ${options.name == scriptName ? "true" : "false"}

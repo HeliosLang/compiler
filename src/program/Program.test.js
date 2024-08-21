@@ -206,7 +206,7 @@ describe(Program.name, () => {
 
         const fns = program.userFunctions["m"]
 
-        deepEqual(Object.keys(fns), ["my_func", "main"])
+        deepEqual(Object.keys(fns), ["my_func"])
 
         deepEqual(fns["my_func"].mainFunc.retType.asDataType?.toSchema(), {
             kind: "tuple",

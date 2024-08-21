@@ -5,7 +5,7 @@
 
 import { readHeader } from "@helios-lang/compiler-utils"
 import { collectParams, prepare as prepareIR } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { None, expectSome } from "@helios-lang/type-utils"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
 import {
     MintingPolicyHashType,
@@ -54,6 +54,7 @@ import { UserFunc } from "./UserFunc.js"
  * @typedef {AnalyzedModule & {
  *   hashDependencies: string[]
  *   Redeemer: TypeSchema
+ *   currentScriptIndex?: number
  *   Datum?: TypeSchema
  * }} AnalyzedValidator
  */
@@ -190,7 +191,8 @@ function analyzeValidator(
         types: createTypeSchemas(moduleTypes),
         functions: analyzeFunctions(moduleFunctions, validatorTypes),
         Redeemer: redeemer,
-        Datum: datum
+        Datum: datum,
+        currentScriptIndex: program.currentScriptIndex ?? undefined
     }
 }
 
@@ -229,7 +231,8 @@ function analyzeFunctions(fns, validatorTypes) {
         Object.entries(fns).map(([key, fn]) => {
             const main = fn.mainFunc
             const { requiresCurrentScript, requiresScriptContext } = fn.toIR({
-                validatorTypes
+                validatorTypes,
+                dummyCurrentScript: true
             })
 
             return [
@@ -253,6 +256,27 @@ function analyzeFunctions(fns, validatorTypes) {
 }
 
 /**
+ * @param {Program[]} programs
+ * @returns {Option<Record<string, number>>}
+ */
+function getValidatorIndices(programs) {
+    /**
+     * @type {Record<string, number>}
+     */
+    const indices = {}
+
+    for (let p of programs) {
+        if (p.currentScriptIndex) {
+            indices[p.name] = p.currentScriptIndex
+        } else {
+            return None
+        }
+    }
+
+    return indices
+}
+
+/**
  * Creates a Directed Acyclical Graph of inter-validator dependencies of a multi-validator contract
  * @param {Program[]} programs
  * @returns {Record<string, string[]>}
@@ -272,6 +296,8 @@ function buildDag(programs) {
         "validatorTypes unset"
     )
 
+    const validatorIndices = getValidatorIndices(programs)
+
     const validatorNames = Object.keys(validatorTypes)
 
     programs.forEach((p) => {
@@ -279,6 +305,7 @@ function buildDag(programs) {
             optimize: true,
             dependsOnOwnHash: false,
             makeParamSubstitutable: true,
+            validatorIndices: validatorIndices ?? undefined,
             hashDependencies: Object.fromEntries(
                 validatorNames.map((name) => [name, "#"])
             )

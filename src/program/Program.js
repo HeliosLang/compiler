@@ -1,3 +1,4 @@
+import { bytesToHex } from "@helios-lang/codec-utils"
 import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
 import { SourceMappedString, compile as compileIR } from "@helios-lang/ir"
 import { UplcProgramV2 } from "@helios-lang/uplc"
@@ -10,10 +11,10 @@ import {
 } from "../statements/index.js"
 import { isDataType } from "../typecheck/index.js"
 import { newEntryPoint } from "./newEntryPoint.js"
+import { MainModule } from "./MainModule.js"
 import { Module } from "./Module.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 import { UserFunc } from "./UserFunc.js"
-import { bytesToHex } from "@helios-lang/codec-utils"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -43,6 +44,7 @@ import { bytesToHex } from "@helios-lang/codec-utils"
  *   optimize?: boolean
  *   dependsOnOwnHash?: boolean
  *   hashDependencies?: Record<string, string>
+ *   validatorIndices?: Record<string, number>
  *   onCompileUserFunc?: (name: string, uplc: UplcProgramV2) => void
  *   excludeUserFuncs?: Set<string>
  * }} CompileOptions
@@ -122,6 +124,13 @@ export class Program {
     }
 
     /**
+     * @type {Option<number>}
+     */
+    get currentScriptIndex() {
+        return this.entryPoint.currentScriptIndex
+    }
+
+    /**
      * @type {Record<string, Record<string, UserFunc>>}
      */
     get userFunctions() {
@@ -139,6 +148,11 @@ export class Program {
          * @param {string} prefix
          */
         const addFunc = (m, fn, prefix) => {
+            // Don't add main function
+            if (m instanceof MainModule && fn.name.value == "main") {
+                return
+            }
+
             const moduleName = m.name.value
             const prev = res[moduleName] ?? {}
             const fullName = `${prefix}${fn.name.value}`
@@ -252,7 +266,8 @@ export class Program {
             this.compileUserFuncs(options.onCompileUserFunc, {
                 optimize: optimize,
                 excludeUserFuncs: options.excludeUserFuncs ?? new Set(),
-                hashDependencies: hashDependencies
+                hashDependencies: hashDependencies,
+                validatorIndices: options.validatorIndices
             })
         }
 
@@ -265,6 +280,7 @@ export class Program {
      *   optimize: boolean
      *   excludeUserFuncs: Set<string>
      *   hashDependencies: Record<string, string>
+     *   validatorIndices?: Record<string, number>
      * }} options
      */
     compileUserFuncs(onCompile, options) {
@@ -278,7 +294,8 @@ export class Program {
                     const uplc = fn.compile({
                         optimize: options.optimize,
                         hashDependencies: options.hashDependencies,
-                        validatorTypes: this.props.validatorTypes ?? {}
+                        validatorTypes: this.props.validatorTypes ?? {},
+                        validatorIndices: options.validatorIndices
                     })
 
                     onCompile(fullName, uplc)
@@ -296,6 +313,7 @@ export class Program {
      *   hashDependencies: Record<string, string>
      *   optimize: boolean
      *   makeParamSubstitutable?: boolean
+     *   validatorIndices?: Record<string, number>
      * }} options
      * @returns {SourceMappedString}
      */
@@ -312,6 +330,7 @@ export class Program {
             hashDependencies: options.hashDependencies,
             purpose: this.purpose,
             validatorTypes: this.props.validatorTypes,
+            validatorIndices: options.validatorIndices,
             makeParamsSubstitutable: options.makeParamSubstitutable ?? false
         })
 
