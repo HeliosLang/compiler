@@ -161,6 +161,9 @@ export class UserFunc {
             ? $`${fn.path}(${argsToString(fn.args.slice(0, 1))})(${argsToString(fn.args.slice(1))})`
             : $`${fn.path}(${argsToString(fn.args)})`
 
+        const retTypePath = expectSome(fn.retType.asDataType).path
+        ir = $`${retTypePath}____to_data(${ir})`
+
         const defs = this.modules.fetchDefinitions(
             ctx,
             ir,
