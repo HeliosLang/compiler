@@ -28,6 +28,7 @@ import { UserFunc } from "./UserFunc.js"
 
 /**
  * @typedef {{
+ *   name: string
  *   requiresScriptContext: boolean
  *   requiresCurrentScript: boolean
  *   arguments: {
@@ -239,6 +240,7 @@ function analyzeFunctions(fns, validatorTypes) {
             return [
                 key,
                 {
+                    name: key,
                     requiresCurrentScript: requiresCurrentScript,
                     requiresScriptContext: requiresScriptContext,
                     arguments: main.args
