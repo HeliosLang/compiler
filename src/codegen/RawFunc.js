@@ -3,7 +3,18 @@ import { SourceMappedString } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { ParametricName } from "./ParametricName.js"
 
-export const RE_BUILTIN = new RegExp("(?<![@[])__helios[a-zA-Z0-9_@[\\]]*", "g")
+/**
+ *
+ * @param {string} s
+ * @param {(m: string) => void} callback
+ */
+export function matchBuiltins(s, callback) {
+    const re = new RegExp("(^|[^@[])(__helios[a-zA-Z0-9_@[\\]]*)", "g")
+    let m
+    while ((m = re.exec(s))) {
+        callback(m[2])
+    }
+}
 
 /**
  * @typedef {import("./Definitions.js").Definitions} Definitions
@@ -99,7 +110,8 @@ export class RawFunc {
 
             const [def, _] = ir.toStringWithSourceMap()
             const deps = new Set()
-            def.match(RE_BUILTIN)?.forEach((match) => deps.add(match))
+
+            matchBuiltins(def, (m) => deps.add(m))
 
             for (let dep of deps) {
                 if (!db.has(dep)) {

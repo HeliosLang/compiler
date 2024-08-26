@@ -1,6 +1,6 @@
 import { SourceMappedString } from "@helios-lang/ir"
 import { ParametricName } from "./ParametricName.js"
-import { RE_BUILTIN, RawFunc } from "./RawFunc.js"
+import { RawFunc, matchBuiltins } from "./RawFunc.js"
 import { makeRawFunctions } from "./makeRawFuncs.js"
 import { wrapWithDefs, TAB } from "./Definitions.js"
 
@@ -120,30 +120,26 @@ export class ToIRContext {
     fetchRawFunctions(ir, userDefs = null) {
         let [src, _] = ir.toStringWithSourceMap()
 
-        let matches = src.match(RE_BUILTIN)
-
         /**
          * @type {Definitions}
          */
         const map = new Map()
 
-        if (matches) {
-            for (let m of matches) {
-                if (
-                    !ParametricName.matches(m) &&
-                    !map.has(m) &&
-                    (!userDefs || !userDefs.has(m))
-                ) {
-                    const builtin = this.db.get(m)
+        matchBuiltins(src, (m) => {
+            if (
+                !ParametricName.matches(m) &&
+                !map.has(m) &&
+                (!userDefs || !userDefs.has(m))
+            ) {
+                const builtin = this.db.get(m)
 
-                    if (!builtin) {
-                        throw new Error(`builtin ${m} not found`)
-                    }
-
-                    builtin.load(this.db, map)
+                if (!builtin) {
+                    throw new Error(`builtin ${m} not found`)
                 }
+
+                builtin.load(this.db, map)
             }
-        }
+        })
 
         return map
     }
