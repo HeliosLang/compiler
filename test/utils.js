@@ -1,7 +1,7 @@
 import assert, { strictEqual, throws } from "node:assert"
 import { it } from "node:test"
 import { bytesToHex, encodeUtf8 } from "@helios-lang/codec-utils"
-import { isLeft, isRight } from "@helios-lang/type-utils"
+import { isLeft, isRight, isString } from "@helios-lang/type-utils"
 import {
     ByteArrayData,
     ConstrData,
@@ -185,7 +185,7 @@ export function evalSingle(src, dataArgs = []) {
     if (isRight(res.result)) {
         const resData = res.result.right
 
-        if (resData instanceof UplcDataValue) {
+        if (!isString(resData) && resData.kind == "data") {
             return resData.value
         }
     } else {
@@ -346,9 +346,9 @@ function cekResultToString(cekResult) {
         console.error(output.left.error)
         return "error"
     } else {
-        if (typeof output.right == "string") {
+        if (isString(output.right)) {
             return output.right
-        } else if (output.right instanceof UplcDataValue) {
+        } else if (output.right.kind == "data") {
             return output.right.value.toString()
         } else {
             return output.right.toString()

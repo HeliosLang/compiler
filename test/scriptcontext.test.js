@@ -180,7 +180,7 @@ describe("Entry points", () => {
 
     it("data tag is 0", () => {
         const data = mintingScriptContext.data
-        strictEqual(data instanceof ConstrData && data.tag == 0, true)
+        strictEqual(data.kind == "constr" && data.tag == 0, true)
     })
 
     compileAndRun({
