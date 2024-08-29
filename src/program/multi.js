@@ -7,6 +7,7 @@ import { readHeader } from "@helios-lang/compiler-utils"
 import { collectParams, prepare as prepareIR } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
+import { ConstStatement } from "../statements/index.js"
 import {
     MintingPolicyHashType,
     ScriptHashType,
@@ -231,7 +232,7 @@ function analyzeModule(m, validatorTypes, allModules, allTypes, allFunctions) {
 function analyzeFunctions(fns, validatorTypes) {
     return Object.fromEntries(
         Object.entries(fns).map(([key, fn]) => {
-            const main = fn.mainFunc
+            const main = fn.main
             const { requiresCurrentScript, requiresScriptContext } = fn.toIR({
                 validatorTypes,
                 currentScriptValue: "#"
@@ -243,18 +244,27 @@ function analyzeFunctions(fns, validatorTypes) {
                     name: key,
                     requiresCurrentScript: requiresCurrentScript,
                     requiresScriptContext: requiresScriptContext,
-                    arguments: main.args
-                        .filter((arg) => !arg.isIgnored())
-                        .map((arg) => {
-                            const type = arg.type
+                    arguments:
+                        main instanceof ConstStatement
+                            ? []
+                            : main.args
+                                  .filter((arg) => !arg.isIgnored())
+                                  .map((arg) => {
+                                      const type = arg.type
 
-                            return {
-                                name: arg.name.value,
-                                isOptional: arg.isOptional,
-                                type: expectSome(type.asDataType).toSchema()
-                            }
-                        }),
-                    returns: expectSome(main.retType.asDataType).toSchema()
+                                      return {
+                                          name: arg.name.value,
+                                          isOptional: arg.isOptional,
+                                          type: expectSome(
+                                              type.asDataType
+                                          ).toSchema()
+                                      }
+                                  }),
+                    returns: expectSome(
+                        main instanceof ConstStatement
+                            ? main.type.asDataType
+                            : main.retType.asDataType
+                    ).toSchema()
                 }
             ]
         })

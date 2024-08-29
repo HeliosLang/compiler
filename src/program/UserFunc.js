@@ -1,7 +1,7 @@
 import { $, SourceMappedString, compile as compileIR } from "@helios-lang/ir"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
-import { FuncStatement } from "../statements/index.js"
+import { ConstStatement, FuncStatement } from "../statements/index.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
 import { FuncArg } from "../expressions/FuncArg.js"
@@ -35,20 +35,50 @@ export class UserFunc {
     }
 
     /**
+     * @type {ConstStatement}
+     */
+    get mainConst() {
+        const cn = this.main
+
+        if (!(cn instanceof ConstStatement)) {
+            throw new Error("expected entry point const, got function")
+        }
+
+        return cn
+    }
+
+    /**
      * @type {FuncStatement}
      */
     get mainFunc() {
+        const fn = this.main
+
+        if (!(fn instanceof FuncStatement)) {
+            throw new Error("expected entry point function, got const")
+        }
+
+        return fn
+    }
+
+    /**
+     * @type {FuncStatement | ConstStatement}
+     */
+    get main() {
         const lastModule = this.modules.lastModule
 
         const nameParts = this.name.split("::")
 
         for (let s of lastModule.statements) {
-            if (s instanceof FuncStatement && s.name.value == this.name) {
+            if (
+                (s instanceof FuncStatement || s instanceof ConstStatement) &&
+                s.name.value == this.name
+            ) {
                 return s
             } else if (s.name.value == nameParts[0]) {
                 for (let ss of s.statements) {
                     if (
-                        ss instanceof FuncStatement &&
+                        (ss instanceof FuncStatement ||
+                            ss instanceof ConstStatement) &&
                         ss.name.value == nameParts[1]
                     ) {
                         return ss
@@ -155,14 +185,26 @@ export class UserFunc {
                 .join(", ")
         }
 
-        const fn = this.mainFunc
-        const isMethod = fn.funcExpr.isMethod()
-        let ir = isMethod
-            ? $`${fn.path}(${argsToString(fn.args.slice(0, 1))})(${argsToString(fn.args.slice(1))})`
-            : $`${fn.path}(${argsToString(fn.args)})`
+        const fn = this.main
+        const args = fn instanceof FuncStatement ? fn.args : []
 
-        const retTypePath = expectSome(fn.retType.asDataType).path
-        ir = $`${retTypePath}____to_data(${ir})`
+        /**
+         * @type {SourceMappedString}
+         */
+        let ir
+
+        if (fn instanceof ConstStatement) {
+            ir = $`${fn.path}`
+        } else {
+            const isMethod = fn.funcExpr.isMethod()
+
+            ir = isMethod
+                ? $`${fn.path}(${argsToString(args.slice(0, 1))})(${argsToString(args.slice(1))})`
+                : $`${fn.path}(${argsToString(args)})`
+
+            const retTypePath = expectSome(fn.retType.asDataType).path
+            ir = $`${retTypePath}____to_data(${ir})`
+        }
 
         const defs = this.modules.fetchDefinitions(
             ctx,
@@ -181,7 +223,7 @@ export class UserFunc {
             "__helios__scriptcontext__data"
         )
 
-        const outerArgNames = fn.args
+        const outerArgNames = args
             .filter((arg) => !arg.isIgnored())
             .map((arg) => arg.name.value)
             .concat(requiresScriptContext ? ["__CONTEXT"] : [])

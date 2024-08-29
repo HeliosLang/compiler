@@ -6,6 +6,7 @@ import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
 import {
+    ConstStatement,
     EnumStatement,
     FuncStatement,
     StructStatement
@@ -176,12 +177,38 @@ export class Program {
             res[moduleName] = prev
         }
 
+        /**
+         * @param {Module} m
+         * @param {ConstStatement} cn
+         * @param {string} prefix
+         */
+        const addConst = (m, cn, prefix) => {
+            const moduleName = m.name.value
+            const prev = res[moduleName] ?? {}
+            const fullName = `${prefix}${cn.name.value}`
+
+            if (isDataType(cn.type)) {
+                const filteredImportedModules =
+                    m.filterDependencies(importedModules)
+
+                const newEntryPoint = new UserFunc(
+                    new ModuleCollection(filteredImportedModules.concat([m])),
+                    fullName
+                )
+                prev[fullName] = newEntryPoint
+            }
+
+            res[moduleName] = prev
+        }
+
         allModules.forEach((m) => {
             const statements = m.statements
 
             statements.forEach((s, i) => {
                 if (s instanceof FuncStatement) {
                     addFunc(m, s, "")
+                } else if (s instanceof ConstStatement) {
+                    addConst(m, s, "")
                 } else if (
                     s instanceof EnumStatement ||
                     s instanceof StructStatement
@@ -191,6 +218,8 @@ export class Program {
                     s.statements.forEach((ss) => {
                         if (ss instanceof FuncStatement) {
                             addFunc(m, ss, prefix)
+                        } else if (ss instanceof ConstStatement) {
+                            addConst(m, ss, prefix)
                         }
                     })
                 }
