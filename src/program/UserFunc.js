@@ -194,7 +194,8 @@ export class UserFunc {
         let ir
 
         if (fn instanceof ConstStatement) {
-            ir = $`${fn.path}`
+            const retTypePath = expectSome(fn.type).path
+            ir = $`${retTypePath}____to_data(${fn.path})`
         } else {
             const isMethod = fn.funcExpr.isMethod()
 
