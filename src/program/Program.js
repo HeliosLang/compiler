@@ -23,6 +23,7 @@ import { UserFunc } from "./UserFunc.js"
  * @typedef {import("@helios-lang/ir").ParseOptions} ParseOptions
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("@helios-lang/uplc").UplcValue} UplcValue
+ * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
@@ -294,7 +295,6 @@ export class Program {
             }
 
             this.compileUserFuncs(options.onCompileUserFunc, {
-                optimize: optimize,
                 excludeUserFuncs: options.excludeUserFuncs ?? new Set(),
                 hashDependencies: hashDependencies,
                 validatorIndices: options.validatorIndices
@@ -305,9 +305,8 @@ export class Program {
     }
 
     /**
-     * @param {(name: string, uplc: UplcProgramV2) => void} onCompile
+     * @param {(name: string, uplc: UplcProgramV2I) => void} onCompile
      * @param {{
-     *   optimize: boolean
      *   excludeUserFuncs: Set<string>
      *   hashDependencies: Record<string, string>
      *   validatorIndices?: Record<string, number>
@@ -321,12 +320,21 @@ export class Program {
                 const fullName = `${moduleName}::${funcName}`
 
                 if (!options.excludeUserFuncs.has(fullName)) {
-                    const uplc = fn.compile({
-                        optimize: options.optimize,
-                        hashDependencies: options.hashDependencies,
-                        validatorTypes: this.props.validatorTypes ?? {},
-                        validatorIndices: options.validatorIndices
-                    })
+                    const uplc = fn
+                        .compile({
+                            optimize: true,
+                            hashDependencies: options.hashDependencies,
+                            validatorTypes: this.props.validatorTypes ?? {},
+                            validatorIndices: options.validatorIndices
+                        })
+                        .withAlt(
+                            fn.compile({
+                                optimize: false,
+                                hashDependencies: options.hashDependencies,
+                                validatorTypes: this.props.validatorTypes ?? {},
+                                validatorIndices: options.validatorIndices
+                            })
+                        )
 
                     onCompile(fullName, uplc)
                 }
