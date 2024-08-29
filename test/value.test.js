@@ -707,6 +707,48 @@ describe("Value", () => {
         })
     })
 
+    describe("Value.get_policy", () => {
+        const runner = compileForRun(`testing value_get_policy
+        func main(v: Value, mph: MintingPolicyHash) -> Map[ByteArray]Int {
+            v.get_policy(mph)
+        }`)
+
+        it("fails if policy not found", () => {
+            runner([map([]), bytes([])], { error: "" })
+        })
+
+        it("ok if policy found", () => {
+            runner(
+                [
+                    map([[bytes("0123"), map([[bytes("abcd"), int(1)]])]]),
+                    bytes("0123")
+                ],
+                map([[bytes("abcd"), int(1)]])
+            )
+        })
+    })
+
+    describe("Value.get_policy_safe", () => {
+        const runner = compileForRun(`testing value_get_policy_safe
+        func main(v: Value, mph: MintingPolicyHash) -> Map[ByteArray]Int {
+            v.get_policy_safe(mph)
+        }`)
+
+        it("returns empty map if policy isn't found", () => {
+            runner([map([]), bytes([])], map([]))
+        })
+
+        it("ok if policy found", () => {
+            runner(
+                [
+                    map([[bytes("0123"), map([[bytes("abcd"), int(1)]])]]),
+                    bytes("0123")
+                ],
+                map([[bytes("abcd"), int(1)]])
+            )
+        })
+    })
+
     describe("Value.sort", () => {
         const runner = compileForRun(`testing value_sort
         func main(v: Value) -> Value {

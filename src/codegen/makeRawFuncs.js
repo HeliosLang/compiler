@@ -10576,6 +10576,34 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__value__get_policy_safe",
+            `(self) -> {
+		(mph_) -> {
+			mph = __helios__mintingpolicyhash____to_data(mph_);
+			recurse = (recurse, map) -> {
+				__core__chooseList(
+					map,
+					() -> {__core__mkNilPairData(())},
+					() -> {
+						__core__ifThenElse(
+							__core__equalsData(__core__fstPair(__core__headList__safe(map)), mph),
+							() -> {
+								__core__unMapData(__core__sndPair(__core__headList__safe(map)))
+							},
+							() -> {
+								recurse(recurse, __core__tailList__safe(map))
+							}
+						)()
+					}
+				)()
+			};
+			recurse(recurse, self)
+		} 
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__value__contains_policy",
             `(self) -> {
 		(mph) -> {

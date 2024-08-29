@@ -77,6 +77,10 @@ export const ValueType = new GenericType({
             [MintingPolicyHashType],
             MapType$(ByteArrayType, IntType)
         ),
+        get_policy_safe: new FuncType(
+            [MintingPolicyHashType],
+            MapType$(ByteArrayType, IntType)
+        ),
         get_safe: new FuncType([AssetClassType], IntType),
         is_zero: new FuncType([], BoolType),
         sort: new FuncType([], self),
