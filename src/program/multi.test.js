@@ -130,8 +130,16 @@ describe(analyzeMulti.name, () => {
             true
         }`
 
-        const analysis = analyzeMulti([src1, src2], [mod])
+        analyzeMulti([src1, src2], [mod])
+    })
 
-        console.log(analysis.modules)
+    it("converts untyped const statement as userFunc", () => {
+        const src1 = `spending s
+        const ok = true
+        func main(_, _) -> Bool {
+            ok
+        }`
+
+        analyzeMulti([src1], [])
     })
 })

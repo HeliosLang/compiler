@@ -47,7 +47,7 @@ export class ConstStatement extends Statement {
     get type() {
         return expectSome(
             this.#typeExpr?.cache?.asDataType ??
-                this.#valueExpr?.cache?.asDataType,
+                this.#valueExpr?.cache?.asTyped?.type?.asDataType,
             this.#typeExpr?.cache?.toString() ??
                 this.#typeExpr?.toString() ??
                 this.#valueExpr?.toString() ??
