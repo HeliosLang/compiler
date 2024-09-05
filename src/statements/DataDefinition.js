@@ -514,9 +514,10 @@ export class DataDefinition {
     }
 
     /**
+     * @param {boolean} argIsConstrFields - true in case of sndPair(unConstrData(...)) call for enum variant
      * @returns {SourceMappedString}
      */
-    toIR_is_valid_data() {
+    toIR_is_valid_data(argIsConstrFields = false) {
         if (this.hasTags()) {
             const fields = this.#fields
 
@@ -549,7 +550,7 @@ export class DataDefinition {
             return $`(data) -> {
 				${ir}
 			}`
-        } else if (this.nFields == 1) {
+        } else if (this.nFields == 1 && !argIsConstrFields) {
             return $`${this.#fields[0].type.path}__is_valid_data`
         } else {
             const reversedFields = this.#fields.slice().reverse()

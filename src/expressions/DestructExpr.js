@@ -209,11 +209,15 @@ export class DestructExpr {
             if (this.#isTuple) {
                 const upstreamItemTypes = upstreamType
                     ? getTupleItemTypes(upstreamType)
-                    : null
+                    : None
+                const downStreamItemTypes = downstreamType
+                    ? getTupleItemTypes(downstreamType)
+                    : None
                 const nestedTypes = this.destructExprs.map((e, i) => {
                     const de = e.evalType(
                         scope,
-                        upstreamItemTypes ? upstreamItemTypes[i] : null
+                        upstreamItemTypes ? upstreamItemTypes[i] : None,
+                        downStreamItemTypes ? downStreamItemTypes[i] : None
                     )
 
                     if (!de) {
@@ -247,6 +251,16 @@ export class DestructExpr {
             )
             this.typeExpr.cache = variant
             return variant
+        } else if (
+            // could be the same implicit enum variant
+            this.typeExpr instanceof RefExpr &&
+            upstreamType &&
+            !downstreamType &&
+            upstreamType.asEnumMemberType &&
+            upstreamType.asEnumMemberType.name == this.typeExpr.name.value
+        ) {
+            this.typeExpr.cache = upstreamType
+            return upstreamType
         } else {
             const t = downstreamType ?? this.typeExpr.evalAsType(scope)
 
@@ -257,6 +271,7 @@ export class DestructExpr {
                 t.asEnumMemberType &&
                 castEnumVariantToParent
             ) {
+                // this is important when used as the type against which the rhs is checked
                 return t.asEnumMemberType.parentType
             } else {
                 return t

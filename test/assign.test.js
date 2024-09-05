@@ -121,6 +121,150 @@ describe("Assign", () => {
             output: int(1)
         },
         {
+            description: "can destruct enum nested in tuple",
+            main: `testing destruct_custom_enum_variant_nested
+            
+            enum MyEnum {
+                A{
+                    a: Int
+                }
+                B
+            }
+            
+            func main(a: Int) -> Int {
+                enum: MyEnum = MyEnum::A{a};
+
+                (_, A{b}) = (a, enum);
+                b
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
+            description: "can destruct enum nested in tuple (fully namespaced)",
+            main: `testing destruct_custom_enum_variant_nested
+            
+            enum MyEnum {
+                A{
+                    a: Int
+                }
+                B
+            }
+            
+            func main(a: Int) -> Int {
+                enum: MyEnum = MyEnum::A{a};
+
+                (_, MyEnum::A{b}) = (a, enum);
+                b
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
+            description:
+                "can destruct enum nested variant nested in tuple (implicit variants)",
+            main: `testing destruct_custom_enum_variant_nested_in_tuple
+            
+            enum Inner {
+                A{a: Int}
+                B
+            }
+            enum Outer {
+                C{
+                    i: Inner
+                }
+                D
+            }
+            
+            func main(a: Int) -> Int {
+                inner: Inner = Inner::A{a};
+                outer: Outer = Outer::C{inner};
+
+                (_, C{A{b}}) = (a, outer);
+                b
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
+            description:
+                "can destruct enum nested variant nested in tuple (partially namespaced)",
+            main: `testing destruct_custom_enum_variant_nested_in_tuple
+            
+            enum Inner {
+                A{a: Int}
+                B
+            }
+            enum Outer {
+                C{
+                    i: Inner
+                }
+                D
+            }
+            
+            func main(a: Int) -> Int {
+                inner: Inner = Inner::A{a};
+                outer: Outer = Outer::C{inner};
+
+                (_, C{Inner::A{b}}) = (a, outer);
+                b
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
+            description:
+                "can destruct enum nested variant nested in tuple (partially namespaced 2)",
+            main: `testing destruct_custom_enum_variant_nested_in_tuple
+            
+            enum Inner {
+                A{a: Int}
+                B
+            }
+            enum Outer {
+                C{
+                    i: Inner
+                }
+                D
+            }
+            
+            func main(a: Int) -> Int {
+                inner: Inner = Inner::A{a};
+                outer: Outer = Outer::C{inner};
+
+                (_, Outer::C{A{b}}) = (a, outer);
+                b
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
+            description:
+                "can destruct enum nested variant nested in tuple (fully namespaced)",
+            main: `testing destruct_custom_enum_variant_nested_in_tuple
+            
+            enum Inner {
+                A{a: Int}
+                B
+            }
+            enum Outer {
+                C{
+                    i: Inner
+                }
+                D
+            }
+            
+            func main(a: Int) -> Int {
+                inner: Inner = Inner::A{a};
+                outer: Outer = Outer::C{inner};
+
+                (_, Outer::C{Inner::A{b}}) = (a, outer);
+                b
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
             description: "infers types when assigning to tuple",
             main: `testing destruct_tuple_infered_types
             

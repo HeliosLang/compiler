@@ -193,7 +193,7 @@ export class EnumMember {
 						__core__ifThenElse(
 							__core__equalsInteger(__core__fstPair(pair), ${this.constrIndex}),
 							() -> {
-								${this.#dataDef.toIR_is_valid_data()}(__core__listData(__core__sndPair(pair)))
+								${this.#dataDef.toIR_is_valid_data(true)}(__core__listData(__core__sndPair(pair)))
 							},
 							() -> {
 								false
