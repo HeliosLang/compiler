@@ -11,6 +11,7 @@ import { Expr } from "./Expr.js"
 
 /**
  * Helios equivalent of unit
+ * TODO: inherit from ParensExpr (with empty fields)
  */
 export class VoidExpr extends Expr {
     /**

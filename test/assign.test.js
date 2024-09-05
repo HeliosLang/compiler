@@ -53,6 +53,74 @@ describe("Assign", () => {
             output: int(1)
         },
         {
+            description:
+                "can destruct custom enum variant using variant name in enum type namespace",
+            main: `testing destruct_custom_enum_variant_namespaced
+
+            enum MyEnum {
+                A{a: Int}
+                B
+                C
+            }
+            func main(d: Int) -> Int {
+                my_enum: MyEnum = MyEnum::A{d};
+                MyEnum::A{b} = my_enum;
+                b
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
+            description: "can destruct enum nested variant (fully namespaced)",
+            main: `testing destruct_custom_enum_variant_nested
+            
+            enum Inner {
+                A{a: Int}
+                B
+            }
+            enum Outer {
+                C{
+                    i: Inner
+                }
+                D
+            }
+            
+            func main(a: Int) -> Int {
+                inner: Inner = Inner::A{a};
+                outer: Outer = Outer::C{inner};
+
+                Outer::C{Inner::A{b}} = outer;
+                b
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
+            description: "can destruct enum nested variant (implicit variants)",
+            main: `testing destruct_custom_enum_variant_nested
+            
+            enum Inner {
+                A{a: Int}
+                B
+            }
+            enum Outer {
+                C{
+                    i: Inner
+                }
+                D
+            }
+            
+            func main(a: Int) -> Int {
+                inner: Inner = Inner::A{a};
+                outer: Outer = Outer::C{inner};
+
+                C{A{b}} = outer;
+                b
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
             description: "infers types when assigning to tuple",
             main: `testing destruct_tuple_infered_types
             

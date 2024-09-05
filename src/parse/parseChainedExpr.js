@@ -33,7 +33,8 @@ import {
     StructLiteralField,
     SwitchCase,
     SwitchDefault,
-    ValuePathExpr
+    ValuePathExpr,
+    VoidExpr
 } from "../expressions/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { makeFuncLiteralExprParser } from "./parseFuncLiteralExpr.js"
@@ -276,6 +277,11 @@ export function makeChainedExprParser(parseValueExpr) {
 
         r.endMatch(false)
 
+        if (condExprs.length == branchExprs.length) {
+            // add a final unit branch
+            branchExprs.push(new VoidExpr(keyword.site))
+        }
+
         if (condExprs.length != branchExprs.length - 1) {
             ctx.errors.syntax(keyword.site, "missing final else branch")
         }
@@ -326,7 +332,10 @@ export function makeChainedExprParser(parseValueExpr) {
             } else if ((m = f.findNextMatch(symbol("=>")))) {
                 const [before, darrow] = m
 
-                let destructExpr = parseDestructExpr(ctx.withReader(before), 2)
+                let destructExpr = parseDestructExpr(
+                    ctx.atSite(darrow.site).withReader(before),
+                    2
+                )
 
                 const prevCase = cases[cases.length - 1]
 
@@ -360,10 +369,10 @@ export function makeChainedExprParser(parseValueExpr) {
         /**
          * @type {DestructExpr[]}
          */
-        let additional = []
+        const additional = []
 
         for (let i = 0; i < n; i++) {
-            additional.push(new DestructExpr(new Word("_", site)))
+            additional.push(new DestructExpr(site, new Word("_", site)))
         }
 
         return additional
@@ -380,6 +389,7 @@ export function makeChainedExprParser(parseValueExpr) {
             if (!destructExpr.isIgnored()) {
                 ctx.errors.syntax(destructExpr.site, "invalid syntax")
                 destructExpr = new DestructExpr(
+                    destructExpr.site,
                     new Word("_", destructExpr.name.site),
                     destructExpr.typeExpr,
                     destructExpr.destructExprs,
@@ -417,6 +427,7 @@ export function makeChainedExprParser(parseValueExpr) {
                             "inconsistent switch case condition"
                         )
                         destructExpr = new DestructExpr(
+                            destructExpr.site,
                             destructExpr.name,
                             None,
                             destructExpr.destructExprs.slice(
@@ -431,6 +442,7 @@ export function makeChainedExprParser(parseValueExpr) {
                             "inconsistent switch case condition"
                         )
                         destructExpr = new DestructExpr(
+                            destructExpr.site,
                             destructExpr.name,
                             None,
                             destructExpr.destructExprs.concat(
@@ -463,6 +475,7 @@ export function makeChainedExprParser(parseValueExpr) {
                 )
                 const nDiff = prevDestructExpr.destructExprs.length - 1
                 destructExpr = new DestructExpr(
+                    destructExpr.site,
                     new Word("_", destructExpr.name.site),
                     None,
                     [destructExpr].concat(

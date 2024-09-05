@@ -32,11 +32,15 @@ export class IfElseExpr extends Expr {
      * @param {Expr[]} branches
      */
     constructor(site, conditions, branches) {
-        if (branches.length != conditions.length + 1) {
+        // the number of branches can be equal to the number of conditions in case the branches return void
+        if (
+            branches.length < conditions.length ||
+            branches.length > conditions.length + 1
+        ) {
             throw new Error("unexpected")
         }
 
-        if (branches.length <= 1) {
+        if (branches.length == 0) {
             throw new Error("unexpected")
         }
 

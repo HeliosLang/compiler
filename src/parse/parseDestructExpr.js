@@ -41,7 +41,7 @@ export function parseDestructExpr(ctx, switchingDepth) {
     if ((m = r.matches(word("_")))) {
         r.end()
 
-        return new DestructExpr(m)
+        return new DestructExpr(ctx.currentSite, m)
     } else if ((m = r.matches(anyName, symbol(":")))) {
         const [n, colon] = m
 
@@ -86,6 +86,7 @@ export function parseDestructExpr(ctx, switchingDepth) {
     r.end()
 
     return new DestructExpr(
+        ctx.currentSite,
         name,
         typeExpr,
         nestedDestructExprs,

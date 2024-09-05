@@ -3,6 +3,7 @@ import { $, SourceMappedString } from "@helios-lang/ir"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
+import { VoidExpr } from "./VoidExpr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -21,19 +22,19 @@ export class SwitchDefault {
      */
     site
 
-    #bodyExpr
+    /**
+     * @readonly
+     * @type {Expr}
+     */
+    body
 
     /**
      * @param {Site} site
-     * @param {Expr} bodyExpr
+     * @param {Expr} body
      */
-    constructor(site, bodyExpr) {
+    constructor(site, body) {
         this.site = site
-        this.#bodyExpr = bodyExpr
-    }
-
-    toString() {
-        return `else => ${this.#bodyExpr.toString()}`
+        this.body = body
     }
 
     /**
@@ -41,15 +42,22 @@ export class SwitchDefault {
      * @returns {Typed}
      */
     eval(scope) {
-        const bodyVal_ = this.#bodyExpr.eval(scope)
+        const bodyVal_ = this.body.eval(scope)
 
         const bodyVal = bodyVal_.asTyped
 
         if (!bodyVal) {
-            throw CompilerError.type(this.#bodyExpr.site, "not typed")
+            throw CompilerError.type(this.body.site, "not typed")
         }
 
         return bodyVal
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    isVoid() {
+        return this.body instanceof VoidExpr
     }
 
     /**
@@ -61,8 +69,12 @@ export class SwitchDefault {
             $(`(_) `),
             $("->", this.site),
             $(` {\n${ctx.indent}${TAB}`),
-            this.#bodyExpr.toIR(ctx.tab()),
+            this.body.toIR(ctx.tab()),
             $(`\n${ctx.indent}}`)
         ])
+    }
+
+    toString() {
+        return `else => ${this.body.toString()}`
     }
 }

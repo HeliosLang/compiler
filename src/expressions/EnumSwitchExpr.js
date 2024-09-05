@@ -6,6 +6,7 @@ import { Scope } from "../scopes/index.js"
 import {
     ErrorEntity,
     TupleType,
+    VoidType,
     collectEnumMembers
 } from "../typecheck/index.js"
 import { SwitchExpr } from "./SwitchExpr.js"
@@ -280,6 +281,14 @@ export class EnumSwitchExpr extends SwitchExpr {
         }
 
         if (this.defaultCase) {
+            if (
+                this.defaultCase.isVoid() &&
+                branchMultiType &&
+                !new VoidType().isBaseOf(branchMultiType)
+            ) {
+                throw CompilerError.type(this.site, "incomplete enum coverage")
+            }
+
             const defaultVal = this.defaultCase.eval(scope)
 
             if (defaultVal) {
@@ -317,9 +326,13 @@ export class EnumSwitchExpr extends SwitchExpr {
 
         let res = last.toIR(ctx.tab().tab().tab())
 
-        const nLhs = cases[0].lhs.isTuple()
-            ? cases[0].lhs.destructExprs.length
-            : 1
+        let nLhs = 1
+        if (n == 0 && last instanceof SwitchCase && last.lhs.isTuple()) {
+            nLhs = last.lhs.destructExprs.length
+        } else if (cases.length > 0 && cases[0].lhs.isTuple()) {
+            nLhs = cases[0].lhs.destructExprs.length
+        }
+
         /**
          * @type {SourceMappedString[]}
          */

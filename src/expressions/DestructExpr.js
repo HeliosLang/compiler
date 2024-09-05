@@ -28,6 +28,12 @@ import { RefExpr } from "./RefExpr.js"
 export class DestructExpr {
     /**
      * @readonly
+     * @type {Site}
+     */
+    site
+
+    /**
+     * @readonly
      * @type {Word}
      */
     name
@@ -50,12 +56,20 @@ export class DestructExpr {
     #isTuple
 
     /**
+     * @param {Site} site - can be a different location than name
      * @param {Word} name - use an underscore as a sink
      * @param {Option<Expr>} typeExpr
      * @param {DestructExpr[]} destructExprs
      * @param {boolean} isTuple typeExpr must be `null` if isTuple is `true` and `destructExpr.length` must be `> 0`
      */
-    constructor(name, typeExpr = None, destructExprs = [], isTuple = false) {
+    constructor(
+        site,
+        name,
+        typeExpr = None,
+        destructExprs = [],
+        isTuple = false
+    ) {
+        this.site = site
         this.name = name
         this.typeExpr = typeExpr
         this.destructExprs = destructExprs
@@ -70,13 +84,6 @@ export class DestructExpr {
                 throw new Error(`unexpected syntax: ${this.toString()}`)
             }
         }
-    }
-
-    /**
-     * @type {Site}
-     */
-    get site() {
-        return this.name.site
     }
 
     /**
@@ -189,9 +196,15 @@ export class DestructExpr {
      * @param {Scope} scope
      * @param {Option<Type>} upstreamType
      * @param {Option<Type>} downstreamType - could be enum variant
-     * @returns {null | Type}
+     * @param {boolean} castEnumVariantToParent - set to false in assignments where the full typeExpr information is needed
+     * @returns {Option<Type>}
      */
-    evalType(scope, upstreamType = None, downstreamType = None) {
+    evalType(
+        scope,
+        upstreamType = None,
+        downstreamType = None,
+        castEnumVariantToParent = true
+    ) {
         if (!this.typeExpr) {
             if (this.#isTuple) {
                 const upstreamItemTypes = upstreamType
@@ -220,6 +233,20 @@ export class DestructExpr {
             } else {
                 throw new Error("typeExpr not set")
             }
+        } else if (
+            // could be an implicit enum variant, which requires special treatment (evaluating the type directly would fail because it wouldn't find the variant name in the scope)
+            this.typeExpr instanceof RefExpr &&
+            upstreamType &&
+            !downstreamType &&
+            this.typeExpr.name.value in upstreamType.typeMembers &&
+            upstreamType.typeMembers[this.typeExpr.name.value].asEnumMemberType
+        ) {
+            const variant = expectSome(
+                upstreamType.typeMembers[this.typeExpr.name.value]
+                    .asEnumMemberType
+            )
+            this.typeExpr.cache = variant
+            return variant
         } else {
             const t = downstreamType ?? this.typeExpr.evalAsType(scope)
 
@@ -227,7 +254,8 @@ export class DestructExpr {
                 t &&
                 upstreamType &&
                 !upstreamType.asEnumMemberType &&
-                t.asEnumMemberType
+                t.asEnumMemberType &&
+                castEnumVariantToParent
             ) {
                 return t.asEnumMemberType.parentType
             } else {
@@ -298,13 +326,14 @@ export class DestructExpr {
     }
 
     /**
+     * @private
      * @param {Scope} scope
      * @param {Type} upstreamType
      * @param {number} i
      */
     evalInternal(scope, upstreamType, i) {
         if (this.hasType()) {
-            const t = this.evalType(scope)
+            const t = this.evalType(scope, upstreamType, None, false)
             if (!t) {
                 return
             }
@@ -377,24 +406,8 @@ export class DestructExpr {
         /**
          * @type {Option<Type>}
          */
-        let t
+        const t = this.evalType(scope, upstreamType, None, false)
 
-        // could be an enum variant, which requires special treatment
-        if (
-            this.typeExpr instanceof RefExpr &&
-            upstreamType &&
-            this.typeExpr.name.value in upstreamType.typeMembers &&
-            upstreamType.typeMembers[this.typeExpr.name.value].asEnumMemberType
-        ) {
-            const variant = expectSome(
-                upstreamType.typeMembers[this.typeExpr.name.value]
-                    .asEnumMemberType
-            )
-            this.typeExpr.cache = variant
-            t = variant
-        } else {
-            t = this.evalType(scope, upstreamType)
-        }
 
         if (!t) {
             if (!this.isIgnored()) {

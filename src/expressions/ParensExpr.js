@@ -1,7 +1,7 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { ErrorType, TupleType$ } from "../typecheck/index.js"
+import { ErrorType, TupleType$, VoidType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 import { $, SourceMappedString } from "@helios-lang/ir"
 
@@ -37,7 +37,9 @@ export class ParensExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        if (this.#exprs.length === 1) {
+        if (this.#exprs.length === 0) {
+            return new VoidType().toTyped()
+        } else if (this.#exprs.length === 1) {
             return this.#exprs[0].eval(scope)
         } else {
             const entries = this.#exprs.map((e) => {
@@ -67,7 +69,9 @@ export class ParensExpr extends Expr {
      * @returns {SourceMappedString}
      */
     toIR(ctx) {
-        if (this.#exprs.length === 1) {
+        if (this.#exprs.length === 0) {
+            return $`()`
+        } else if (this.#exprs.length === 1) {
             return this.#exprs[0].toIR(ctx)
         } else {
             return $(

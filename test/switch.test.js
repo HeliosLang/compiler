@@ -1,5 +1,5 @@
 import { describe } from "node:test"
-import { True, compileAndRunMany, evalTypesMany, int } from "./utils.js"
+import { True, compileAndRunMany, constr, evalTypesMany } from "./utils.js"
 
 describe("Switch", () => {
     compileAndRunMany([
@@ -30,6 +30,32 @@ describe("Switch", () => {
                 }
             }`,
             inputs: [],
+            output: True
+        },
+        {
+            description: "single switch ok (avoids dummy variants)",
+            main: `testing single_switch
+            enum Single {
+                A
+            }
+
+            func main(a: Single) -> Bool {
+                a.switch{
+                    A => true
+                }
+            }`,
+            inputs: [constr(0)],
+            output: True
+        },
+        {
+            description: "switch with only else (useful for wip)",
+            main: `testing switch_only_else
+            func main(a: Option[Int]) -> Bool {
+                a.switch{
+                    else => true
+                }
+            }`,
+            inputs: [constr(1)],
             output: True
         },
         {
@@ -161,6 +187,16 @@ describe("Switch", () => {
                 (b, a).switch{
                     (Some, Int) => true,
                     else => false
+                }
+            }`,
+            fails: true
+        },
+        {
+            description: "typecheck fails if not all variants are covered",
+            main: `testing switch_not_all_variants_covered
+            func main(a: Option[Int]) -> Bool {
+                a.switch{
+                    Some => true
                 }
             }`,
             fails: true
