@@ -408,7 +408,6 @@ export class DestructExpr {
          */
         const t = this.evalType(scope, upstreamType, None, false)
 
-
         if (!t) {
             if (!this.isIgnored()) {
                 scope.set(this.name, new DataEntity(new AnyType()))
