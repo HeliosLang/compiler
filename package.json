@@ -51,10 +51,10 @@
         "typescript": "^4.9.5"
     },
     "dependencies": {
-        "@helios-lang/codec-utils": "workspace:^0.1.32",
-        "@helios-lang/compiler-utils": "workspace:^0.1.54",
-        "@helios-lang/ir": "workspace:^0.1.31",
-        "@helios-lang/type-utils": "workspace:^0.1.21",
-        "@helios-lang/uplc": "workspace:^0.3.0"
+        "@helios-lang/codec-utils": "^0.1.32",
+        "@helios-lang/compiler-utils": "^0.1.54",
+        "@helios-lang/ir": "^0.1.31",
+        "@helios-lang/type-utils": "^0.1.21",
+        "@helios-lang/uplc": "^0.3.0"
     }
 }
