@@ -402,6 +402,7 @@ const TxOutputDatumHashType = new GenericEnumMemberType({
     name: "Hash",
     constrIndex: 1,
     parentType: TxOutputDatumType,
+    fieldNames: ["hash"],
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 1,
@@ -430,6 +431,7 @@ const TxOutputDatumInlineType = new GenericEnumMemberType({
     name: "Inline",
     constrIndex: 2,
     parentType: TxOutputDatumType,
+    fieldNames: ["data"],
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 2,
@@ -458,6 +460,7 @@ const TxOutputDatumNoneType = new GenericEnumMemberType({
     name: "None",
     constrIndex: 0,
     parentType: TxOutputDatumType,
+    fieldNames: [],
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 0,
