@@ -1,4 +1,6 @@
 **/node_modules
+pnpm-lock.yaml
+.github/**/*.yml
 *.d.ts
 *.d.ts.map
 **/*.md
