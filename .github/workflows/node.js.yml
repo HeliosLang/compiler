@@ -24,6 +24,8 @@ jobs:
                   echo "command=install" >> $GITHUB_OUTPUT
                   echo "runner=pnpm" >> $GITHUB_OUTPUT
                   exit 0
+            - name: Install deps with package manager
+              run: ${{ steps.detect-package-manager.outputs.runner }} ${{ steps.detect-package-manager.outputs.command }}
             - name: Use Node.js ${{ matrix.node-version }}
               uses: actions/setup-node@v3
               with:
