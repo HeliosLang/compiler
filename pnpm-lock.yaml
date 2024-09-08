@@ -1,0 +1,125 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@helios-lang/codec-utils':
+        specifier: ^0.1.32
+        version: 0.1.34
+      '@helios-lang/compiler-utils':
+        specifier: ^0.1.54
+        version: 0.1.54
+      '@helios-lang/ir':
+        specifier: ^0.1.31
+        version: 0.1.31
+      '@helios-lang/type-utils':
+        specifier: ^0.1.21
+        version: 0.1.21
+      '@helios-lang/uplc':
+        specifier: ^0.3.0
+        version: 0.3.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.10
+        version: 20.16.3
+      prettier:
+        specifier: ^3.3.2
+        version: 3.3.3
+      typescript:
+        specifier: ^4.9.5
+        version: 4.9.5
+
+packages:
+
+  '@helios-lang/cbor@0.1.21':
+    resolution: {integrity: sha512-EHIKmN1fDPtEwjvPHCjCHf3JtCK2j09z6dwTiSI4HJ7sl62nr5Ti1B0/EkiKrahfKQnYl/wgtVyKoY/qgIJQMw==}
+
+  '@helios-lang/codec-utils@0.1.34':
+    resolution: {integrity: sha512-SDZNVFDRzBN3Z7TyVmYzSa74YAtP2O5sB8hOySkFX0SwjUIDMW3XRjM0pj8EGrMHFrMbWd1MTG+31ysJ30lNkw==}
+
+  '@helios-lang/compiler-utils@0.1.54':
+    resolution: {integrity: sha512-Yco1TszlczuEfrDuaFRbjSYcNglROJ8vaWI0/LPlUSOM7jdh9/5fRT/jmXGXClCsdUKM7uissb1qHNk/EB2vww==}
+
+  '@helios-lang/crypto@0.1.14':
+    resolution: {integrity: sha512-86Q+saQoX10RfeAfLXRZt0UTgNmZFREnHnmjGnyKgPYGWNHhVKfn20+k4CDn03Kaa5rIrWh+iN+irsB4+Hv4Mg==}
+
+  '@helios-lang/era@0.1.2':
+    resolution: {integrity: sha512-zthxic/tg/zpnEHX27n1ij/jGpXNq23B/cJRB3ZuTqbD2+54XzcKbqx2INFgGSZJCYBLiKYpmctKFBn+zrNftw==}
+
+  '@helios-lang/ir@0.1.31':
+    resolution: {integrity: sha512-tVw+HcZksUQs+w8xSt3w+0mwdOOWIRwp1dQsInbwVGl1VcKuzCJSpePGsmmG/yZ//gkiD67DdICv4V1Sx2bj0A==}
+
+  '@helios-lang/type-utils@0.1.21':
+    resolution: {integrity: sha512-z12O84kEwVzqYmcYL+SWCaZNIkmF4cDvKFOtL3KiR6pwl8KngqiQk8MnBEyG06FUMKxCSknWayPGIYzM2HcqBw==}
+
+  '@helios-lang/uplc@0.3.0':
+    resolution: {integrity: sha512-bAS7YUfs1P7fut9cI0fePSh10Qh0QndGn/XqylGqYrChvULGp4srS9wKMSZ+g6Xerub358pqBqp+tCkFi5fQ4w==}
+
+  '@types/node@20.16.3':
+    resolution: {integrity: sha512-/wdGiWRkMOm53gAsSyFMXFZHbVg7C6CbkrzHNpaHoYfsUWPg7m6ZRKtvQjgvQ9i8WT540a3ydRlRQbxjY30XxQ==}
+
+  prettier@3.3.3:
+    resolution: {integrity: sha512-i2tDNA0O5IrMO757lfrdQZCc2jPNDVntV0m/+4whiDfWaTKfMNgR7Qz0NAeGz/nRqF4m5/6CLzbP4/liHt12Ew==}
+    engines: {node: '>=14'}
+    hasBin: true
+
+  typescript@4.9.5:
+    resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==}
+    engines: {node: '>=4.2.0'}
+    hasBin: true
+
+  undici-types@6.19.8:
+    resolution: {integrity: sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw==}
+
+snapshots:
+
+  '@helios-lang/cbor@0.1.21':
+    dependencies:
+      '@helios-lang/codec-utils': 0.1.34
+      '@helios-lang/type-utils': 0.1.21
+
+  '@helios-lang/codec-utils@0.1.34': {}
+
+  '@helios-lang/compiler-utils@0.1.54':
+    dependencies:
+      '@helios-lang/codec-utils': 0.1.34
+      '@helios-lang/type-utils': 0.1.21
+
+  '@helios-lang/crypto@0.1.14':
+    dependencies:
+      '@helios-lang/codec-utils': 0.1.34
+
+  '@helios-lang/era@0.1.2': {}
+
+  '@helios-lang/ir@0.1.31':
+    dependencies:
+      '@helios-lang/codec-utils': 0.1.34
+      '@helios-lang/compiler-utils': 0.1.54
+      '@helios-lang/type-utils': 0.1.21
+      '@helios-lang/uplc': 0.3.0
+
+  '@helios-lang/type-utils@0.1.21': {}
+
+  '@helios-lang/uplc@0.3.0':
+    dependencies:
+      '@helios-lang/cbor': 0.1.21
+      '@helios-lang/codec-utils': 0.1.34
+      '@helios-lang/compiler-utils': 0.1.54
+      '@helios-lang/crypto': 0.1.14
+      '@helios-lang/era': 0.1.2
+      '@helios-lang/type-utils': 0.1.21
+
+  '@types/node@20.16.3':
+    dependencies:
+      undici-types: 6.19.8
+
+  prettier@3.3.3: {}
+
+  typescript@4.9.5: {}
+
+  undici-types@6.19.8: {}
