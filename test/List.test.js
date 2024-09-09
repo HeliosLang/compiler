@@ -189,4 +189,20 @@ describe("List", () => {
             runner([list()], False)
         })
     })
+
+    describe("[]Int.append", () => {
+        const runner = compileForRun(`
+        testing list_append
+        func main(a: []Int, b: Int) -> []Int {
+            a.append(b)
+        }`)
+
+        it("returns a singleton if the initial list is empty", () => {
+            runner([list(), int(0)], list(int(0)))
+        })
+
+        it("returns a list with two entries if the initial list has one entry", () => {
+            runner([list(int(0)), int(1)], list(int(0), int(1)))
+        })
+    })
 })

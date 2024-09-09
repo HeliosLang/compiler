@@ -255,4 +255,25 @@ describe("Map", () => {
             runner([map([[int(0), bytes("")]])], False)
         })
     })
+
+    describe("Map[Int]Int.append", () => {
+        const runner = compileForRun(`testing map_append
+        func main(m: Map[Int]Int, k: Int, v: Int) -> Map[Int]Int {
+            m.append(k, v)
+        }`)
+
+        it("ok for empty map", () => {
+            runner([map([]), int(0), int(0)], map([[int(0), int(0)]]))
+        })
+
+        it("ok for map with one entry", () => {
+            runner(
+                [map([[int(0), int(0)]]), int(1), int(1)],
+                map([
+                    [int(0), int(0)],
+                    [int(1), int(1)]
+                ])
+            )
+        })
+    })
 })
