@@ -343,6 +343,142 @@ describe("Value", () => {
         })
     })
 
+    describe("Value.get_singleton_policy", () => {
+        const runner = compileForRun(`testing value_get_singleton_policy
+        func main(v: Value) -> MintingPolicyHash {
+            v.get_singleton_policy()
+        }`)
+
+        it("fails for pure lovelace", () => {
+            runner([map([[bytes(""), map([[bytes(""), int(1_000_000)]])]])], {
+                error: ""
+            })
+        })
+
+        it("fails for two mphs before lovelace", () => {
+            runner(
+                [
+                    map([
+                        [bytes("abcd"), map([[bytes("abcd"), int(-1)]])],
+                        [bytes("abcdef"), map([[bytes("abcd"), int(-1)]])],
+                        [bytes(""), map([[bytes(""), int(1_000_000)]])]
+                    ])
+                ],
+                { error: "" }
+            )
+        })
+
+        it("fails for one mph before lovelace and another after lovelace", () => {
+            runner(
+                [
+                    map([
+                        [bytes("abcd"), map([[bytes("abcd"), int(-1)]])],
+                        [bytes(""), map([[bytes(""), int(1_000_000)]])],
+                        [bytes("abcdef"), map([[bytes("abcd"), int(-1)]])]
+                    ])
+                ],
+                { error: "" }
+            )
+        })
+
+        it("fails for two mphs after lovelace", () => {
+            runner(
+                [
+                    map([
+                        [bytes(""), map([[bytes(""), int(1_000_000)]])],
+                        [bytes("abcd"), map([[bytes("abcd"), int(-1)]])],
+                        [bytes("abcdef"), map([[bytes("abcd"), int(-1)]])]
+                    ])
+                ],
+                { error: "" }
+            )
+        })
+
+        it("returns mph if only one token is included without lovelace", () => {
+            runner(
+                [map([[bytes("abcd"), map([[bytes("abcd"), int(-1)]])]])],
+                bytes("abcd")
+            )
+        })
+
+        it("returns mph if only multiple tokens with same mph are included without lovelace", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes("abcd"),
+                            map([
+                                [bytes("abcd"), int(1)],
+                                [bytes("abcdef"), int(1)]
+                            ])
+                        ]
+                    ])
+                ],
+                bytes("abcd")
+            )
+        })
+
+        it("returns mph if only one token is included before lovelace", () => {
+            runner(
+                [
+                    map([
+                        [bytes("abcd"), map([[bytes("abcd"), int(-1)]])],
+                        [bytes(""), map([[bytes(""), int(1_000_000)]])]
+                    ])
+                ],
+                bytes("abcd")
+            )
+        })
+
+        it("returns mph if multiple tokens with same mph are included before lovelace", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes("abcd"),
+                            map([
+                                [bytes("abcd"), int(1)],
+                                [bytes("abcdef"), int(1)]
+                            ])
+                        ],
+                        [bytes(""), map([[bytes(""), int(1_000_000)]])]
+                    ])
+                ],
+                bytes("abcd")
+            )
+        })
+
+        it("returns mph if only one token is included after lovelace", () => {
+            runner(
+                [
+                    map([
+                        [bytes(""), map([[bytes(""), int(1_000_000)]])],
+                        [bytes("abcd"), map([[bytes("abcd"), int(-1)]])]
+                    ])
+                ],
+                bytes("abcd")
+            )
+        })
+
+        it("returns mph if only multiple tokens with same mph are included after lovelace", () => {
+            runner(
+                [
+                    map([
+                        [bytes(""), map([[bytes(""), int(1_000_000)]])],
+                        [
+                            bytes("abcd"),
+                            map([
+                                [bytes("abcd"), int(1)],
+                                [bytes("abcdef"), int(1)]
+                            ])
+                        ]
+                    ])
+                ],
+                bytes("abcd")
+            )
+        })
+    })
+
     describe("Value.flatten", () => {
         const runner = compileForRun(`testing value_flatten
         func main(n_lovelace: Int, mph1: MintingPolicyHash, name1: ByteArray, qty1: Int, mph2: MintingPolicyHash, name2: ByteArray, qty2: Int) -> Map[AssetClass]Int {

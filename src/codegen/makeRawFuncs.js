@@ -10548,6 +10548,78 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__value__get_singleton_policy",
+            `(self) -> {
+			() -> {
+				__core__chooseList(
+					self,
+					() -> {
+						__helios__error("value doesn't contain a policy")
+					},
+					() -> {
+						mph = __helios__mintingpolicyhash__from_data(__core__fstPair(__core__headList(self)));
+						tail = __core__tailList(self);
+						__core__ifThenElse(
+							__core__equalsByteString(mph, #),
+							() -> {
+								__core__chooseList(
+									tail,
+									() -> {
+										__helios__error("value contains only lovelace and no other minting policy")
+									},
+									() -> {
+										mph = __helios__mintingpolicyhash__from_data(__core__fstPair(__core__headList(tail)));
+
+										__core__chooseList(
+											__core__tailList(tail),
+											() -> {
+												mph
+											},
+											() -> {
+												__helios__error("value contains more than 1 minting policy")
+											}
+										)()
+									}
+								)()
+							},
+							() -> {
+								__core__chooseList(
+									tail,
+									() -> {
+										mph
+									},
+									() -> {
+										next_mph = __helios__mintingpolicyhash__from_data(__core__fstPair(__core__headList(tail)));
+
+										__core__ifThenElse(
+											__core__equalsByteString(next_mph, #),
+											() -> {
+												__core__chooseList(
+													__core__tailList(tail),
+													() -> {
+														mph
+													},
+													() -> {
+														__helios__error("value contains more than 1 minting policy")
+													}
+												)()
+											},
+											() -> {
+												__helios__error("value contains more than 1 minting policy")
+											}
+										)()
+									}
+								)()
+							}
+						)()
+					}
+				)()
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__value__get_policy",
             `(self) -> {
 		(mph) -> {
