@@ -15,14 +15,14 @@ importers:
         specifier: ^0.1.54
         version: 0.1.54
       '@helios-lang/ir':
-        specifier: ^0.1.32
-        version: 0.1.32
+        specifier: ^0.1.33
+        version: 0.1.33
       '@helios-lang/type-utils':
         specifier: ^0.1.21
         version: 0.1.21
       '@helios-lang/uplc':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.1
+        version: 0.3.1
     devDependencies:
       '@types/node':
         specifier: ^20.14.10
@@ -51,14 +51,14 @@ packages:
   '@helios-lang/era@0.1.2':
     resolution: {integrity: sha512-zthxic/tg/zpnEHX27n1ij/jGpXNq23B/cJRB3ZuTqbD2+54XzcKbqx2INFgGSZJCYBLiKYpmctKFBn+zrNftw==}
 
-  '@helios-lang/ir@0.1.32':
-    resolution: {integrity: sha512-pkPjWCbDsIbcXvAI71fljYFxFIw69taSNF/5cQ5n48bv2LajrBvemtASJZD44MbNcy/7osZfrkIKZhZBQJRApg==}
+  '@helios-lang/ir@0.1.33':
+    resolution: {integrity: sha512-S0/qaiOJGPx5MPBAxo28h4pUf4dT6Mw8yzEZtjE+eFx6unQAnQEPpdlwIL9+mo5oaiMDIR+EHqEMPJW4rzhtlA==}
 
   '@helios-lang/type-utils@0.1.21':
     resolution: {integrity: sha512-z12O84kEwVzqYmcYL+SWCaZNIkmF4cDvKFOtL3KiR6pwl8KngqiQk8MnBEyG06FUMKxCSknWayPGIYzM2HcqBw==}
 
-  '@helios-lang/uplc@0.3.0':
-    resolution: {integrity: sha512-bAS7YUfs1P7fut9cI0fePSh10Qh0QndGn/XqylGqYrChvULGp4srS9wKMSZ+g6Xerub358pqBqp+tCkFi5fQ4w==}
+  '@helios-lang/uplc@0.3.1':
+    resolution: {integrity: sha512-nospL9q7rySqgq4Tur2Jw6RKaFJOHNSff5hHyX6wu4Ke2dzHt/HqNPgmI91vL5u6VSQ45LLAmYZoo4/LiQRu6A==}
 
   '@types/node@20.16.3':
     resolution: {integrity: sha512-/wdGiWRkMOm53gAsSyFMXFZHbVg7C6CbkrzHNpaHoYfsUWPg7m6ZRKtvQjgvQ9i8WT540a3ydRlRQbxjY30XxQ==}
@@ -96,16 +96,16 @@ snapshots:
 
   '@helios-lang/era@0.1.2': {}
 
-  '@helios-lang/ir@0.1.32':
+  '@helios-lang/ir@0.1.33':
     dependencies:
       '@helios-lang/codec-utils': 0.1.34
       '@helios-lang/compiler-utils': 0.1.54
       '@helios-lang/type-utils': 0.1.21
-      '@helios-lang/uplc': 0.3.0
+      '@helios-lang/uplc': 0.3.1
 
   '@helios-lang/type-utils@0.1.21': {}
 
-  '@helios-lang/uplc@0.3.0':
+  '@helios-lang/uplc@0.3.1':
     dependencies:
       '@helios-lang/cbor': 0.1.21
       '@helios-lang/codec-utils': 0.1.34
