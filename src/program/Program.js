@@ -151,7 +151,7 @@ export class Program {
          * @param {string} prefix
          */
         const addFunc = (m, fn, prefix) => {
-            // Don't add main function
+            // Don't add main function, handled elsewhere
             if (m instanceof MainModule && fn.name.value == "main") {
                 return
             }

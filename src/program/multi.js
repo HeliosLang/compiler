@@ -6,6 +6,7 @@
 import { readHeader } from "@helios-lang/compiler-utils"
 import { collectParams, prepare as prepareIR } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
+import { FuncArg } from "../expressions/index.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
 import { ConstStatement } from "../statements/index.js"
 import {
@@ -21,6 +22,7 @@ import { VERSION } from "./version.js"
 import { UserFunc } from "./UserFunc.js"
 
 /**
+ * @typedef {import("@helios-lang/type-utils").EnumTypeSchema} EnumTypeSchema
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
@@ -28,17 +30,25 @@ import { UserFunc } from "./UserFunc.js"
  */
 
 /**
+ * isIgnored is only set for main func args that are ignored (i.e. have an underscore prefix)
+ * Other user-func args that are ignored are omitted from the UPLC, so are not specified as part of the AnalyzedFunc.arguments
+ * @typedef {{
+ *   name: string
+ *   isOptional: boolean
+ *   isIgnored?: boolean
+ *   type: TypeSchema
+ * }} AnalyzedFuncArg
+ */
+
+/**
+ * if `returns` isn't set, the function returns undefined (i.e. void or unit)
  * @typedef {{
  *   name: string
  *   requiresScriptContext: boolean
  *   requiresCurrentScript: boolean
- *   arguments: {
- *     name: string
- *     isOptional: boolean
- *     type: TypeSchema
- *   }[]
- *   returns: TypeSchema
- * }} AnalyzedFunction
+ *   arguments: AnalyzedFuncArg[]
+ *   returns?: TypeSchema
+ * }} AnalyzedFunc
  */
 
 /**
@@ -48,7 +58,7 @@ import { UserFunc } from "./UserFunc.js"
  *   sourceCode: string
  *   moduleDepedencies: string[]
  *   types: Record<string, TypeSchema>
- *   functions: Record<string, AnalyzedFunction>
+ *   functions: Record<string, AnalyzedFunc>
  * }} AnalyzedModule
  */
 
@@ -82,6 +92,47 @@ export function getScriptHashType(purpose) {
                 `Helios v${VERSION} doesn't support validator purpose '${purpose}' (hint: supported purposes are 'spending', 'minting', 'staking' and 'mixed')`
             )
     }
+}
+
+/**
+ * @type {EnumTypeSchema}
+ */
+const mixedArgsRedeemerTypeSchema = {
+    kind: "enum",
+    id: "__helios__mixedargs",
+    name: "MixedArgs",
+    variantTypes: [
+        {
+            kind: "variant",
+            name: "Other",
+            id: "__helios__mixedargs__other",
+            tag: 0,
+            fieldTypes: [
+                {
+                    name: "redeemer",
+                    type: {
+                        kind: "internal",
+                        name: "Data"
+                    }
+                }
+            ]
+        },
+        {
+            kind: "variant",
+            name: "Spending",
+            id: "__helios__mixedargs__spending",
+            tag: 1,
+            fieldTypes: [
+                {
+                    name: "redeemer",
+                    type: {
+                        kind: "internal",
+                        name: "Data"
+                    }
+                }
+            ]
+        }
+    ]
 }
 
 /**
@@ -176,7 +227,7 @@ function analyzeValidator(
     const isSpending = purpose == "spending"
     const redeemer =
         purpose == "mixed"
-            ? { kind: /** @type {const} */ ("internal"), name: "Data" }
+            ? mixedArgsRedeemerTypeSchema
             : program.entryPoint.mainArgTypes[isSpending ? 1 : 0].toSchema()
     const datum =
         purpose == "mixed"
@@ -185,6 +236,14 @@ function analyzeValidator(
               ? program.entryPoint.mainArgTypes[0].toSchema()
               : undefined
 
+    const userFuncs = analyzeFunctions(moduleFunctions, validatorTypes)
+
+    // add main to the functions as well
+    userFuncs["main"] = analyzeMainFunction(
+        program.purpose,
+        program.entryPoint.mainFunc.args
+    )
+
     return {
         name: name,
         purpose: purpose,
@@ -192,7 +251,7 @@ function analyzeValidator(
         moduleDepedencies: moduleDeps,
         sourceCode: program.entryPoint.mainModule.sourceCode.content,
         types: createTypeSchemas(moduleTypes),
-        functions: analyzeFunctions(moduleFunctions, validatorTypes),
+        functions: userFuncs,
         Redeemer: redeemer,
         Datum: datum,
         currentScriptIndex: program.currentScriptIndex ?? undefined
@@ -225,9 +284,105 @@ function analyzeModule(m, validatorTypes, allModules, allTypes, allFunctions) {
 }
 
 /**
+ * @param {string} purpose
+ * @param {FuncArg[]} args
+ * @returns {AnalyzedFunc}
+ */
+function analyzeMainFunction(purpose, args) {
+    /**
+     * @type {AnalyzedFuncArg[]}
+     */
+    const argsInfo = (() => {
+        switch (purpose) {
+            case "spending": {
+                const [dArg, rArg] = args
+
+                /**
+                 * @type {AnalyzedFuncArg[]}
+                 */
+                const res = [
+                    {
+                        name: dArg.name.value,
+                        isOptional: false,
+                        isIgnored: dArg.isIgnored(),
+                        type: dArg.isIgnored()
+                            ? { kind: "internal", name: "Data" }
+                            : expectSome(dArg.type.asDataType).toSchema()
+                    },
+                    {
+                        name: rArg.name.value,
+                        isOptional: false,
+                        isIgnored: rArg.isIgnored(),
+                        type: rArg.isIgnored()
+                            ? { kind: "internal", name: "Data" }
+                            : expectSome(rArg.type.asDataType).toSchema()
+                    }
+                ]
+
+                return res
+            }
+            case "minting":
+            case "staking": {
+                const [rArg] = args
+
+                /**
+                 * @type {AnalyzedFuncArg[]}
+                 */
+                const res = [
+                    {
+                        name: rArg.name.value,
+                        isOptional: false,
+                        isIgnored: rArg.isIgnored(),
+                        type: rArg.isIgnored()
+                            ? { kind: "internal", name: "Data" }
+                            : expectSome(rArg.type.asDataType).toSchema()
+                    }
+                ]
+
+                return res
+            }
+            case "mixed": {
+                const [mArg] = args
+
+                /**
+                 * @type {AnalyzedFuncArg[]}
+                 */
+                const res = [
+                    {
+                        name: "$datum",
+                        isOptional: true,
+                        isIgnored: mArg.isIgnored(),
+                        type: { kind: "internal", name: "Data" }
+                    },
+                    {
+                        name: mArg.name.value,
+                        isOptional: false,
+                        isIgnored: mArg.isIgnored(),
+                        type: mixedArgsRedeemerTypeSchema
+                    }
+                ]
+
+                return res
+            }
+            default:
+                throw new Error(
+                    `Helios v${VERSION} doesn't support validator purpose '${purpose}' (hint: supported purposes are 'spending', 'minting', 'staking' and 'mixed')`
+                )
+        }
+    })()
+
+    return {
+        name: "main",
+        arguments: argsInfo,
+        requiresCurrentScript: false,
+        requiresScriptContext: true
+    }
+}
+
+/**
  * @param {Record<string, UserFunc>} fns
  * @param {Record<string, ScriptHashType>} validatorTypes
- * @returns {Record<string, AnalyzedFunction>}
+ * @returns {Record<string, AnalyzedFunc>}
  */
 function analyzeFunctions(fns, validatorTypes) {
     return Object.fromEntries(
