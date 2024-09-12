@@ -30,12 +30,10 @@ import { UserFunc } from "./UserFunc.js"
  */
 
 /**
- * isIgnored is only set for main func args that are ignored (i.e. have an underscore prefix)
- * Other user-func args that are ignored are omitted from the UPLC, so are not specified as part of the AnalyzedFunc.arguments
+ * All FuncArgs are converted from data to primitive format, so from an external PoV none of them are ignored, and there is no need for an `isIgnored` flag
  * @typedef {{
  *   name: string
  *   isOptional: boolean
- *   isIgnored?: boolean
  *   type: TypeSchema
  * }} AnalyzedFuncArg
  */
@@ -303,24 +301,16 @@ function analyzeMainFunction(purpose, args) {
                 const res = [
                     {
                         name:
-                            dArg.isIgnored() &&
-                            rArg.isIgnored() &&
                             dArg.name.value == rArg.name.value
                                 ? "$datum"
                                 : dArg.name.value,
                         isOptional: false,
-                        isIgnored: dArg.isIgnored(),
-                        type: dArg.isIgnored()
-                            ? { kind: "internal", name: "Data" }
-                            : expectSome(dArg.type.asDataType).toSchema()
+                        type: expectSome(dArg.type.asDataType).toSchema()
                     },
                     {
                         name: rArg.name.value,
                         isOptional: false,
-                        isIgnored: rArg.isIgnored(),
-                        type: rArg.isIgnored()
-                            ? { kind: "internal", name: "Data" }
-                            : expectSome(rArg.type.asDataType).toSchema()
+                        type: expectSome(rArg.type.asDataType).toSchema()
                     }
                 ]
 
@@ -337,10 +327,7 @@ function analyzeMainFunction(purpose, args) {
                     {
                         name: rArg.name.value,
                         isOptional: false,
-                        isIgnored: rArg.isIgnored(),
-                        type: rArg.isIgnored()
-                            ? { kind: "internal", name: "Data" }
-                            : expectSome(rArg.type.asDataType).toSchema()
+                        type: expectSome(rArg.type.asDataType).toSchema()
                     }
                 ]
 
@@ -356,13 +343,11 @@ function analyzeMainFunction(purpose, args) {
                     {
                         name: "$datum",
                         isOptional: true,
-                        isIgnored: mArg.isIgnored(),
                         type: { kind: "internal", name: "Data" }
                     },
                     {
                         name: mArg.name.value,
                         isOptional: false,
-                        isIgnored: mArg.isIgnored(),
                         type: mixedArgsRedeemerTypeSchema
                     }
                 ]
