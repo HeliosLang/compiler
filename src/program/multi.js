@@ -302,7 +302,12 @@ function analyzeMainFunction(purpose, args) {
                  */
                 const res = [
                     {
-                        name: dArg.name.value,
+                        name:
+                            dArg.isIgnored() &&
+                            rArg.isIgnored() &&
+                            dArg.name.value == rArg.name.value
+                                ? "$datum"
+                                : dArg.name.value,
                         isOptional: false,
                         isIgnored: dArg.isIgnored(),
                         type: dArg.isIgnored()
