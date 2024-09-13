@@ -318,7 +318,8 @@ export const RatioType = new GenericType({
         ceil: new FuncType([], IntType),
         floor: new FuncType([], IntType),
         to_real: new FuncType([], RealType),
-        trunc: new FuncType([], IntType)
+        trunc: new FuncType([], IntType),
+        round: new FuncType([], IntType)
     }),
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),

@@ -20,6 +20,7 @@ import { UserFunc } from "./UserFunc.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").OptimizeOptions} OptimizeOptions
  * @typedef {import("@helios-lang/ir").ParseOptions} ParseOptions
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("@helios-lang/uplc").UplcValue} UplcValue
@@ -44,7 +45,7 @@ import { UserFunc } from "./UserFunc.js"
 
 /**
  * @typedef {{
- *   optimize?: boolean
+ *   optimize?: boolean | OptimizeOptions
  *   dependsOnOwnHash?: boolean
  *   hashDependencies?: Record<string, string>
  *   validatorIndices?: Record<string, number>
@@ -275,7 +276,7 @@ export class Program {
                 : optimizeOrOptions
 
         const hashDependencies = options.hashDependencies ?? {}
-        const optimize = options.optimize ?? false
+        const optimize = !!(options.optimize ?? false)
 
         const ir = this.toIR({
             dependsOnOwnHash: options.dependsOnOwnHash ?? false,
@@ -285,7 +286,11 @@ export class Program {
 
         const uplc = compileIR(ir, {
             optimize: optimize,
-            parseOptions: IR_PARSE_OPTIONS
+            parseOptions: IR_PARSE_OPTIONS,
+            optimizeOptions:
+                options.optimize && typeof options.optimize != "boolean"
+                    ? options.optimize
+                    : undefined
         })
 
         // userfuncs might depend on own hash, which is easer to inject after compilation of main program

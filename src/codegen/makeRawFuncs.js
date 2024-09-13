@@ -1192,7 +1192,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             `(a, b) -> {
 		bt = __helios__ratio__top(b);
 		bb = __helios__ratio__bottom(b);
-		__helios__ratio__new(
+		__helios__ratio__new_internal(
 			__helios__int____sub(
 				__helios__int____mul(a, bb),
 				bt
@@ -2059,7 +2059,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__ratio__new",
+            "__helios__ratio__new_internal",
             `(top, bottom) -> {
 		__core__listData(
 			__core__mkCons(
@@ -2070,6 +2070,22 @@ export function makeRawFunctions(simplify, isTestnet) {
 				)
 			)
 		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__ratio__new",
+            `(top, bottom) -> {
+		__core__ifThenElse(
+			__core__lessThanInteger(bottom, 0),
+			() -> {
+				__helios__ratio__new_internal(__core__multiplyInteger(top, -1), __core__multiplyInteger(bottom, -1))
+			},
+			() -> {
+				__helios__ratio__new_internal(top, bottom)
+			}
+		)()
 	}`
         )
     )
@@ -2102,7 +2118,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 			__helios__int____mul(at, bb),
 			__helios__int____mul(bt, ab)
 		);
-		__helios__ratio__new(new_top, new_bottom)
+		__helios__ratio__new_internal(new_top, new_bottom)
 	}`
         )
     )
@@ -2116,7 +2132,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 			at,
 			__helios__int____mul(b, ab)
 		);
-		__helios__ratio__new(new_top, ab)
+		__helios__ratio__new_internal(new_top, ab)
 	}`
         )
     )
@@ -2133,7 +2149,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 			__helios__int____mul(at, bb),
 			__helios__int____mul(bt, ab)
 		);
-		__helios__ratio__new(new_top, new_bottom)
+		__helios__ratio__new_internal(new_top, new_bottom)
 	}`
         )
     )
@@ -2147,7 +2163,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 			at,
 			__helios__int____mul(b, ab)
 		);
-		__helios__ratio__new(new_top, ab)
+		__helios__ratio__new_internal(new_top, ab)
 	}`
         )
     )
@@ -2161,7 +2177,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 		bb = __helios__ratio__bottom(b);
 		new_bottom = __helios__int____mul(ab, bb);
 		new_top = __helios__int____mul(at, bt);
-		__helios__ratio__new(new_top, new_bottom)
+		__helios__ratio__new_internal(new_top, new_bottom)
 	}`
         )
     )
@@ -2172,7 +2188,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 		at = __helios__ratio__top(a);
 		ab = __helios__ratio__bottom(a);
 		new_top = __helios__int____mul(at, b);
-		__helios__ratio__new(new_top, ab)
+		__helios__ratio__new_internal(new_top, ab)
 	}`
         )
     )
@@ -2363,13 +2379,48 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__ratio__round",
+            `(self) -> {
+		() -> {
+			top = __helios__ratio__top(self);
+			bottom = __helios__ratio__bottom(self);
+			__core__quotientInteger(
+				__core__addInteger(
+					top,
+					__core__quotientInteger(
+						bottom, 
+						__core__ifThenElse(
+							__core__lessThanInteger(top, 0), 
+							-2, 
+							2
+						)
+					)
+				),
+				bottom
+			)
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__ratio__to_real",
             `(self) -> {
 		() -> {
 			top = __helios__ratio__top(self);
 			bottom = __helios__ratio__bottom(self);
 			__core__quotientInteger(
-				__core__multiplyInteger(top, __helios__real__ONE),
+				__core__addInteger(
+					__core__multiplyInteger(top, __helios__real__ONE),
+					__core__quotientInteger(
+						bottom, 
+						__core__ifThenElse(
+							__core__lessThanInteger(top, 0), 
+							-2, 
+							2
+						)
+					)
+				),
 				bottom
 			)
 		}
@@ -2396,6 +2447,12 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__real__HALF",
             "5" + new Array(REAL_PRECISION - 1).fill("0").join("")
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__real__MINUS_HALF",
+            "-5" + new Array(REAL_PRECISION - 1).fill("0").join("")
         )
     )
     add(
@@ -2587,8 +2644,8 @@ export function makeRawFunctions(simplify, isTestnet) {
             "__helios__real__round",
             `(self) -> {
 		() -> {
-			__core__divideInteger(
-				__core__addInteger(self, __helios__real__HALF),
+			__core__quotientInteger(
+				__core__addInteger(self, __core__ifThenElse(__core__lessThanInteger(self, 0), __helios__real__MINUS_HALF, __helios__real__HALF)),
 				__helios__real__ONE
 			)
 		}
@@ -2639,7 +2696,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             "__helios__real__to_ratio",
             `(self) -> {
 		() -> {
-			__helios__ratio__new(
+			__helios__ratio__new_internal(
 				self,
 				__helios__real__ONE
 			)

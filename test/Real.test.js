@@ -430,6 +430,53 @@ describe("Real", () => {
         })
     })
 
+    describe("Real.round", () => {
+        const runner = compileForRun(`testing real_round
+        func main(a: Real) -> Int {
+            a.round()
+        }`)
+
+        it("(0.5).round() == 1", () => {
+            runner([real(0.5)], int(1))
+        })
+
+        it("(0.499999).round() == 0", () => {
+            runner([real(0.499999)], int(0))
+        })
+
+        it("(-0.5).round() == -1", () => {
+            runner([real(-0.5)], int(-1))
+        })
+
+        it("(-0.499999).round() == 0", () => {
+            runner([real(-0.499999)], int(0))
+        })
+
+        it("1.000010.round() == 1", () => {
+            runner([real(1.00001)], int(1.0))
+        })
+
+        it("1.999999.round() == 2", () => {
+            runner([real(1.999999)], int(2))
+        })
+
+        it("2.round() == 2", () => {
+            runner([real(2)], int(2))
+        })
+
+        it("-1.000010.round() == -1", () => {
+            runner([real(-1.00001)], int(-1))
+        })
+
+        it("-1.999999.round() == -2", () => {
+            runner([real(-1.999999)], int(-2))
+        })
+
+        it("-2.round() == -2", () => {
+            runner([real(-2)], int(-2))
+        })
+    })
+
     describe("Real.show", () => {
         const runner = compileForRun(`testing real_show
         func main(a: Real) -> String {
