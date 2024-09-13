@@ -326,7 +326,8 @@ describe("Real", () => {
             `testing real_div
         func main(a: Real, b: Real) -> Real {
             a / b
-        }`)
+        }`
+        )
 
         it("2.5 / 2.0 == 1.25", () => {
             runner5([real(2.5), real(2.0)], real(1.25))
