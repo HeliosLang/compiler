@@ -1207,9 +1207,11 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__int____div1",
             `(a, b) -> {
-		__core__divideInteger(
-			__core__multiplyInteger(a, __helios__real__ONESQ),
-			b
+		__helios__real__round_calc_result(
+			__core__quotientInteger(
+				__core__multiplyInteger(a, __core__multiplyInteger(__helios__real__ONESQ, 10)),
+				b
+			)
 		)
 	}`
         )
@@ -2357,12 +2359,12 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__ratio__floor",
             `(self) -> {
-			() -> {
-				top = __helios__ratio__top(self);
-				bottom = __helios__ratio__bottom(self);
-				__core__divideInteger(top, bottom)
-			}
-		}`
+		() -> {
+			top = __helios__ratio__top(self);
+			bottom = __helios__ratio__bottom(self);
+			__core__divideInteger(top, bottom)
+		}
+	}`
         )
     )
     add(
@@ -2495,11 +2497,24 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__real____mul",
+            "__helios__real__mulf",
             `(a, b) -> {
-		__core__divideInteger(
+		__core__quotientInteger(
 			__core__multiplyInteger(a, b),
 			__helios__real__ONE
+		)	
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__real____mul",
+            `(a, b) -> {
+		__helios__real__round_calc_result(
+			__core__quotientInteger(
+				__core__multiplyInteger(a, b),
+				__core__divideInteger(__helios__real__ONE, 10)
+			)
 		)
 	}`
         )
@@ -2507,7 +2522,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(new RawFunc("__helios__real____mul1", "__helios__int____mul"))
     add(
         new RawFunc(
-            "__helios__real____div",
+            "__helios__real__divf",
             `(a, b) -> {
 		__core__quotientInteger(
 			__core__multiplyInteger(a, __helios__real__ONE),
@@ -2516,7 +2531,40 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__real____div1", "__helios__int____div"))
+    add(
+        new RawFunc(
+            "__helios__real__round_calc_result",
+            `(res) -> {
+			__core__addInteger(__core__quotientInteger(res, 10), __core__quotientInteger(__core__remainderInteger(res, 10), 5))
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__real____div",
+            `(a, b) -> {
+		__helios__real__round_calc_result(
+			__core__quotientInteger(
+				__core__multiplyInteger(a, __core__multiplyInteger(__helios__real__ONE, 10)),
+				b
+			)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__real____div1",
+            `(a, b) -> {
+		__helios__real__round_calc_result(
+			__core__quotientInteger(
+				__core__multiplyInteger(a, 10),
+				b
+			)
+		)
+	}`
+        )
+    )
     add(new RawFunc("__helios__real____geq", "__helios__int____geq"))
     add(new RawFunc("__helios__real____gt", "__helios__int____gt"))
     add(new RawFunc("__helios__real____leq", "__helios__int____leq"))
@@ -2599,6 +2647,18 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(
         new RawFunc(
             "__helios__real__sqrt",
+            `(self) -> {
+		__helios__real__round_calc_result(
+			__helios__int__sqrt(
+				__helios__int____mul(self, __core__multiplyInteger(__helios__real__ONE, 100))
+			)
+		)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__real__sqrtf",
             `(self) -> {
 		__helios__int__sqrt(
 			__helios__int____mul(self, __helios__real__ONE)
@@ -10263,7 +10323,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__value____div",
             `(a, den) -> {
-		__helios__value__map_quantities(a, (qty) -> {__core__divideInteger(qty, den)})
+		__helios__value__map_quantities(a, (qty) -> {__core__quotientInteger(qty, den)})
 	}`
         )
     )

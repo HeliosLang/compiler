@@ -88,6 +88,7 @@ export class BuiltinFunc extends Common {
     }
 
     /**
+     * Can mutate the args and the namedArgs in case of casting
      * @param {Site} site
      * @param {Typed[]} args
      * @param {{[name: string]: Typed}} namedArgs

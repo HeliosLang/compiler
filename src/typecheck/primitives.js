@@ -383,9 +383,12 @@ export const RealType = new GenericType({
         __pos: new FuncType([self], self),
         __sub: new FuncType([self, self], self),
         __sub1: new FuncType([self, IntType], self),
+        divf: new FuncType([self, self], self),
         max: new FuncType([self, self], self),
         min: new FuncType([self, self], self),
-        sqrt: new FuncType([self], self)
+        mulf: new FuncType([self, self], self),
+        sqrt: new FuncType([self], self),
+        sqrtf: new FuncType([self], self)
     })
 })
 

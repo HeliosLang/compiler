@@ -108,6 +108,8 @@ export function compileAndRun(test) {
 /**
  * @typedef {{
  *   moduleSources?: string[]
+ *   dumpIR?: boolean
+ *   dumpCostPrefix?: string
  * }} CompileForRunOptions
  */
 /**
@@ -120,6 +122,16 @@ export function compileForRun(mainSrc, options = {}) {
         moduleSources: options.moduleSources ?? [],
         isTestnet: true
     })
+
+    if (options.dumpIR) {
+        const ir = program.toIR({
+            dependsOnOwnHash: false,
+            hashDependencies: {},
+            optimize: false
+        })
+
+        console.log(ir.toString())
+    }
 
     const uplc0 = program.compile(false)
     const hash0 = bytesToHex(uplc0.hash())
@@ -162,6 +174,12 @@ export function compileForRun(mainSrc, options = {}) {
                 costCpu1 < costCpu0,
                 `optimization didn't improve cpu cost (!(${costCpu1.toString()} < ${costCpu0.toString()}))`
             )
+
+            if (options.dumpCostPrefix) {
+                console.log(
+                    `Cost of ${options.dumpCostPrefix}: mem=${costMem1}, cpu=${costCpu1}`
+                )
+            }
         }
     }
 }
@@ -316,7 +334,11 @@ export function mixedSpending(d) {
  * @returns {UplcData}
  */
 export function ratio(top, bottom) {
-    return new ListData([new IntData(top), new IntData(bottom)])
+    if (bottom < 0) {
+        return new ListData([new IntData(-top), new IntData(-bottom)])
+    } else {
+        return new ListData([new IntData(top), new IntData(bottom)])
+    }
 }
 
 /**

@@ -1,11 +1,13 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectSome, None } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
     FuncType,
+    IntType,
     ParametricFunc,
+    RealType,
     getTupleItemTypes
 } from "../typecheck/index.js"
 import { CallArgExpr } from "./CallArgExpr.js"
@@ -40,6 +42,30 @@ export class CallExpr extends Expr {
     #appliedFnVal
 
     /**
+     * @private
+     * @type {Typed[]}
+     */
+    posArgVals
+
+    /**
+     * @private
+     * @type {Record<string, Typed>}
+     */
+    namedArgVals
+
+    /**
+     * @private
+     * @type {Typed[]}
+     */
+    castedPosArgVals
+
+    /**
+     * @private
+     * @type {Record<string, Typed>}
+     */
+    castedNamedArgVals
+
+    /**
      * @param {Site} site
      * @param {Expr} fnExpr
      * @param {CallArgExpr[]} argExprs
@@ -50,6 +76,8 @@ export class CallExpr extends Expr {
         this.#argExprs = argExprs
         this.#paramTypes = []
         this.#appliedFnVal = null // only for infered parametric funcions
+        this.posArgVals = []
+        this.namedArgVals = {}
     }
 
     get fnExpr() {
@@ -99,51 +127,59 @@ export class CallExpr extends Expr {
             return av
         })
 
-        /**
-         * @type {Typed[]}
-         */
-        const posArgVals = []
+        this.posArgVals = []
 
         this.#argExprs.forEach((argExpr, i) => {
             if (!argExpr.isNamed()) {
-                posArgVals.push(argVals[i])
+                this.posArgVals.push(argVals[i])
             }
         })
 
-        /**
-         * @type {{[name: string]: Typed}}
-         */
-        const namedArgVals = {}
+        this.namedArgVals = {}
 
         this.#argExprs.forEach((argExpr, i) => {
             if (argExpr.isNamed()) {
                 const val = argVals[i]
 
                 if (val.asTyped) {
-                    namedArgVals[argExpr.name] = val.asTyped
+                    this.namedArgVals[argExpr.name] = val.asTyped
                 } else {
                     throw new Error("unexpected")
                 }
             }
         })
 
-        if (posArgVals.some((pav) => pav == undefined)) {
+        if (this.posArgVals.some((pav) => pav == undefined)) {
             throw new Error("unexpected")
         }
+
+        // might be mutated for implicit casting, so take a copy
+        this.castedPosArgVals = this.posArgVals.slice()
+        this.castedNamedArgVals = { ...this.namedArgVals }
 
         if (fnVal.asParametric) {
             this.#paramTypes = []
 
             this.#appliedFnVal = fnVal.asParametric.inferCall(
                 this.site,
-                posArgVals,
-                namedArgVals,
+                this.castedPosArgVals,
+                this.castedNamedArgVals,
                 this.#paramTypes
             )
 
-            return this.#appliedFnVal.call(this.site, posArgVals, namedArgVals)
+            return this.#appliedFnVal.call(
+                this.site,
+                this.castedPosArgVals,
+                this.castedNamedArgVals,
+                viableCasts
+            )
         } else if (fnVal.asFunc) {
-            return fnVal.asFunc.call(this.site, posArgVals, namedArgVals)
+            return fnVal.asFunc.call(
+                this.site,
+                this.castedPosArgVals,
+                this.castedNamedArgVals,
+                viableCasts
+            )
         } else {
             throw CompilerError.type(
                 this.#fnExpr.site,
@@ -170,6 +206,65 @@ export class CallExpr extends Expr {
     }
 
     /**
+     * @private
+     * @param {Type} argType
+     * @param {Type} targetType
+     * @param {SourceMappedString} argIR
+     * @param {ToIRContext} ctx
+     * @returns {SourceMappedString}
+     */
+    injectCastIR(argType, targetType, argIR, ctx) {
+        if (IntType.isBaseOf(argType) && RealType.isBaseOf(targetType)) {
+            return $`__helios__int__to_real(${argIR})()`
+        } else {
+            throw new Error("unhandled cast")
+        }
+    }
+
+    /**
+     * @private
+     * @param {number | Expr} e
+     * @param {ToIRContext} ctx
+     * @returns {SourceMappedString}
+     */
+    argExprToIR(e, ctx) {
+        const i =
+            typeof e == "number"
+                ? e
+                : this.#argExprs.findIndex((ae) => ae.valueExpr == e)
+
+        const ae = this.#argExprs[i]
+        const expr = ae.valueExpr
+
+        let ir = expr.toIR(ctx)
+
+        if (ae.isNamed()) {
+            if (
+                this.namedArgVals[ae.name] != this.castedNamedArgVals[ae.name]
+            ) {
+                ir = this.injectCastIR(
+                    this.namedArgVals[ae.name].type,
+                    this.castedNamedArgVals[ae.name].type,
+                    ir,
+                    ctx
+                )
+            } else {
+            }
+        } else {
+            if (this.posArgVals[i] != this.castedPosArgVals[i]) {
+                ir = this.injectCastIR(
+                    this.posArgVals[i].type,
+                    this.castedPosArgVals[i].type,
+                    ir,
+                    ctx
+                )
+            }
+        }
+
+        return ir
+    }
+
+    /**
      * @param {ToIRContext} ctx
      * @returns {[Expr[], SourceMappedString[]]} - first list are positional args, second list named args and remaining opt args
      */
@@ -193,17 +288,18 @@ export class CallExpr extends Expr {
          */
         const namedOptional = []
 
-        this.#argExprs.forEach((ae) => {
+        this.#argExprs.forEach((ae, i) => {
             if (ae.isNamed()) {
-                const i = fn.getNamedIndex(ae.site, ae.name)
+                // i is the index in this call, j is the index in function being called (named args can be in a completely different order)
+                const j = fn.getNamedIndex(ae.site, ae.name)
 
-                if (i < nNonOptArgs) {
-                    positional[i] = ae.valueExpr
+                if (j < nNonOptArgs) {
+                    positional[j] = ae.valueExpr
                 } else {
-                    namedOptional[i - nNonOptArgs] = $([
+                    namedOptional[j - nNonOptArgs] = $([
                         $("true"),
                         $(", "),
-                        ae.valueExpr.toIR(ctx)
+                        this.argExprToIR(i, ctx)
                     ])
                 }
             }
@@ -417,7 +513,7 @@ export class CallExpr extends Expr {
                     }
 
                     ir = $([
-                        e.toIR(ctx),
+                        this.argExprToIR(e, ctx),
                         $("(("),
                         $(multiNames.map((n) => $(n))).join(", "),
                         $(") -> {"),
@@ -445,7 +541,7 @@ export class CallExpr extends Expr {
                         $(") -> {"),
                         ir,
                         $("}("),
-                        e.toIR(ctx),
+                        this.argExprToIR(e, ctx),
                         $(")")
                     ])
                 }
@@ -462,7 +558,7 @@ export class CallExpr extends Expr {
 
             let args = posExprs
                 .map((a, i) => {
-                    let ir = a.toIR(ctx)
+                    let ir = this.argExprToIR(a, ctx)
 
                     if (i >= fn.nNonOptArgs) {
                         ir = $([$("true, "), ir])
@@ -474,5 +570,18 @@ export class CallExpr extends Expr {
 
             return $([fnIR, $("(", this.site), $(args).join(", "), $(")")])
         }
+    }
+}
+
+/**
+ * @param {Type} argType
+ * @param {Type} targetType
+ * @returns {Option<Type>}
+ */
+function viableCasts(argType, targetType) {
+    if (IntType.isBaseOf(argType) && RealType.isBaseOf(targetType)) {
+        return targetType
+    } else {
+        return None
     }
 }

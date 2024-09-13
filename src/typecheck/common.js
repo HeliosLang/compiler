@@ -1,11 +1,18 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { expectSome, isSome } from "@helios-lang/type-utils"
+import { expectSome, isSome, None } from "@helios-lang/type-utils"
 
 /**
+ * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("@helios-lang/type-utils").FieldTypeSchema} FieldTypeSchema
  * @typedef {import("@helios-lang/type-utils").TypeSchema} TypeSchema
  * @typedef {import("@helios-lang/type-utils").VariantTypeSchema} VariantTypeSchema
+ * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  */
+
+/**
+ * @typedef {(argType: Type, targetType: Type) => Option<Type>} ViableCasts
+ */
+
 /**
  * @typedef {(type: Type) => Option<Type[]>} ExpandTupleCallback
  */
@@ -53,11 +60,6 @@ export var makeMapType
 export function registerMakeMapType(callback) {
     makeMapType = callback
 }
-
-/**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/uplc").UplcData} UplcData
- */
 
 /**
  * @typedef {{
@@ -108,7 +110,7 @@ export function registerMakeMapType(callback) {
  * @typedef {Typed & {
  *   asFunc: Func
  * 	 funcType: FuncType
- *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}): Typed
+ *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, viableCasts?: ViableCasts): Typed
  * }} Func
  */
 
@@ -909,13 +911,15 @@ export class FuncType extends Common {
     /**
      * Checks if arg types are valid.
      * Throws errors if not valid. Returns the return type if valid.
+     * posArgs and namedArgs are mutated if implicit casting is viable
      * @param {Site} site
-     * @param {Typed[]} posArgs
+     * @param {Typed[]} origPosArgs - pos args with tuples, expanded internally
      * @param {{[name: string]: Typed}} namedArgs
+     * @param {Option<(argType: Type, targetType: Type) => Option<Type>>} viableCasts
      * @returns {Type}
      */
-    checkCall(site, posArgs, namedArgs = {}) {
-        posArgs = this.expandTuplesInPosArgs(posArgs)
+    checkCall(site, origPosArgs, namedArgs = {}, viableCasts = None) {
+        const posArgs = this.expandTuplesInPosArgs(origPosArgs)
 
         if (posArgs.length < this.nNonOptArgs) {
             // check if each nonOptArg is covered by the named args
@@ -942,11 +946,27 @@ export class FuncType extends Common {
         }
 
         for (let i = 0; i < posArgs.length; i++) {
-            if (!Common.instanceOf(posArgs[i], this.origArgTypes[i].type)) {
-                throw CompilerError.type(
-                    site,
-                    `expected '${this.origArgTypes[i].type.toString()}' for arg ${i + 1}, got '${posArgs[i].type.toString()}'`
-                )
+            const posArg = posArgs[i]
+            const origIndex = origPosArgs.findIndex(
+                (origPosArg) => origPosArg == posArg
+            )
+            const expectedArgType = this.origArgTypes[i].type
+
+            if (!Common.instanceOf(posArg, expectedArgType)) {
+                // only apply these casts if not in tuples
+                const altType =
+                    origIndex != -1 && viableCasts
+                        ? viableCasts(posArg.type, expectedArgType)
+                        : None
+
+                if (altType) {
+                    origPosArgs[origIndex] = altType.toTyped()
+                } else {
+                    throw CompilerError.type(
+                        site,
+                        `expected '${expectedArgType.toString()}' for arg ${i + 1}, got '${posArg.type.toString()}'`
+                    )
+                }
             }
         }
 
@@ -969,11 +989,22 @@ export class FuncType extends Common {
 
             const thisArg = this.origArgTypes[i]
 
-            if (!Common.instanceOf(namedArgs[key], thisArg.type)) {
-                throw CompilerError.type(
-                    site,
-                    `expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArgs[key].toString()}`
-                )
+            const namedArg = namedArgs[key]
+
+            if (!Common.instanceOf(namedArg, thisArg.type)) {
+                const altType = viableCasts
+                    ? viableCasts(namedArg.type, thisArg.type)
+                    : None
+
+                if (altType) {
+                    // mutate the namedArgs object
+                    namedArgs[key] = altType.toTyped()
+                } else {
+                    throw CompilerError.type(
+                        site,
+                        `expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArg.toString()}`
+                    )
+                }
             }
         }
 
@@ -1858,10 +1889,11 @@ export class FuncEntity extends Common {
      * @param {Site} site
      * @param {Typed[]} args
      * @param {{[name: string]: Typed}} namedArgs
+     * @param {Option<ViableCasts>} viableCasts
      * @returns {Typed}
      */
-    call(site, args, namedArgs = {}) {
-        const type = this.#type.checkCall(site, args, namedArgs)
+    call(site, args, namedArgs = {}, viableCasts = None) {
+        const type = this.#type.checkCall(site, args, namedArgs, viableCasts)
 
         return type.toTyped()
     }

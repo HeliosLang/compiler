@@ -224,6 +224,65 @@ describe("Real", () => {
         it("-0.100001 * 10 == -1.000010", () => {
             runner3([real(-0.100001), real(10)], real(-1.00001))
         })
+
+        it("0.000003 * 0.5 == 0.000002", () => {
+            runner3([real(0.000003), real(0.5)], real(0.000002))
+        })
+
+        it("-0.000003 * 0.5 == -0.000002", () => {
+            runner3([real(-0.000003), real(0.5)], real(-0.000002))
+        })
+
+        it("-0.000003 * -0.5 == 0.000002", () => {
+            runner3([real(-0.000003), real(-0.5)], real(0.000002))
+        })
+
+        it("0.000003 * -0.5 == -0.000002", () => {
+            runner3([real(0.000003), real(-0.5)], real(-0.000002))
+        })
+    })
+
+    describe("Real::mulf", () => {
+        const runner = compileForRun(`testing real_mul_fast
+        func main(a: Real, b: Real) -> Real {
+            Real::mulf(a, b)
+        }`)
+
+        it("2.0 * -0.5 == -1.0", () => {
+            runner([real(2), real(-0.5)], real(-1.0))
+        })
+
+        it("1000000.0 * 0.000001 == 1.0", () => {
+            runner([real(1000000), real(0.000001)], real(1.0))
+        })
+
+        it("0.100001 * 10 == 1.000010 ", () => {
+            runner([real(0.100001), real(10)], real(1.00001))
+        })
+
+        it("-0.100001 * 10 == -1.000010", () => {
+            runner([real(-0.100001), real(10)], real(-1.00001))
+        })
+
+        it("-0.100010 * 0.1 == -0.010001", () => {
+            runner([real(-0.10001), real(0.1)], real(-0.010001))
+        })
+
+        it("0.000003 * 0.5 == 0.000001", () => {
+            runner([real(0.000003), real(0.5)], real(0.000001))
+        })
+
+        it("-0.000003 * 0.5 == -0.000001", () => {
+            runner([real(-0.000003), real(0.5)], real(-0.000001))
+        })
+
+        it("-0.000003 * -0.5 == 0.000001", () => {
+            runner([real(-0.000003), real(-0.5)], real(0.000001))
+        })
+
+        it("0.000003 * -0.5 == -0.000001", () => {
+            runner([real(0.000003), real(-0.5)], real(-0.000001))
+        })
     })
 
     describe("Real / Real", () => {
@@ -263,7 +322,8 @@ describe("Real", () => {
             runner4([real(123.123123)], real(1.0))
         })
 
-        const runner5 = compileForRun(`testing real_div
+        const runner5 = compileForRun(
+            `testing real_div
         func main(a: Real, b: Real) -> Real {
             a / b
         }`)
@@ -282,6 +342,93 @@ describe("Real", () => {
 
         it("-1.000010 / 10 = -0.100001", () => {
             runner5([real(-1.00001), real(10)], real(-0.100001))
+        })
+
+        it("0.035 / 1.166667 == 0.03", () => {
+            runner5([real(0.035), real(1.166667)], real(0.03))
+        })
+
+        it("-0.035 / 1.166667 == -0.03", () => {
+            runner5([real(-0.035), real(1.166667)], real(-0.03))
+        })
+
+        it("-0.035 / -1.166667 == 0.03", () => {
+            runner5([real(-0.035), real(-1.166667)], real(0.03))
+        })
+
+        it("0.035 / -1.166667 == -0.03", () => {
+            runner5([real(0.035), real(-1.166667)], real(-0.03))
+        })
+    })
+
+    describe("Real / Int", () => {
+        const runner = compileForRun(`testing real_idiv
+        func main(a: Real, b: Int) -> Real {
+            a / b
+        }`)
+
+        it("0.000003 / 2 == 0.000002", () => {
+            runner([real(0.000003), int(2)], real(0.000002))
+        })
+
+        it("-0.000003 / 2 == -0.000002", () => {
+            runner([real(-0.000003), int(2)], real(-0.000002))
+        })
+
+        it("-0.000003 / -2 == 0.000002", () => {
+            runner([real(-0.000003), int(-2)], real(0.000002))
+        })
+
+        it("0.000003 / -2 == -0.000002", () => {
+            runner([real(0.000003), int(-2)], real(-0.000002))
+        })
+    })
+
+    describe("Real::divf", () => {
+        const runner = compileForRun(`testing real_div_fast
+        func main(a: Real, b: Real) -> Real {
+            Real::divf(a, b)
+        }`)
+
+        it("3 / 2 == 1.5", () => {
+            runner([real(3), real(2)], real(1.5))
+        })
+
+        it("-3 / 2 == -1.5", () => {
+            runner([real(-3), real(2)], real(-1.5))
+        })
+
+        it("-3 / -2 == 1.5", () => {
+            runner([real(-3), real(-2)], real(1.5))
+        })
+
+        it("3 / -2 == -1.5", () => {
+            runner([real(3), real(-2)], real(-1.5))
+        })
+
+        it("0.000003 / 2 == 0.000001", () => {
+            runner([real(0.000003), real(2)], real(0.000001))
+        })
+
+        it("0.000003 / -2 == -0.000001", () => {
+            runner([real(0.000003), real(-2)], real(-0.000001))
+        })
+
+        it("-0.000003 / -2 == 0.000001", () => {
+            runner([real(-0.000003), real(-2)], real(0.000001))
+        })
+
+        it("-0.000003 / 2 == -0.000001", () => {
+            runner([real(-0.000003), real(2)], real(-0.000001))
+        })
+
+        const runner2 = compileForRun(`testing real_idiv_fast
+        func main(a: Real, b: Int) -> Real {
+            Real::divf(a, b)
+        }`)
+
+        it("0.000003 / 2(Int) == 0.000001", () => {
+            runner2([real(0.000003), int(2)], real(0.000001))
         })
     })
 
@@ -390,8 +537,8 @@ describe("Real", () => {
             runner([real(0)], real(0))
         })
 
-        it("sqrt(2) == 1.414213", () => {
-            runner([real(2)], real(1.414213))
+        it("sqrt(2) == 1.414214", () => {
+            runner([real(2)], real(1.414214))
         })
 
         it("sqrt(4) == 2.0", () => {
@@ -414,7 +561,46 @@ describe("Real", () => {
             runner([real(1000000)], real(1000))
         })
 
-        it("sqrt(1_000_000_000) == 31622.776601", () => {
+        it("sqrt(1_000_000_000) == 31622.776602", () => {
+            runner([real(1_000_000_000)], real(31622.776602))
+        })
+    })
+
+    describe("Real::sqrtf", () => {
+        const runner = compileForRun(`testing real_sqrtf
+        func main(a: Real) -> Real {
+            Real::sqrtf(a)
+        }`)
+
+        it("sqrtf(0) == 0.0", () => {
+            runner([real(0)], real(0))
+        })
+
+        it("sqrtf(2) == 1.414213", () => {
+            runner([real(2)], real(1.414213))
+        })
+
+        it("sqrtf(4) == 2.0", () => {
+            runner([real(4)], real(2))
+        })
+
+        it("sqrtf(-1) fails", () => {
+            runner([real(-1)], { error: "" })
+        })
+
+        it("sqrtf(8) == 2.828427", () => {
+            runner([real(8)], real(2.828427))
+        })
+
+        it("sqrtf(1024) == 32", () => {
+            runner([real(1024)], real(32))
+        })
+
+        it("sqrtf(1000000) == 1000", () => {
+            runner([real(1000000)], real(1000))
+        })
+
+        it("sqrtf(1_000_000_000) == 31622.776601", () => {
             runner([real(1_000_000_000)], real(31622.776601))
         })
     })

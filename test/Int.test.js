@@ -12,6 +12,7 @@ import {
     list,
     map,
     ratio,
+    real,
     str
 } from "./utils.js"
 
@@ -271,6 +272,53 @@ describe("Int", () => {
 
         it("-10 / 10 == -1", () => {
             runner3([int(-10), int(10)], int(-1))
+        })
+    })
+
+    describe("Int / Real", () => {
+        const runner = compileForRun(`testing int_div_real
+        func main(a: Int, b: Real) -> Real {
+            a / b
+        }`)
+
+        it("2 / 2.0 == 1.0", () => {
+            runner([int(2), real(2.0)], real(1.0))
+        })
+
+        it("10 / 1.0 == 10.0", () => {
+            runner([int(10), real(1)], real(10))
+        })
+
+        it("1 / 10.0 == 0.1", () => {
+            runner([int(1), real(10)], real(0.1))
+        })
+
+        it("-1 / 10.0 == -0.1", () => {
+            runner([int(-1), real(10)], real(-0.1))
+        })
+
+        it("-9 / 10.0 == -0.9", () => {
+            runner([int(-9), real(10)], real(-0.9))
+        })
+
+        it("9999999999999 / 10000000000000 == 1", () => {
+            runner([int(9999999999999), real(10000000000000)], real(1))
+        })
+
+        it("-9999999999999 / 10000000000000 == -1", () => {
+            runner([int(-9999999999999), real(10000000000000)], real(-1))
+        })
+
+        it("9999999999999 / -10000000000000 == -1", () => {
+            runner([int(9999999999999), real(-10000000000000)], real(-1))
+        })
+
+        it("-9999999999999 / -10000000000000 == 1", () => {
+            runner([int(-9999999999999), real(-10000000000000)], real(1))
+        })
+
+        it("-10 / 10.0 == -1.0", () => {
+            runner([int(-10), real(10)], real(-1))
         })
     })
 
