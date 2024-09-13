@@ -1,7 +1,7 @@
 import { bytesToHex } from "@helios-lang/codec-utils"
 import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
 import { SourceMappedString, compile as compileIR } from "@helios-lang/ir"
-import { isSome } from "@helios-lang/type-utils"
+import { expectSome, isSome } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
@@ -320,19 +320,25 @@ export class Program {
                 const fullName = `${moduleName}::${funcName}`
 
                 if (!options.excludeUserFuncs.has(fullName)) {
+                    const currentScriptValue =
+                        moduleName == this.name && options.validatorIndices
+                            ? `__core__constrData(${expectSome(options.validatorIndices[this.name])}, __core__mkNilData(()))`
+                            : undefined
                     const uplc = fn
                         .compile({
                             optimize: true,
                             hashDependencies: options.hashDependencies,
                             validatorTypes: this.props.validatorTypes ?? {},
-                            validatorIndices: options.validatorIndices
+                            validatorIndices: options.validatorIndices,
+                            currentScriptValue
                         })
                         .withAlt(
                             fn.compile({
                                 optimize: false,
                                 hashDependencies: options.hashDependencies,
                                 validatorTypes: this.props.validatorTypes ?? {},
-                                validatorIndices: options.validatorIndices
+                                validatorIndices: options.validatorIndices,
+                                currentScriptValue
                             })
                         )
 

@@ -98,6 +98,7 @@ export class UserFunc {
      *   validatorTypes: ScriptTypes
      *   validatorIndices?: Record<string, number>
      *   hashDependencies: Record<string, string>
+     *   currentScriptValue?: string
      * }} props
      * @returns {UplcProgramV2}
      */
@@ -106,7 +107,8 @@ export class UserFunc {
             validatorTypes: props.validatorTypes,
             optimize: props.optimize,
             hashDependencies: props.hashDependencies,
-            validatorIndices: props.validatorIndices
+            validatorIndices: props.validatorIndices,
+            currentScriptValue: props.currentScriptValue
         })
 
         const uplc = compileIR(ir, {
@@ -217,9 +219,11 @@ export class UserFunc {
 
         ir = this.modules.wrap(ctx, ir, defs)
 
-        const requiresCurrentScript = ir.includes(
-            "__helios__scriptcontext__current_script"
-        )
+        // if a non-dummy currentScriptValue was specified, then the IR won't depend on the currentScript
+        const requiresCurrentScript =
+            ir.includes("__helios__scriptcontext__current_script") &&
+            !(props.currentScriptValue && props.currentScriptValue.length > 1)
+
         const requiresScriptContext = ir.includes(
             "__helios__scriptcontext__data"
         )

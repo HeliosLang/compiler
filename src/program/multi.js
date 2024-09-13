@@ -234,7 +234,7 @@ function analyzeValidator(
               ? program.entryPoint.mainArgTypes[0].toSchema()
               : undefined
 
-    const userFuncs = analyzeFunctions(moduleFunctions, validatorTypes)
+    const userFuncs = analyzeFunctions(moduleFunctions, validatorTypes, false)
 
     // add main to the functions as well
     userFuncs["main"] = analyzeMainFunction(
@@ -277,7 +277,7 @@ function analyzeModule(m, validatorTypes, allModules, allTypes, allFunctions) {
         moduleDepedencies: moduleDeps,
         sourceCode: m.sourceCode.content,
         types: createTypeSchemas(moduleTypes),
-        functions: analyzeFunctions(moduleFunctions, validatorTypes)
+        functions: analyzeFunctions(moduleFunctions, validatorTypes, true)
     }
 }
 
@@ -372,22 +372,23 @@ function analyzeMainFunction(purpose, args) {
 /**
  * @param {Record<string, UserFunc>} fns
  * @param {Record<string, ScriptHashType>} validatorTypes
+ * @param {boolean} isInModule
  * @returns {Record<string, AnalyzedFunc>}
  */
-function analyzeFunctions(fns, validatorTypes) {
+function analyzeFunctions(fns, validatorTypes, isInModule) {
     return Object.fromEntries(
         Object.entries(fns).map(([key, fn]) => {
             const main = fn.main
             const { requiresCurrentScript, requiresScriptContext } = fn.toIR({
                 validatorTypes,
-                currentScriptValue: "#"
+                currentScriptValue: "#" // Note: this is a garbage dummy value, the real values look like 'constrData(...)'
             })
 
             return [
                 key,
                 {
                     name: key,
-                    requiresCurrentScript: requiresCurrentScript,
+                    requiresCurrentScript: isInModule && requiresCurrentScript, // UserFuncs in entry points always use the same fixed currentScript (i.e. the name of the validator)
                     requiresScriptContext: requiresScriptContext,
                     arguments:
                         main instanceof ConstStatement
