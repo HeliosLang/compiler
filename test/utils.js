@@ -177,7 +177,7 @@ export function compileForRun(mainSrc, options = {}) {
 
             if (options.dumpCostPrefix) {
                 console.log(
-                    `Cost of ${options.dumpCostPrefix}: mem=${costMem1}, cpu=${costCpu1}`
+                    `Cost of ${options.dumpCostPrefix}: mem=${costMem1}, cpu=${costCpu1}, lovelace=${Number(costMem1) * 0.0577 + Number(costCpu1) * 0.0000721}`
                 )
             }
         }

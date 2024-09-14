@@ -528,6 +528,80 @@ describe("Real", () => {
         })
     })
 
+    describe("Real::logf", () => {
+        const runner = compileForRun(`testing real_logf
+        func main(a: Real) -> Real {
+            Real::logf(a)
+        }`)
+
+        it("logf(0) throws an error", () => {
+            runner([real(0)], { error: "" })
+        })
+
+        it("logf(1) == 0", () => {
+            runner([real(1)], real(0))
+        })
+
+        it("logf(0.01) == -4.602654 (2 decimal places of precision compared to -4.605170)", () => {
+            runner([real(0.01)], real(-4.602654))
+        })
+
+        it("logf(0.1) == -2.302589 (5 decimal places of precision compared to -2.302585)", () => {
+            runner([real(0.1)], real(-2.302589))
+        })
+
+        it("logf(2) == 0.693147", () => {
+            runner([real(2)], real(0.693147))
+        })
+
+        it("logf(2.718281) == 0.998795 (3 decimal places of precision compared to 1.0)", () => {
+            runner([real(2.718282)], real(0.998795))
+        })
+
+        it("logf(1.95) == 0.668617 (3 decimal places of precision compared to 0.667829)", () => {
+            runner([real(1.95)], real(0.668617))
+        })
+
+        it("logf(10) == 2.304441 (2 decimal places of precision compared to 2.302585)", () => {
+            runner([real(10)], real(2.304441))
+        })
+
+        it("logf(100) == 4.605143 (4 decimal places of precision compared to 4.605170)", () => {
+            runner([real(100)], real(4.605143))
+        })
+    })
+
+    /*describe("Real::log", () => {
+        const runner = compileForRun(`testing real_log
+        func main(a: Real) -> Real {
+            Real::log(a)
+        }`, {dumpCostPrefix: "Real::log"})
+
+        it("log(0) throws an error", () => {
+            runner([real(0)], {error: ""})
+        })
+
+        it("log(0.1) == -2.302585", () => {
+            runner([real(0.1)], real(-2.302585))
+        })
+
+        it("log(1) == 0", () => {
+            runner([real(1)], real(0))
+        })
+
+        it("log(2) == 0.693147", () => {
+            runner([real(2)], real(0.693147))
+        })
+
+        it("log(2.718281) == 1.0", () => {
+            runner([real(2.718282)], real(1.0))
+        })
+
+        it("log(1.95) == 1.0", () => {
+            runner([real(1.95)], real(0.667829))
+        })
+    })*/
+
     describe("Real::sqrt", () => {
         const runner = compileForRun(`testing real_sqrt
         func main(a: Real) -> Real {

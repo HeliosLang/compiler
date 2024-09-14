@@ -2766,6 +2766,147 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(new RawFunc("__helios__real__min", "__helios__int__min"))
     add(new RawFunc("__helios__real__max", "__helios__int__max"))
+    add(
+        new RawFunc(
+            "__helios__real__log",
+            `(self) -> {
+		__core__ifThenElse(
+			__core__lessThanEqualsInteger(self, 0),
+			() -> {
+				__helios__error("log domain error")
+			},
+			() -> {
+				precision = __core__multiplyInteger(__helios__real__ONE, 10000);
+				x = __core__multiplyInteger(self, 10000);
+				taylor = (x) -> {
+					x_minus_1 = __core__subtractInteger(x, precision);
+					even = (sum, term, i) -> {
+						d = __core__divideInteger(term, i);
+
+						s = __core__subtractInteger(sum, d);
+
+						__core__ifThenElse(
+							__core__equalsInteger(i, 20),
+							() -> {
+								s
+							},
+							() -> {
+								t = __core__divideInteger(__core__multiplyInteger(term, x_minus_1), precision);
+								odd(s, t, __core__addInteger(i, 1))
+							}
+						)()
+					};
+					odd = (sum, term, i) -> {
+						d = __core__divideInteger(term, i);
+						s = __core__addInteger(sum, d);
+
+						t = __core__divideInteger(__core__multiplyInteger(term, x_minus_1), precision);
+						__core__trace(
+							__helios__real__show(t)()
+							, even(s, t, __core__addInteger(i, 1)))
+						
+					};
+					__core__trace(
+						__helios__real__show(x_minus_1)(),
+						odd(0, x_minus_1, 1)
+					)
+				};
+				reduce = (x, n) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(x, __core__multiplyInteger(precision, 2)),
+						() -> {
+							__core__trace(
+								__helios__int__show(n)(),
+								() -> {
+									sqrtx = __helios__int__sqrt(
+										__helios__int____mul(x, precision));
+									lna = __core__multiplyInteger(2, taylor(sqrtx));
+								
+									lnx = __core__addInteger(
+										lna,
+										__core__multiplyInteger(n, 6931471806)
+									);
+									__helios__real__round_calc_result(__core__divideInteger__safe(lnx, 1000))
+								}
+							)()
+						},
+						() -> {
+							reduce(__core__divideInteger(x, 2), __core__addInteger(n, 1))
+						}
+					)()
+				};
+				reduce(x, 0)
+			}
+		)()
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__real__logf",
+            `(self) -> {
+		__core__ifThenElse(
+			__core__lessThanEqualsInteger(self, 0),
+			() -> {
+				__helios__error("logf domain error")
+			},
+			() -> {
+				approx_1_to_165 = (x) -> {
+					__core__divideInteger__safe(
+						__core__subtractInteger(
+							__core__multiplyInteger(x, x),
+							__core__multiplyInteger(__helios__real__ONE, __helios__real__ONE)
+						),
+						__core__multiplyInteger(2, x)
+					)
+				};
+				approx_1_to_2 = (x) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(x, 1_350_000 /*1_648_721*/),
+						() -> {
+							approx_1_to_165(x)
+						},
+						() -> {
+							__helios__real____add(
+								500_000,
+								approx_1_to_165(
+									__helios__real__divf(
+										x,
+										1_648_721
+									)
+								)
+							)
+						}
+					)()
+				};
+				reduce = (x, n) -> {
+					__core__ifThenElse(
+						__core__lessThanInteger(x, __helios__real__ONE),
+						() -> {
+							reduce(__core__multiplyInteger(x, 2), __core__subtractInteger(n, 1))
+						},
+						() -> {
+							__core__ifThenElse(
+								__core__lessThanInteger(x, __core__multiplyInteger(__helios__real__ONE, 2)),
+								() -> {
+									__core__addInteger(
+										approx_1_to_2(x), 
+										__core__multiplyInteger(n, 693147)
+									)
+								},
+								() -> {
+									reduce(__core__divideInteger__safe(x, 2), __core__addInteger(n, 1))
+								}
+							)()
+						}
+					)()
+				};
+				reduce(self, 0)
+			}
+		)()
+	}`
+        )
+    )
 
     // Bool builtins
     addSerializeFunc("__helios__bool")

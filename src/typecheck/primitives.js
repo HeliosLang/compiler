@@ -384,6 +384,8 @@ export const RealType = new GenericType({
         __sub: new FuncType([self, self], self),
         __sub1: new FuncType([self, IntType], self),
         divf: new FuncType([self, self], self),
+        // log: new FuncType([self], self), // TODO: make this accurate to 6 decimal places at a reasonable cost
+        logf: new FuncType([self], self),
         max: new FuncType([self, self], self),
         min: new FuncType([self, self], self),
         mulf: new FuncType([self, self], self),
