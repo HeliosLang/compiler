@@ -8633,8 +8633,24 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             `__helios__data__as[${FTPP}0]`,
             `(data) -> {
+		${FTPP}0__from_data(data)
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            `__helios__data__as_strict[${FTPP}0]`,
+            `(data) -> {
+		__core__ifThenElse(
+			${FTPP}0__is_valid_data(data),
+			() -> {
 				${FTPP}0__from_data(data)
-			}`
+			},
+			() -> {
+				__helios__error("invalid data structure")
+			}
+		)()
+	}`
         )
     )
     add(
