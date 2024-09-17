@@ -683,13 +683,21 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    // TODO: inline __core__sndPair(head)
     add(
         new RawFunc(
             "__helios__common__cip68_field",
             `(self, name) -> {
-		name_data = __core__bData(name);
 		map = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(self))));
+		__helios__common__cip68_field_internal(map, name)
+	}`
+        )
+    )
+    // map is expected to already have been extracted
+    add(
+        new RawFunc(
+            "__helios__common__cip68_field_internal",
+            `(map, name) -> {
+		name_data = __core__bData(name);
 		recurse = (recurse, map) -> {
 			__core__chooseList(
 				map,

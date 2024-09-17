@@ -64,6 +64,13 @@ export class DataDefinition {
         return this.#fields.slice()
     }
 
+    /**
+     * @type {string[]}
+     */
+    get fieldNames() {
+        return this.#fields.map((f) => f.name.value)
+    }
+
     hasTags() {
         return this.#fields.some((f) => f.hasTag())
     }
@@ -86,13 +93,6 @@ export class DataDefinition {
         }
 
         return found
-    }
-
-    /**
-     * @type {string[]}
-     */
-    get fieldNames() {
-        return this.#fields.map((f) => f.name.value)
     }
 
     /**
@@ -596,6 +596,74 @@ export class DataDefinition {
 				)()
 			}`
         }
+    }
+
+    /**
+     * @param {Site} site
+     * @returns {SourceMappedString}
+     */
+    toIR_withTagsEq(site) {
+        // the expected fields must exist in both
+        let irInner = $`true`
+
+        for (let i = 0; i < this.#fields.length; i++) {
+            const f = this.#fields[i]
+
+            irInner = $`__core__ifThenElse(
+                __core__equalsData(
+                    __helios__common__cip68_field_internal(aFields, #${bytesToHex(encodeUtf8(f.tag))}),
+                    __helios__common__cip68_field_internal(bFields, #${bytesToHex(encodeUtf8(f.tag))})
+                ),
+                () -> {${irInner}},
+                () -> {false}
+            )()`
+        }
+
+        let irOuter = $(
+            `(a, b) -> {
+            aFields = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(a))));
+            bFields = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(b))));
+
+            ${irInner}
+        }`,
+            site
+        )
+
+        return irOuter
+    }
+
+    /**
+     * @param {Site} site
+     * @returns {SourceMappedString}
+     */
+    toIR_withTagsNeq(site) {
+        // the expected fields must exist in both
+        let irInner = $`false`
+
+        for (let i = 0; i < this.#fields.length; i++) {
+            const f = this.#fields[i]
+
+            irInner = $`__core__ifThenElse(
+                __core__equalsData(
+                    __helios__common__cip68_field_internal(aFields, #${bytesToHex(encodeUtf8(f.tag))}),
+                    __helios__common__cip68_field_internal(bFields, #${bytesToHex(encodeUtf8(f.tag))})
+                ),
+                () -> {${irInner}},
+                () -> {true}
+            )()`
+        }
+
+        let irOuter = $(
+            `(a, b) -> {
+            aFields = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(a))));
+            bFields = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(b))));
+
+            ${irInner}
+        }`,
+            site
+        )
+
+        return irOuter
     }
 
     /**

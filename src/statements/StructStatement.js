@@ -30,8 +30,22 @@ import { ImplDefinition } from "./ImplDefinition.js"
  * Struct statement
  */
 export class StructStatement extends Statement {
+    /**
+     * @readonly
+     * @type {TypeParameters}
+     */
     #parameters
+
+    /**
+     * @readonly
+     * @type {DataDefinition}
+     */
     #dataDef
+
+    /**
+     * @readonly
+     * @type {ImplDefinition}
+     */
     #impl
 
     /**
@@ -120,15 +134,7 @@ export class StructStatement extends Statement {
                         copy: this.#dataDef.genCopyType(self)
                     }),
                     genTypeMembers: (self) => ({
-                        from_data: new FuncType([RawDataType], self),
-                        __to_data: new FuncType([self], RawDataType),
-                        is_valid_data: new FuncType([RawDataType], BoolType),
-                        ...(this.#dataDef.hasTags()
-                            ? {}
-                            : {
-                                  __eq: new FuncType([self, self], BoolType),
-                                  __neq: new FuncType([self, self], BoolType)
-                              }),
+                        ...genCommonTypeMembers(self),
                         ...this.#impl.genTypeMembers(typeScope)
                     })
                 }
@@ -156,6 +162,157 @@ export class StructStatement extends Statement {
      * @param {ToIRContext} ctx
      * @param {Definitions} map
      */
+    toIR_withTagsEq(ctx, map) {
+        const ir = this.#dataDef.toIR_withTagsEq(this.site)
+
+        map.set(`${this.path}____eq`, ir)
+    }
+
+    /**
+     * @param {ToIRContext} ctx
+     * @param {Definitions} map
+     */
+    toIR_withTagsNeq(ctx, map) {
+        const ir = this.#dataDef.toIR_withTagsNeq(this.site)
+
+        map.set(`${this.path}____neq`, ir)
+    }
+
+    /**
+     * @param {ToIRContext} ctx
+     * @param {Definitions} map
+     */
+    toIR_withTags(ctx, map) {
+        this.toIR_withTagsEq(ctx, map)
+        this.toIR_withTagsNeq(ctx, map)
+
+        map.set(
+            `${this.path}__serialize`,
+            $(`__helios__common__serialize`, this.site)
+        )
+        map.set(
+            `${this.path}____to_data`,
+            $(`__helios__common__identity`, this.site)
+        )
+
+        if (!ctx.optimize) {
+            map.set(
+                `${this.path}__from_data`,
+                $(
+                    `(data) -> {
+                (ignore) -> {
+                    data
+                }(
+                    __core__ifThenElse(
+                        ${this.path}__is_valid_data(data),
+                        () -> {
+                            ()
+                        },
+                        () -> {
+                            __core__trace("Warning: invalid ${this.name.toString()} data", ())
+                        }
+                    )()
+                )
+            }`,
+                    this.site
+                )
+            )
+        } else {
+            map.set(
+                `${this.path}__from_data`,
+                $(`__helios__common__identity`, this.site)
+            )
+        }
+
+        // TODO: this is wrong
+        map.set(
+            `${this.path}__from_data_safe`,
+            $(`__helios__option__SOME_FUNC`, this.site)
+        )
+    }
+
+    /**
+     * @param {ToIRContext} ctx
+     * @param {Definitions} map
+     */
+    toIR_withoutTags(ctx, map) {
+        const implPath =
+            this.#dataDef.nFields == 1
+                ? this.#dataDef.getFieldType(0).path
+                : "__helios__struct"
+
+        map.set(`${this.path}____eq`, $(`${implPath}____eq`, this.site))
+        map.set(`${this.path}____neq`, $(`${implPath}____neq`, this.site))
+        map.set(
+            `${this.path}__serialize`,
+            $(`${implPath}__serialize`, this.site)
+        )
+
+        // the from_data method can include field checks
+        if (this.#dataDef.fieldNames.length == 1 || !!ctx.optimize) {
+            map.set(
+                `${this.path}__from_data`,
+                $(`${implPath}__from_data`, this.site)
+            )
+        } else {
+            map.set(
+                `${this.path}__from_data`,
+                $(
+                    `(data) -> {
+                (ignore) -> {
+                    __core__unListData(data)
+                }(
+                    __core__ifThenElse(
+                        ${this.path}__is_valid_data(data),
+                        () -> {
+                            ()
+                        },
+                        () -> {
+                            __core__trace("Warning: invalid ${this.name.toString()} data", ())
+                        }
+                    )()
+                )
+            }`,
+                    this.site
+                )
+            )
+        }
+        if (this.#dataDef.fieldNames.length == 1) {
+            map.set(
+                `${this.path}__from_data_safe`,
+                $(
+                    `${this.#dataDef.getFieldType(0).path}__from_data_safe`,
+                    this.site
+                )
+            )
+        } else {
+            map.set(
+                `${this.path}__from_data_safe`,
+                $`(data) -> {
+                __core__chooseData(
+                    data,
+                    () -> {__helios__option__NONE_FUNC},
+                    () -> {__helios__option__NONE_FUNC},
+                    () -> {
+                        __helios__option__SOME_FUNC(__core__unListData__safe(data))
+                    },
+                    () -> {__helios__option__NONE_FUNC},
+                    () -> {__helios__option__NONE_FUNC}
+                )()
+            }`
+            )
+        }
+
+        map.set(
+            `${this.path}____to_data`,
+            $(`${implPath}____to_data`, this.site)
+        )
+    }
+
+    /**
+     * @param {ToIRContext} ctx
+     * @param {Definitions} map
+     */
     toIR(ctx, map) {
         map.set(
             `${this.path}__is_valid_data`,
@@ -163,129 +320,9 @@ export class StructStatement extends Statement {
         )
 
         if (this.#dataDef.hasTags()) {
-            map.set(
-                `${this.path}____eq`,
-                $(`__helios__common____eq`, this.site) // TODO: this is wrong, in reality this will be a very expensive operation
-            )
-            map.set(
-                `${this.path}____neq`,
-                $(`__helios__common____neq`, this.site)
-            )
-            map.set(
-                `${this.path}__serialize`,
-                $(`__helios__common__serialize`, this.site)
-            )
-            map.set(
-                `${this.path}____to_data`,
-                $(`__helios__common__identity`, this.site)
-            )
-
-            if (!ctx.optimize) {
-                map.set(
-                    `${this.path}__from_data`,
-                    $(
-                        `(data) -> {
-					(ignore) -> {
-						data
-					}(
-						__core__ifThenElse(
-							${this.path}__is_valid_data(data),
-							() -> {
-								()
-							},
-							() -> {
-								__core__trace("Warning: invalid ${this.name.toString()} data", ())
-							}
-						)()
-					)
-				}`,
-                        this.site
-                    )
-                )
-            } else {
-                map.set(
-                    `${this.path}__from_data`,
-                    $(`__helios__common__identity`, this.site)
-                )
-            }
-
-            // TODO: this is wrong
-            map.set(
-                `${this.path}__from_data_safe`,
-                $(`__helios__option__SOME_FUNC`, this.site)
-            )
+            this.toIR_withTags(ctx, map)
         } else {
-            const implPath =
-                this.#dataDef.nFields == 1
-                    ? this.#dataDef.getFieldType(0).path
-                    : "__helios__struct"
-
-            map.set(`${this.path}____eq`, $(`${implPath}____eq`, this.site))
-            map.set(`${this.path}____neq`, $(`${implPath}____neq`, this.site))
-            map.set(
-                `${this.path}__serialize`,
-                $(`${implPath}__serialize`, this.site)
-            )
-
-            // the from_data method can include field checks
-            if (this.#dataDef.fieldNames.length == 1 || !!ctx.optimize) {
-                map.set(
-                    `${this.path}__from_data`,
-                    $(`${implPath}__from_data`, this.site)
-                )
-            } else {
-                map.set(
-                    `${this.path}__from_data`,
-                    $(
-                        `(data) -> {
-					(ignore) -> {
-						__core__unListData(data)
-					}(
-						__core__ifThenElse(
-							${this.path}__is_valid_data(data),
-							() -> {
-								()
-							},
-							() -> {
-								__core__trace("Warning: invalid ${this.name.toString()} data", ())
-							}
-						)()
-					)
-				}`,
-                        this.site
-                    )
-                )
-            }
-            if (this.#dataDef.fieldNames.length == 1) {
-                map.set(
-                    `${this.path}__from_data_safe`,
-                    $(
-                        `${this.#dataDef.getFieldType(0).path}__from_data_safe`,
-                        this.site
-                    )
-                )
-            } else {
-                map.set(
-                    `${this.path}__from_data_safe`,
-                    $`(data) -> {
-					__core__chooseData(
-						data,
-						() -> {__helios__option__NONE_FUNC},
-						() -> {__helios__option__NONE_FUNC},
-						() -> {
-							__helios__option__SOME_FUNC(__core__unListData__safe(data))
-						},
-						() -> {__helios__option__NONE_FUNC},
-						() -> {__helios__option__NONE_FUNC}
-					)()
-				}`
-                )
-            }
-
-            map.set(
-                `${this.path}____to_data`,
-                $(`${implPath}____to_data`, this.site)
-            )
+            this.toIR_withoutTags(ctx, map)
         }
 
         // super.toIR adds __new and copy, which might depend on __to_data, so must come after

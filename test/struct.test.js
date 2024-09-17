@@ -177,33 +177,231 @@ describe("Cip68 Pair[Int, Int]", () => {
         })
     })
 
-    // TODO: implement == for Cip68 structs correctly
-    //describe("Cip68 Pair[Int, Int] == Pair", () => {
-    //    const runner = compileForRun(`testing cip68_pair_equals
-    //    struct Pair {
-    //        a: Int "a"
-    //        b: Int "b"
-    //    }
-    //    func main(a: Int, b: Int, c: Data) -> Bool {
-    //        Pair{a, b} == Pair::from_data(c)
-    //    }`)
-    //
-    //    it("returns true if order of fields is the same", () => {
-    //        runner(
-    //            [
-    //                int(0),
-    //                int(1),
-    //                constr(
-    //                    0,
-    //                    map([
-    //                        [bytes(encodeUtf8("a")), int(0)],
-    //                        [bytes(encodeUtf8("b")), int(1)]
-    //                    ]),
-    //                    int(0)
-    //                )
-    //            ],
-    //            True
-    //        )
-    //    })
-    //})
+    describe("Cip68 Pair[Int, Int] == Pair", () => {
+        const runner = compileForRun(`testing cip68_pair_equals
+        struct Pair {
+            a: Int "a"
+            b: Int "b"
+        }
+        func main(a: Int, b: Int, c: Data) -> Bool {
+            Pair{a, b} == Pair::from_data(c)
+        }`)
+
+        it("returns true if the order of the fields is the same", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("a")), int(0)],
+                            [bytes(encodeUtf8("b")), int(1)]
+                        ])
+                    )
+                ],
+                True
+            )
+        })
+
+        it("returns true if the order of the fields is different", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("b")), int(1)],
+                            [bytes(encodeUtf8("a")), int(0)]
+                        ])
+                    )
+                ],
+                True
+            )
+        })
+
+        it("returns true if the second pair has additional entries", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("b")), int(1)],
+                            [bytes(encodeUtf8("a")), int(0)],
+                            [bytes(encodeUtf8("c")), bytes([])]
+                        ])
+                    )
+                ],
+                True
+            )
+        })
+
+        it("returns false if an entry doesn't match", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("b")), int(1)],
+                            [bytes(encodeUtf8("a")), int(1)]
+                        ])
+                    )
+                ],
+                False
+            )
+        })
+        it("throws an error if the second pair is missing an entry", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("b")), int(1)],
+                            [bytes(encodeUtf8("a_")), int(0)]
+                        ])
+                    )
+                ],
+                { error: "" }
+            )
+        })
+    })
+
+    describe("Cip68 Pair[Int, Int] != Pair", () => {
+        const runner = compileForRun(`testing cip68_pair_neq
+        struct Pair {
+            a: Int "a"
+            b: Int "b"
+        }
+        func main(a: Int, b: Int, c: Data) -> Bool {
+            Pair{a, b} != Pair::from_data(c)
+        }`)
+
+        it("returns true if the order of the fields is the same and one entry differs", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("a")), int(0)],
+                            [bytes(encodeUtf8("b")), int(2)]
+                        ])
+                    )
+                ],
+                True
+            )
+        })
+
+        it("returns false if the order of the fields is the same and all entries are the same", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("a")), int(0)],
+                            [bytes(encodeUtf8("b")), int(1)]
+                        ])
+                    )
+                ],
+                False
+            )
+        })
+
+        it("returns true if the order of the fields is different and one entry differs", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("b")), int(2)],
+                            [bytes(encodeUtf8("a")), int(0)]
+                        ])
+                    )
+                ],
+                True
+            )
+        })
+
+        it("returns false if the order of the fields is different and all entries are the same", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("b")), int(1)],
+                            [bytes(encodeUtf8("a")), int(0)]
+                        ])
+                    )
+                ],
+                False
+            )
+        })
+
+        it("returns true if the second pair has additional entries and one entry differs", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("b")), int(2)],
+                            [bytes(encodeUtf8("a")), int(0)],
+                            [bytes(encodeUtf8("c")), bytes([])]
+                        ])
+                    )
+                ],
+                True
+            )
+        })
+
+        it("returns false if the second pair has additional entries and but all other entries are the same", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("b")), int(1)],
+                            [bytes(encodeUtf8("a")), int(0)],
+                            [bytes(encodeUtf8("c")), bytes([])]
+                        ])
+                    )
+                ],
+                False
+            )
+        })
+
+        it("throws an error if the second pair is missing an entry", () => {
+            runner(
+                [
+                    int(0),
+                    int(1),
+                    constr(
+                        0,
+                        map([
+                            [bytes(encodeUtf8("b")), int(1)],
+                            [bytes(encodeUtf8("a_")), int(0)]
+                        ])
+                    )
+                ],
+                { error: "" }
+            )
+        })
+    })
 })
