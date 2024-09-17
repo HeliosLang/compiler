@@ -176,4 +176,34 @@ describe("Cip68 Pair[Int, Int]", () => {
             runner([constr(1)], False)
         })
     })
+
+    // TODO: implement == for Cip68 structs correctly
+    //describe("Cip68 Pair[Int, Int] == Pair", () => {
+    //    const runner = compileForRun(`testing cip68_pair_equals
+    //    struct Pair {
+    //        a: Int "a"
+    //        b: Int "b"
+    //    }
+    //    func main(a: Int, b: Int, c: Data) -> Bool {
+    //        Pair{a, b} == Pair::from_data(c)
+    //    }`)
+    //
+    //    it("returns true if order of fields is the same", () => {
+    //        runner(
+    //            [
+    //                int(0),
+    //                int(1),
+    //                constr(
+    //                    0,
+    //                    map([
+    //                        [bytes(encodeUtf8("a")), int(0)],
+    //                        [bytes(encodeUtf8("b")), int(1)]
+    //                    ]),
+    //                    int(0)
+    //                )
+    //            ],
+    //            True
+    //        )
+    //    })
+    //})
 })

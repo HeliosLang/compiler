@@ -3,9 +3,12 @@ import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { TopScope } from "../scopes/index.js"
 import {
+    BoolType,
+    FuncType,
     GenericParametricType,
     GenericType,
     NamedEntity,
+    RawDataType,
     genCommonInstanceMembers,
     genCommonTypeMembers
 } from "../typecheck/index.js"
@@ -117,7 +120,15 @@ export class StructStatement extends Statement {
                         copy: this.#dataDef.genCopyType(self)
                     }),
                     genTypeMembers: (self) => ({
-                        ...genCommonTypeMembers(self),
+                        from_data: new FuncType([RawDataType], self),
+                        __to_data: new FuncType([self], RawDataType),
+                        is_valid_data: new FuncType([RawDataType], BoolType),
+                        ...(this.#dataDef.hasTags()
+                            ? {}
+                            : {
+                                  __eq: new FuncType([self, self], BoolType),
+                                  __neq: new FuncType([self, self], BoolType)
+                              }),
                         ...this.#impl.genTypeMembers(typeScope)
                     })
                 }
@@ -154,7 +165,7 @@ export class StructStatement extends Statement {
         if (this.#dataDef.hasTags()) {
             map.set(
                 `${this.path}____eq`,
-                $(`__helios__common____eq`, this.site)
+                $(`__helios__common____eq`, this.site) // TODO: this is wrong, in reality this will be a very expensive operation
             )
             map.set(
                 `${this.path}____neq`,
@@ -198,6 +209,7 @@ export class StructStatement extends Statement {
                 )
             }
 
+            // TODO: this is wrong
             map.set(
                 `${this.path}__from_data_safe`,
                 $(`__helios__option__SOME_FUNC`, this.site)
