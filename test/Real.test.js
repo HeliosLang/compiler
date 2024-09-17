@@ -800,23 +800,23 @@ describe("Real", () => {
             Real::is_valid_data(a)
         }`)
 
-        it("ok for iData", () => {
+        it("returns true for iData", () => {
             runner([int(0)], True)
         })
 
-        it("nok for bData", () => {
+        it("returns false for bData", () => {
             runner([bytes("")], False)
         })
 
-        it("nok for list", () => {
+        it("returns false for list", () => {
             runner([list()], False)
         })
 
-        it("nok for map", () => {
+        it("returns false for map", () => {
             runner([map([])], False)
         })
 
-        it("nok for constr", () => {
+        it("returns false for constr", () => {
             runner([constr(0)], False)
         })
     })

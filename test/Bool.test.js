@@ -322,47 +322,47 @@ describe("Bool", () => {
             Bool::is_valid_data(data)
         }`)
 
-        it("ok for False", () => {
+        it("returns true for False", () => {
             runner([False], True)
         })
 
-        it("ok for True", () => {
+        it("returns true for True", () => {
             runner([True], True)
         })
 
-        it("ok for constr 0 []", () => {
+        it("returns true for constrData 0 []", () => {
             runner([constr(0)], True)
         })
 
-        it("ok for constr 1 []", () => {
+        it("returns true for constrData 1 []", () => {
             runner([constr(1)], True)
         })
 
-        it("nok for constr 2 []", () => {
+        it("returns false for constrData 2 []", () => {
             runner([constr(2)], False)
         })
 
-        it("nok for constr 0 [<dummy-content>]", () => {
+        it("returns false for constrData 0 [<dummy-content>]", () => {
             runner([constr(0, int(0))], False)
         })
 
-        it("nok for constr -1 [<dummy-content>]", () => {
+        it("returns false for constrData -1 [<dummy-content>]", () => {
             runner([constr(-1, int(0))], False)
         })
 
-        it("nok for bData", () => {
+        it("returns false for bData", () => {
             runner([bytes("")], False)
         })
 
-        it("nok for iData", () => {
+        it("returns false for iData", () => {
             runner([int(0)], False)
         })
 
-        it("nok for list", () => {
+        it("returns false for listData", () => {
             runner([list()], False)
         })
 
-        it("nok for map", () => {
+        it("returns false for mapData", () => {
             runner([map([])], False)
         })
     })

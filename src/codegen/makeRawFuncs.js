@@ -2046,17 +2046,38 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__ratio__is_valid_data",
             `(data) -> {
-			__helios__common__test_list_data(
-				data,
+		__helios__common__test_list_data(
+			data,
+			__helios__common__test_list_head_data(
+				__helios__int__is_valid_data,
 				__helios__common__test_list_head_data(
-					__helios__int__is_valid_data,
-					__helios__common__test_list_head_data(
-						__helios__int__is_valid_data,
-						__helios__common__test_list_empty
-					)
+					(bottom_data) -> {
+						__core__chooseData(
+							bottom_data,
+							() -> {false},
+							() -> {false},
+							() -> {false},
+							() -> {
+								bottom = __core__unIData__safe(bottom_data);
+
+								__core__ifThenElse(
+									__core__lessThanInteger(0, bottom),
+									() -> {
+										true
+									},
+									() -> {
+										false
+									}
+								)()
+							},
+							() -> {false}
+						)()
+					},
+					__helios__common__test_list_empty
 				)
 			)
-		}`
+		)
+	}`
         )
     )
     add(
@@ -3562,27 +3583,57 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            `__helios__bytearray__is_valid_data_fixed_length`,
-            `(data, n) -> {
-		__core__chooseData(
-			data,
-			() -> {false},
-			() -> {false},
-			() -> {false},
-			() -> {false},
-			() -> {
-				bytes = __core__unBData__safe(data);
-				__core__ifThenElse(
-					__core__equalsInteger(__core__lengthOfByteString(bytes), n),
-					() -> {
-						true
-					},
-					() -> {
-						false
-					}
-				)()
-			}
-		)()
+            "__helios__bytearray__is_valid_data_fixed_length",
+            `(n) -> {
+		(data) -> {
+			__core__chooseData(
+				data,
+				() -> {false},
+				() -> {false},
+				() -> {false},
+				() -> {false},
+				() -> {
+					bytes = __core__unBData__safe(data);
+					__core__ifThenElse(
+						__core__equalsInteger(__core__lengthOfByteString(bytes), n),
+						() -> {
+							true
+						},
+						() -> {
+							false
+						}
+					)()
+				}
+			)()
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__bytearray__is_valid_data_max_length",
+            `(n) -> {
+		(data) -> {
+			__core__chooseData(
+				data,
+				() -> {false},
+				() -> {false},
+				() -> {false},
+				() -> {false},
+				() -> {
+					bytes = __core__unBData__safe(data);
+					__core__ifThenElse(
+						__core__lessThanEqualsInteger(__core__lengthOfByteString(bytes), n),
+						() -> {
+							true
+						},
+						() -> {
+							false
+						}
+					)()
+				}
+			)()
+		}	
 	}`
         )
     )
@@ -6729,7 +6780,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(
         new RawFunc(
             "__helios__scripthash__is_valid_data",
-            `(data) -> {__helios__bytearray__is_valid_data_fixed_length(data, 28)}`
+            `__helios__bytearray__is_valid_data_fixed_length(28)`
         )
     )
 
@@ -6742,14 +6793,6 @@ export function makeRawFunctions(simplify, isTestnet) {
     ]) {
         // Hash builtins
         addByteArrayLikeFuncs(`__helios__${hash}`)
-        add(
-            new RawFunc(
-                `__helios__${hash}__is_valid_data`,
-                `(data) -> {
-			__helios__bytearray__is_valid_data_fixed_length(data, ${hash == "datumhash" ? 32 : 28})
-		}`
-            )
-        )
         add(
             new RawFunc(
                 `__helios__${hash}__from_script_hash`,
@@ -6767,13 +6810,70 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
     }
+    // is_valid_data is different for each hash
+    add(
+        new RawFunc(
+            "__helios__pubkeyhash__is_valid_data",
+            "__helios__bytearray__is_valid_data_fixed_length(28)"
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__validatorhash__is_valid_data",
+            "__helios__bytearray__is_valid_data_fixed_length(28)"
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__stakingvalidatorhash__is_valid_data",
+            "__helios__bytearray__is_valid_data_fixed_length(28)"
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__datumhash__is_valid_data",
+            "__helios__bytearray__is_valid_data_fixed_length(32)"
+        )
+    )
+
+    add(
+        new RawFunc(
+            "__helios__mintingpolicyhash__is_valid_data",
+            `(data) -> {
+				__core__chooseData(
+					data,
+					() -> {false},
+					() -> {false},
+					() -> {false},
+					() -> {false},
+					() -> {
+						bytes = __core__unBData__safe(data);
+						n = __core__lengthOfByteString(bytes);
+						__core__ifThenElse(
+							__core__equalsInteger(n, 0),
+							() -> {
+								true
+							},
+							() -> {
+								__core__ifThenElse(
+									__core__equalsInteger(n, 28),
+									true,
+									false
+								)
+							}
+						)()
+					}
+				)()
+			}`
+        )
+    )
 
     // PubKey builtin
     addByteArrayLikeFuncs("__helios__pubkey")
     add(
         new RawFunc(
             "__helios__pubkey__is_valid_data",
-            `(data) -> {__helios__bytearray__is_valid_data_fixed_length(data, 32)}`
+            `__helios__bytearray__is_valid_data_fixed_length(32)`
         )
     )
     add(
@@ -8276,7 +8376,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 								__core__chooseList(
 									__core__tailList__safe(fields),
 									() -> {
-										__helios__bytearray__is_valid_data_fixed_length(__core__headList__safe(fields), 32)
+										__helios__bytearray__is_valid_data_fixed_length(32)(__core__headList__safe(fields))
 									},
 									() -> {
 										false
@@ -8639,7 +8739,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            `__helios__data__as_strict[${FTPP}0]`,
+            `__helios__data__as_strictly[${FTPP}0]`,
             `(data) -> {
 		__core__ifThenElse(
 			${FTPP}0__is_valid_data(data),
@@ -9384,7 +9484,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(
         new RawFunc(
             "__helios__stakinghash__is_stakekey",
-            "__helios__spendingcredential__is_stakekey"
+            "__helios__spendingcredential__is_pubkey"
         )
     )
     add(
@@ -9446,7 +9546,39 @@ export function makeRawFunctions(simplify, isTestnet) {
 		__core__chooseData(
 			data,
 			() -> {
-				true
+				pair = __core__unConstrData__safe(data);
+				tag = __core__fstPair(pair);
+				fields = __core__sndPair(pair);
+
+				__core__ifThenElse(
+					__core__equalsInteger(tag, 0),
+					() -> {
+						__helios__common__test_list_head_data(
+							__helios__stakinghash__is_valid_data,
+							__helios__common__test_list_empty
+						)(fields)
+					},
+					() -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 1),
+							() -> {
+								__helios__common__test_list_head_data(
+									__helios__int__is_valid_data,
+									__helios__common__test_list_head_data(
+										__helios__int__is_valid_data,
+										__helios__common__test_list_head_data(
+											__helios__int__is_valid_data,
+											__helios__common__test_list_empty
+										)
+									)
+								)(fields)
+							}, 
+							() -> {
+								false
+							}
+						)()
+					}
+				)()
 			},
 			() -> {false},
 			() -> {false},
@@ -9556,16 +9688,87 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__timerange__is_valid_data",
             `(data) -> {
-		__core__chooseData(
+		test_inner = (data) -> {
+			__helios__common__test_constr_data_2(
+				data,
+				0,
+				(data) -> {
+					__core__chooseData(
+						data,
+						() -> {
+							pair = __core__unConstrData__safe(data);
+							tag = __core__fstPair(pair);
+							fields = __core__sndPair(pair);
+							__core__ifThenElse(
+								__core__equalsInteger(tag, 0),
+								() -> {
+									__core__chooseList(
+										fields,
+										true,
+										false
+									)
+								},
+								() -> {
+									__core__ifThenElse(
+										__core__equalsInteger(tag, 2),
+										() -> {
+											__core__chooseList(
+												fields,
+												true,
+												false
+											)
+										},
+										() -> {
+											__core__ifThenElse(
+												__core__equalsInteger(tag, 1),
+												() -> {
+													__core__chooseList(
+														fields,
+														() -> {
+															false
+														},
+														() -> {
+															head = __core__headList__safe(fields);
+															__core__ifThenElse(
+																__helios__time__is_valid_data(head),
+																() -> {
+																	__core__chooseList(
+																		__core__tailList__safe(fields),
+																		true,
+																		false
+																	)
+																},
+																() -> {
+																	false
+																}
+															)()
+														}
+													)()
+												},
+												() -> {
+													false
+												}
+											)()
+										}
+									)()
+								}
+							)()
+						},
+						() -> {false},
+						() -> {false},
+						() -> {false},
+						() -> {false}
+					)()
+				},
+				__helios__bool__is_valid_data
+			)
+		};
+		__helios__common__test_constr_data_2(
 			data,
-			() -> {
-				true
-			},
-			() -> {false},
-			() -> {false},
-			() -> {false},
-			() -> {false}
-		)()
+			0,
+			test_inner,
+			test_inner
+		)
 	}`
         )
     )
@@ -9850,7 +10053,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__assetclass__is_valid_data",
             `(data) -> {
-		__helios__common__test_constr_data_2(data, 0, __helios__mintingpolicyhash__is_valid_data, __helios__bytearray__is_valid_data)
+		__helios__common__test_constr_data_2(data, 0, __helios__mintingpolicyhash__is_valid_data, __helios__bytearray__is_valid_data_max_length(32))
 	}`
         )
     )
@@ -10071,6 +10274,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 							head = __core__headList__safe(map);
 							key = __core__fstPair(head);
 							value = __core__sndPair(head);
+							tail = __core__tailList__safe(map);
 							__core__ifThenElse(
 								__helios__mintingpolicyhash__is_valid_data(key),
 								() -> {
@@ -10089,19 +10293,19 @@ export function makeRawFunctions(simplify, isTestnet) {
 														__core__chooseList(
 															inner,
 															() -> {
-																true
+																recurse(recurse, tail)
 															},
 															() -> {
 																head = __core__headList__safe(inner);
 																key = __core__fstPair(head);
 																value = __core__sndPair(head);
 																__core__ifThenElse(
-																	__helios__bytearray__is_valid_data(key),
+																	__helios__bytearray__is_valid_data_max_length(32)(key),
 																	() -> {
 																		__core__ifThenElse(
 																			__helios__int__is_valid_data(value),
 																			() -> {
-																				true
+																				recurse(recurse, tail)
 																			},
 																			() -> {
 																				false

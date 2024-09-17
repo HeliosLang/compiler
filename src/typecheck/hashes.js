@@ -5,7 +5,8 @@ import {
     ByteArrayType,
     genCommonInstanceMembers,
     genCommonTypeMembers,
-    genCommonEnumTypeMembers
+    genCommonEnumTypeMembers,
+    RawDataType
 } from "./primitives.js"
 
 /**
@@ -138,6 +139,7 @@ export const StakingHashType = new GenericType({
     genTypeMembers: (self) => ({
         StakeKey: StakingHashStakeKeyType,
         Validator: StakingHashValidatorType,
+        is_valid_data: new FuncType([RawDataType], BoolType),
         new_stakekey: new FuncType([PubKeyHashType], StakingHashStakeKeyType),
         new_validator: new FuncType(
             [StakingValidatorHashType],

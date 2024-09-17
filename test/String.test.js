@@ -1,5 +1,16 @@
-import { describe, it } from "node:test"
-import { False, True, compileForRun, str } from "./utils.js"
+import { describe, it, run } from "node:test"
+import {
+    False,
+    True,
+    bytes,
+    compileForRun,
+    constr,
+    int,
+    list,
+    map,
+    str
+} from "./utils.js"
+import { encodeUtf8 } from "@helios-lang/codec-utils"
 
 describe("String", () => {
     describe("String == String", () => {
@@ -117,6 +128,42 @@ describe("String", () => {
 
         it("only empty string added to other starts with other", () => {
             runner1([str(""), str("Hello")], True)
+        })
+    })
+
+    describe("String::is_valid_data", () => {
+        const runner = compileForRun(`
+        testing string_is_valid_data
+        func main(a: Data) -> Bool {
+            String::is_valid_data(a)
+        }`)
+
+        it("returns true for empty bData", () => {
+            runner([bytes([])], True)
+        })
+
+        it('returns true for ascii "Hello World"', () => {
+            runner([bytes(encodeUtf8("Hello World"))], True)
+        })
+
+        it("returns false for #ffff", () => {
+            runner([bytes([255, 255])], False)
+        })
+
+        it("returns false for iData", () => {
+            runner([int(0)], False)
+        })
+
+        it("returns false for constrData", () => {
+            runner([constr(0)], False)
+        })
+
+        it("returns false for mapData", () => {
+            runner([map([])], False)
+        })
+
+        it("returns false for listData", () => {
+            runner([list()], False)
         })
     })
 })

@@ -11,11 +11,6 @@ import {
 } from "./utils.js"
 
 describe("Data", () => {
-    const dataAsScript = `testing data_as
-    func main(a: Data) -> Int {
-        a.as[Int]
-    }`
-
     describe("Data.as", () => {
         const runner1 = compileForRun(`testing data_as
         func main(a: Data) -> Int {
@@ -100,23 +95,23 @@ describe("Data", () => {
             Data::is_valid_data(data)
         }`)
 
-        it("ok for int", () => {
+        it("returns true for iData", () => {
             runner([int(0)], True)
         })
 
-        it("ok for bytearray", () => {
+        it("returns true for bData", () => {
             runner([bytes("")], True)
         })
 
-        it("ok for list", () => {
+        it("returns true for listData", () => {
             runner([list()], True)
         })
 
-        it("ok for map", () => {
+        it("returns true for mapData", () => {
             runner([map([])], True)
         })
 
-        it("ok for constr", () => {
+        it("returns true for constrData", () => {
             runner([constr(123)], True)
         })
     })

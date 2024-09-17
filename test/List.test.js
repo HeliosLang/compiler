@@ -1,5 +1,15 @@
 import { describe, it } from "node:test"
-import { False, True, bool, compileForRun, int, list } from "./utils.js"
+import {
+    False,
+    True,
+    bool,
+    bytes,
+    compileForRun,
+    constr,
+    int,
+    list,
+    map
+} from "./utils.js"
 
 describe("List", () => {
     describe("[]Int::new_const", () => {
@@ -203,6 +213,86 @@ describe("List", () => {
 
         it("returns a list with two entries if the initial list has one entry", () => {
             runner([list(int(0)), int(1)], list(int(0), int(1)))
+        })
+    })
+
+    describe("[]Int::is_valid_data", () => {
+        const runner = compileForRun(`
+        testing int_list_is_valid_data
+        func main(a: Data) -> Bool {
+            []Int::is_valid_data(a)
+        }`)
+
+        it("returns true for empty listData", () => {
+            runner([list()], True)
+        })
+
+        it("returns true for listData with one iData entry", () => {
+            runner([list(int(0))], True)
+        })
+
+        it("returns true for listData with two iData entries", () => {
+            runner([list(int(1), int(2))], True)
+        })
+
+        it("returns false for listData with one iData entry and another listData entry", () => {
+            runner([list(int(1), list())], False)
+        })
+
+        it("returns false for iData", () => {
+            runner([int(0)], False)
+        })
+
+        it("returns false for bData", () => {
+            runner([bytes([])], False)
+        })
+
+        it("returns false for mapData", () => {
+            runner([map([])], False)
+        })
+
+        it("returns false for constrData", () => {
+            runner([constr(123)], False)
+        })
+    })
+
+    describe("[][]Int::is_valid_data", () => {
+        const runner = compileForRun(`
+        testing nested_int_list_is_valid_data
+        func main(a: Data) -> Bool {
+            [][]Int::is_valid_data(a)
+        }`)
+
+        it("returns true for empty listData", () => {
+            runner([list()], True)
+        })
+
+        it("returns false for listData with one nested iData entry", () => {
+            runner([list(list(int(0)))], True)
+        })
+
+        it("returns false for listData with two iData entries", () => {
+            runner([list(int(1), int(2))], False)
+        })
+
+        it("returns true for listData with one iData entry in a the first nested list, and another empty listData entry", () => {
+            runner([list(list(int(1)), list())], True)
+        })
+
+        it("returns false for iData", () => {
+            runner([int(0)], False)
+        })
+
+        it("returns false for bData", () => {
+            runner([bytes([])], False)
+        })
+
+        it("returns false for mapData", () => {
+            runner([map([])], False)
+        })
+
+        it("returns false for constrData", () => {
+            runner([constr(123)], False)
         })
     })
 })

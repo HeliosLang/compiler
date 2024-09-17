@@ -1,5 +1,14 @@
 import { describe, it } from "node:test"
-import { True, map, int, False, list, compileForRun, bytes } from "./utils.js"
+import {
+    True,
+    map,
+    int,
+    False,
+    list,
+    compileForRun,
+    bytes,
+    constr
+} from "./utils.js"
 
 describe("Map", () => {
     describe("Map[Int]Int == Map[Int]Int", () => {
@@ -243,16 +252,32 @@ describe("Map", () => {
             Map[Int]Int::is_valid_data(data)
         }`)
 
-        it("ok for empty map", () => {
+        it("returns true for empty map", () => {
             runner([map([])], True)
         })
 
-        it("ok for map with 1 entry", () => {
+        it("returns true for map with 1 entry", () => {
             runner([map([[int(0), int(0)]])], True)
         })
 
-        it("ok for map with 1 wrong entry", () => {
+        it("returns false for map with one bData value", () => {
             runner([map([[int(0), bytes("")]])], False)
+        })
+
+        it("returns false for iData", () => {
+            runner([int(0)], False)
+        })
+
+        it("returns false for bData", () => {
+            runner([bytes([])], False)
+        })
+
+        it("returns false for constrData", () => {
+            runner([constr(123)], False)
+        })
+
+        it("returns false for listData", () => {
+            runner([list()], False)
         })
     })
 

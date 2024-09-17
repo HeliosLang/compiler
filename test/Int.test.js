@@ -976,23 +976,23 @@ describe("Int", () => {
             Int::is_valid_data(data)
         }`)
 
-        it("true for int", () => {
+        it("returns true for int", () => {
             runner([int(0)], True)
         })
 
-        it("false for bytes", () => {
+        it("returns false for bytes", () => {
             runner([bytes("")], False)
         })
 
-        it("false for list", () => {
+        it("returns false for list", () => {
             runner([list()], False)
         })
 
-        it("false for constr", () => {
+        it("returns false for constr", () => {
             runner([constr(0)], False)
         })
 
-        it("false for map", () => {
+        it("returns false for map", () => {
             runner([map([])], False)
         })
     })

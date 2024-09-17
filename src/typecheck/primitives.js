@@ -205,7 +205,7 @@ export const RawDataType = new GenericType({
 
             return new ParametricData([a], a.ref)
         })(),
-        as_strict: (() => {
+        as_strictly: (() => {
             const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass())
 
             return new ParametricData([a], a.ref)

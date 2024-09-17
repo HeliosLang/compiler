@@ -5,7 +5,9 @@ import {
     assetclass,
     bytes,
     compileForRun,
+    constr,
     int,
+    list,
     map
 } from "./utils.js"
 
@@ -952,6 +954,195 @@ describe("Value", () => {
                 ],
                 map([])
             )
+        })
+    })
+
+    describe("Value::is_valid_data", () => {
+        const runner = compileForRun(`testing value_is_valid_data
+        func main(d: Data) -> Bool {
+            Value::is_valid_data(d)
+        }`)
+
+        it("returns true for empty mapData", () => {
+            runner([map([])], True)
+        })
+
+        it("returns true for mapData with a nested single token", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(0)]])
+                        ]
+                    ])
+                ],
+                True
+            )
+        })
+
+        it("returns false if mph key has 29 bytes", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(29).fill(0)),
+                            map([[bytes([]), int(0)]])
+                        ]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("returns false if mph key has 27 bytes", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(27).fill(0)),
+                            map([[bytes([]), int(0)]])
+                        ]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("returns false if tokenName key isn't a bytearray", () => {
+            runner(
+                [
+                    map([
+                        [bytes(new Array(28).fill(0)), map([[list(), int(0)]])]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("returns false if quantity value isn't iData", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), bytes([])]])
+                        ]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("returns false if token name has 33 bytes", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes(new Array(33).fill(0)), int(0)]])
+                        ]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("returns false if second inner map is empty", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(0)]])
+                        ],
+                        [bytes([]), map([])]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("returns true if second inner map contains another token", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(0)]])
+                        ],
+                        [bytes([]), map([[bytes([]), int(100)]])]
+                    ])
+                ],
+                True
+            )
+        })
+
+        it("returns false if second inner map mph has 1 byte", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(0)]])
+                        ],
+                        [bytes([1]), map([[bytes([]), int(100)]])]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("returns true if second inner map mph has 28 bytes", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(0)]])
+                        ],
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(100)]])
+                        ]
+                    ])
+                ],
+                True
+            )
+        })
+
+        it("returns false if second token quantity is not iData", () => {
+            runner(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(0)]])
+                        ],
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), list()]])
+                        ]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("returns false for iData", () => {
+            runner([int(0)], False)
+        })
+
+        it("returns false for bData", () => {
+            runner([bytes([])], False)
+        })
+
+        it("returns false for listData", () => {
+            runner([list()], False)
+        })
+
+        it("returns false for constrData", () => {
+            runner([constr(0)], False)
         })
     })
 })

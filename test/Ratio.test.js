@@ -661,40 +661,56 @@ describe("Ratio", () => {
             Ratio::is_valid_data(data)
         }`)
 
-        it("true for ratio", () => {
+        it("returns true for ratio", () => {
             runner([ratio(1, 1)], True)
         })
 
-        it("true for list of two ints", () => {
+        it("returns true for list of two ints", () => {
             runner([list(int(1), int(1))], True)
         })
 
-        it("false for int", () => {
+        it("returns true for list of negative and positive iData", () => {
+            runner([list(int(-1), int(1))], True)
+        })
+
+        it("returns false for iData", () => {
             runner([int(1)], False)
         })
 
-        it("false for bytes", () => {
+        it("returns false for bData", () => {
             runner([bytes("")], False)
         })
 
-        it("false for constr", () => {
+        it("returns false for constrData", () => {
             runner([constr(0)], False)
         })
 
-        it("false for map", () => {
+        it("returns false for mapData", () => {
             runner([map([])], False)
         })
 
-        it("false for empty list", () => {
+        it("returns false for empty listData", () => {
             runner([list()], False)
         })
 
-        it("false for list with wrong entry", () => {
-            runner([list(int(0), bytes(""))], False)
+        it("returns false for lisData only one iData entry", () => {
+            runner([list(int(1))], False)
         })
 
-        it("false for list with too many entries", () => {
-            runner([list(int(0), int(0), int(0))], False)
+        it("returns false for lisData with zero iData second entry", () => {
+            runner([list(int(1), int(0))], False)
+        })
+
+        it("returns false for lisData with negative iData second entry", () => {
+            runner([list(int(1), int(-1))], False)
+        })
+
+        it("returns false for lisData with bData second entry", () => {
+            runner([list(int(1), bytes(""))], False)
+        })
+
+        it("returns false for listData with too many entries", () => {
+            runner([list(int(1), int(1), int(1))], False)
         })
     })
 })

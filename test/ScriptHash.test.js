@@ -10,31 +10,16 @@ import {
     map
 } from "./utils.js"
 
-describe("MintingPolicyHash", () => {
-    it("can be converted to ScriptHash and back", () => {
+describe("ScriptHash", () => {
+    describe("ScriptHash::is_valid_data", () => {
         const runner = compileForRun(`
-        testing mph_to_from_script_hash
-        func main(mph: MintingPolicyHash) -> Bool {
-            sh = mph.to_script_hash();
-            mph_ = MintingPolicyHash::from_script_hash(sh);
-            mph == mph_
-        }`)
-
-        runner(
-            [bytes("00112233445566778899aabbccddeeff00112233445566778899aabb")],
-            True
-        )
-    })
-
-    describe("MintingPolicyHash::is_valid_data", () => {
-        const runner = compileForRun(`
-        testing mintingpolicyhash_is_valid_data
+        testing scripthash_is_valid_data
         func main(a: Data) -> Bool {
-            MintingPolicyHash::is_valid_data(a)
+            ScriptHash::is_valid_data(a)
         }`)
 
-        it("returns true for empty bData (ADA", () => {
-            runner([bytes([])], True)
+        it("returns false for empty bData", () => {
+            runner([bytes([])], False)
         })
 
         it("returns false for #ffff", () => {
@@ -45,8 +30,8 @@ describe("MintingPolicyHash", () => {
             runner([bytes(new Array(28).fill(255))], True)
         })
 
-        it("returns false for bData with 29 bytes", () => {
-            runner([bytes(new Array(29).fill(255))], False)
+        it("returns false for bData with 32 bytes", () => {
+            runner([bytes(new Array(32).fill(255))], False)
         })
 
         it("returns false for iData", () => {
