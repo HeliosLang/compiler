@@ -98,7 +98,8 @@ export function genExtraDefs(options) {
         )
 
         const ownHash = options.hashDependencies[options.name]
-        if (ownHash) {
+        if (ownHash && ownHash.length > 1) {
+            // make sure ownHash isn't a dummy value
             // this is a special situation in which we know the ownHash because it is derived from another compilation, but we still want to call these functions because they might fail
             ir = $`(_ignored) -> {
                 #${ownHash.startsWith("#") ? ownHash.slice(1) : ownHash}
