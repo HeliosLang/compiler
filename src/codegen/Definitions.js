@@ -82,7 +82,7 @@ export function genExtraDefs(options) {
     if (options.dependsOnOwnHash) {
         const key = `__helios__scripts__${options.name}`
 
-        const ir = expectSome(
+        let ir = expectSome(
             /** @type {Record<string, SourceMappedString>} */ ({
                 mixed: $(`__helios__scriptcontext__get_current_script_hash()`),
                 spending: $(
@@ -96,6 +96,14 @@ export function genExtraDefs(options) {
                 )
             })[expectSome(options.purpose)]
         )
+
+        const ownHash = options.hashDependencies[options.name]
+        if (ownHash) {
+            // this is a special situation in which we know the ownHash because it is derived from another compilation, but we still want to call these functions because they might fail
+            ir = $`(_ignored) -> {
+                #${ownHash.startsWith("#") ? ownHash.slice(1) : ownHash}
+            }(${ir})`
+        }
 
         extra.set(key, ir)
     }
