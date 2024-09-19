@@ -51,6 +51,7 @@ import { UserFunc } from "./UserFunc.js"
  *   validatorIndices?: Record<string, number>
  *   onCompileUserFunc?: (name: string, uplc: UplcProgramV2) => void
  *   excludeUserFuncs?: Set<string>
+ *   withAlt?: false
  * }} CompileOptions
  */
 
@@ -263,10 +264,18 @@ export class Program {
     }
 
     /**
+     * Compiles the program to UPLC form
+     * @remarks
+     * By default, it compiles an optimized version, while also attaching
+     * an unoptimized version to the UplcProgram.  In case of script failures,
+     * the unoptimized version of the script is used to produce log details.
+     *
+     * If `optimize` is set to false, only the optimized version is compiled.
+     *
      * @param {boolean | CompileOptions} optimizeOrOptions
      * @returns {UplcProgramV2}
      */
-    compile(optimizeOrOptions = false) {
+    compile(optimizeOrOptions = {}) {
         /**
          * @type {CompileOptions}
          */
@@ -276,7 +285,8 @@ export class Program {
                 : optimizeOrOptions
 
         const hashDependencies = options.hashDependencies ?? {}
-        const optimize = !!(options.optimize ?? false)
+        const optimize = !!(options.optimize ?? true)
+        const withAlt = options.withAlt ?? (optimize ? true : false)
 
         const ir = this.toIR({
             dependsOnOwnHash: options.dependsOnOwnHash ?? false,
@@ -286,6 +296,7 @@ export class Program {
 
         const uplc = compileIR(ir, {
             optimize: optimize,
+            alt: withAlt ? this.compile({ optimize: false }) : undefined,
             parseOptions: IR_PARSE_OPTIONS,
             optimizeOptions:
                 options.optimize && typeof options.optimize != "boolean"
