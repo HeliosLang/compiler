@@ -254,6 +254,21 @@ describe("Ratio", () => {
         })
     })
 
+    describe("Ratio == Ratio", () => {
+        const runner = compileForRun(`testing ratio_eq
+        func main(a: Ratio, b: Ratio) -> Bool {
+            a == b
+        }`)
+
+        it("1/1 == 1/1 is true", () => {
+            runner([ratio(1, 1), ratio(1, 1)], True)
+        })
+
+        it("2/2 == 1/1 is true", () => {
+            runner([ratio(2, 2), ratio(1, 1)], True)
+        })
+    })
+
     describe("Ratio < Ratio", () => {
         const runner = compileForRun(`testing ratio_lt
         func main(a: Ratio, b: Ratio) -> Bool {

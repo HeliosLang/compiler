@@ -30,7 +30,7 @@ import { UserFunc } from "./UserFunc.js"
  */
 
 /**
- * All FuncArgs are converted from data to primitive format, so from an external PoV none of them are ignored, and there is no need for an `isIgnored` flag
+ * Note: all FuncArgs are converted from data to primitive format, so from an external PoV none of them are ignored, and there is no need for an `isIgnored` flag
  * @typedef {{
  *   name: string
  *   isOptional: boolean
@@ -39,7 +39,7 @@ import { UserFunc } from "./UserFunc.js"
  */
 
 /**
- * if `returns` isn't set, the function returns undefined (i.e. void or unit)
+ * If `returns` isn't set, the function returns undefined (i.e. void or unit)
  * @typedef {{
  *   name: string
  *   requiresScriptContext: boolean
