@@ -2447,6 +2447,24 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__ratio__show",
+            `(self) -> {
+		() -> {
+			t = __helios__ratio__top(self);
+			b = __helios__ratio__bottom(self);
+			__helios__string____add(
+				__helios__int__show(t)(), 
+				__helios__string____add(
+					"/", 
+					__helios__int__show(b)()
+				)
+			)
+		}
+	}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__ratio__to_real",
             `(self) -> {
 		() -> {

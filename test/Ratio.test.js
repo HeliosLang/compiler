@@ -9,7 +9,8 @@ import {
     list,
     map,
     ratio,
-    real
+    real,
+    str
 } from "./utils.js"
 
 describe("Ratio", () => {
@@ -568,6 +569,25 @@ describe("Ratio", () => {
 
         it("140/120.round() == 1", () => {
             runner([int(140), int(120)], int(1))
+        })
+    })
+
+    describe("Ratio.show", () => {
+        const runner = compileForRun(`testing ratio_show
+        func main(a: Ratio) -> String {
+            a.show()
+        }`)
+
+        it('3/2.show() == "3/2"', () => {
+            runner([ratio(3, 2)], str("3/2"))
+        })
+
+        it('-3/2.show() == "-3/2"', () => {
+            runner([ratio(-3, 2)], str("-3/2"))
+        })
+
+        it('-1/1000000.show() == "-1/1000000"', () => {
+            runner([ratio(-1, 1000000)], str("-1/1000000"))
         })
     })
 
