@@ -238,6 +238,7 @@ methods:     serialize, is_empty, get, get_safe, set, delete, all, all_keys, all
              filter, filter_by_key, filter_by_value, fold, fold_keys, fold_values, 
              fold_lazy, fold_keys_lazy, fold_values_lazy, map_keys, map_values, prepend
              sort, sort_by_key, sort_by_value, find, find_key, find_key_safe, find_by_key, find_value, find_value_safe, find_by_value, for_each,
+             to_list,
              update, update_safe
 internal ns: __helios__map
 ```

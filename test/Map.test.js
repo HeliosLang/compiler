@@ -7,7 +7,8 @@ import {
     list,
     compileForRun,
     bytes,
-    constr
+    constr,
+    str
 } from "./utils.js"
 
 describe("Map", () => {
@@ -156,6 +157,28 @@ describe("Map", () => {
                     int(3)
                 ],
                 True
+            )
+        })
+    })
+
+    describe("Map[Int]String.to_list[String]", () => {
+        const runner = compileForRun(`
+        testing map_to_list
+        func main(a: Map[Int]Int) -> []String {
+            a.to_list[String](
+                (_x: Int, y: Int) -> String {"hi:"+y.show()}
+            )
+        }`)
+
+        it("maps the entries to a list", () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(10)],
+                        [int(2), int(20)]
+                    ])
+                ],
+                list(str("hi:10"), str("hi:20"))
             )
         })
     })
