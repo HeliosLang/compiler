@@ -94,6 +94,7 @@ function parseMain(mainSrc, moduleSrcs, errorCollector) {
         moduleSrcs,
         errorCollector
     )
+    errorCollector.throw()
 
     const mainImports = modules[0].filterDependencies(imports)
 
