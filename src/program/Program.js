@@ -51,6 +51,7 @@ import { UserFunc } from "./UserFunc.js"
  *   validatorIndices?: Record<string, number>
  *   onCompileUserFunc?: (name: string, uplc: UplcProgramV2) => void
  *   excludeUserFuncs?: Set<string>
+ *   withAlt?: boolean
  * }} CompileOptions
  */
 
@@ -263,10 +264,30 @@ export class Program {
     }
 
     /**
+     * Compiles the program to UPLC form
+     * @remarks
+     * By default (with no optimize setting provided) it compiles an optimized
+     * version, while also attaching an alternative (unoptimized, with logging)
+     * version to the UplcProgram. When available, the logging version
+     * of the script is used to provide diagnostic details for developer or
+     * application-layer use.
+     *
+     * if 'optimize' is enabled explicitly via boolean or `{optimize:boolean}` or
+     * `{optimize: {...options}}`, then the logging version is only included if
+     * `options.withAlt=true`.  Additional `options.optimize:{... optimizeOptions}`
+     * can provide fine-grained tuning of the optimization process.
+     *
+     * Specifying `options.withAlt=true` + `options.optimize=true` is equivalent to
+     * the default behavior.  `withAlt` is ignored if `optimize` is explicitly disabled.
+     *
+     * If only the optimized version of the script is used, any execution errors
+     * will not have access to logged details from the program; in that case, a
+     * warning message will be emitted, indicating the lack of loggable details.
+     *
      * @param {boolean | CompileOptions} optimizeOrOptions
      * @returns {UplcProgramV2}
      */
-    compile(optimizeOrOptions = false) {
+    compile(optimizeOrOptions = {}) {
         /**
          * @type {CompileOptions}
          */
@@ -276,7 +297,16 @@ export class Program {
                 : optimizeOrOptions
 
         const hashDependencies = options.hashDependencies ?? {}
-        const optimize = !!(options.optimize ?? false)
+        const explicitOptimize = options.optimize
+        // uses implied optimize=true if not explicitly set
+        const optimize = !!(explicitOptimize ?? true)
+        if (false == explicitOptimize && options.withAlt) {
+            console.warn(
+                "options.withAlt=true is ignored when options.optimize is explicitly disabled"
+            )
+        }
+        const withAlt =
+            false == explicitOptimize ? false : (options.withAlt ?? optimize)
 
         const ir = this.toIR({
             dependsOnOwnHash: options.dependsOnOwnHash ?? false,
@@ -284,29 +314,40 @@ export class Program {
             optimize: optimize
         })
 
-        const uplc = compileIR(ir, {
-            optimize: optimize,
-            parseOptions: IR_PARSE_OPTIONS,
-            optimizeOptions:
-                options.optimize && typeof options.optimize != "boolean"
-                    ? options.optimize
-                    : undefined
-        })
+        try {
+            const alt = withAlt ? this.compile({ optimize: false }) : undefined
+            // todo: re-use the IR from alt version to shorten the IR compilation for optimized version (~0.5 seconds in one sample)
+            // todo: or can we re-use some intermediate result within the IR-compilation process, to reduce overhead even further?
 
-        // userfuncs might depend on own hash, which is easer to inject after compilation of main program
-        if (options.onCompileUserFunc) {
-            if (options.optimize) {
-                hashDependencies[this.name] = bytesToHex(uplc.hash())
+            const uplc = compileIR(ir, {
+                optimize: optimize,
+                alt: alt,
+                parseOptions: IR_PARSE_OPTIONS,
+                optimizeOptions:
+                    options.optimize && typeof options.optimize != "boolean"
+                        ? options.optimize
+                        : undefined
+            })
+
+            // userfuncs might depend on own hash, which is easer to inject after compilation of main program
+            if (options.onCompileUserFunc) {
+                if (options.optimize) {
+                    hashDependencies[this.name] = bytesToHex(uplc.hash())
+                }
+
+                this.compileUserFuncs(options.onCompileUserFunc, {
+                    excludeUserFuncs: options.excludeUserFuncs ?? new Set(),
+                    hashDependencies: hashDependencies,
+                    validatorIndices: options.validatorIndices
+                })
             }
 
-            this.compileUserFuncs(options.onCompileUserFunc, {
-                excludeUserFuncs: options.excludeUserFuncs ?? new Set(),
-                hashDependencies: hashDependencies,
-                validatorIndices: options.validatorIndices
-            })
+            return uplc
+        } catch (e) {
+            debugger
+            console.error("Error compiling program", e)
+            throw e
         }
-
-        return uplc
     }
 
     /**
