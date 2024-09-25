@@ -10,6 +10,7 @@
     "scripts": {
         "build": "pnpm run test:version && pnpm run prettify && pnpm run build:types && pnpm run test:suite",
         "build:types": "tsc -p jsconfig.json --noEmit false --emitDeclarationOnly",
+        "lockfile:sync": "pnpm install --ignore-workspace",
         "prettify": "prettier . --write",
         "test": "pnpm run test:version && pnpm run test:pretty && pnpm run test:types && pnpm run test:suite",
         "test:pretty": "prettier . --check",
@@ -53,8 +54,8 @@
     "dependencies": {
         "@helios-lang/codec-utils": "^0.1.35",
         "@helios-lang/compiler-utils": "^0.1.55",
-        "@helios-lang/ir": "^0.1.37",
+        "@helios-lang/ir": "^0.1.38",
         "@helios-lang/type-utils": "^0.1.21",
-        "@helios-lang/uplc": "^0.3.6"
+        "@helios-lang/uplc": "^0.3.7"
     }
 }
