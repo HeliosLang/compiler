@@ -296,7 +296,10 @@ export class Program {
                 ? { optimize: optimizeOrOptions }
                 : optimizeOrOptions
 
+        // these fields come the contract-utils package and must also be passed to the alt unoptimize compilation
         const hashDependencies = options.hashDependencies ?? {}
+        const dependsOnOwnHash = options.dependsOnOwnHash ?? false
+
         const explicitOptimize = options.optimize
         // uses implied optimize=true if not explicitly set
         const optimize = !!(explicitOptimize ?? true)
@@ -309,12 +312,20 @@ export class Program {
             false == explicitOptimize ? false : (options.withAlt ?? optimize)
 
         const ir = this.toIR({
-            dependsOnOwnHash: options.dependsOnOwnHash ?? false,
-            hashDependencies: hashDependencies,
+            dependsOnOwnHash,
+            hashDependencies,
             optimize: optimize
         })
 
-        const alt = withAlt ? this.compile({ optimize: false }) : undefined
+        // don't (yet) compile user funcs in alt unoptimized
+        const alt = withAlt
+            ? this.compile({
+                  optimize: false,
+                  dependsOnOwnHash,
+                  hashDependencies
+              })
+            : undefined
+
         // todo: re-use the IR from alt version to shorten the IR compilation for optimized version (~0.5 seconds in one sample)
         // todo: or can we re-use some intermediate result within the IR-compilation process, to reduce overhead even further?
 
