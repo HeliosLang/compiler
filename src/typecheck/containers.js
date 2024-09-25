@@ -887,6 +887,20 @@ export const MapType = new ParametricType({
                         )
                     )
                 })(),
+                to_list: (() => {
+                    const a = new Parameter(
+                        "a",
+                        `${FTPP}0`,
+                        new DefaultTypeClass()
+                    )
+                    return new ParametricFunc(
+                        [a],
+                        new FuncType(
+                            [new FuncType([keyType, valueType], a.ref)],
+                            ListType$(a.ref)
+                        )
+                    )
+                })(),
                 prepend: new FuncType([keyType, valueType], self),
                 set: new FuncType([keyType, valueType], self),
                 sort: new FuncType(

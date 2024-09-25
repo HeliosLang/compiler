@@ -1,5 +1,9 @@
 This Changelog only applies to notable changes of language related features in `helios.js` on the main branch.
 
+# 2024/09/21
+
+ - addition of `Map.to_list[T]()`
+
 # 2023/09/12
 
 -   cleanup of IR simplication (might change some script hashes)
