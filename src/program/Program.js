@@ -314,40 +314,34 @@ export class Program {
             optimize: optimize
         })
 
-        try {
-            const alt = withAlt ? this.compile({ optimize: false }) : undefined
-            // todo: re-use the IR from alt version to shorten the IR compilation for optimized version (~0.5 seconds in one sample)
-            // todo: or can we re-use some intermediate result within the IR-compilation process, to reduce overhead even further?
+        const alt = withAlt ? this.compile({ optimize: false }) : undefined
+        // todo: re-use the IR from alt version to shorten the IR compilation for optimized version (~0.5 seconds in one sample)
+        // todo: or can we re-use some intermediate result within the IR-compilation process, to reduce overhead even further?
 
-            const uplc = compileIR(ir, {
-                optimize: optimize,
-                alt: alt,
-                parseOptions: IR_PARSE_OPTIONS,
-                optimizeOptions:
-                    options.optimize && typeof options.optimize != "boolean"
-                        ? options.optimize
-                        : undefined
-            })
+        const uplc = compileIR(ir, {
+            optimize: optimize,
+            alt: alt,
+            parseOptions: IR_PARSE_OPTIONS,
+            optimizeOptions:
+                options.optimize && typeof options.optimize != "boolean"
+                    ? options.optimize
+                    : undefined
+        })
 
-            // userfuncs might depend on own hash, which is easer to inject after compilation of main program
-            if (options.onCompileUserFunc) {
-                if (options.optimize) {
-                    hashDependencies[this.name] = bytesToHex(uplc.hash())
-                }
-
-                this.compileUserFuncs(options.onCompileUserFunc, {
-                    excludeUserFuncs: options.excludeUserFuncs ?? new Set(),
-                    hashDependencies: hashDependencies,
-                    validatorIndices: options.validatorIndices
-                })
+        // userfuncs might depend on own hash, which is easer to inject after compilation of main program
+        if (options.onCompileUserFunc) {
+            if (options.optimize) {
+                hashDependencies[this.name] = bytesToHex(uplc.hash())
             }
 
-            return uplc
-        } catch (e) {
-            debugger
-            console.error("Error compiling program", e)
-            throw e
+            this.compileUserFuncs(options.onCompileUserFunc, {
+                excludeUserFuncs: options.excludeUserFuncs ?? new Set(),
+                hashDependencies: hashDependencies,
+                validatorIndices: options.validatorIndices
+            })
         }
+
+        return uplc
     }
 
     /**
