@@ -2049,19 +2049,25 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // Ratio builtins
-    addDataFuncs("__helios__ratio", {
-        eq: `(a, b) -> {
-			at = __helios__ratio__top(a);
-			ab = __helios__ratio__bottom(a);
-			bt = __helios__ratio__top(b);
-			bb = __helios__ratio__bottom(b);
+    addDataFuncs("__helios__ratio")
+    add(
+        new RawFunc(
+            "__helios__ratio__equals",
+            `(self) -> {
+		(other) -> {
+			at = __helios__ratio__top(self);
+			ab = __helios__ratio__bottom(self);
+			bt = __helios__ratio__top(other);
+			bb = __helios__ratio__bottom(other);
 
 			__core__equalsInteger(
 				__core__multiplyInteger(at, bb),
 				__core__multiplyInteger(bt, ab)
 			)
-		}`
-    })
+		}
+	}`
+        )
+    )
     add(
         new RawFunc(
             "__helios__ratio__is_valid_data",

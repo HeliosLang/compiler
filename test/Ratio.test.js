@@ -265,6 +265,21 @@ describe("Ratio", () => {
             runner([ratio(1, 1), ratio(1, 1)], True)
         })
 
+        it("2/2 == 1/1 is false", () => {
+            runner([ratio(2, 2), ratio(1, 1)], False)
+        })
+    })
+
+    describe("Ratio.equals(Ratio)", () => {
+        const runner = compileForRun(`testing ratio_equals
+        func main(a: Ratio, b: Ratio) -> Bool {
+            a.equals(b)
+        }`)
+
+        it("1/1 == 1/1 is true", () => {
+            runner([ratio(1, 1), ratio(1, 1)], True)
+        })
+
         it("2/2 == 1/1 is true", () => {
             runner([ratio(2, 2), ratio(1, 1)], True)
         })
