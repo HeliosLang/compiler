@@ -1,0 +1,169 @@
+#!/bin/bash
+
+# Self-installing pre-push hook; once installed, it is triggered by `git push`, and
+# checks that the code being pushed is formatted correctly and conforms to test expectations.
+#
+# Step 1: detect when it is being run in "check-or-install" mode. 
+#   -- checks whether the script being run is the pre-push hook
+#      ... by looking at the name of the script relative to the git root
+#   -- in check-or-install mode, it updates the script in .git/hooks/pre-push 
+#      ... (if needed) and exits.
+#
+# Step 2: when run in "pre-push" mode by `git push`:
+#   -- NOTE: it is NON-interactive, so there can't be any prompts or progress notifications : ( 
+#   -- if any changes are staged, asks the user to stash them and aborts the push
+#     -- if STASH=1 is set, it will automatically stash any changes, instead of aborting
+#   -- runs the tests
+#   -- if the tests fail, it aborts the push
+#   -- it unstashes anything it previously stashed, if needed before exiting
+#   -- it always aborts the push if any tests fail
+#
+# Note: to unsafely skip the pre-push checks, use `git push --no-verify`
+
+# GIT_ROOT=$(git rev-parse --show-toplevel)
+prePushHookPath=".git/hooks/pre-push"
+#  -- get the path to the current script using $0 with basename and dir
+currentScriptPath=$(dirname $0)/$(basename $0)
+#  -- get the path to the current script relative to the git root
+
+#  -- if the current script is not the pre-push hook, check for the presence
+#  -- of the pre-push hook and that it is the same as the current script
+#  -- ... if not, copy the current script to the pre-push hook
+
+
+[[ $currentScriptPath != $prePushHookPath ]] && [[ "check" != $1 ]] && {
+   echo "PPHP: $prePushHookPath"
+   echo "CSP: $currentScriptPath"
+    [[ -z $1 ]] || [[ "install" != $1 ]] && {
+        echo "run as $0 'install' to check and/or install the pre-push hook"
+        exit 1
+    }
+    set -e
+    echo -n "🔍 checking git hook for pre-push..."
+    if [[ ! -f $prePushHookPath ]] ; then
+        echo
+        echo "🚨 pre-push hook not found; installing..."
+        sleep 2
+        echo 
+        cp "$currentScriptPath" "$prePushHookPath"
+        chmod +x "$prePushHookPath"
+        echo "🎉🎉 pre-push hook installed 🎉🎉"
+    elif ! cmp -s "$currentScriptPath" "$prePushHookPath"; then
+        echo
+        echo -n "ℹ️  pre-push hook out of date; updating..."
+        sleep 2
+        echo
+        cp "$currentScriptPath" "$prePushHookPath"
+        chmod +x "$prePushHookPath"
+        echo "🎉🎉 pre-push hook updated  🎉🎉"
+    else
+        echo "ok!"
+    fi
+    exit 0
+}
+
+stagedDiff=$(git diff --staged)
+pendingDiff=$(git diff)
+STASHED=""
+[[ -z $stagedDiff ]] && [[ -z $pendingDiff ]] || {
+    [[ -z "$stagedDiff" ]] || STAGED_AND="STAGED"
+    [[ -z "$pendingDiff" ]] || UNSTAGED="UNSTAGED"
+    [[ -z $stagedDiff ]]   ||   [[ -z $pendingDiff ]] || {
+        STAGED_AND="STAGED and "
+    }
+
+    if [[ $STASH -eq 1 ]]; then
+        STASHED="${STAGED_AND}${UNSTAGED}"
+        git stash -q -m "Pre-push hook: ${STASHED} changes"
+        echo "  -- stashed ${STASHED} changes"
+    else
+        echo "⚠️  NOTE: there are ${STAGED_AND}${UNSTAGED} changes; aborting push ⚠️"        
+        echo
+        echo "If you like, we can stash them, restoring the working directory after the checks."
+        echo "For this behavior, run as \`STASH=1 git push ...\` "
+        exit 1
+    fi
+}
+
+# -- store a reference to the current branch
+originalBranch=$(git rev-parse --abbrev-ref HEAD)
+cleanup() {
+    # restore the original branch
+    echo "  -- cleaning up before exit"
+    currentBranch=$(git rev-parse --abbrev-ref HEAD)
+    echo "  -- current branch is $currentBranch, original was $originalBranch"
+    # set -x
+    if [[ $originalBranch != $currentBranch ]]; then
+        echo "  -- switching back to branch $originalBranch"
+        git checkout $originalBranch
+    fi
+
+    # restore any stashed changes
+    [[ -z $STASHED ]] || {
+        echo "  -- restoring ${STASHED} changes from stash"
+        git stash pop -q --index
+    }
+}
+trap "cleanup" EXIT
+
+testOneChange() {
+    localName=$1
+    localHash=$2
+    echo "Checking ${localName} @${localHash} before pushing..."
+    git -c "advice.detachedHead=false" checkout $localName
+    # checks that the code being pushed is formatted correctly 
+    # ... and conformed to test expectations
+
+    [[ ! -z $MOCK ]] || {
+        pnpm run test
+    }
+
+    RESULT=$?
+
+    if [ $RESULT -ne 0 ]; then
+        echo "☠️ ☠️ ☠️  pre-push checks failed; aborting push ☠️ ☠️ ☠️"
+        exit $RESULT
+    else
+        echo "🎉  pre-push check on '$localName': PASSED  🎉"
+    fi
+}
+
+didRead=""
+
+[[ -t 0 ]] || {
+    echo "Reading changes to check from stdin"
+    echo
+    while read localname localhash remotename remotehash; do {
+            [[ -z $didRead ]] || {
+                # separator between refs being checked
+                echo "---------------------------------------------------"
+            }
+            didRead=1
+            # echo "testing $localname @$localhash before pushing to $remotename @ $remotehash" 
+            testOneChange $localname $localhash
+            echo 
+    } done
+}
+[[ -z $didRead ]] && {
+    [[ -z $1 ]] && {
+        # being executed by git push.  This almost certainly can't happen.
+        echo "🚨 no changes to push; exiting with error"
+        exit 1
+    }
+    [[ "check" == "$1" ]] || {
+        echo "run with 'check' arg to test outside git"
+        exit 1
+    }
+    echo "testing current branch outside git context: $originalBranch"
+    testOneChange $originalBranch $(git rev-parse HEAD)
+}
+[[ ! -z $MOCK ]] && {
+    [[ $MOCK -eq 0 ]] && {
+        echo returning mock success
+    } || {
+        echo returning mock failure $MOCK
+    }
+    exit $MOCK
+}
+
+exit $RESULT
