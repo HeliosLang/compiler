@@ -114,14 +114,17 @@ testOneChange() {
     # checks that the code being pushed is formatted correctly 
     # ... and conformed to test expectations
 
+    [[ -z $MOCK ]] || {
+        echo "  ------------ MOCKED test run ------------"        
+        RESULT=$MOCK
+    }
     [[ ! -z $MOCK ]] || {
         pnpm run test
+        RESULT=$?
     }
 
-    RESULT=$?
-
     if [ $RESULT -ne 0 ]; then
-        echo "☠️ ☠️ ☠️  pre-push checks failed; aborting push ☠️ ☠️ ☠️"
+        echo "☠️ ☠️ ☠️  pre-push checks on '$localName' failed; aborting push ☠️ ☠️ ☠️"
         exit $RESULT
     else
         echo "🎉  pre-push check on '$localName': PASSED  🎉"
@@ -139,9 +142,8 @@ didRead=""
                 echo "---------------------------------------------------"
             }
             didRead=1
-            # echo "testing $localname @$localhash before pushing to $remotename @ $remotehash" 
+            echo "testing $localname @$localhash before pushing to $remotename @ $remotehash" 
             testOneChange $localname $localhash
-            echo 
     } done
 }
 [[ -z $didRead ]] && {
@@ -150,11 +152,11 @@ didRead=""
         echo "🚨 no changes to push; exiting with error"
         exit 1
     }
-    [[ "check" == "$1" ]] || {
-        echo "run with 'check' arg to test outside git"
-        exit 1
+    [[ -t 0 ]] || {
+        echo "  -- no change-list provided by git"
     }
-    echo "testing current branch outside git context: $originalBranch"
+
+    echo "testing current branch: $originalBranch"
     testOneChange $originalBranch $(git rev-parse HEAD)
 }
 [[ ! -z $MOCK ]] && {
