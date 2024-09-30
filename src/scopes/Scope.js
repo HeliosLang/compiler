@@ -218,18 +218,25 @@ export class Scope extends Common {
     }
 
     /**
-     * Asserts that all named values are user.
-     * Throws an error if some are unused.
+     * Asserts that all named values are used.
+     * Throws an error if some are unused, unless they start with "_"
      * Check is only run if we are in strict mode
      * @param {boolean} onlyIfStrict
      */
     assertAllUsed(onlyIfStrict = true) {
         if (!onlyIfStrict || this.isStrict()) {
             for (let [name, entity, used] of this.#values) {
-                if (!(entity instanceof Scope) && !used) {
+                const flaggedUnused = name.value.startsWith("_")
+                if (!used && !(entity instanceof Scope) && !flaggedUnused) {
                     throw CompilerError.reference(
                         name.site,
                         `'${name.toString()}' unused`
+                    )
+                }
+                if (flaggedUnused && used) {
+                    throw CompilerError.reference(
+                        name.site,
+                        `_-prefixed variable '${name.toString()}' must be unused`
                     )
                 }
             }

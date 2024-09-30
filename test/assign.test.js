@@ -24,6 +24,40 @@ describe("Assign", () => {
             output: int(2)
         },
         {
+            description: "unused variables throw errors",
+            fails: /ReferenceError.*'b' unused/,
+            main: `testing throws_on_unused
+            func main(a: Int) -> Int {
+                b = 2;
+                a
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
+            description: "underscore-prefix makes unused variables ok",
+            main: `testing unused_variables_ok_with_underscore
+            func main(a: Int) -> Int {
+                _ = 1;
+                _also_unused = 2;
+                a + 1
+            }`,
+            inputs: [int(1)],
+            output: int(2)
+        },
+        {
+            description: "used variables must not be underscore-prefixed",
+            fails: /_-prefixed variable '_thing' must be unused/,
+            main: `testing used_variables_throw_with_underscore
+            func main(a: Int) -> Int {
+                _ = 1;
+                _thing = 2;
+                a + _thing
+            }`,
+            inputs: [int(1)],
+            output: int(1)
+        },
+        {
             description: "rhs enum variant only can be checked",
             main: `testing check_enum_variant
             func main(a: Int) -> Int {
