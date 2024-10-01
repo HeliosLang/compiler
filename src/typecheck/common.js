@@ -3,6 +3,7 @@ import { expectSome, isSome, None } from "@helios-lang/type-utils"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/type-utils").StructTypeSchema} StructTypeSchema
  * @typedef {import("@helios-lang/type-utils").FieldTypeSchema} FieldTypeSchema
  * @typedef {import("@helios-lang/type-utils").TypeSchema} TypeSchema
  * @typedef {import("@helios-lang/type-utils").VariantTypeSchema} VariantTypeSchema

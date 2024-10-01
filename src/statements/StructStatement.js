@@ -24,6 +24,7 @@ import { ImplDefinition } from "./ImplDefinition.js"
  * @typedef {import("../typecheck/index.js").GenericTypeProps} GenericTypeProps
  * @typedef {import("../typecheck/index.js").Type} Type
  * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
+ * @typedef {import("../typecheck/index.js").StructTypeSchema} StructTypeSchema
  */
 
 /**
@@ -109,15 +110,15 @@ export class StructStatement extends Statement {
                     /**
                      * @param {Type} self
                      * @param {Set<string>} parents
-                     * @returns {TypeSchema}
+                     * @returns {StructTypeSchema}
                      */
                     genTypeSchema: (self, parents) => {
                         const internalTypeFields =
                             this.#dataDef.fieldsToSchema(parents)
 
-                        return {
+                        return /* @type {StructTypeSchema} */ {
                             kind: "struct",
-                            format: this.#dataDef.hasTags()
+                            format: this.#dataDef.isMappedStruct()
                                 ? "map"
                                 : this.#dataDef.nFields == 1
                                   ? "singleton"
@@ -162,8 +163,8 @@ export class StructStatement extends Statement {
      * @param {ToIRContext} ctx
      * @param {Definitions} map
      */
-    toIR_withTagsEq(ctx, map) {
-        const ir = this.#dataDef.toIR_withTagsEq(this.site)
+    toIR_mStructEq(ctx, map) {
+        const ir = this.#dataDef.toIR_mStructEq(this.site)
 
         map.set(`${this.path}____eq`, ir)
     }
@@ -172,19 +173,27 @@ export class StructStatement extends Statement {
      * @param {ToIRContext} ctx
      * @param {Definitions} map
      */
-    toIR_withTagsNeq(ctx, map) {
-        const ir = this.#dataDef.toIR_withTagsNeq(this.site)
-
-        map.set(`${this.path}____neq`, ir)
+    toIR_mStructNeq(ctx, map) {
+        // simple negation of __eq
+        map.set(
+            `${this.path}____neq`,
+            $`(a, b) -> {
+					__core__ifThenElse(
+						${this.path}____eq(a, b), 
+						()->{false}, 
+						()->{true}
+					)()
+			}`
+        )
     }
 
     /**
      * @param {ToIRContext} ctx
      * @param {Definitions} map
      */
-    toIR_withTags(ctx, map) {
-        this.toIR_withTagsEq(ctx, map)
-        this.toIR_withTagsNeq(ctx, map)
+    toIR_mStruct(ctx, map) {
+        this.toIR_mStructEq(ctx, map)
+        this.toIR_mStructNeq(ctx, map)
 
         map.set(
             `${this.path}__serialize`,
@@ -224,10 +233,19 @@ export class StructStatement extends Statement {
             )
         }
 
-        // TODO: this is wrong
         map.set(
             `${this.path}__from_data_safe`,
-            $(`__helios__option__SOME_FUNC`, this.site)
+
+            $(
+                `(data) -> {
+                __core__ifThenElse(
+                    ${this.path}__is_valid_data(data),
+                    () -> { __helios__option__SOME_FUNC(data) },
+                    () -> { __helios__option__NONE_FUNC }
+                )()
+            }`,
+                this.site
+            )
         )
     }
 
@@ -235,7 +253,7 @@ export class StructStatement extends Statement {
      * @param {ToIRContext} ctx
      * @param {Definitions} map
      */
-    toIR_withoutTags(ctx, map) {
+    toIR_fStruct(ctx, map) {
         const implPath =
             this.#dataDef.nFields == 1
                 ? this.#dataDef.getFieldType(0).path
@@ -319,10 +337,10 @@ export class StructStatement extends Statement {
             this.#dataDef.toIR_is_valid_data()
         )
 
-        if (this.#dataDef.hasTags()) {
-            this.toIR_withTags(ctx, map)
+        if (this.#dataDef.isMappedStruct()) {
+            this.toIR_mStruct(ctx, map)
         } else {
-            this.toIR_withoutTags(ctx, map)
+            this.toIR_fStruct(ctx, map)
         }
 
         // super.toIR adds __new and copy, which might depend on __to_data, so must come after

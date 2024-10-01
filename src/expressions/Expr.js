@@ -32,12 +32,17 @@ export class Expr {
     cache
 
     /**
-	 * @param {Site} site 
-	 
-	 */
+     * @type {string | null}
+     */
+    encodingKey
+
+    /**
+     * @param {Site} site
+     */
     constructor(site) {
         this.site = site
         this.cache = None
+        this.encodingKey = null
     }
 
     /**
@@ -59,10 +64,21 @@ export class Expr {
     }
 
     /**
+     * Annotates the expression with a serialization encoding-key (only relevant for types used in fields of Map-typed (CIP-68) structs
+     * @param {string} key
+     * @returns {Expr}
+     */
+    withEncodingKey(key) {
+        this.encodingKey = key
+        return this
+    }
+
+    /**
      * @param {Scope} scope
      * @returns {DataType}
      */
     evalAsDataType(scope) {
+        // here with the field-name tag??
         const result_ = this.eval(scope)
 
         const result = result_.asDataType
@@ -80,6 +96,7 @@ export class Expr {
      */
     evalAsType(scope) {
         const r = this.eval(scope)
+        const result_ = this.eval(scope)
 
         const result = r.asType
 

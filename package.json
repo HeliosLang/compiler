@@ -20,8 +20,8 @@
         "test:suite": "node --stack-trace-limit=50 --test",
         "test:types": "tsc -p jsconfig.json --noEmit",
         "test:version": "node -e \"import('./src/index.js').then(m => {if (m.VERSION != process.env.npm_package_version) {throw new Error(\\\"version mismatch\\\")}})\"",
-        "testing": "node --stack-trace-limit=50 --test --watch",
-        "testing:debug": "node --inspect-brk --stack-trace-limit=50 --test-concurrency=1 --test --watch"
+        "testing": "HL_TEST_TRACE=ok node --stack-trace-limit=50 --test --watch",
+        "testing:debug": "HL_TEST_TRACE=ok node --stack-trace-limit=50 --inspect-wait --test --watch"
     },
     "repository": {
         "type": "git",

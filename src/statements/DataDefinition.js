@@ -71,8 +71,8 @@ export class DataDefinition {
         return this.#fields.map((f) => f.name.value)
     }
 
-    hasTags() {
-        return this.#fields.some((f) => f.hasTag())
+    isMappedStruct() {
+        return this.#fields.some((f) => f.hasEncodingKey())
     }
 
     /**
@@ -227,17 +227,32 @@ export class DataDefinition {
 
     /**
      * @param {Set<string>} parents
-     * @returns {FieldTypeSchema[]}
+     * @returns {(FieldTypeSchema)[]}
      */
     fieldsToSchema(parents) {
+        /**
+         * @type {FieldTypeSchema[]}
+         */
         const fieldSchemas = []
 
         this.#fields.forEach((f) => {
-            const externalName = this.hasTags() ? f.tag : f.name.value
+            // change to encodingKey
+            const externalName = f.name.value
+            const encodingKey =
+                (f.hasEncodingKey() && f.encodedFieldName) || null
+
             const ts = expectSome(f.type.toSchema(parents))
             fieldSchemas.push({
                 name: externalName,
-                type: ts
+                type: ts,
+                ...(encodingKey
+                    ? {
+                          // schemas use shorter key name to a) be concise in that context
+                          //  ... and b) add distinction for that separate context
+                          key: encodingKey
+                      }
+                    : {})
+                // ...  alt location for the comment?
             })
         })
 
@@ -258,7 +273,7 @@ export class DataDefinition {
          */
         let ir
 
-        if (this.hasTags()) {
+        if (this.isMappedStruct()) {
             ir = $`__core__mkNilPairData(())`
 
             for (let i = this.nFields - 1; i >= 0; i--) {
@@ -266,26 +281,16 @@ export class DataDefinition {
 
                 ir = $`__core__mkCons(
 					__core__mkPairData(
-						__core__bData(#${bytesToHex(encodeUtf8(f.tag))}),
+						__core__bData(#${bytesToHex(encodeUtf8(f.encodedFieldName))}),
 						${f.type.path}____to_data(${f.name.value})
 					),
 					${ir}
 				)`
             }
 
-            // TODO: according to https://cips.cardano.org/cips/cip68/#metadata an additional 'extra' (which can be unit)  should be added. Is that really necessary?
-            ir = $`__core__constrData(
-				0,
-				__core__mkCons(
-					__core__mapData(${ir}),
-					__core__mkCons(
-						__core__iData(1),
-						__core__mkNilData(())
-					)
-				)
-			)`
-
-            ir = $`(${$(this.#fields.map((f) => $(f.name.value))).join(", ")}) -> {${ir}}`
+            ir = $`(${$(this.#fields.map((f) => $(f.name.value))).join(", ")}) -> {
+                __core__mapData(${ir})
+            }`
         } else if (this.nFields == 1) {
             if (isConstr) {
                 ir = $(
@@ -372,7 +377,7 @@ export class DataDefinition {
      * @returns {SourceMappedString}
      */
     toIR_show(baseName, isEnumMember = false) {
-        if (this.hasTags()) {
+        if (this.isMappedStruct()) {
             if (isEnumMember) {
                 throw new Error("unexpected")
             }
@@ -415,7 +420,7 @@ export class DataDefinition {
 									)()
 								}
 							)
-						}(__helios__common__cip68_field_safe(self, #${bytesToHex(encodeUtf8(f.tag))}))
+						}(__helios__common__mStruct_field_safe(self, #${bytesToHex(encodeUtf8(f.encodedFieldName))}))
 					)
 				)`
             }
@@ -518,23 +523,23 @@ export class DataDefinition {
      * @returns {SourceMappedString}
      */
     toIR_is_valid_data(argIsConstrFields = false) {
-        if (this.hasTags()) {
+        if (this.isMappedStruct()) {
             const fields = this.#fields
 
             let ir = $``
 
             fields.forEach((f, i) => {
                 if (i == 0) {
-                    ir = $`__helios__common__test_cip68_field(
-						data,
-						__core__bData(#${bytesToHex(encodeUtf8(f.tag))}),
-						${f.type.path}__is_valid_data	
-					)`
+                    ir = $`__helios__common__test_mStruct_field(
+                        data,
+						__core__bData(#${bytesToHex(encodeUtf8(f.encodedFieldName))}),
+                        ${f.type.path}__is_valid_data
+                    )`
                 } else {
                     ir = $`__core__ifThenElse(
-						__helios__common__test_cip68_field(
+						__helios__common__test_mStruct_field(
 							data,
-							__core__bData(#${bytesToHex(encodeUtf8(f.tag))}),
+							__core__bData(#${bytesToHex(encodeUtf8(f.encodedFieldName))}),
 							${f.type.path}__is_valid_data	
 						),
 						() -> {
@@ -547,9 +552,9 @@ export class DataDefinition {
                 }
             })
 
-            return $`(data) -> {
-				${ir}
-			}`
+            return $`(data) -> { 
+                ${ir}
+            }`
         } else if (this.nFields == 1 && !argIsConstrFields) {
             return $`${this.#fields[0].type.path}__is_valid_data`
         } else {
@@ -602,17 +607,21 @@ export class DataDefinition {
      * @param {Site} site
      * @returns {SourceMappedString}
      */
-    toIR_withTagsEq(site) {
+    toIR_mStructEq(site) {
         // the expected fields must exist in both
         let irInner = $`true`
 
+        // same as reversing the fields:
+        const n = this.#fields.length - 1
         for (let i = 0; i < this.#fields.length; i++) {
-            const f = this.#fields[i]
-
+            const f = this.#fields[n - i]
+            // builds the innermost field comparison from the LAST field,
+            // so the outermost is likely to be the cheapest to find, given
+            // the fields are stored in the same order they're defined in the struct.
             irInner = $`__core__ifThenElse(
                 __core__equalsData(
-                    __helios__common__cip68_field_internal(aFields, #${bytesToHex(encodeUtf8(f.tag))}),
-                    __helios__common__cip68_field_internal(bFields, #${bytesToHex(encodeUtf8(f.tag))})
+                    __helios__common__mStruct_field_internal(aFields, #${bytesToHex(encodeUtf8(f.encodedFieldName))}),
+                    __helios__common__mStruct_field_internal(bFields, #${bytesToHex(encodeUtf8(f.encodedFieldName))})
                 ),
                 () -> {${irInner}},
                 () -> {false}
@@ -621,42 +630,8 @@ export class DataDefinition {
 
         let irOuter = $(
             `(a, b) -> {
-            aFields = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(a))));
-            bFields = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(b))));
-
-            ${irInner}
-        }`,
-            site
-        )
-
-        return irOuter
-    }
-
-    /**
-     * @param {Site} site
-     * @returns {SourceMappedString}
-     */
-    toIR_withTagsNeq(site) {
-        // the expected fields must exist in both
-        let irInner = $`false`
-
-        for (let i = 0; i < this.#fields.length; i++) {
-            const f = this.#fields[i]
-
-            irInner = $`__core__ifThenElse(
-                __core__equalsData(
-                    __helios__common__cip68_field_internal(aFields, #${bytesToHex(encodeUtf8(f.tag))}),
-                    __helios__common__cip68_field_internal(bFields, #${bytesToHex(encodeUtf8(f.tag))})
-                ),
-                () -> {${irInner}},
-                () -> {true}
-            )()`
-        }
-
-        let irOuter = $(
-            `(a, b) -> {
-            aFields = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(a))));
-            bFields = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(b))));
+            aFields = __core__unMapData(a);
+            bFields = __core__unMapData(b);
 
             ${irInner}
         }`,
@@ -671,7 +646,7 @@ export class DataDefinition {
      * @returns {SourceMappedString}
      */
     toIR_from_data_fields(path) {
-        if (this.hasTags()) {
+        if (this.isMappedStruct()) {
             //let ir = IR.new`(data) -> {__core__mkNilPairData(())}`;
 
             let ir = $`(data) -> {
@@ -699,7 +674,7 @@ export class DataDefinition {
 							__core__bData(#${bytesToHex(textToBytes(f.tag))}),
 							${ftPath}____to_data(
 								${ftPath}__from_data(
-									__helios__common__cip68_field(
+									__helios__common__mStruct_field(
 										data, 
 										#${bytesToHex(textToBytes(f.tag))}
 									)
@@ -778,13 +753,13 @@ export class DataDefinition {
          */
         const getterNames = []
 
-        if (this.hasTags()) {
+        if (this.isMappedStruct()) {
             for (let i = 0; i < this.#fields.length; i++) {
                 const f = this.#fields[i]
                 const key = `${path}__${f.name.value}`
 
                 // equalsData is much more efficient than first converting to byteArray
-                const getter = $`(self) -> {${f.type.path}__from_data(__helios__common__cip68_field(self, #${bytesToHex(encodeUtf8(f.tag))}))}`
+                const getter = $`(self) -> {${f.type.path}__from_data(__helios__common__mStruct_field(self, #${bytesToHex(encodeUtf8(f.encodedFieldName))}))}`
 
                 map.set(key, getter)
                 getterNames.push(key)
