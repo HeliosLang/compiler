@@ -23,8 +23,8 @@ Object.defineProperty(global, "__line", {
         return getLine(2)
     }
 })
-describe.only("Singleton-field-struct ", () => {
-    describe.only("Singleton(Int)::is_valid_data", () => {
+describe("Singleton-field-struct ", () => {
+    describe("Singleton(Int)::is_valid_data", () => {
         const runner = compileForRun(`testing singleton_int_is_valid_data
         struct sfStruct {
             a: Int
@@ -102,11 +102,11 @@ describe("field-list struct Pair[Int, Int]", () => {
     })
 })
 
-describe.only("mStruct Pair[Int, Int]", () => {
+describe("mStruct Pair[Int, Int]", () => {
     const $a = str("a")
     const $b = str("b")
 
-    describe.only("Pair[Int, Int]::is_valid_data", () => {
+    describe("Pair[Int, Int]::is_valid_data", () => {
         const runner = compileForRun(`testing pair_int_int_is_valid_data
         struct mStruct {
             a: Int "a"
@@ -195,7 +195,7 @@ describe.only("mStruct Pair[Int, Int]", () => {
         })
     })
 
-    describe.only("mStruct Pair[Int, Int] == Pair", () => {
+    describe("mStruct Pair[Int, Int] == Pair", () => {
         const runner = compileForRun(`testing mStruct_pair_equals
         struct Pair {
             fieldA: Int "a"
@@ -262,7 +262,7 @@ describe.only("mStruct Pair[Int, Int]", () => {
                 False
             )
         })
-        it.only("throws an error if the second pair is missing an entry", () => {
+        it("throws an error if the second pair is missing an entry", () => {
             runner(
                 [
                     int(0),
