@@ -119,7 +119,7 @@ export class IfElseExpr extends Expr {
      * @param {Site} site
      * @param {null | Type} prevType
      * @param {Typed} newValue
-     * @returns {null | Type}
+     * @returns {null | Type} - never ErrorType
      */
     static reduceBranchMultiType(site, prevType, newValue) {
         if (
