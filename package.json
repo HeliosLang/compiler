@@ -1,6 +1,6 @@
 {
     "name": "@helios-lang/compiler",
-    "version": "0.17.0-96",
+    "version": "0.17.0-97",
     "description": "Helios is a Domain Specific Language that compiles to Plutus-Core (i.e. Cardano on-chain validator scripts). Helios is a non-Haskell alternative to Plutus. With this library you can compile Helios scripts and build Cardano transactions, all you need to build 100% client-side dApps for Cardano.",
     "main": "src/index.js",
     "types": "types/index.d.ts",
@@ -57,9 +57,9 @@
     },
     "dependencies": {
         "@helios-lang/codec-utils": "^0.1.35",
-        "@helios-lang/compiler-utils": "^0.1.55",
-        "@helios-lang/ir": "^0.1.41",
-        "@helios-lang/type-utils": "^0.1.21",
-        "@helios-lang/uplc": "^0.3.11"
+        "@helios-lang/compiler-utils": "^0.1.57",
+        "@helios-lang/ir": "^0.1.42",
+        "@helios-lang/type-utils": "^0.1.22",
+        "@helios-lang/uplc": "^0.3.12"
     }
 }
