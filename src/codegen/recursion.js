@@ -32,7 +32,7 @@ export function injectMutualRecursions(mainIR, map) {
         while (stack.length > 0) {
             const name = expectSome(stack.shift())
 
-            const ir = expectSome(map.get(name))
+            const ir = expectSome(map.get(name)).content
 
             const localDependencies = keys
                 .slice(
@@ -87,19 +87,25 @@ export function injectMutualRecursions(mainIR, map) {
             const newStr = `${k}(${dependencies.join(", ")})`
             // do the actual replacing
             for (let k_ of keys) {
-                map.set(k_, expectSome(map.get(k_)).replace(re, newStr))
+                map.set(k_, {
+                    content: expectSome(map.get(k_)).content.replace(
+                        re,
+                        newStr
+                    ),
+                    keySite: map.get(k_)?.keySite
+                })
             }
 
             mainIR = mainIR.replace(re, newStr)
 
             const wrapped = $([
                 $(`(${dependencies.join(", ")}) -> {`),
-                expectSome(map.get(k)),
+                expectSome(map.get(k)).content,
                 $("}")
             ])
 
             // wrap own definition
-            map.set(k, wrapped)
+            map.set(k, { content: wrapped, keySite: map.get(k)?.keySite })
         }
     }
 

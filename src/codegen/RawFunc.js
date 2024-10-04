@@ -147,7 +147,7 @@ export class RawFunc {
                 }
             }
 
-            dst.set(name, ir)
+            dst.set(name, { content: ir })
         }
     }
 }

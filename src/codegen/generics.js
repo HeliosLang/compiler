@@ -39,7 +39,7 @@ export function applyTypeParameters(ctx, mainIR, map) {
             builtinGenerics.get(name) ??
             builtinGenerics.get(genericName) ??
             builtinGenerics.get(genericFuncName) ??
-            map.get(genericName)
+            map.get(genericName)?.content
 
         if (!ir) {
             throw new Error(`${genericName} undefined in ir`)
@@ -59,7 +59,7 @@ export function applyTypeParameters(ctx, mainIR, map) {
     }
 
     for (let [k, v] of map) {
-        v.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, k))
+        v.content.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, k))
     }
 
     mainIR.search(RE_IR_PARAMETRIC_NAME, (name) => add(name, "main"))
@@ -96,7 +96,7 @@ export function applyTypeParameters(ctx, mainIR, map) {
 
         entries = entries
             .slice(0, j)
-            .concat([[name, ir]])
+            .concat([[name, { content: ir }]])
             .concat(entries.slice(j))
     }
 

@@ -310,7 +310,7 @@ export class EntryPointImpl {
                     const def = definitions.get(match)
 
                     if (def) {
-                        stack.push(def)
+                        stack.push(def.content)
                     }
                 }
             })

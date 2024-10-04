@@ -363,7 +363,8 @@ export class EnumSwitchExpr extends SwitchExpr {
                 $("->", this.site),
                 $(`\n${ctx.indent}${TAB}{(\n`),
                 res,
-                $(`\n${ctx.indent}${TAB})(e0)}(`),
+                $(`\n${ctx.indent}${TAB})(e0)}`),
+                $("(", this.dotSite),
                 this.controlExpr.toIR(ctx),
                 $(")")
             ])
@@ -375,7 +376,10 @@ export class EnumSwitchExpr extends SwitchExpr {
                 $(`e((${$(es).join(", ")}) -> {
                     ${res}
                 })`),
-                $(`\n${ctx.indent}${TAB})(e)}(`),
+                $(`\n${ctx.indent}${TAB})`),
+                $("("),
+                $(`e)}`),
+                $("(", this.dotSite),
                 this.controlExpr.toIR(ctx),
                 $(")")
             ])

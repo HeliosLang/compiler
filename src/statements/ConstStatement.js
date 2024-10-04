@@ -1,4 +1,4 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { CompilerError, TokenSite, Word } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
 import { expectSome, isSome } from "@helios-lang/type-utils"
 import { ToIRContext, PARAM_IR_MACRO } from "../codegen/index.js"
@@ -154,7 +154,17 @@ export class ConstStatement extends Statement {
      */
     toIR(ctx, map) {
         if (this.#valueExpr) {
-            map.set(this.path, this.toIRInternal(ctx))
+            const alias = ctx.aliasNamespace
+                ? `${ctx.aliasNamespace}::${this.name.value}`
+                : this.name.value
+            const keySite = TokenSite.fromSite(this.name.site).withAlias(alias)
+
+            map.set(this.path, {
+                content: this.toIRInternal(
+                    ctx.appendAliasNamespace(this.name.value)
+                ),
+                keySite
+            })
         }
     }
 }

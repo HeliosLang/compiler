@@ -164,28 +164,23 @@ export class EnumMember {
      * @param {Definitions} map
      */
     toIR(ctx, map) {
-        map.set(
-            `${this.path}____eq`,
-            $(`__helios__common____eq`, this.#dataDef.site)
-        )
-        map.set(
-            `${this.path}____neq`,
-            $(`__helios__common____neq`, this.#dataDef.site)
-        )
-        map.set(
-            `${this.path}__serialize`,
-            $(`__helios__common__serialize`, this.#dataDef.site)
-        )
-        map.set(
-            `${this.path}____is`,
-            $`(data) -> {
+        map.set(`${this.path}____eq`, {
+            content: $(`__helios__common____eq`, this.#dataDef.site)
+        })
+        map.set(`${this.path}____neq`, {
+            content: $(`__helios__common____neq`, this.#dataDef.site)
+        })
+        map.set(`${this.path}__serialize`, {
+            content: $(`__helios__common__serialize`, this.#dataDef.site)
+        })
+        map.set(`${this.path}____is`, {
+            content: $`(data) -> {
                 __helios__common__enum_tag_equals(data, ${this.constrIndex})
             }`
-        )
+        })
 
-        map.set(
-            `${this.path}__is_valid_data`,
-            $`(data) -> {
+        map.set(`${this.path}__is_valid_data`, {
+            content: $`(data) -> {
 			__core__chooseData(
 				data,
 				() -> {
@@ -207,12 +202,11 @@ export class EnumMember {
 				() -> {false}
 			)()
 		}`
-        )
+        })
 
         if (!ctx.optimize) {
-            map.set(
-                `${this.path}__from_data`,
-                $`(data) -> {
+            map.set(`${this.path}__from_data`, {
+                content: $`(data) -> {
 				(ignore) -> {
 					data
 				}(
@@ -227,22 +221,20 @@ export class EnumMember {
 					)()
 				)
 			}`
-            )
+            })
         } else {
-            map.set(
-                `${this.path}__from_data`,
-                $(
+            map.set(`${this.path}__from_data`, {
+                content: $(
                     `(data) -> {
 				__helios__common__assert_constr_index(data, ${this.constrIndex})
 			}`,
                     this.#dataDef.site
                 )
-            )
+            })
         }
 
-        map.set(
-            `${this.path}__from_data_safe`,
-            $`(data) -> {
+        map.set(`${this.path}__from_data_safe`, {
+            content: $`(data) -> {
 			__core__chooseData(
 				data,
 				() -> {
@@ -264,21 +256,19 @@ export class EnumMember {
 				() -> {__helios__option__NONE_FUNC}
 			)()
 		}`
-        )
+        })
 
-        map.set(
-            `${this.path}____to_data`,
-            $("__helios__common__identity", this.#dataDef.site)
-        )
+        map.set(`${this.path}____to_data`, {
+            content: $("__helios__common__identity", this.#dataDef.site)
+        })
 
         // super.toIR adds __new and copy, which might depend on __to_data, so must come after
         this.#dataDef.toIR(ctx, this.path, map, this.constrIndex)
 
         const longName =
             (this.#parent?.name?.value ?? "") + "::" + this.name.value
-        map.set(
-            `${this.path}__show`,
-            $`(data) -> {
+        map.set(`${this.path}__show`, {
+            content: $`(data) -> {
 			__core__chooseData(
 				data,
 				() -> {
@@ -292,7 +282,7 @@ export class EnumMember {
 				() -> {"${longName}{<n/a>}"}
 			)
 		}`
-        )
+        })
     }
 
     /**

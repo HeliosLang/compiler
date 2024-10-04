@@ -11,18 +11,21 @@ import { VoidExpr } from "./VoidExpr.js"
  * Parent class of EnumSwitchExpr and DataSwitchExpr
  */
 export class SwitchExpr extends Expr {
+    dotSite
     #controlExpr
     #cases
     #defaultCase
 
     /**
      * @param {Site} site
+     * @param {Site} dotSite
      * @param {Expr} controlExpr - input value of the switch
      * @param {SwitchCase[]} cases
      * @param {Option<SwitchDefault>} defaultCase
      */
-    constructor(site, controlExpr, cases, defaultCase = None) {
+    constructor(site, dotSite, controlExpr, cases, defaultCase = None) {
         super(site)
+        this.dotSite = dotSite
         this.#controlExpr = controlExpr
         this.#cases = cases
         this.#defaultCase = defaultCase

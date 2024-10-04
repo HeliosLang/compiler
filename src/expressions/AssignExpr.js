@@ -140,10 +140,11 @@ export class AssignExpr extends ChainExpr {
                 $("("),
                 this.#nameType.toNameIR(0), // wrapDestructIR depends on this name
                 $(") "),
-                $("->", this.site),
+                $("->"), // TODO: this should get the semicolon site
                 $(` {\n${ctx.indent}${TAB}`),
                 inner,
-                $(`\n${ctx.indent}}(`),
+                $(`\n${ctx.indent}}`),
+                $("(", this.site), // this is the call site
                 upstream,
                 $(")")
             ])

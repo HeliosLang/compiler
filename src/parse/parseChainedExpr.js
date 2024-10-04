@@ -357,7 +357,7 @@ export function makeChainedExprParser(parseValueExpr) {
             }
         })
 
-        return new EnumSwitchExpr(kw.site, objExpr, cases, def)
+        return new EnumSwitchExpr(kw.site, dot.site, objExpr, cases, def)
     }
 
     /**

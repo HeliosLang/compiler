@@ -1,4 +1,4 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { CompilerError, TokenSite, Word } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
 import { isSome } from "@helios-lang/type-utils"
 import { Scope } from "../scopes/index.js"
@@ -14,30 +14,41 @@ import { Expr } from "./Expr.js"
  * NameTypePair is base class of FuncArg and DataField (differs from StructLiteralField)
  */
 export class NameTypePair {
-    #name
-    #typeExpr
+    /**
+     * @private
+     * @readonly
+     * @type {Word}
+     */
+    _name
+
+    /**
+     * @private
+     * @readonly
+     * @type {Option<Expr>}
+     */
+    _typeExpr
 
     /**
      * @param {Word} name
      * @param {Option<Expr>} typeExpr
      */
     constructor(name, typeExpr) {
-        this.#name = name
-        this.#typeExpr = typeExpr
+        this._name = name
+        this._typeExpr = typeExpr
     }
 
     /**
      * @type {Site}
      */
     get site() {
-        return this.#name.site
+        return this._name.site
     }
 
     /**
      * @type {Word}
      */
     get name() {
-        return this.#name
+        return this._name
     }
 
     /**
@@ -45,7 +56,7 @@ export class NameTypePair {
      * @type {Type}
      */
     get type() {
-        if (!this.#typeExpr) {
+        if (!this._typeExpr) {
             if (this.isIgnored()) {
                 return new AllType()
             } else {
@@ -53,7 +64,7 @@ export class NameTypePair {
             }
         } else {
             // asDataType might be null if the evaluation of its TypeExpr threw a syntax error
-            return this.#typeExpr.cache?.asType ?? new AllType()
+            return this._typeExpr.cache?.asType ?? new AllType()
         }
     }
 
@@ -61,17 +72,17 @@ export class NameTypePair {
      * @type {Option<Expr>}
      */
     get typeExpr() {
-        return this.#typeExpr
+        return this._typeExpr
     }
 
     /**
      * @type {string}
      */
     get typeName() {
-        if (!this.#typeExpr) {
+        if (!this._typeExpr) {
             return ""
         } else {
-            return this.#typeExpr.toString()
+            return this._typeExpr.toString()
         }
     }
 
@@ -86,7 +97,7 @@ export class NameTypePair {
      * @returns {boolean}
      */
     hasType() {
-        return isSome(this.#typeExpr)
+        return isSome(this._typeExpr)
     }
 
     /**
@@ -95,7 +106,7 @@ export class NameTypePair {
      * @returns {Type}
      */
     evalType(scope) {
-        if (!this.#typeExpr) {
+        if (!this._typeExpr) {
             if (this.isIgnored()) {
                 return new AllType()
             } else {
@@ -105,11 +116,11 @@ export class NameTypePair {
                 )
             }
         } else {
-            const t = this.#typeExpr.eval(scope)
+            const t = this._typeExpr.eval(scope)
 
             if (!t.asType) {
                 throw CompilerError.type(
-                    this.#typeExpr.site,
+                    this._typeExpr.site,
                     `'${t.toString()} isn't a valid type`
                 )
             } else {
@@ -122,7 +133,10 @@ export class NameTypePair {
      * @returns {SourceMappedString}
      */
     toIR() {
-        return $(this.#name.toString(), this.#name.site)
+        return $(
+            this._name.toString(),
+            TokenSite.fromSite(this._name.site).withAlias(this._name.value)
+        )
     }
 
     /**
@@ -130,10 +144,10 @@ export class NameTypePair {
      * @returns {string}
      */
     toString() {
-        if (!this.#typeExpr) {
+        if (!this._typeExpr) {
             return this.name.toString()
         } else {
-            return `${this.name.toString()}: ${this.#typeExpr.toString()}`
+            return `${this.name.toString()}: ${this._typeExpr.toString()}`
         }
     }
 }
