@@ -43,6 +43,7 @@ export function makeAssignOrChainExprParser(parseValueExpr) {
 
                 return new AssignExpr(
                     equals.site,
+                    scolon.site,
                     lhs,
                     upstreamExpr,
                     downstreamExpr

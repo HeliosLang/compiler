@@ -2,7 +2,13 @@ import { deepEqual, match, strictEqual, throws } from "node:assert"
 import { describe, it } from "node:test"
 import { removeWhitespace } from "@helios-lang/codec-utils"
 import { expectLeft, expectSome } from "@helios-lang/type-utils"
-import { IntData, UplcDataValue, UplcRuntimeError } from "@helios-lang/uplc"
+import {
+    IntData,
+    UplcDataValue,
+    UplcProgramV2,
+    UplcRuntimeError,
+    UplcSourceMap
+} from "@helios-lang/uplc"
 import { getScriptHashType } from "./multi.js"
 import { Program } from "./Program.js"
 
@@ -263,13 +269,18 @@ describe(Program.name, () => {
         }
         
         func main(a: Int) -> Int {
-            b = a*2;
+            a = a/2; b = a*2;
             fn1(b + 1); a
         }`
 
         const program = new Program(src)
 
-        const uplc = program.compile(false)
+        let uplc = program.compile(false)
+
+        // Extract the sourcemap, serialize, deserialize and reapply. This way we are sure that all information is also included in the source maps
+        const sourceMap = UplcSourceMap.fromUplcTerm(uplc.root)
+        uplc = UplcProgramV2.fromCbor(uplc.toCbor())
+        sourceMap.apply(uplc.root)
 
         const res = uplc.eval([new UplcDataValue(new IntData(1))])
         const err = expectLeft(res.result)
@@ -280,34 +291,25 @@ describe(Program.name, () => {
             if (err instanceof Error) {
                 const lines = expectSome(err.stack).split("\n").slice(1)
 
-                // Note: these tests can easily fail upon minor changes of the compiler, which is fine: simply verify that the stack trace is still sensible and rewrite some of these checks
-                strictEqual(
-                    lines[0].trim(),
-                    "at <anonymous> (helios:m:12:31) [e0=(Constr 1 []), __lhs_0=(Constr 1 [])]"
-                )
-                strictEqual(
-                    lines[1].trim(),
-                    "at MyEnum::fn4 (helios:m:10:21) [self=(Constr 1 []), _a=5]"
-                )
-                strictEqual(
-                    lines[2].trim(),
-                    "at MyStruct::fn4 (helios:m:21:36) [self=5]"
-                )
-                strictEqual(
-                    lines[3].trim(),
-                    "at MyStruct::fn3 (helios:m:25:32) [a=5]"
-                )
-                strictEqual(lines[4].trim(), "at fn2 (helios:m:30:26) [a=4]")
-                strictEqual(lines[5].trim(), "at fn1 (helios:m:34:16) [a=3]")
-                strictEqual(
-                    lines[6].trim(),
-                    "at <anonymous> (helios:m:39:16) [b=2]"
-                )
-                strictEqual(
-                    lines[7].trim(),
+                const expectedHeliosLines = [
+                    "at <anonymous> (helios:m:12:31) [__lhs_0=(Constr 1 [])]",
+                    "at <switch> (helios:m:10:21) [<condition>=(Constr 1 [])]",
+                    "at MyEnum::fn4 (helios:m:10:21) [self=(Constr 1 []), _a=3]",
+                    "at MyStruct::fn4 (helios:m:21:36) [self=3]",
+                    "at MyStruct::fn3 (helios:m:25:32) [a=3]",
+                    "at fn2 (helios:m:30:26) [a=2]",
+                    "at fn1 (helios:m:34:16) [a=1]",
+                    "at <assign> (helios:m:39:16) [b=0]",
+                    "at <assign> (helios:m:38:24) [a=0]",
                     "at main (helios:m:38:15) [arg0=(I 1), a=1]"
-                )
-                match(lines[8], /Program.test.js/)
+                ]
+
+                // Note: these tests can easily fail upon minor changes of the compiler, which is fine: simply verify that the stack trace is still sensible and rewrite some of these checks
+                expectedHeliosLines.forEach((expectedLine, i) => {
+                    strictEqual(lines[i].trim(), expectedLine)
+                })
+
+                match(lines[expectedHeliosLines.length], /Program.test.js/)
             } else {
                 throw new Error("expeced Error, got " + err.toString())
             }

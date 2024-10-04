@@ -1,4 +1,4 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { CompilerError, TokenSite, Word } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
 import { None, expectSome, isSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
@@ -460,7 +460,10 @@ export class DestructExpr {
         if (this.isIgnored()) {
             return $(`__lhs_${argIndex}`)
         } else {
-            return $(this.name.toString(), this.name.site)
+            return $(
+                this.name.toString(),
+                TokenSite.fromSite(this.name.site).withAlias(this.name.value)
+            )
         }
     }
 
@@ -534,7 +537,7 @@ export class DestructExpr {
                 $("("),
                 $(baseName, this.name.site),
                 $(") "),
-                $("->", this.site),
+                $("->", TokenSite.fromSite(this.site).withAlias("<destruct>")),
                 $(` {\n${ctx.indent}${TAB}`),
                 inner,
                 $(`\n${ctx.indent}}(${getter})`)

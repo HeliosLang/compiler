@@ -58,8 +58,8 @@
     "dependencies": {
         "@helios-lang/codec-utils": "^0.1.35",
         "@helios-lang/compiler-utils": "^0.1.61",
-        "@helios-lang/ir": "^0.1.49",
+        "@helios-lang/ir": "^0.1.51",
         "@helios-lang/type-utils": "^0.1.23",
-        "@helios-lang/uplc": "^0.4.11"
+        "@helios-lang/uplc": "^0.4.13"
     }
 }
