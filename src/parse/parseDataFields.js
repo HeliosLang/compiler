@@ -122,13 +122,7 @@ export function parseDataFields(ctx, allowEncodingKeys = false) {
                 ctx.atSite(colon.site).withReader(typeReader)
             )
             fields.push(
-                new DataField(
-                    name,
-                    encodingKey
-                        ? typeExpr.withEncodingKey(encodingKey)
-                        : typeExpr,
-                    getFieldEncodingKey(name)
-                )
+                new DataField(name, typeExpr, getFieldEncodingKey(name))
             )
         } else {
             r.endMatch()
