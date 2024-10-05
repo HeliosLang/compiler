@@ -108,13 +108,13 @@ describe("mStruct Pair[Int, Int]", () => {
 
     describe("Pair[Int, Int]::is_valid_data", () => {
         const runner = compileForRun(`testing pair_int_int_is_valid_data
-        struct mStruct {
+        struct intPairStruct {
             a: Int "a"
             b: Int "b"
         }
 
         func main(d: Data) -> Bool {
-            mStruct::is_valid_data(d)
+            intPairStruct::is_valid_data(d)
         }`)
 
         const goodMapData = map([
@@ -147,11 +147,55 @@ describe("mStruct Pair[Int, Int]", () => {
                 [
                     //prettier-ignore
                     map([
-						[$a, int(0)]
+                        [$a, int(0)]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("issues warnings from unoptimized version (missing field and invalid ‹struct-name›)", () => {
+            const [result] = runner(
+                [
+                    //prettier-ignore
+                    map([
+                        [$a, int(0)]
 					])
                 ],
                 False
             )
+            const logs = result.logs.map((l) => l.message)
+            if (!logs.some((x) => x.match(/field not found: b/))) {
+                // from is_valid_data() path
+                throw new Error(
+                    "Expected warning about missing field 'b', got logs:\n" +
+                        logs.map((l) => `unoptimized> ${l}`).join("\n")
+                )
+            }
+            if (!logs.some((x) => x.match(/invalid intPairStruct data/))) {
+                throw new Error(
+                    "Expected warning about invalid intPairStruct, got logs:\n" +
+                        logs.map((l) => `unoptimized> ${l}`).join("\n")
+                )
+            }
+        })
+
+        it("fails without warnings in optimized version (missing field or invalid ‹struct-name›)", () => {
+            const [_, { logs }] = runner(
+                [
+                    //prettier-ignore
+                    map([
+                        [$a, int(0)]
+					])
+                ],
+                False
+            )
+            if (logs.length > 0) {
+                throw new Error(
+                    "Unexpected log entries from optimized version:\n" +
+                        logs.map((l) => `optimized> ${l}`).join("\n")
+                )
+            }
         })
 
         it("returns true even if an unknown field is included", () => {
@@ -202,8 +246,8 @@ describe("mStruct Pair[Int, Int]", () => {
             fieldB: Int "b"
         }
 
-        func main(a: Int, b: Int, c: Data) -> Bool {
-            Pair{a, b} == Pair::from_data(c)
+        func main(a: Int, b: Int, c: Pair) -> Bool {
+            Pair{a, b} == c
         }`)
 
         it("returns true if the order of the fields is the same", () => {
@@ -275,6 +319,67 @@ describe("mStruct Pair[Int, Int]", () => {
                 { error: "" }
             )
         })
+
+        it("unoptimized version issues log message if the second pair is missing an entry", () => {
+            const [result] = runner(
+                [
+                    int(0),
+                    int(1),
+                    map([
+                        [$b, int(1)],
+                        [str("wrongFieldName"), int(0)]
+                    ])
+                ],
+                { error: "" }
+            )
+
+            if (
+                !result.logs.some(
+                    (x) => x.message.match(/field not found: a/) // from is_valid_data() path
+                )
+            ) {
+                throw new Error(
+                    "Expected error about missing field 'a', got logs:\n" +
+                        result.logs
+                            .map((l) => `unoptimized> ${l.message}`)
+                            .join("\n")
+                )
+            }
+        })
+
+        it("optimized version issues no message if the second pair is missing an entry", () => {
+            const [_, optimizedResult] = runner(
+                [
+                    int(0),
+                    int(1),
+                    map([
+                        [$b, int(1)],
+                        [str("wrongFieldName"), int(0)]
+                    ])
+                ],
+                { error: "" }
+            )
+            if (
+                optimizedResult.logs.some((x) =>
+                    x.message.match(/field not found/)
+                )
+            ) {
+                throw new Error(
+                    "Optimized version: Expected no logged error about missing field 'a', got logs:\n" +
+                        optimizedResult.logs
+                            .map((l) => `optimized> ${l.message}`)
+                            .join("\n")
+                )
+            }
+            if (optimizedResult.logs.length > 0) {
+                throw new Error(
+                    "Optimized version: Unexpected log entries: \n " +
+                        optimizedResult.logs.map((l) =>
+                            `optimized> ${l.message}`.join("\n")
+                        )
+                )
+            }
+        })
     })
 
     describe("mStruct Pair[Int, Int] != Pair", () => {
@@ -283,9 +388,8 @@ describe("mStruct Pair[Int, Int]", () => {
             a: Int "a"
             b: Int "b"
         }
-        func main(a: Int, b: Int, c: Data) -> Bool {
+        func main(a: Int, b: Int, y: Pair) -> Bool {
 			x = Pair{a, b};
-			y = Pair::from_data(c);
 			x != y
         }`)
 
@@ -376,7 +480,7 @@ describe("mStruct Pair[Int, Int]", () => {
         })
 
         it("throws an error if the second pair is missing an entry", () => {
-            runner(
+            const [result] = runner(
                 [
                     int(0),
                     int(1),
@@ -387,6 +491,16 @@ describe("mStruct Pair[Int, Int]", () => {
                 ],
                 { error: "" }
             )
+            if (
+                !result.logs.some((x) => x.message.match(/field not found: a/)) // from is_valid_data() path
+            ) {
+                throw new Error(
+                    "Expected warning about missing field 'a', got logs:\n" +
+                        result.logs
+                            .map((l) => `unoptimized> ${l.message}`)
+                            .join("\n")
+                )
+            }
         })
     })
 })

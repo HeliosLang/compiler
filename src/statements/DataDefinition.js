@@ -526,17 +526,11 @@ export class DataDefinition {
         if (this.isMappedStruct()) {
             const fields = this.#fields
 
-            let ir = $``
+            const mStructName = this.#name.value
+            let ir = $`true`
 
             fields.forEach((f, i) => {
-                if (i == 0) {
-                    ir = $`__helios__common__test_mStruct_field(
-                        data,
-						__core__bData(#${bytesToHex(encodeUtf8(f.encodedFieldName))}),
-                        ${f.type.path}__is_valid_data
-                    )`
-                } else {
-                    ir = $`__core__ifThenElse(
+                ir = $`__core__ifThenElse(
 						__helios__common__test_mStruct_field(
 							data,
 							__core__bData(#${bytesToHex(encodeUtf8(f.encodedFieldName))}),
@@ -546,10 +540,13 @@ export class DataDefinition {
 							${ir}
 						},
 						() -> {
-							false
+                            __core__trace("Warning: invalid ${mStructName} data", 
+                                () -> { 
+                                    false 
+                                }
+                            )()
 						}
 					)()`
-                }
             })
 
             return $`(data) -> { 

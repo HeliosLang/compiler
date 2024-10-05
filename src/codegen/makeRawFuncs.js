@@ -695,8 +695,11 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    // map's underlying list was already extracted
+
+    // map's underlying list was already extracted.
+    // EXPECTS the indicated field to be present, or throws an error about that field
     add(
+        /** name: bytes expression, ex: #616263 */
         new RawFunc(
             "__helios__common__mStruct_field_internal",
             `(map, name) -> {
@@ -705,14 +708,12 @@ export function makeRawFunctions(simplify, isTestnet) {
 			__core__chooseList(
 				map,
 				() -> {
+                    // this path is unreachable.  In unoptimized code, all data goes through is_valid_data() first, which does a similar check
+                    // in optimized code, it seems like this just becomes an error(), as it's never logged.
 					__helios__error(
                         __core__appendString(
-							"field ",
-							__core__appendString(
-								__core__decodeUtf8(__core__unBData(name)),
-                                // __core__decodeUtf8(__core__unBData__safe(name)),
-								" not found in mStruct"
-							) 
+							__core__decodeUtf8__safe(__core__unBData__safe(__core__bData(name))),
+							": field not found"
 						)
 					)
 				},
@@ -769,6 +770,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     //checks for the presence of a field in an mStruct (not its inner list)
     add(
+        /** name: Data::ByteArray */
         new RawFunc(
             "__helios__common__test_mStruct_field",
             `(self, name, inner_test) -> {
@@ -782,8 +784,8 @@ export function makeRawFunctions(simplify, isTestnet) {
 										() -> {
 											__core__trace(
 												__core__appendString(
-													"Warning: field not found in mStruct: ",
-													__core__decodeUtf8(__core__unBData(name))
+													"Warning: field not found: ",
+													__core__decodeUtf8__safe(__core__unBData__safe(name))
 												),
 												() -> {false}
 											)()

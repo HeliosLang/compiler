@@ -18,6 +18,7 @@ import { $ } from "@helios-lang/ir"
  * @typedef {import("@helios-lang/codec-utils").ByteArrayLike} ByteArrayLike
  * @typedef {import("@helios-lang/uplc").CekResult} CekResult
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
+ * @typedef {import("@helios-lang/uplc").UplcLoggingI} UplcLoggingI
  */
 
 /**
@@ -79,7 +80,7 @@ export function $testTrace(traceMessage, ...args) {
 
 /**
  * @typedef {(
- *    (inputs: UplcData[], output: HeliosTestOutput) => void
+ *    (inputs: UplcData[], output: HeliosTestOutput) => [ CekResult, CekResult | undefined ]
  *  ) & { program: Program }
  * } RunnerFunction
  */
@@ -194,16 +195,13 @@ export function compileForRun(mainSrc, options = {}) {
         console.log(ir.toString())
     }
 
-    const uplc0 = program.compile(false)
-    const hash0 = bytesToHex(uplc0.hash())
-    const uplc1 = program.compile(true)
-    const hash1 = bytesToHex(uplc1.hash())
+    const uplcUnopt = program.compile(false)
+    const hashUnopt = bytesToHex(uplcUnopt.hash())
+    const uplcOptimized = program.compile(true)
+    const hashOptimized = bytesToHex(uplcOptimized.hash())
 
     /**
-     *
-     * @param {UplcData[]} inputs
-     * @param {HeliosTestOutput} output
-     * @returns {void}
+     * @type {RunnerFunction}
      */
     const runner = (inputs, output) => {
         if (!output)
@@ -212,7 +210,7 @@ export function compileForRun(mainSrc, options = {}) {
             )
         const args = inputs.map((d) => new UplcDataValue(d))
 
-        const result0 = uplc0.eval(args)
+        const result0 = uplcUnopt.eval(args)
 
         try {
             resultEquals(result0, output)
@@ -225,8 +223,8 @@ export function compileForRun(mainSrc, options = {}) {
             throw e
         }
 
-        if (hash1 != hash0) {
-            const result1 = uplc1.eval(args)
+        if (hashOptimized != hashUnopt) {
+            const result1 = uplcOptimized.eval(args)
             try {
                 resultEquals(result1, output)
             } catch (e) {
@@ -238,8 +236,8 @@ export function compileForRun(mainSrc, options = {}) {
                 throw e
             }
             // also make sure the costs and size are smaller
-            const size0 = uplc0.toCbor().length
-            const size1 = uplc1.toCbor().length
+            const size0 = uplcUnopt.toCbor().length
+            const size1 = uplcOptimized.toCbor().length
 
             assert(
                 size1 < size0,
@@ -267,7 +265,9 @@ export function compileForRun(mainSrc, options = {}) {
                     `Cost of ${options.dumpCostPrefix}: mem=${costMem1}, cpu=${costCpu1}, lovelace=${Number(costMem1) * 0.0577 + Number(costCpu1) * 0.0000721}`
                 )
             }
+            return [result0, result1]
         }
+        return [result0, undefined]
     }
     runner.program = program // expose for layering more functionality in contract-utils tests
     return runner
