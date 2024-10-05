@@ -1,4 +1,4 @@
-import { Word } from "@helios-lang/compiler-utils"
+import { TokenSite, Word } from "@helios-lang/compiler-utils"
 import { SourceMappedString } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { FuncArg, FuncLiteralExpr } from "../expressions/index.js"
@@ -193,7 +193,17 @@ export class FuncStatement extends Statement {
      * @param {Definitions} map
      */
     toIR(ctx, map) {
-        map.set(this.path, this.toIRInternal(ctx))
+        const alias = ctx.aliasNamespace
+            ? `${ctx.aliasNamespace}::${this.name.value}`
+            : this.name.value
+        const keySite = TokenSite.fromSite(this.name.site).withAlias(alias)
+
+        map.set(this.path, {
+            content: this.toIRInternal(
+                ctx.appendAliasNamespace(this.name.value)
+            ),
+            keySite
+        })
     }
 
     /**

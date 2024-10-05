@@ -1,9 +1,16 @@
-import { deepEqual, strictEqual, throws } from "node:assert"
+import { deepEqual, match, strictEqual, throws } from "node:assert"
 import { describe, it } from "node:test"
 import { removeWhitespace } from "@helios-lang/codec-utils"
-import { expectLeft } from "@helios-lang/type-utils"
-import { Program } from "./Program.js"
+import { expectLeft, expectSome } from "@helios-lang/type-utils"
+import {
+    IntData,
+    UplcDataValue,
+    UplcProgramV2,
+    UplcRuntimeError,
+    UplcSourceMap
+} from "@helios-lang/uplc"
 import { getScriptHashType } from "./multi.js"
+import { Program } from "./Program.js"
 
 describe(Program.name, () => {
     const basic = `testing test
@@ -227,43 +234,85 @@ describe(Program.name, () => {
     it("source code mapping stack trace ok", () => {
         const src = `testing m
         
-        func fn3() -> () {
-            error("my error")
+        enum MyEnum {
+            A {
+                a: Int
+            }
+            B
+        
+            func fn4(self, _a: Int) -> String {
+                self.switch{
+                    A{a} => a.show(),
+                    B => error("unexpected variant")
+                }
+            }
+        }
+
+        struct MyStruct {
+            a: Int
+
+            func fn4(self) -> () {
+                print(MyEnum::B.fn4(self.a))
+            }
+
+            func fn3(a: Int) -> () {
+                MyStruct{a}.fn4()
+            }
         }
         
-        func fn2() -> () {
-            fn3()
+        func fn2(a: Int) -> () {
+            MyStruct::fn3(a+1)
         }
         
-        func fn1() -> () {
-            fn2()
+        func fn1(a: Int) -> () {
+            fn2(a + 1)
         }
         
-        func main() -> Int {
-            fn1(); 1
+        func main(a: Int) -> Int {
+            a = a/2; b = a*2;
+            fn1(b + 1); a
         }`
 
         const program = new Program(src)
 
-        const uplc = program.compile(false)
+        let uplc = program.compile(false)
 
-        const res = uplc.eval([])
-        const callSites = expectLeft(res.result).callSites
+        // Extract the sourcemap, serialize, deserialize and reapply. This way we are sure that all information is also included in the source maps
+        const sourceMap = UplcSourceMap.fromUplcTerm(uplc.root)
+        uplc = UplcProgramV2.fromCbor(uplc.toCbor())
+        sourceMap.apply(uplc.root)
 
-        const cs0 = callSites[0]
-        strictEqual(cs0.line, 15)
-        strictEqual(cs0.column, 15)
+        const res = uplc.eval([new UplcDataValue(new IntData(1))])
+        const err = expectLeft(res.result)
 
-        const cs1 = callSites[1]
-        strictEqual(cs1.line, 11)
-        strictEqual(cs1.column, 15)
+        try {
+            throw new UplcRuntimeError(err.error, err.callSites)
+        } catch (err) {
+            if (err instanceof Error) {
+                const lines = expectSome(err.stack).split("\n").slice(1)
 
-        const cs2 = callSites[2]
-        strictEqual(cs2.line, 7)
-        strictEqual(cs2.column, 15)
+                const expectedHeliosLines = [
+                    "at <anonymous> (helios:m:12:31) [__lhs_0=(Constr 1 [])]",
+                    "at <switch> (helios:m:10:21) [<condition>=(Constr 1 [])]",
+                    "at MyEnum::fn4 (helios:m:10:21) [self=(Constr 1 []), _a=3]",
+                    "at MyStruct::fn4 (helios:m:21:36) [self=3]",
+                    "at MyStruct::fn3 (helios:m:25:32) [a=3]",
+                    "at fn2 (helios:m:30:26) [a=2]",
+                    "at fn1 (helios:m:34:16) [a=1]",
+                    "at <assign> (helios:m:39:16) [b=0]",
+                    "at <assign> (helios:m:38:24) [a=0]",
+                    "at main (helios:m:38:15) [arg0=(I 1), a=1]"
+                ]
 
-        const cs3 = callSites[3]
-        strictEqual(cs3.line, 3)
-        strictEqual(cs3.column, 17)
+                // Note: these tests can easily fail upon minor changes of the compiler, which is fine: simply verify that the stack trace is still sensible and rewrite some of these checks
+                expectedHeliosLines.forEach((expectedLine, i) => {
+                    strictEqual(lines[i].trim(), expectedLine)
+                })
+
+                match(lines[expectedHeliosLines.length], /Program.test.js/)
+            } else {
+                throw new Error("expeced Error, got " + err.toString())
+            }
+        }
     })
 })

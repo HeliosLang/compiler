@@ -289,25 +289,28 @@ export class EnumStatement extends Statement {
      * @param {Definitions} map
      */
     toIR(ctx, map) {
-        map.set(`${this.path}____eq`, $(`__helios__common____eq`, this.site))
-        map.set(`${this.path}____neq`, $(`__helios__common____neq`, this.site))
-        map.set(
-            `${this.path}__serialize`,
-            $(`__helios__common__serialize`, this.site)
-        )
-        map.set(
-            `${this.path}____to_data`,
-            $(`__helios__common__identity`, this.site)
-        )
+        map.set(`${this.path}____eq`, {
+            content: $(`__helios__common____eq`, this.site)
+        })
+        map.set(`${this.path}____neq`, {
+            content: $(`__helios__common____neq`, this.site)
+        })
+        map.set(`${this.path}__serialize`, {
+            content: $(`__helios__common__serialize`, this.site)
+        })
+        map.set(`${this.path}____to_data`, {
+            content: $(`__helios__common__identity`, this.site)
+        })
 
-        map.set(`${this.path}__is_valid_data`, this.toIR_is_valid_data())
-        map.set(`${this.path}__show`, this.toIR_show())
+        map.set(`${this.path}__is_valid_data`, {
+            content: this.toIR_is_valid_data()
+        })
+        map.set(`${this.path}__show`, { content: this.toIR_show() })
 
         // there could be circular dependencies here, which is ok
         if (!ctx.optimize) {
-            map.set(
-                `${this.path}__from_data`,
-                $(
+            map.set(`${this.path}__from_data`, {
+                content: $(
                     `(data) -> {
 				(ignore) -> {
 					data
@@ -325,25 +328,23 @@ export class EnumStatement extends Statement {
 			}`,
                     this.site
                 )
-            )
+            })
         } else {
-            map.set(
-                `${this.path}__from_data`,
-                $(`__helios__common__identity`, this.site)
-            )
+            map.set(`${this.path}__from_data`, {
+                content: $(`__helios__common__identity`, this.site)
+            })
         }
 
-        map.set(
-            `${this.path}__from_data_safe`,
-            $(`__helios__option__SOME_FUNC`, this.site)
-        )
+        map.set(`${this.path}__from_data_safe`, {
+            content: $(`__helios__option__SOME_FUNC`, this.site)
+        })
 
         // member __new and copy methods might depend on __to_data, so must be added after
         for (let member of this.#members) {
             member.toIR(ctx, map)
         }
 
-        this.#impl.toIR(ctx, map)
+        this.#impl.toIR(ctx.appendAliasNamespace(this.name.value), map)
     }
 
     /**

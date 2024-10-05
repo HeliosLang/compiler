@@ -92,12 +92,11 @@ export class MemberExpr extends Expr {
             objPath = objType.asEnumMemberType.parentType.path
         }
 
-        let ir = $(
-            `${objPath}__${this.#memberName.toString()}${params}`,
-            this.site
-        )
+        const fullPath = `${objPath}__${this.#memberName.toString()}${params}`
 
-        return $([ir, $("("), this.#objExpr.toIR(ctx), $(")")])
+        let ir = $(fullPath, this.#memberName.site)
+
+        return $([ir, $("(", this.site), this.#objExpr.toIR(ctx), $(")")])
     }
 
     /**

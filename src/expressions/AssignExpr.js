@@ -1,24 +1,30 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
+import { $, SourceMappedString } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { AnyType, DataEntity } from "../typecheck/index.js"
+import { CallExpr } from "./CallExpr.js"
 import { ChainExpr } from "./ChainExpr.js"
 import { DestructExpr } from "./DestructExpr.js"
 import { Expr } from "./Expr.js"
 import { PathExpr } from "./PathExpr.js"
-import { $, SourceMappedString } from "@helios-lang/ir"
-import { CallExpr } from "./CallExpr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
+const IR_ASSIGN_LAMBDA_ALIAS = "<assign>"
 /**
  * '... = ... ; ...' expression
  */
 export class AssignExpr extends ChainExpr {
+    /**
+     * @type {Site}
+     */
+    semicolonSite
+
     /**
      * @type {DestructExpr}
      */
@@ -26,12 +32,14 @@ export class AssignExpr extends ChainExpr {
 
     /**
      * @param {Site} site
+     * @param {Site} semicolonSite
      * @param {DestructExpr} nameType
      * @param {Expr} upstreamExpr
      * @param {Expr} downstreamExpr
      */
-    constructor(site, nameType, upstreamExpr, downstreamExpr) {
+    constructor(site, semicolonSite, nameType, upstreamExpr, downstreamExpr) {
         super(site, upstreamExpr, downstreamExpr)
+        this.semicolonSite = semicolonSite
         this.#nameType = nameType
     }
 
@@ -110,7 +118,13 @@ export class AssignExpr extends ChainExpr {
                 $(this.#nameType.children.map((nt, i) => nt.toNameIR(i))).join(
                     ", "
                 ),
-                $(") ->", this.site),
+                $(") "),
+                $(
+                    "->",
+                    TokenSite.fromSite(this.site).withAlias(
+                        IR_ASSIGN_LAMBDA_ALIAS
+                    )
+                ),
                 $(` {\n${ctx.indent}${TAB}${TAB}`),
                 inner,
                 $(`\n${ctx.indent + TAB}}\n${ctx.indent})`)
@@ -140,10 +154,16 @@ export class AssignExpr extends ChainExpr {
                 $("("),
                 this.#nameType.toNameIR(0), // wrapDestructIR depends on this name
                 $(") "),
-                $("->", this.site),
+                $(
+                    "->",
+                    TokenSite.fromSite(this.semicolonSite).withAlias(
+                        IR_ASSIGN_LAMBDA_ALIAS
+                    )
+                ),
                 $(` {\n${ctx.indent}${TAB}`),
                 inner,
-                $(`\n${ctx.indent}}(`),
+                $(`\n${ctx.indent}}`),
+                $("(", this.site), // this is the call site
                 upstream,
                 $(")")
             ])

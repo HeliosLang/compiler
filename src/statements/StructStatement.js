@@ -166,7 +166,7 @@ export class StructStatement extends Statement {
     toIR_mStructEq(ctx, map) {
         const ir = this.#dataDef.toIR_mStructEq(this.site)
 
-        map.set(`${this.path}____eq`, ir)
+        map.set(`${this.path}____eq`, { content: ir })
     }
 
     /**
@@ -175,16 +175,15 @@ export class StructStatement extends Statement {
      */
     toIR_mStructNeq(ctx, map) {
         // simple negation of __eq
-        map.set(
-            `${this.path}____neq`,
-            $`(a, b) -> {
+        map.set(`${this.path}____neq`, {
+            content: $`(a, b) -> {
 					__core__ifThenElse(
 						${this.path}____eq(a, b), 
 						()->{false}, 
 						()->{true}
 					)()
 			}`
-        )
+        })
     }
 
     /**
@@ -195,19 +194,16 @@ export class StructStatement extends Statement {
         this.toIR_mStructEq(ctx, map)
         this.toIR_mStructNeq(ctx, map)
 
-        map.set(
-            `${this.path}__serialize`,
-            $(`__helios__common__serialize`, this.site)
-        )
-        map.set(
-            `${this.path}____to_data`,
-            $(`__helios__common__identity`, this.site)
-        )
+        map.set(`${this.path}__serialize`, {
+            content: $(`__helios__common__serialize`, this.site)
+        })
+        map.set(`${this.path}____to_data`, {
+            content: $(`__helios__common__identity`, this.site)
+        })
 
         if (!ctx.optimize) {
-            map.set(
-                `${this.path}__from_data`,
-                $(
+            map.set(`${this.path}__from_data`, {
+                content: $(
                     `(data) -> {
                 (ignore) -> {
                     data
@@ -225,18 +221,15 @@ export class StructStatement extends Statement {
             }`,
                     this.site
                 )
-            )
+            })
         } else {
-            map.set(
-                `${this.path}__from_data`,
-                $(`__helios__common__identity`, this.site)
-            )
+            map.set(`${this.path}__from_data`, {
+                content: $(`__helios__common__identity`, this.site)
+            })
         }
 
-        map.set(
-            `${this.path}__from_data_safe`,
-
-            $(
+        map.set(`${this.path}__from_data_safe`, {
+            content: $(
                 `(data) -> {
                 __core__ifThenElse(
                     ${this.path}__is_valid_data(data),
@@ -246,7 +239,7 @@ export class StructStatement extends Statement {
             }`,
                 this.site
             )
-        )
+        })
     }
 
     /**
@@ -259,23 +252,24 @@ export class StructStatement extends Statement {
                 ? this.#dataDef.getFieldType(0).path
                 : "__helios__struct"
 
-        map.set(`${this.path}____eq`, $(`${implPath}____eq`, this.site))
-        map.set(`${this.path}____neq`, $(`${implPath}____neq`, this.site))
-        map.set(
-            `${this.path}__serialize`,
-            $(`${implPath}__serialize`, this.site)
-        )
+        map.set(`${this.path}____eq`, {
+            content: $(`${implPath}____eq`, this.site)
+        })
+        map.set(`${this.path}____neq`, {
+            content: $(`${implPath}____neq`, this.site)
+        })
+        map.set(`${this.path}__serialize`, {
+            content: $(`${implPath}__serialize`, this.site)
+        })
 
         // the from_data method can include field checks
         if (this.#dataDef.fieldNames.length == 1 || !!ctx.optimize) {
-            map.set(
-                `${this.path}__from_data`,
-                $(`${implPath}__from_data`, this.site)
-            )
+            map.set(`${this.path}__from_data`, {
+                content: $(`${implPath}__from_data`, this.site)
+            })
         } else {
-            map.set(
-                `${this.path}__from_data`,
-                $(
+            map.set(`${this.path}__from_data`, {
+                content: $(
                     `(data) -> {
                 (ignore) -> {
                     __core__unListData(data)
@@ -293,20 +287,18 @@ export class StructStatement extends Statement {
             }`,
                     this.site
                 )
-            )
+            })
         }
         if (this.#dataDef.fieldNames.length == 1) {
-            map.set(
-                `${this.path}__from_data_safe`,
-                $(
+            map.set(`${this.path}__from_data_safe`, {
+                content: $(
                     `${this.#dataDef.getFieldType(0).path}__from_data_safe`,
                     this.site
                 )
-            )
+            })
         } else {
-            map.set(
-                `${this.path}__from_data_safe`,
-                $`(data) -> {
+            map.set(`${this.path}__from_data_safe`, {
+                content: $`(data) -> {
                 __core__chooseData(
                     data,
                     () -> {__helios__option__NONE_FUNC},
@@ -318,13 +310,12 @@ export class StructStatement extends Statement {
                     () -> {__helios__option__NONE_FUNC}
                 )()
             }`
-            )
+            })
         }
 
-        map.set(
-            `${this.path}____to_data`,
-            $(`${implPath}____to_data`, this.site)
-        )
+        map.set(`${this.path}____to_data`, {
+            content: $(`${implPath}____to_data`, this.site)
+        })
     }
 
     /**
@@ -332,10 +323,9 @@ export class StructStatement extends Statement {
      * @param {Definitions} map
      */
     toIR(ctx, map) {
-        map.set(
-            `${this.path}__is_valid_data`,
-            this.#dataDef.toIR_is_valid_data()
-        )
+        map.set(`${this.path}__is_valid_data`, {
+            content: this.#dataDef.toIR_is_valid_data()
+        })
 
         if (this.#dataDef.isMappedStruct()) {
             this.toIR_mStruct(ctx, map)
@@ -345,8 +335,10 @@ export class StructStatement extends Statement {
 
         // super.toIR adds __new and copy, which might depend on __to_data, so must come after
         this.#dataDef.toIR(ctx, this.path, map, -1)
-        map.set(`${this.path}__show`, this.#dataDef.toIR_show(this.name.value))
+        map.set(`${this.path}__show`, {
+            content: this.#dataDef.toIR_show(this.name.value)
+        })
 
-        this.#impl.toIR(ctx, map)
+        this.#impl.toIR(ctx.appendAliasNamespace(this.name.value), map)
     }
 }

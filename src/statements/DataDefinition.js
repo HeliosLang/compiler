@@ -320,7 +320,7 @@ export class DataDefinition {
 
         const key = `${path}____new`
 
-        map.set(key, ir)
+        map.set(key, { content: ir })
     }
 
     /**
@@ -368,7 +368,7 @@ export class DataDefinition {
 			}
 		}`
 
-        map.set(key, ir)
+        map.set(key, { content: ir })
     }
 
     /**
@@ -761,7 +761,7 @@ export class DataDefinition {
                 // equalsData is much more efficient than first converting to byteArray
                 const getter = $`(self) -> {${f.type.path}__from_data(__helios__common__mStruct_field(self, #${bytesToHex(encodeUtf8(f.encodedFieldName))}))}`
 
-                map.set(key, getter)
+                map.set(key, { content: getter })
                 getterNames.push(key)
             }
         } else {
@@ -777,7 +777,7 @@ export class DataDefinition {
 
                 const getter = $(`__helios__common__identity`, f.site)
 
-                map.set(key, getter)
+                map.set(key, { content: getter })
 
                 getterNames.push(key)
             } else {
@@ -812,7 +812,7 @@ export class DataDefinition {
                         getter = $`(self) ${$("->", f.site)} {${inner}}`
                     }
 
-                    map.set(key, getter)
+                    map.set(key, { content: getter })
                 }
             }
         }

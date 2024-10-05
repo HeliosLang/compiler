@@ -2,11 +2,21 @@ import { $, SourceMappedString } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 
 /**
+ * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  */
 
 /**
- * @typedef {Map<string, SourceMappedString>} Definitions
+ * `keySite` is an optional way to give the key a proper name
+ * @typedef {{
+ *   content: SourceMappedString
+ *   keySite?: Site
+ * }} Definition
+ */
+
+/**
+ * TODO: this should be wrapped by a class
+ * @typedef {Map<string, Definition>} Definitions
  */
 
 export const TAB = "    "
@@ -31,11 +41,11 @@ export function wrapWithDefs(inner, definitions) {
         } else {
             res = $([
                 $("("),
-                $(key),
+                definition.keySite ? $(key, definition.keySite) : $(key),
                 $(") -> {\n"),
                 res,
                 $(`\n}(\n${TAB}/*${key}*/\n${TAB}`),
-                definition,
+                definition.content,
                 $("\n)")
             ])
         }
@@ -73,9 +83,9 @@ export function genExtraDefs(options) {
 
         const key = `__helios__scripts__${depName}`
         if (options.makeParamsSubstitutable) {
-            extra.set(key, $`${PARAM_IR_MACRO}("${key}", ${dep})`)
+            extra.set(key, { content: $`${PARAM_IR_MACRO}("${key}", ${dep})` })
         } else {
-            extra.set(key, $(dep))
+            extra.set(key, { content: $(dep) })
         }
     })
 
@@ -106,14 +116,13 @@ export function genExtraDefs(options) {
             }(${ir})`
         }
 
-        extra.set(key, ir)
+        extra.set(key, { content: ir })
     }
 
     if (options.currentScriptValue) {
-        extra.set(
-            `__helios__scriptcontext__current_script`,
-            $(options.currentScriptValue)
-        )
+        extra.set(`__helios__scriptcontext__current_script`, {
+            content: $(options.currentScriptValue)
+        })
     }
 
     // also add script enum `__is` methods
@@ -129,7 +138,7 @@ export function genExtraDefs(options) {
                 __core__equalsInteger(__core__fstPair(__core__unConstrData(cs)), ${index})
             }`
 
-            extra.set(key, ir)
+            extra.set(key, { content: ir })
         })
     } else if (options.validatorTypes) {
         // backup way of defining __helios__script__<name>____is
@@ -140,7 +149,7 @@ export function genExtraDefs(options) {
                ${options.name == scriptName ? "true" : "false"}
            }`
 
-            extra.set(key, ir)
+            extra.set(key, { content: ir })
         })
     }
 
@@ -177,7 +186,7 @@ export function collectAllUsed(ir, definitions) {
                 const def = definitions.get(match)
 
                 if (def) {
-                    stack.push(def)
+                    stack.push(def.content)
                 }
             }
         })

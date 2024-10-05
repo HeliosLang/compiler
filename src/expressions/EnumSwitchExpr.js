@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
@@ -20,6 +20,8 @@ import { IfElseExpr } from "./IfElseExpr.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */
+
+const IR_CONTROL_EXPR_NAME = "__cond"
 
 /**
  * Switch expression for Enum, with SwitchCases and SwitchDefault as children
@@ -338,9 +340,17 @@ export class EnumSwitchExpr extends SwitchExpr {
          */
         const es = []
 
-        for (let i = 0; i < nLhs; i++) {
-            es.push($`e${i}`)
+        if (nLhs == 1) {
+            es.push($(IR_CONTROL_EXPR_NAME))
+        } else {
+            for (let i = 0; i < nLhs; i++) {
+                es.push($`${IR_CONTROL_EXPR_NAME}_${i}`)
+            }
         }
+
+        const switchLambdaSite = TokenSite.fromSite(this.site).withAlias(
+            "<switch>"
+        )
 
         for (let i = n - 1; i >= 0; i--) {
             const c = cases[i]
@@ -349,9 +359,9 @@ export class EnumSwitchExpr extends SwitchExpr {
 
             res = $`__core__ifThenElse(
 				${test},
-				() -> {
+				() ${$("->", switchLambdaSite)} {
 					${c.toIR(ctx.tab().tab().tab())}
-				}, () -> {
+				}, () ${$("->", switchLambdaSite)} {
 					${res}
 				}
 			)()`
@@ -359,23 +369,38 @@ export class EnumSwitchExpr extends SwitchExpr {
 
         if (nLhs == 1) {
             return $([
-                $(`(e0) `),
-                $("->", this.site),
+                $("("),
+                $(
+                    IR_CONTROL_EXPR_NAME,
+                    TokenSite.dummy().withAlias("<condition>")
+                ),
+                $(")"),
+                $("->", switchLambdaSite),
                 $(`\n${ctx.indent}${TAB}{(\n`),
                 res,
-                $(`\n${ctx.indent}${TAB})(e0)}(`),
+                $(`\n${ctx.indent}${TAB}`),
+                $(")"),
+                $("(", this.dotSite),
+                $(`${IR_CONTROL_EXPR_NAME})}`),
+                $("(", this.dotSite),
                 this.controlExpr.toIR(ctx),
                 $(")")
             ])
         } else {
             return $([
-                $(`(e) `),
-                $("->", this.site),
+                $(
+                    `(${$(IR_CONTROL_EXPR_NAME, TokenSite.dummy().withAlias("<condition>"))}) `
+                ),
+                $("->", switchLambdaSite),
                 $(`\n${ctx.indent}${TAB}{(\n`),
-                $(`e((${$(es).join(", ")}) -> {
+                $(`${IR_CONTROL_EXPR_NAME}((${$(es).join(", ")}) -> {
                     ${res}
                 })`),
-                $(`\n${ctx.indent}${TAB})(e)}(`),
+                $(`\n${ctx.indent}${TAB})`),
+                $("(", this.dotSite),
+                $(IR_CONTROL_EXPR_NAME),
+                $(`)}`),
+                $("(", this.dotSite),
                 this.controlExpr.toIR(ctx),
                 $(")")
             ])

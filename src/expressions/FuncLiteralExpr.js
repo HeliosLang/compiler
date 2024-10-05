@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
 import { $, SourceMappedString } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
@@ -225,11 +225,15 @@ export class FuncLiteralExpr extends Expr {
 
         innerIR = this.wrapWithDefaultArgs(ctx, innerIR)
 
+        let arrowSite = ctx.aliasNamespace
+            ? TokenSite.fromSite(this.site).withAlias(ctx.aliasNamespace)
+            : this.site
+
         let ir = $([
             $("("),
             argsWithCommas,
             $(") "),
-            $("->", this.site),
+            $("->", arrowSite),
             $(` {\n${innerIndent}${TAB}`),
             innerIR,
             $(`\n${innerIndent}}`)
@@ -238,7 +242,12 @@ export class FuncLiteralExpr extends Expr {
         // wrap with 'self'
         if (this.isMethod()) {
             ir = $([
-                $(`(self) -> {\n${methodIndent}${TAB}`),
+                $("("),
+                $(
+                    "self",
+                    TokenSite.fromSite(this.args[0].site).withAlias("self")
+                ),
+                $(`) -> {\n${methodIndent}${TAB}`),
                 ir,
                 $(`\n${methodIndent}}`)
             ])

@@ -13,6 +13,7 @@ import { wrapWithDefs, TAB } from "./Definitions.js"
  *   optimize: boolean
  *   isTestnet: boolean
  *   makeParamsSubstitutable?: boolean
+ *   aliasNamespace?: string
  * }} ToIRContextProps
  */
 
@@ -32,7 +33,7 @@ export class ToIRContext {
     /**
      * @type {Map<string, RawFunc>}
      */
-    #db
+    _db
 
     /**
      * @param {ToIRContextProps} props
@@ -42,25 +43,33 @@ export class ToIRContext {
     constructor(props, indent = "", db = new Map()) {
         this.props = props
         this.indent = indent
-        this.#db = db
+        this._db = db
+    }
+
+    /**
+     * @type {Option<string>}
+     */
+    get aliasNamespace() {
+        return this.props?.aliasNamespace
     }
 
     /**
      * @type {Map<string, RawFunc>}
      */
     get db() {
-        if (this.#db.size == 0) {
-            this.#db = makeRawFunctions(this.optimize, this.isTestnet)
+        if (this._db.size == 0) {
+            this._db = makeRawFunctions(this.optimize, this.isTestnet)
         }
 
-        return this.#db
+        return this._db
     }
 
     /**
+     * TODO: rename to isMainnet()
      * @type {boolean}
      */
-    get paramsSubsitutable() {
-        return this.props.makeParamsSubstitutable ?? false
+    get isTestnet() {
+        return this.props.isTestnet
     }
 
     /**
@@ -73,15 +82,15 @@ export class ToIRContext {
     /**
      * @type {boolean}
      */
-    get isTestnet() {
-        return this.props.isTestnet
+    get paramsSubsitutable() {
+        return this.props.makeParamsSubstitutable ?? false
     }
 
     /**
      * @returns {ToIRContext}
      */
     tab() {
-        return new ToIRContext(this.props, this.indent + TAB, this.#db)
+        return new ToIRContext(this.props, this.indent + TAB, this._db)
     }
 
     /**
@@ -142,6 +151,40 @@ export class ToIRContext {
         })
 
         return map
+    }
+
+    /**
+     * Appends parent debugging information which should be passed into IR via site.alias
+     * @param {string} alias
+     * @returns {ToIRContext}
+     */
+    appendAliasNamespace(alias) {
+        const prev = this.aliasNamespace
+
+        return new ToIRContext(
+            {
+                ...this.props,
+                aliasNamespace: prev ? `${prev}::${alias}` : alias
+            },
+            this.indent,
+            this.db
+        )
+    }
+
+    /**
+     * Adds parent debugging information which should be passed into IR via site.alias
+     * @param {string} alias
+     * @returns {ToIRContext}
+     */
+    withAliasNamespace(alias) {
+        return new ToIRContext(
+            {
+                ...this.props,
+                aliasNamespace: alias
+            },
+            this.indent,
+            this.db
+        )
     }
 
     /**
