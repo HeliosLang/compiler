@@ -13,5 +13,9 @@
         "lib": ["es2020"]
     },
     "exclude": ["node_modules", "types/**/*.d.ts", "test"],
-    "include": ["src/**/*.js", "node_modules/@helios-lang/type-utils"]
+    "include": [
+        "src/**/*.js",
+        "node_modules/@helios-lang/type-utils",
+        "test/utils.js"
+    ]
 }
