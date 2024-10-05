@@ -600,70 +600,6 @@ export class AnyType extends Common {
 }
 
 /**
- * Type of special case of no-return value where execution can't continue.
- * @internal
- * @implements {Type}
- */
-export class ErrorType extends Common {
-    constructor() {
-        super()
-    }
-
-    /**
-     * @type {InstanceMembers}
-     */
-    get instanceMembers() {
-        return {}
-    }
-
-    /**
-     * @type {TypeMembers}
-     */
-    get typeMembers() {
-        return {}
-    }
-
-    /**
-     * @type {Type}
-     */
-    get asType() {
-        return this
-    }
-
-    /**
-     * @param {Site} site
-     * @param {InferenceMap} map
-     * @param {null | Type} type
-     * @returns {Type}
-     */
-    infer(site, map, type) {
-        return this
-    }
-
-    /**
-     * @param {Type} type
-     * @returns {boolean}
-     */
-    isBaseOf(type) {
-        return type instanceof ErrorType
-    }
-
-    /**
-     * @returns {string}
-     */
-    toString() {
-        return "()"
-    }
-
-    /**
-     * @returns {Typed}
-     */
-    toTyped() {
-        return new ErrorEntity()
-    }
-}
-
-/**
  * @internal
  */
 export class ArgType {
@@ -1665,6 +1601,35 @@ export class DataEntity extends Common {
      */
     toString() {
         return this.#type.toString()
+    }
+}
+
+/**
+ * Type of special case of no-return value where execution can't continue.
+ * @internal
+ * @implements {Type}
+ */
+export class ErrorType extends VoidType {
+    /**
+     * @type {Type}
+     */
+    get asType() {
+        return this
+    }
+
+    /**
+     * @param {Type} type
+     * @returns {boolean}
+     */
+    isBaseOf(type) {
+        return type instanceof ErrorType
+    }
+
+    /**
+     * @returns {Typed}
+     */
+    toTyped() {
+        return new ErrorEntity()
     }
 }
 

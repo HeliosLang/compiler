@@ -9,22 +9,8 @@
             "request": "launch",
             "name": "test",
             "skipFiles": ["<node_internals>/**"],
-            "program": "${workspaceFolder}/test/index.js",
+            "program": "--test",
             "args": ["${input:testName}"]
-        },
-        {
-            "type": "node",
-            "request": "launch",
-            "name": "test/syntax.js",
-            "skipFiles": ["<node_internals>/**"],
-            "program": "${workspaceFolder}/test/syntax.js"
-        },
-        {
-            "type": "node",
-            "request": "launch",
-            "name": "test/example-scripts.js",
-            "skipFiles": ["<node_internals>/**"],
-            "program": "${workspaceFolder}/test/example-scripts.js"
         }
     ],
     "inputs": [

@@ -1,6 +1,7 @@
 import { deepEqual, strictEqual, throws } from "node:assert"
 import { describe, it } from "node:test"
 import { removeWhitespace } from "@helios-lang/codec-utils"
+import { expectLeft } from "@helios-lang/type-utils"
 import { Program } from "./Program.js"
 import { getScriptHashType } from "./multi.js"
 
@@ -221,5 +222,48 @@ describe(Program.name, () => {
                 }
             ]
         })
+    })
+
+    it("source code mapping stack trace ok", () => {
+        const src = `testing m
+        
+        func fn3() -> () {
+            error("my error")
+        }
+        
+        func fn2() -> () {
+            fn3()
+        }
+        
+        func fn1() -> () {
+            fn2()
+        }
+        
+        func main() -> Int {
+            fn1(); 1
+        }`
+
+        const program = new Program(src)
+
+        const uplc = program.compile(false)
+
+        const res = uplc.eval([])
+        const callSites = expectLeft(res.result).callSites
+
+        const cs0 = callSites[0]
+        strictEqual(cs0.line, 15)
+        strictEqual(cs0.column, 15)
+
+        const cs1 = callSites[1]
+        strictEqual(cs1.line, 11)
+        strictEqual(cs1.column, 15)
+
+        const cs2 = callSites[2]
+        strictEqual(cs2.line, 7)
+        strictEqual(cs2.column, 15)
+
+        const cs3 = callSites[3]
+        strictEqual(cs3.line, 3)
+        strictEqual(cs3.column, 17)
     })
 })
