@@ -464,9 +464,8 @@ function cekResultToString(cekResult) {
         } else if (output.right.kind == "data") {
             const str = output.right.value.toString()
 
-            debugger
             if (!str) {
-                debugger
+                debugger // keep-debugger to help troubleshoot this wrong case
                 output.right.value.toString()
             }
             return str
@@ -482,7 +481,7 @@ function cekResultToString(cekResult) {
  */
 function expectedResultToString(result) {
     if (!result) {
-        debugger
+        debugger // keep-debugger to help troubleshoot this wrong case
         throw new Error(
             `can't convert ${result} to string for result comparison`
         )
