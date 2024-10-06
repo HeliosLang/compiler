@@ -2,6 +2,7 @@ import { REAL_PRECISION } from "@helios-lang/compiler-utils"
 import { expectSome } from "@helios-lang/type-utils"
 import { FTPP, TTPP } from "./ParametricName.js"
 import { RawFunc } from "./RawFunc.js"
+import { $ } from "@helios-lang/ir"
 
 /**
  * Initializes the db containing all the builtin functions
@@ -685,30 +686,34 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__common__cip68_field",
+            "__helios__common__mStruct_field",
             `(self, name) -> {
-		map = __core__unMapData(__core__headList(__core__sndPair(__core__unConstrData(self))));
-		__helios__common__cip68_field_internal(map, name)
+		__helios__common__mStruct_field_internal(
+			__core__unMapData(self), 
+			name
+		)
 	}`
         )
     )
-    // map is expected to already have been extracted
+
+    // map's underlying list was already extracted.
+    // EXPECTS the indicated field to be present, or throws an error about that field
     add(
+        /** name: bytes expression, ex: #616263 */
         new RawFunc(
-            "__helios__common__cip68_field_internal",
+            "__helios__common__mStruct_field_internal",
             `(map, name) -> {
 		name_data = __core__bData(name);
 		recurse = (recurse, map) -> {
 			__core__chooseList(
 				map,
 				() -> {
+                    // this path is unreachable.  In unoptimized code, all data goes through is_valid_data() first, which does a similar check
+                    // in optimized code, it seems like this just becomes an error(), as it's never logged.
 					__helios__error(
-						__core__appendString(
-							"field ",
-							__core__appendString(
-								__helios__bytearray__show(name)(),
-								" not found in struct"
-							)
+                        __core__appendString(
+							__core__decodeUtf8__safe(__core__unBData__safe(__core__bData(name))),
+							": field not found"
 						)
 					)
 				},
@@ -735,7 +740,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // map is expected to already have been extracted
     add(
         new RawFunc(
-            "__helios__common__cip68_field_safe",
+            "__helios__common__mStruct_field_safe",
             `(map, name) -> {
 		name = __core__bData(name);
 		recurse = (recurse, map) -> {
@@ -763,28 +768,28 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    //checks for the presence of a field in an mStruct (not its inner list)
     add(
+        /** name: Data::ByteArray */
         new RawFunc(
-            "__helios__common__test_cip68_field",
+            "__helios__common__test_mStruct_field",
             `(self, name, inner_test) -> {
 		__core__chooseData(
 			self,
+			() -> {false},
 			() -> {
-				fields = __core__sndPair(__core__unConstrData__safe(self));
-				__core__chooseList(
-					fields,
-					() -> {false},
-					() -> {
-						head = __core__headList__safe(fields);
-						__core__chooseData(
-							head,
-							() -> {false},
-							() -> {
-								map = __core__unMapData__safe(head);
+						map = __core__unMapData__safe(self);
 								recurse = (recurse, map) -> {
-									__core__chooseList(
-										map,
-										() -> {false},
+									__core__chooseList(map,
+										() -> {
+											__core__trace(
+												__core__appendString(
+													"Warning: field not found: ",
+													__core__decodeUtf8__safe(__core__unBData__safe(name))
+												),
+												() -> {false}
+											)()
+										},
 										() -> {
 											head = __core__headList__safe(map);
 											key = __core__fstPair(head);
@@ -802,15 +807,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 									)()
 								};
 								recurse(recurse, map)
-							},
-							() -> {false},
-							() -> {false},
-							() -> {false}
-						)()
-					}
-				)()
 			},
-			() -> {false},
 			() -> {false},
 			() -> {false},
 			() -> {false}

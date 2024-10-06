@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    str,
     bytes,
     compileForRun,
     constr,
@@ -11,18 +12,29 @@ import {
 } from "./utils.js"
 import { encodeUtf8 } from "@helios-lang/codec-utils"
 
-describe("Singleton", () => {
+function getLine(stackOffset) {
+    var stack = new Error().stack.split("\n"),
+        line = stack[(stackOffset || 1) + 1].split(":")
+    return parseInt(line[line.length - 2], 10)
+}
+
+Object.defineProperty(global, "__line", {
+    get: function () {
+        return getLine(2)
+    }
+})
+describe("Singleton-field-struct ", () => {
     describe("Singleton(Int)::is_valid_data", () => {
         const runner = compileForRun(`testing singleton_int_is_valid_data
-        struct S {
+        struct sfStruct {
             a: Int
         }
 
         func main(d: Data) -> Bool {
-            S::is_valid_data(d)
+            sfStruct::is_valid_data(d)
         }`)
 
-        it("returns true for iData", () => {
+        it("returns true for bare iData", () => {
             runner([int(0)], True)
         })
 
@@ -44,16 +56,16 @@ describe("Singleton", () => {
     })
 })
 
-describe("Pair[Int, Int]", () => {
+describe("field-list struct Pair[Int, Int]", () => {
     describe("Pair[Int, Int]::is_valid_data", () => {
         const runner = compileForRun(`testing pair_int_int_is_valid_data
-        struct S {
+        struct fStruct {
             a: Int
             b: Int
         }
 
         func main(d: Data) -> Bool {
-            S::is_valid_data(d)
+            fStruct::is_valid_data(d)
         }`)
 
         it("returns true for list with two iData items", () => {
@@ -76,7 +88,7 @@ describe("Pair[Int, Int]", () => {
             runner([bytes([])], False)
         })
 
-        it("returns false for listData", () => {
+        it("returns false for empty listData", () => {
             runner([list()], False)
         })
 
@@ -90,63 +102,111 @@ describe("Pair[Int, Int]", () => {
     })
 })
 
-describe("Cip68 Pair[Int, Int]", () => {
+describe("mStruct Pair[Int, Int]", () => {
+    const $a = str("a")
+    const $b = str("b")
+
     describe("Pair[Int, Int]::is_valid_data", () => {
         const runner = compileForRun(`testing pair_int_int_is_valid_data
-        struct S {
+        struct intPairStruct {
             a: Int "a"
             b: Int "b"
         }
 
         func main(d: Data) -> Bool {
-            S::is_valid_data(d)
+            intPairStruct::is_valid_data(d)
         }`)
 
-        it("returns true for constrData with tag 0 and one field containing the map", () => {
-            runner(
-                [
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("a")), int(0)],
-                            [bytes(encodeUtf8("b")), int(1)]
-                        ])
-                    )
-                ],
-                True
-            )
+        const goodMapData = map([
+            [$a, int(0)],
+            [$b, int(1)]
+        ])
+
+        it("returns true with the essential MapData", () => {
+            runner([goodMapData], True)
+        })
+
+        it("returns false with an extraneous constrData wrapper tag 0", () => {
+            runner([constr(0, goodMapData)], False)
         })
 
         it("returns false if one of the fields isn't iData", () => {
             runner(
                 [
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("a")), int(0)],
-                            [bytes(encodeUtf8("b")), bytes([])]
-                        ])
-                    )
+                    map([
+                        [$a, int(0)],
+                        [$b, bytes([])]
+                    ])
                 ],
                 False
             )
         })
 
         it("returns false if one of the fields is missing", () => {
-            runner([constr(0, map([[bytes(encodeUtf8("a")), int(0)]]))], False)
+            runner(
+                [
+                    //prettier-ignore
+                    map([
+                        [$a, int(0)]
+                    ])
+                ],
+                False
+            )
+        })
+
+        it("issues warnings from unoptimized version (missing field and invalid ‹struct-name›)", () => {
+            const [result] = runner(
+                [
+                    //prettier-ignore
+                    map([
+                        [$a, int(0)]
+					])
+                ],
+                False
+            )
+            const logs = result.logs.map((l) => l.message)
+            if (!logs.some((x) => x.match(/field not found: b/))) {
+                // from is_valid_data() path
+                throw new Error(
+                    "Expected warning about missing field 'b', got logs:\n" +
+                        logs.map((l) => `unoptimized> ${l}`).join("\n")
+                )
+            }
+            if (!logs.some((x) => x.match(/invalid intPairStruct data/))) {
+                throw new Error(
+                    "Expected warning about invalid intPairStruct, got logs:\n" +
+                        logs.map((l) => `unoptimized> ${l}`).join("\n")
+                )
+            }
+        })
+
+        it("fails without warnings in optimized version (missing field or invalid ‹struct-name›)", () => {
+            const [_, { logs }] = runner(
+                [
+                    //prettier-ignore
+                    map([
+                        [$a, int(0)]
+					])
+                ],
+                False
+            )
+            if (logs.length > 0) {
+                throw new Error(
+                    "Unexpected log entries from optimized version:\n" +
+                        logs.map((l) => `optimized> ${l}`).join("\n")
+                )
+            }
         })
 
         it("returns true even if an unknown field is included", () => {
+            const $c = str("c")
             runner(
                 [
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(1)],
-                            [bytes(encodeUtf8("a")), int(0)],
-                            [bytes(encodeUtf8("c")), int(2)]
-                        ])
-                    )
+                    map([
+                        [$b, int(1)],
+                        [$a, int(0)],
+                        [$c, int(2)]
+                    ])
                 ],
                 True
             )
@@ -172,19 +232,22 @@ describe("Cip68 Pair[Int, Int]", () => {
             runner([map([])], False)
         })
 
-        it("returns false for constrData with tag 1", () => {
+        it("returns false for constrData with any tag", () => {
+            runner([constr(0)], False)
             runner([constr(1)], False)
+            runner([constr(2)], False)
         })
     })
 
-    describe("Cip68 Pair[Int, Int] == Pair", () => {
-        const runner = compileForRun(`testing cip68_pair_equals
+    describe("mStruct Pair[Int, Int] == Pair", () => {
+        const runner = compileForRun(`testing mStruct_pair_equals
         struct Pair {
-            a: Int "a"
-            b: Int "b"
+            fieldA: Int "a"
+            fieldB: Int "b"
         }
-        func main(a: Int, b: Int, c: Data) -> Bool {
-            Pair{a, b} == Pair::from_data(c)
+
+        func main(a: Int, b: Int, c: Pair) -> Bool {
+            Pair{a, b} == c
         }`)
 
         it("returns true if the order of the fields is the same", () => {
@@ -192,13 +255,10 @@ describe("Cip68 Pair[Int, Int]", () => {
                 [
                     int(0),
                     int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("a")), int(0)],
-                            [bytes(encodeUtf8("b")), int(1)]
-                        ])
-                    )
+                    map([
+                        [$a, int(0)],
+                        [$b, int(1)]
+                    ])
                 ],
                 True
             )
@@ -209,13 +269,10 @@ describe("Cip68 Pair[Int, Int]", () => {
                 [
                     int(0),
                     int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(1)],
-                            [bytes(encodeUtf8("a")), int(0)]
-                        ])
-                    )
+                    map([
+                        [$b, int(1)],
+                        [$a, int(0)]
+                    ])
                 ],
                 True
             )
@@ -226,14 +283,11 @@ describe("Cip68 Pair[Int, Int]", () => {
                 [
                     int(0),
                     int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(1)],
-                            [bytes(encodeUtf8("a")), int(0)],
-                            [bytes(encodeUtf8("c")), bytes([])]
-                        ])
-                    )
+                    map([
+                        [$b, int(1)],
+                        [$a, int(0)],
+                        [str("c"), bytes([])]
+                    ])
                 ],
                 True
             )
@@ -244,13 +298,10 @@ describe("Cip68 Pair[Int, Int]", () => {
                 [
                     int(0),
                     int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(1)],
-                            [bytes(encodeUtf8("a")), int(1)]
-                        ])
-                    )
+                    map([
+                        [$b, int(1)],
+                        [$a, int(1)]
+                    ])
                 ],
                 False
             )
@@ -260,41 +311,97 @@ describe("Cip68 Pair[Int, Int]", () => {
                 [
                     int(0),
                     int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(1)],
-                            [bytes(encodeUtf8("a_")), int(0)]
-                        ])
-                    )
+                    map([
+                        [$b, int(1)],
+                        [str("wrongFieldName"), int(0)]
+                    ])
                 ],
                 { error: "" }
             )
         })
+
+        it("unoptimized version issues log message if the second pair is missing an entry", () => {
+            const [result] = runner(
+                [
+                    int(0),
+                    int(1),
+                    map([
+                        [$b, int(1)],
+                        [str("wrongFieldName"), int(0)]
+                    ])
+                ],
+                { error: "" }
+            )
+
+            if (
+                !result.logs.some(
+                    (x) => x.message.match(/field not found: a/) // from is_valid_data() path
+                )
+            ) {
+                throw new Error(
+                    "Expected error about missing field 'a', got logs:\n" +
+                        result.logs
+                            .map((l) => `unoptimized> ${l.message}`)
+                            .join("\n")
+                )
+            }
+        })
+
+        it("optimized version issues no message if the second pair is missing an entry", () => {
+            const [_, optimizedResult] = runner(
+                [
+                    int(0),
+                    int(1),
+                    map([
+                        [$b, int(1)],
+                        [str("wrongFieldName"), int(0)]
+                    ])
+                ],
+                { error: "" }
+            )
+            if (
+                optimizedResult.logs.some((x) =>
+                    x.message.match(/field not found/)
+                )
+            ) {
+                throw new Error(
+                    "Optimized version: Expected no logged error about missing field 'a', got logs:\n" +
+                        optimizedResult.logs
+                            .map((l) => `optimized> ${l.message}`)
+                            .join("\n")
+                )
+            }
+            if (optimizedResult.logs.length > 0) {
+                throw new Error(
+                    "Optimized version: Unexpected log entries: \n " +
+                        optimizedResult.logs.map((l) =>
+                            `optimized> ${l.message}`.join("\n")
+                        )
+                )
+            }
+        })
     })
 
-    describe("Cip68 Pair[Int, Int] != Pair", () => {
-        const runner = compileForRun(`testing cip68_pair_neq
+    describe("mStruct Pair[Int, Int] != Pair", () => {
+        const runner = compileForRun(`testing mStruct_pair_neq
         struct Pair {
             a: Int "a"
             b: Int "b"
         }
-        func main(a: Int, b: Int, c: Data) -> Bool {
-            Pair{a, b} != Pair::from_data(c)
+        func main(a: Int, b: Int, y: Pair) -> Bool {
+			x = Pair{a, b};
+			x != y
         }`)
 
         it("returns true if the order of the fields is the same and one entry differs", () => {
             runner(
                 [
                     int(0),
-                    int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("a")), int(0)],
-                            [bytes(encodeUtf8("b")), int(2)]
-                        ])
-                    )
+                    int(77899223),
+                    map([
+                        [$a, int(0)],
+                        [$b, int(1)]
+                    ])
                 ],
                 True
             )
@@ -305,13 +412,10 @@ describe("Cip68 Pair[Int, Int]", () => {
                 [
                     int(0),
                     int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("a")), int(0)],
-                            [bytes(encodeUtf8("b")), int(1)]
-                        ])
-                    )
+                    map([
+                        [$a, int(0)],
+                        [$b, int(1)]
+                    ])
                 ],
                 False
             )
@@ -321,14 +425,11 @@ describe("Cip68 Pair[Int, Int]", () => {
             runner(
                 [
                     int(0),
-                    int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(2)],
-                            [bytes(encodeUtf8("a")), int(0)]
-                        ])
-                    )
+                    int(277),
+                    map([
+                        [$b, int(1)],
+                        [$a, int(0)]
+                    ])
                 ],
                 True
             )
@@ -339,13 +440,10 @@ describe("Cip68 Pair[Int, Int]", () => {
                 [
                     int(0),
                     int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(1)],
-                            [bytes(encodeUtf8("a")), int(0)]
-                        ])
-                    )
+                    map([
+                        [$b, int(1)],
+                        [$a, int(0)]
+                    ])
                 ],
                 False
             )
@@ -355,15 +453,12 @@ describe("Cip68 Pair[Int, Int]", () => {
             runner(
                 [
                     int(0),
-                    int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(2)],
-                            [bytes(encodeUtf8("a")), int(0)],
-                            [bytes(encodeUtf8("c")), bytes([])]
-                        ])
-                    )
+                    int(744982),
+                    map([
+                        [$b, int(2)],
+                        [$a, int(0)],
+                        [str("c"), bytes([])]
+                    ])
                 ],
                 True
             )
@@ -374,34 +469,133 @@ describe("Cip68 Pair[Int, Int]", () => {
                 [
                     int(0),
                     int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(1)],
-                            [bytes(encodeUtf8("a")), int(0)],
-                            [bytes(encodeUtf8("c")), bytes([])]
-                        ])
-                    )
+                    map([
+                        [$b, int(1)],
+                        [$a, int(0)],
+                        [str("c"), bytes([])]
+                    ])
                 ],
                 False
             )
         })
 
         it("throws an error if the second pair is missing an entry", () => {
-            runner(
+            const [result] = runner(
                 [
                     int(0),
                     int(1),
-                    constr(
-                        0,
-                        map([
-                            [bytes(encodeUtf8("b")), int(1)],
-                            [bytes(encodeUtf8("a_")), int(0)]
-                        ])
-                    )
+                    map([
+                        [$b, int(1)],
+                        [str("wrongFieldName"), int(0)]
+                    ])
                 ],
                 { error: "" }
             )
+            if (
+                !result.logs.some((x) => x.message.match(/field not found: a/)) // from is_valid_data() path
+            ) {
+                throw new Error(
+                    "Expected warning about missing field 'a', got logs:\n" +
+                        result.logs
+                            .map((l) => `unoptimized> ${l.message}`)
+                            .join("\n")
+                )
+            }
+        })
+    })
+})
+
+const cip68_and_mStructs__defs = `
+    struct ExampleCip68Meta {
+        name: String "name" // required by Cip68
+        description: String // can't be "desc" or anything shorter because Cip68 requires "description".
+        url: String // allowed by Cip68
+        
+        merit: Int  // allowed by extensibility rule of Cip68
+    }
+        
+    struct SomethingElseStringMapped {
+        // field names here don't need to follow Cip68 rules
+        longFieldName: String "sfn"
+        f2: String
+    }
+
+    enum Datum {
+        StrictCip68 { 
+            data: ExampleCip68Meta
+            version: Int  // 2
+            extra : Data
+        }
+        LooseCip68 { 
+			data: ExampleCip68Meta 
+			version: Int // 2
+		}
+        nonCip68 {
+            someIntField: Int
+            smap: SomethingElseStringMapped
+        }
+    }
+`
+
+describe("CIP-68 encoding", () => {
+    const $name = str("name")
+    const $description = str("description")
+    const $url = str("url")
+    const $merit = str("merit")
+
+    describe("when in a Datum enum variant (Cip68 context)", () => {
+        const myName = "JimBob Charlie"
+        const unwrappedMap = map([
+            [$name, str(myName)],
+            [$description, str("bar")],
+            [$url, str("https://example.com")],
+            [$merit, int(1)]
+        ])
+
+        const StrictCip68Datum = constr(
+            0n,
+            unwrappedMap,
+            int(2),
+            bytes(encodeUtf8("extra"))
+        )
+
+        it("requires the constrData wrapper", () => {
+            const runner = compileForRun(
+                `testing mStruct_encodings_returnsDatum
+            ${cip68_and_mStructs__defs}
+        
+            func main(d: Data) -> Bool {
+                Datum::is_valid_data(d)
+            }`
+            )
+            runner([unwrappedMap], False)
+        })
+
+        it("reads and writes Cip68-formatted data", () => {
+            const runner = compileForRun(
+                `testing mStruct_encodings_returnsDatum
+            ${cip68_and_mStructs__defs}
+        
+            func main(d: Data) -> Datum {
+                assert(Datum::is_valid_data(d), "invalid data");
+                Datum::from_data(d)
+            }`
+            )
+            runner([StrictCip68Datum], StrictCip68Datum)
+        })
+
+        it("accesses data details", () => {
+            const runner = compileForRun(`testing mStruct_encodings_returnsField
+			${cip68_and_mStructs__defs}
+            
+			func main(d: Data) -> String {
+				Datum::from_data(d).switch {
+					StrictCip68 { data, _version, _ } => data.name,
+					_ => error("no way")
+				}
+			}`)
+
+            runner([StrictCip68Datum], str(myName))
         })
     })
 })

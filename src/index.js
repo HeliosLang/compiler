@@ -61,3 +61,4 @@
 //
 
 export * from "./program/index.js"
+export * as testUtils from "../test/utils.js"

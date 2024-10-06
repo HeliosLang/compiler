@@ -32,9 +32,8 @@ export class Expr {
     cache
 
     /**
-	 * @param {Site} site 
-	 
-	 */
+     * @param {Site} site
+     */
     constructor(site) {
         this.site = site
         this.cache = None

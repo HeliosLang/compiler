@@ -17,10 +17,10 @@ import { parseTypeExpr } from "./parseTypeExpr.js"
 
 /**
  * @param {ParseContext} ctx
- * @param {boolean} allowTags
+ * @param {boolean} allowEncodingKeys
  * @returns {DataField[]}
  */
-export function parseDataFields(ctx, allowTags = false) {
+export function parseDataFields(ctx, allowEncodingKeys = false) {
     const r = ctx.reader
 
     /**
@@ -31,7 +31,7 @@ export function parseDataFields(ctx, allowTags = false) {
     /**
      * @type {Map<string, StringLiteral>}
      */
-    const tags = new Map()
+    const encodingKeys = new Map()
 
     /**
      * @param {Word} fieldName
@@ -51,11 +51,11 @@ export function parseDataFields(ctx, allowTags = false) {
 
     /**
      * @param {Site} site
-     * @param {string} tag
+     * @param {string} key
      */
-    function assertUniqueTag(site, tag) {
-        if (tags.has(tag)) {
-            ctx.errors.syntax(site, `duplicate tag '${tag}'`)
+    function assertUniqueEncodingKey(site, key) {
+        if (encodingKeys.has(key)) {
+            ctx.errors.syntax(site, `duplicate encoding-key '${key}'`)
         }
     }
 
@@ -63,14 +63,14 @@ export function parseDataFields(ctx, allowTags = false) {
      * @param {Word} fieldName
      * @returns {Option<StringLiteral>}
      */
-    function getTag(fieldName) {
-        const tag = tags.get(fieldName.value)
+    function getFieldEncodingKey(fieldName) {
+        const fieldKey = encodingKeys.get(fieldName.value)
 
-        if (tag) {
-            return tag
-        } else if (tags.size == 0) {
+        if (fieldKey) {
+            return fieldKey
+        } else if (encodingKeys.size == 0) {
             return None
-        } else if (tags.has(fieldName.value)) {
+        } else if (encodingKeys.has(fieldName.value)) {
             ctx.errors.syntax(
                 fieldName.site,
                 `duplicate tag '${fieldName.value}' (created implicitly)`
@@ -89,6 +89,9 @@ export function parseDataFields(ctx, allowTags = false) {
 
             let typeReader = r.readUntil(anyName, symbol(":"))
 
+            /* @type{string} */
+            let encodingKey
+
             if ((m = typeReader.findLastMatch(strlit()))) {
                 /**
                  * @satisfies {[TokenReader, StringLiteral]}
@@ -97,26 +100,30 @@ export function parseDataFields(ctx, allowTags = false) {
                 typeReader.end()
                 typeReader = before
 
-                if (!allowTags) {
-                    ctx.errors.syntax(tag.site, "unexpected tag")
+                if (!allowEncodingKeys) {
+                    ctx.errors.syntax(
+                        tag.site,
+                        "encodingKey tag not valid in this context"
+                    )
                 } else {
-                    assertUniqueTag(tag.site, tag.value)
+                    assertUniqueEncodingKey(tag.site, tag.value)
                 }
-
-                tags.set(name.value, tag)
+                encodingKey = tag.value
+                encodingKeys.set(name.value, tag)
             } else {
                 r.endMatch(false)
 
-                if (tags.size > 0) {
-                    assertUniqueTag(name.site, name.value)
+                if (encodingKeys.size > 0) {
+                    assertUniqueEncodingKey(name.site, name.value)
                 }
             }
 
             const typeExpr = parseTypeExpr(
                 ctx.atSite(colon.site).withReader(typeReader)
             )
-
-            fields.push(new DataField(name, typeExpr, getTag(name)))
+            fields.push(
+                new DataField(name, typeExpr, getFieldEncodingKey(name))
+            )
         } else {
             r.endMatch()
             r.end()

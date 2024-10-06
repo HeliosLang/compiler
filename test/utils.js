@@ -8,19 +8,55 @@ import {
     IntData,
     ListData,
     MapData,
-    UplcDataValue
+    UplcDataValue,
+    UplcProgramV2
 } from "@helios-lang/uplc"
 import { Program } from "../src/program/Program.js"
+import { $ } from "@helios-lang/ir"
 
 /**
  * @typedef {import("@helios-lang/codec-utils").ByteArrayLike} ByteArrayLike
  * @typedef {import("@helios-lang/uplc").CekResult} CekResult
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
+ * @typedef {import("@helios-lang/uplc").UplcLoggingI} UplcLoggingI
  */
 
 /**
  * @typedef {{error: string} | UplcData | string} HeliosTestOutput
  */
+
+/**
+ * Runs the nested IR expression after emitting a trace message.  If the
+ * optional second arg contains an IR string expression, it is evaluated
+ * and added to the trace message.
+ * @example
+ * $testTrace(`some Message`, $`...nestedIrExpression`)
+ * $testTrace(`some Message`, $`optionalIrStringExpression`, $`...nestedIrExpression`)
+ */
+export function $testTrace(traceMessage, ...args) {
+    const ir = args.pop()
+    if (args.length > 1) {
+        throw new Error(
+            `only 2 or 3 args for $testTrace(message [String], [extraTraceExpr [String expr]], nestedIr), please`
+        )
+    }
+    let [extraTraceExpr] = args
+    if (!process.env.HL_TEST_TRACE) {
+        throw new Error(
+            `use of $testTrace() should be limited to local troubleshooting using 'pnpm testing'`
+        )
+    }
+    let tmExpr = `"  -- ${traceMessage.replace(/"/g, '\\"')}"`
+    if (extraTraceExpr) {
+        tmExpr = `__helios__string____add(
+            ${tmExpr}, ${extraTraceExpr})`
+    }
+    const t = $`__core__trace(${tmExpr}, () -> { 
+        ${ir} 
+    })()`
+    // console.log(t.toString())
+    return t
+}
 
 /**
  * @typedef {{
@@ -43,6 +79,13 @@ import { Program } from "../src/program/Program.js"
  */
 
 /**
+ * @typedef {(
+ *    (inputs: UplcData[], output: HeliosTestOutput) => [ CekResult, CekResult | undefined ]
+ *  ) & { program: Program }
+ * } RunnerFunction
+ */
+
+/**
  * @param {HeliosTest[]} testVector
  */
 export function compileAndRunMany(testVector) {
@@ -55,6 +98,10 @@ export function compileAndRunMany(testVector) {
  */
 export function compileAndRun(test) {
     it(test.description, () => {
+        /**
+         *
+         * @returns {[Program, UplcProgramV2]}
+         */
         const initialTest = () => {
             const program = new Program(test.main, {
                 moduleSources: test.modules,
@@ -130,7 +177,7 @@ export function compileAndRun(test) {
 /**
  * @param {string} mainSrc
  * @param {CompileForRunOptions} options
- * @returns {(inputs: UplcData[], output: HeliosTestOutput) => void}
+ * @returns { RunnerFunction }
  */
 export function compileForRun(mainSrc, options = {}) {
     const program = new Program(mainSrc, {
@@ -148,26 +195,49 @@ export function compileForRun(mainSrc, options = {}) {
         console.log(ir.toString())
     }
 
-    const uplc0 = program.compile(false)
-    const hash0 = bytesToHex(uplc0.hash())
-    const uplc1 = program.compile(true)
-    const hash1 = bytesToHex(uplc1.hash())
+    const uplcUnopt = program.compile(false)
+    const hashUnopt = bytesToHex(uplcUnopt.hash())
+    const uplcOptimized = program.compile(true)
+    const hashOptimized = bytesToHex(uplcOptimized.hash())
 
-    return (inputs, output) => {
+    /**
+     * @type {RunnerFunction}
+     */
+    const runner = (inputs, output) => {
+        if (!output)
+            throw new Error(
+                "must specify arg2: a HeliosTestOutput result to test against for this run"
+            )
         const args = inputs.map((d) => new UplcDataValue(d))
 
-        const result0 = uplc0.eval(args)
+        const result0 = uplcUnopt.eval(args)
 
-        resultEquals(result0, output)
+        try {
+            resultEquals(result0, output)
+        } catch (e) {
+            const failureLog =
+                result0.logs.map((l) => `---> ${l}`).join("\n") +
+                `\n---- ^^^ test failure log: ${program.name} (unoptimized) -----------\n`
+            console.error(failureLog)
+            e.NOTE = "See failure log above"
+            throw e
+        }
 
-        if (hash1 != hash0) {
-            const result1 = uplc1.eval(args)
-
-            resultEquals(result1, output)
-
+        if (hashOptimized != hashUnopt) {
+            const result1 = uplcOptimized.eval(args)
+            try {
+                resultEquals(result1, output)
+            } catch (e) {
+                const failureLog =
+                    result1.logs.map((l) => `--->: > ${l}`).join("\n") +
+                    `\n---- ^^^ test failure log: ${program.name} (optimized) -----------\n`
+                console.error(failureLog)
+                e.NOTE = "See failure log above"
+                throw e
+            }
             // also make sure the costs and size are smaller
-            const size0 = uplc0.toCbor().length
-            const size1 = uplc1.toCbor().length
+            const size0 = uplcUnopt.toCbor().length
+            const size1 = uplcOptimized.toCbor().length
 
             assert(
                 size1 < size0,
@@ -195,8 +265,12 @@ export function compileForRun(mainSrc, options = {}) {
                     `Cost of ${options.dumpCostPrefix}: mem=${costMem1}, cpu=${costCpu1}, lovelace=${Number(costMem1) * 0.0577 + Number(costCpu1) * 0.0000721}`
                 )
             }
+            return [result0, result1]
         }
+        return [result0, undefined]
     }
+    runner.program = program // expose for layering more functionality in contract-utils tests
+    return runner
 }
 
 /**
@@ -388,7 +462,13 @@ function cekResultToString(cekResult) {
         if (isString(output.right)) {
             return output.right
         } else if (output.right.kind == "data") {
-            return output.right.value.toString()
+            const str = output.right.value.toString()
+
+            if (!str) {
+                debugger // keep-debugger to help troubleshoot this wrong case
+                output.right.value.toString()
+            }
+            return str
         } else {
             return output.right.toString()
         }
@@ -400,6 +480,12 @@ function cekResultToString(cekResult) {
  * @returns {string}
  */
 function expectedResultToString(result) {
+    if (!result) {
+        debugger // keep-debugger to help troubleshoot this wrong case
+        throw new Error(
+            `can't convert ${result} to string for result comparison`
+        )
+    }
     if (typeof result == "string") {
         return result
     } else if ("error" in result) {
