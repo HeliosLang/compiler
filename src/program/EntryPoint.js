@@ -34,6 +34,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
  *   mainModule: MainModule
  *   userTypes: Record<string, Record<string, DataType>>
  *   paramTypes: Record<string, DataType>
+ *   paramsDetails(): Record<string, string>
  *   requiredParams: Set<string>
  *   changeParam(name: string, data: UplcData): boolean
  *   evalTypes(scriptTypes: ScriptTypes): void
@@ -271,6 +272,22 @@ export class EntryPointImpl {
         })
 
         return found
+    }
+
+    /**
+     * Presents all the parameter values as an object with keys mapping the parameter names
+     * to Helios declarations for each const statement, with their current settings
+     * @returns {Record<string, string>}
+     * @public
+     */
+    paramsDetails() {
+        /** @type {Record<string,string>} */
+        const res = {}
+
+        this.loopConstStatements((name, cs) => {
+            res[name] = cs.toString()
+        })
+        return res
     }
 
     /**
