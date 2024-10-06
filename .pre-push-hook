@@ -32,8 +32,8 @@ currentScriptPath=$(dirname $0)/$(basename $0)
 
 
 [[ $currentScriptPath != $prePushHookPath ]] && [[ "check" != $1 ]] && {
-   echo "PPHP: $prePushHookPath"
-   echo "CSP: $currentScriptPath"
+    #    echo "PPHP: $prePushHookPath"
+    #    echo "CSP: $currentScriptPath"
     [[ -z $1 ]] || [[ "install" != $1 ]] && {
         echo "run as $0 'install' to check and/or install the pre-push hook"
         exit 1
