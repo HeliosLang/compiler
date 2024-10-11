@@ -18,9 +18,26 @@ import { Expr } from "./Expr.js"
  * @internal
  */
 export class MapLiteralExpr extends Expr {
-    #keyTypeExpr
-    #valueTypeExpr
-    #pairExprs
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _keyTypeExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _valueTypeExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {[Expr, Expr][]}
+     */
+    _pairExprs
 
     /**
      * @param {Site} site
@@ -30,23 +47,23 @@ export class MapLiteralExpr extends Expr {
      */
     constructor(site, keyTypeExpr, valueTypeExpr, pairExprs) {
         super(site)
-        this.#keyTypeExpr = keyTypeExpr
-        this.#valueTypeExpr = valueTypeExpr
-        this.#pairExprs = pairExprs
+        this._keyTypeExpr = keyTypeExpr
+        this._valueTypeExpr = valueTypeExpr
+        this._pairExprs = pairExprs
     }
 
     /**
      * @type {DataType}
      */
     get keyType() {
-        return expectSome(this.#keyTypeExpr.cache?.asDataType)
+        return expectSome(this._keyTypeExpr.cache?.asDataType)
     }
 
     /**
      * @type {DataType}
      */
     get valueType() {
-        return expectSome(this.#valueTypeExpr.cache?.asDataType)
+        return expectSome(this._valueTypeExpr.cache?.asDataType)
     }
 
     /**
@@ -54,27 +71,27 @@ export class MapLiteralExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const keyType_ = this.#keyTypeExpr.eval(scope)
+        const keyType_ = this._keyTypeExpr.eval(scope)
 
         const keyType = keyType_.asDataType
         if (!keyType) {
             throw CompilerError.type(
-                this.#keyTypeExpr.site,
+                this._keyTypeExpr.site,
                 "key-type of Map can't be func"
             )
         }
 
-        const valueType_ = this.#valueTypeExpr.eval(scope)
+        const valueType_ = this._valueTypeExpr.eval(scope)
 
         const valueType = valueType_.asDataType
         if (!valueType) {
             throw CompilerError.type(
-                this.#valueTypeExpr.site,
+                this._valueTypeExpr.site,
                 "value-type of Map can't be func"
             )
         }
 
-        for (let [keyExpr, valueExpr] of this.#pairExprs) {
+        for (let [keyExpr, valueExpr] of this._pairExprs) {
             const keyVal_ = keyExpr.eval(scope)
             if (!keyVal_) {
                 continue
@@ -133,8 +150,8 @@ export class MapLiteralExpr extends Expr {
 
         // starting from last element, keeping prepending a data version of that item
 
-        for (let i = this.#pairExprs.length - 1; i >= 0; i--) {
-            let [keyExpr, valueExpr] = this.#pairExprs[i]
+        for (let i = this._pairExprs.length - 1; i >= 0; i--) {
+            let [keyExpr, valueExpr] = this._pairExprs[i]
 
             let keyIR = $([
                 $(`${this.keyType.path}____to_data`),
@@ -173,6 +190,6 @@ export class MapLiteralExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}{${this.#pairExprs.map(([keyExpr, valueExpr]) => `${keyExpr.toString()}: ${valueExpr.toString()}`).join(", ")}}`
+        return `Map[${this._keyTypeExpr.toString()}]${this._valueTypeExpr.toString()}{${this._pairExprs.map(([keyExpr, valueExpr]) => `${keyExpr.toString()}: ${valueExpr.toString()}`).join(", ")}}`
     }
 }

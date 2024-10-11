@@ -603,9 +603,26 @@ export class AnyType extends Common {
  * @internal
  */
 export class ArgType {
-    #name
-    #type
-    #optional
+    /**
+     * @private
+     * @readonly
+     * @type {Option<Word>}
+     */
+    _name
+
+    /**
+     * @private
+     * @readonly
+     * @type {Type}
+     */
+    _type
+
+    /**
+     * @private
+     * @readonly
+     * @type {boolean}
+     */
+    _optional
 
     /**
      *
@@ -614,19 +631,19 @@ export class ArgType {
      * @param {boolean} optional
      */
     constructor(name, type, optional = false) {
-        this.#name = name
-        this.#type = type
-        this.#optional = optional
+        this._name = name
+        this._type = type
+        this._optional = optional
     }
 
     /**
      * @type {string}
      */
     get name() {
-        if (!this.#name) {
+        if (!this._name) {
             return ""
         } else {
-            return this.#name.toString()
+            return this._name.toString()
         }
     }
 
@@ -634,7 +651,7 @@ export class ArgType {
      * @type {Type}
      */
     get type() {
-        return this.#type
+        return this._type
     }
 
     /**
@@ -646,9 +663,9 @@ export class ArgType {
      */
     infer(site, map, type) {
         return new ArgType(
-            this.#name,
-            this.#type.infer(site, map, type),
-            this.#optional
+            this._name,
+            this._type.infer(site, map, type),
+            this._optional
         )
     }
 
@@ -658,16 +675,16 @@ export class ArgType {
      */
     isBaseOf(other) {
         // if this arg has a default value, the other arg must also have a default value
-        if (this.#optional && !other.#optional) {
+        if (this._optional && !other._optional) {
             return false
         }
 
         // if this is named, the other must be named as well
-        if (this.#name != null) {
-            return this.#name.toString() == (other.#name?.toString() ?? "")
+        if (this._name != null) {
+            return this._name.toString() == (other._name?.toString() ?? "")
         }
 
-        if (!other.#type.isBaseOf(this.#type)) {
+        if (!other._type.isBaseOf(this._type)) {
             // note the reversal of the check
             return false
         }
@@ -679,14 +696,14 @@ export class ArgType {
      * @returns {boolean}
      */
     isNamed() {
-        return isSome(this.#name)
+        return isSome(this._name)
     }
 
     /**
      * @returns {boolean}
      */
     isOptional() {
-        return this.#optional
+        return this._optional
     }
 
     /**
@@ -694,9 +711,9 @@ export class ArgType {
      */
     toString() {
         return [
-            this.#name != null ? `${this.#name.toString()}: ` : "",
-            this.#optional ? "?" : "",
-            this.#type.toString()
+            this._name != null ? `${this._name.toString()}: ` : "",
+            this._optional ? "?" : "",
+            this._type.toString()
         ].join("")
     }
 }
@@ -713,9 +730,11 @@ export class FuncType extends Common {
     origArgTypes
 
     /**
+     * @private
+     * @readonly
      * @type {Type}
      */
-    #retType
+    _retType
 
     /**
      * @param {Type[] | ArgType[]} argTypes
@@ -728,7 +747,7 @@ export class FuncType extends Common {
             at instanceof ArgType ? at : new ArgType(null, at)
         )
 
-        this.#retType = retType
+        this._retType = retType
     }
 
     /**
@@ -770,7 +789,7 @@ export class FuncType extends Common {
      * @type {Type}
      */
     get retType() {
-        return this.#retType
+        return this._retType
     }
 
     /**
@@ -945,7 +964,7 @@ export class FuncType extends Common {
             }
         }
 
-        return this.#retType
+        return this._retType
     }
 
     /**
@@ -959,7 +978,7 @@ export class FuncType extends Common {
         if (!type) {
             return new FuncType(
                 this.origArgTypes.map((at) => at.infer(site, map, null)),
-                this.#retType.infer(site, map, null)
+                this._retType.infer(site, map, null)
             )
         } else if (type instanceof FuncType) {
             if (type.argTypes.length == this.origArgTypes.length) {
@@ -967,7 +986,7 @@ export class FuncType extends Common {
                     this.origArgTypes.map((at, i) =>
                         at.infer(site, map, type.argTypes[i])
                     ),
-                    this.#retType.infer(site, map, type.retType)
+                    this._retType.infer(site, map, type.retType)
                 )
             }
         }
@@ -991,7 +1010,7 @@ export class FuncType extends Common {
                 this.origArgTypes.map((at, i) =>
                     at.infer(site, map, argTypes[i])
                 ),
-                this.#retType.infer(site, map, null)
+                this._retType.infer(site, map, null)
             )
         }
 
@@ -1015,7 +1034,7 @@ export class FuncType extends Common {
             }
         }
 
-        if (Common.typesEq(type, this.#retType)) {
+        if (Common.typesEq(type, this._retType)) {
             return true
         }
 
@@ -1025,7 +1044,7 @@ export class FuncType extends Common {
     /**
      * Checks if 'this' is a base type of another FuncType.
      * The number of args needs to be the same.
-     * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this.#argTypes[i]))
+     * Each argType of the FuncType we are checking against needs to be the same or less specific (i.e. isBaseOf(this._argTypes[i]))
      * The retType of 'this' needs to be the same or more specific
      * @param {Type} other
      * @returns {boolean}
@@ -1041,7 +1060,7 @@ export class FuncType extends Common {
                     }
                 }
 
-                if (!this.#retType.isBaseOf(other.#retType)) {
+                if (!this._retType.isBaseOf(other._retType)) {
                     return false
                 }
 
@@ -1056,11 +1075,11 @@ export class FuncType extends Common {
      * Checks if the type of the first arg is the same as 'type'
      * Also returns false if there are no args.
      * For a method to be a valid instance member its first argument must also be named 'self', but that is checked elsewhere
-     * @param {Site} site
+     * @param {Site} _site
      * @param {Type} type
      * @returns {boolean}
      */
-    isMaybeMethod(site, type) {
+    isMaybeMethod(_site, type) {
         if (this.origArgTypes.length > 0) {
             return Common.typesEq(this.origArgTypes[0].type, type)
         } else {
@@ -1072,7 +1091,7 @@ export class FuncType extends Common {
      * @returns {string}
      */
     toString() {
-        return `(${this.origArgTypes.map((a) => a.toString()).join(", ")}) -> ${this.#retType.toString()}`
+        return `(${this.origArgTypes.map((a) => a.toString()).join(", ")}) -> ${this._retType.toString()}`
     }
 
     /**
@@ -1115,43 +1134,67 @@ export class FuncType extends Common {
  * @implements {DataType}
  */
 export class GenericType extends Common {
-    #name
-
     /**
+     * @private
+     * @readonly
      * @type {string}
      */
-    #path
+    _name
 
-    #fieldNames
+    /**
+     * @private
+     * @readonly
+     * @type {string}
+     */
+    _path
+
+    /**
+     * @private
+     * @readonly
+     * @type {string[]}
+     */
+    _fieldNames
 
     /**
      * defer until needed
+     * @private
+     * @readonly
      * @type {(self: Type) => InstanceMembers}
      */
-    #genInstanceMembers
+    _genInstanceMembers
 
     /**
      * defer until needed
+     * @private
+     * @readonly
      * @type {(self: Type) => TypeMembers}
      */
-    #genTypeMembers
+    _genTypeMembers
 
     /**
+     * @private
      * @type {null | InstanceMembers}
      */
-    #instanceMembers
+    _instanceMembers
 
     /**
+     * @private
      * @type {null | TypeMembers}
      */
-    #typeMembers
+    _typeMembers
 
     /**
+     * @private
+     * @readonly
      * @type {Option<(self: Type, parents: Set<string>) => TypeSchema>}
      */
-    #genTypeSchema
+    _genTypeSchema
 
-    #genDepth
+    /**
+     * @private
+     * @type {number}
+     */
+    _genDepth
 
     /**
      * @param {GenericTypeProps} props
@@ -1166,16 +1209,16 @@ export class GenericType extends Common {
     }) {
         super()
 
-        this.#name = name
-        this.#path = path ?? `__helios__${name.toLowerCase()}`
-        this.#fieldNames = fieldNames ?? []
+        this._name = name
+        this._path = path ?? `__helios__${name.toLowerCase()}`
+        this._fieldNames = fieldNames ?? []
 
-        this.#genInstanceMembers = genInstanceMembers
-        this.#genTypeMembers = genTypeMembers
-        this.#instanceMembers = null
-        this.#typeMembers = null
-        this.#genTypeSchema = genTypeSchema ?? null
-        this.#genDepth = 0
+        this._genInstanceMembers = genInstanceMembers
+        this._genTypeMembers = genTypeMembers
+        this._instanceMembers = null
+        this._typeMembers = null
+        this._genTypeSchema = genTypeSchema ?? null
+        this._genDepth = 0
     }
 
     /**
@@ -1203,25 +1246,25 @@ export class GenericType extends Common {
      * @type {string[]}
      */
     get fieldNames() {
-        return this.#fieldNames
+        return this._fieldNames
     }
 
     /**
      * @type {InstanceMembers}
      */
     get instanceMembers() {
-        if (!this.#instanceMembers) {
-            this.#instanceMembers = this.#genInstanceMembers(this)
+        if (!this._instanceMembers) {
+            this._instanceMembers = this._genInstanceMembers(this)
         }
 
-        return this.#instanceMembers
+        return this._instanceMembers
     }
 
     /**
      * @type {string}
      */
     get name() {
-        return this.#name
+        return this._name
     }
 
     /**
@@ -1229,8 +1272,8 @@ export class GenericType extends Common {
      * @returns {TypeSchema}
      */
     toSchema(parents = new Set()) {
-        if (this.#genTypeSchema) {
-            return this.#genTypeSchema(this, parents)
+        if (this._genTypeSchema) {
+            return this._genTypeSchema(this, parents)
         } else {
             throw new Error(`typeSchema not available for ${this.toString()}`)
         }
@@ -1240,27 +1283,27 @@ export class GenericType extends Common {
      * @type {string}
      */
     get path() {
-        return this.#path
+        return this._path
     }
 
     /**
      * @type {boolean}
      */
     get ready() {
-        return this.#genDepth < 2
+        return this._genDepth < 2
     }
 
     /**
      * @type {TypeMembers}
      */
     get typeMembers() {
-        if (!this.#typeMembers) {
-            this.#genDepth += 1
-            this.#typeMembers = this.#genTypeMembers(this)
-            this.#genDepth -= 1
+        if (!this._typeMembers) {
+            this._genDepth += 1
+            this._typeMembers = this._genTypeMembers(this)
+            this._genDepth -= 1
         }
 
-        return this.#typeMembers
+        return this._typeMembers
     }
 
     /**
@@ -1269,16 +1312,16 @@ export class GenericType extends Common {
      */
     applyInternal(site, map) {
         return {
-            name: this.#name,
-            path: this.#path,
-            fieldNames: this.#fieldNames,
+            name: this._name,
+            path: this._path,
+            fieldNames: this._fieldNames,
             genInstanceMembers: (self) => {
                 /**
                  * @type {InstanceMembers}
                  */
                 const instanceMembers = {}
 
-                const oldInstanceMembers = this.#genInstanceMembers(self)
+                const oldInstanceMembers = this._genInstanceMembers(self)
 
                 for (let k in oldInstanceMembers) {
                     const v = oldInstanceMembers[k]
@@ -1300,7 +1343,7 @@ export class GenericType extends Common {
                  */
                 const typeMembers = {}
 
-                const oldTypeMembers = this.#genTypeMembers(self)
+                const oldTypeMembers = this._genTypeMembers(self)
 
                 for (let k in oldTypeMembers) {
                     const v = oldTypeMembers[k]
@@ -1342,9 +1385,9 @@ export class GenericType extends Common {
         return new GenericType({
             name: name,
             path: path,
-            fieldNames: this.#fieldNames,
-            genInstanceMembers: this.#genInstanceMembers,
-            genTypeMembers: this.#genTypeMembers
+            fieldNames: this._fieldNames,
+            genInstanceMembers: this._genInstanceMembers,
+            genTypeMembers: this._genTypeMembers
         })
     }
 
@@ -1356,7 +1399,7 @@ export class GenericType extends Common {
         if (other.asEnumMemberType) {
             return this.isBaseOf(other.asEnumMemberType.parentType)
         } else if (other.asNamed) {
-            return other.asNamed.path == this.#path
+            return other.asNamed.path == this._path
         } else {
             return false
         }
@@ -1396,8 +1439,19 @@ export class GenericType extends Common {
  * @extends {GenericType}
  */
 export class GenericEnumMemberType extends GenericType {
-    #constrIndex
-    #parentType
+    /**
+     * @private
+     * @readonly
+     * @type {number}
+     */
+    _constrIndex
+
+    /**
+     * @private
+     * @readonly
+     * @type {DataType}
+     */
+    _parentType
 
     /**
      * @param {GenericEnumMemberTypeProps} props
@@ -1421,22 +1475,22 @@ export class GenericEnumMemberType extends GenericType {
             genTypeSchema: genTypeSchema
         })
 
-        this.#constrIndex = constrIndex
-        this.#parentType = parentType
+        this._constrIndex = constrIndex
+        this._parentType = parentType
     }
 
     /**
      * @type {number}
      */
     get constrIndex() {
-        return this.#constrIndex
+        return this._constrIndex
     }
 
     /**
      * @type {DataType}
      */
     get parentType() {
-        return this.#parentType
+        return this._parentType
     }
 
     /**
@@ -1472,7 +1526,7 @@ export class GenericEnumMemberType extends GenericType {
      * @returns {string}
      */
     toString() {
-        return `${this.#parentType.toString()}::${this.name}`
+        return `${this._parentType.toString()}::${this.name}`
     }
 }
 
@@ -1547,7 +1601,12 @@ export class VoidType extends Common {
  * @implements {Instance}
  */
 export class DataEntity extends Common {
-    #type
+    /**
+     * @private
+     * @readonly
+     * @type {DataType}
+     */
+    _type
 
     /**
      * @param {DataType} type
@@ -1558,28 +1617,28 @@ export class DataEntity extends Common {
             throw new Error("unexpected")
         }
 
-        this.#type = type
+        this._type = type
     }
 
     /**
      * @type {string[]}
      */
     get fieldNames() {
-        return this.#type.fieldNames
+        return this._type.fieldNames
     }
 
     /**
      * @type {InstanceMembers}
      */
     get instanceMembers() {
-        return this.#type.instanceMembers
+        return this._type.instanceMembers
     }
 
     /**
      * @type {Type}
      */
     get type() {
-        return this.#type
+        return this._type
     }
 
     /**
@@ -1600,7 +1659,7 @@ export class DataEntity extends Common {
      * @returns {string}
      */
     toString() {
-        return this.#type.toString()
+        return this._type.toString()
     }
 }
 
@@ -1691,9 +1750,26 @@ export class ErrorEntity extends Common {
  * @implements {Named}
  */
 export class NamedEntity {
-    #name
-    #path
-    #entity
+    /**
+     * @private
+     * @readonly
+     * @type {string}
+     */
+    _name
+
+    /**
+     * @private
+     * @readonly
+     * @type {string}
+     */
+    _path
+
+    /**
+     * @private
+     * @readonly
+     * @type {EvalEntity}
+     */
+    _entity
 
     /**
      * @param {string} name
@@ -1701,37 +1777,37 @@ export class NamedEntity {
      * @param {EvalEntity} entity
      */
     constructor(name, path, entity) {
-        this.#name = name
-        this.#path = path
-        this.#entity = entity
+        this._name = name
+        this._path = path
+        this._entity = entity
     }
 
     /**
      * @type {null | DataType}
      */
     get asDataType() {
-        return this.#entity.asDataType
+        return this._entity.asDataType
     }
 
     /**
      * @type {null | EnumMemberType}
      */
     get asEnumMemberType() {
-        return this.#entity.asEnumMemberType
+        return this._entity.asEnumMemberType
     }
 
     /**
      * @type {null | Func}
      */
     get asFunc() {
-        return this.#entity.asFunc
+        return this._entity.asFunc
     }
 
     /**
      * @type {null | Instance}
      */
     get asInstance() {
-        return this.#entity.asInstance
+        return this._entity.asInstance
     }
 
     /**
@@ -1745,56 +1821,56 @@ export class NamedEntity {
      * @type {null | Namespace}
      */
     get asNamespace() {
-        return this.#entity.asNamespace
+        return this._entity.asNamespace
     }
 
     /**
      * @type {null | Parametric}
      */
     get asParametric() {
-        return this.#entity.asParametric
+        return this._entity.asParametric
     }
 
     /**
      * @type {null | Type}
      */
     get asType() {
-        return this.#entity.asType
+        return this._entity.asType
     }
 
     /**
      * @type {null | Typed}
      */
     get asTyped() {
-        return this.#entity.asTyped
+        return this._entity.asTyped
     }
 
     /**
      * @type {null | TypeClass}
      */
     get asTypeClass() {
-        return this.#entity.asTypeClass
+        return this._entity.asTypeClass
     }
 
     /**
      * @type {string}
      */
     get name() {
-        return this.#name
+        return this._name
     }
 
     /**
      * @type {string}
      */
     get path() {
-        return this.#path
+        return this._path
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        return this.#entity.toString()
+        return this._entity.toString()
     }
 }
 
@@ -1805,9 +1881,11 @@ export class NamedEntity {
  */
 export class FuncEntity extends Common {
     /**
+     * @private
+     * @readonly
      * @type {FuncType}
      */
-    #type
+    _type
 
     /**
      * @param {FuncType} type
@@ -1819,14 +1897,14 @@ export class FuncEntity extends Common {
             throw new Error("unexpected")
         }
 
-        this.#type = type
+        this._type = type
     }
 
     /**
      * @type {Type}
      */
     get type() {
-        return this.#type
+        return this._type
     }
 
     /**
@@ -1834,7 +1912,7 @@ export class FuncEntity extends Common {
      * @type {FuncType}
      */
     get funcType() {
-        return this.#type
+        return this._type
     }
 
     /**
@@ -1859,7 +1937,7 @@ export class FuncEntity extends Common {
      * @returns {Typed}
      */
     call(site, args, namedArgs = {}, viableCasts = None) {
-        const type = this.#type.checkCall(site, args, namedArgs, viableCasts)
+        const type = this._type.checkCall(site, args, namedArgs, viableCasts)
 
         return type.toTyped()
     }
@@ -1869,7 +1947,7 @@ export class FuncEntity extends Common {
      * @returns {string}
      */
     toString() {
-        return this.#type.toString()
+        return this._type.toString()
     }
 }
 
@@ -1879,9 +1957,11 @@ export class FuncEntity extends Common {
  */
 export class TypedEntity extends Common {
     /**
+     * @private
+     * @readonly
      * @type {Type}
      */
-    #type
+    _type
 
     /**
      * @param {Type} type
@@ -1889,7 +1969,7 @@ export class TypedEntity extends Common {
     constructor(type) {
         super()
 
-        this.#type = type
+        this._type = type
     }
 
     /**
@@ -1903,7 +1983,7 @@ export class TypedEntity extends Common {
      * @type {Type}
      */
     get type() {
-        return this.#type
+        return this._type
     }
 }
 
@@ -2022,10 +2102,11 @@ export class ModuleNamespace extends Common {
     name
 
     /**
+     * @private
      * @readonly
      * @type {NamespaceMembers}
      */
-    #members
+    _members
 
     /**
      * @param {string} name
@@ -2034,14 +2115,14 @@ export class ModuleNamespace extends Common {
     constructor(name, members) {
         super()
         this.name = name
-        this.#members = members
+        this._members = members
     }
 
     /**
      * @type {NamespaceMembers}
      */
     get namespaceMembers() {
-        return this.#members
+        return this._members
     }
 
     /**

@@ -21,14 +21,18 @@ import { TypeParameters } from "./TypeParameters.js"
  */
 export class FuncStatement extends Statement {
     /**
+     * @private
+     * @readonly
      * @type {TypeParameters}
      */
-    #parameters
+    _parameters
 
     /**
+     * @private
+     * @readonly
      * @type {FuncLiteralExpr}
      */
-    #funcExpr
+    _funcExpr
 
     /**
      * @param {Site} site
@@ -38,85 +42,85 @@ export class FuncStatement extends Statement {
      */
     constructor(site, name, parameters, funcExpr) {
         super(site, name)
-        this.#parameters = parameters
-        this.#funcExpr = funcExpr
+        this._parameters = parameters
+        this._funcExpr = funcExpr
     }
 
     /**
      * @type {TypeParameters}
      */
     get typeParameters() {
-        return this.#parameters
+        return this._parameters
     }
 
     /**
      * @type {string}
      */
     get path() {
-        return this.#parameters.genFuncPath(super.path)
+        return this._parameters.genFuncPath(super.path)
     }
 
     /**
      * @type {number}
      */
     get nArgs() {
-        return this.#funcExpr.nArgs
+        return this._funcExpr.nArgs
     }
 
     /**
      * @type {FuncArg[]}
      */
     get args() {
-        return this.#funcExpr.args
+        return this._funcExpr.args
     }
 
     /**
      * @type {string[]}
      */
     get argNames() {
-        return this.#funcExpr.argNames
+        return this._funcExpr.argNames
     }
 
     /**
      * @type {Type[]}
      */
     get argTypes() {
-        return this.#funcExpr.argTypes
+        return this._funcExpr.argTypes
     }
 
     /**
      * @type {string[]}
      */
     get argTypeNames() {
-        return this.#funcExpr.argTypeNames
+        return this._funcExpr.argTypeNames
     }
 
     /**
      * @type {FuncLiteralExpr}
      */
     get funcExpr() {
-        return this.#funcExpr
+        return this._funcExpr
     }
 
     /**
      * @type {Type}
      */
     get retType() {
-        return this.#funcExpr.retType
+        return this._funcExpr.retType
     }
 
     /**
      * @type {Site}
      */
     get retSite() {
-        return this.#funcExpr.retExpr.site
+        return this._funcExpr.retExpr.site
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        return `func ${this.name.toString()}${this.#parameters.toString()}${this.#funcExpr.toString()}`
+        return `func ${this.name.toString()}${this._parameters.toString()}${this._funcExpr.toString()}`
     }
 
     /**
@@ -126,11 +130,11 @@ export class FuncStatement extends Statement {
      * @returns {EvalEntity}
      */
     evalInternal(scope, isMember = false) {
-        const typed = this.#parameters.evalParametricFunc(scope, (subScope) => {
-            const type = this.#funcExpr.evalType(subScope)
+        const typed = this._parameters.evalParametricFunc(scope, (subScope) => {
+            const type = this._funcExpr.evalType(subScope)
 
             if (isMember) {
-                void this.#funcExpr.evalInternal(subScope)
+                void this._funcExpr.evalInternal(subScope)
             } else {
                 const implScope = new Scope(subScope)
 
@@ -140,7 +144,7 @@ export class FuncStatement extends Statement {
                     new NamedEntity(this.name.value, super.path, type.toTyped())
                 )
 
-                void this.#funcExpr.evalInternal(implScope)
+                void this._funcExpr.evalInternal(implScope)
             }
 
             return type
@@ -156,8 +160,8 @@ export class FuncStatement extends Statement {
      * @returns {ParametricFunc | FuncType}
      */
     evalType(scope) {
-        return this.#parameters.evalParametricFuncType(scope, (subScope) => {
-            return this.#funcExpr.evalType(subScope)
+        return this._parameters.evalParametricFuncType(scope, (subScope) => {
+            return this._funcExpr.evalType(subScope)
         })
     }
 
@@ -185,7 +189,7 @@ export class FuncStatement extends Statement {
      * @returns {SourceMappedStringI}
      */
     toIRInternal(ctx) {
-        return this.#funcExpr.toIR(ctx)
+        return this._funcExpr.toIR(ctx)
     }
 
     /**
@@ -212,7 +216,7 @@ export class FuncStatement extends Statement {
      */
     static isMethod(s) {
         if (s instanceof FuncStatement) {
-            return s.#funcExpr.isMethod()
+            return s._funcExpr.isMethod()
         } else {
             return false
         }

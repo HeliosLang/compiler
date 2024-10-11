@@ -16,17 +16,11 @@ import { Statement } from "./Statement.js"
  */
 export class ImportModuleStatement extends Statement {
     /**
-     * @type {Map<string, EvalEntity>}
-     */
-    #imported
-
-    /**
      * @param {Site} site
      * @param {Word} moduleName
      */
     constructor(site, moduleName) {
         super(site, moduleName)
-        this.#imported = new Map()
     }
 
     /**
@@ -77,10 +71,10 @@ export class ImportModuleStatement extends Statement {
     }
 
     /**
-     * @param {ToIRContext} ctx
-     * @param {Definitions} map
+     * @param {ToIRContext} _ctx
+     * @param {Definitions} _map
      */
-    toIR(ctx, map) {
+    toIR(_ctx, _map) {
         // import statements only have a scoping function and don't do anything to the IR
     }
 }

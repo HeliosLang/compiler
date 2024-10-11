@@ -17,8 +17,19 @@ import { Expr } from "./Expr.js"
  * Literal UplcData which is the result of parameter substitutions.
  */
 export class LiteralDataExpr extends Expr {
-    #type
-    #data
+    /**
+     * @private
+     * @readonly
+     * @type {DataType}
+     */
+    _type
+
+    /**
+     * @private
+     * @readonly
+     * @type {UplcData}
+     */
+    _data
 
     /**
      * @param {Site} site
@@ -27,9 +38,9 @@ export class LiteralDataExpr extends Expr {
      */
     constructor(site, type, data) {
         super(site)
-        this.#type = type
-        this.#data = data
-        this.cache = new DataEntity(this.#type)
+        this._type = type
+        this._data = data
+        this.cache = new DataEntity(this._type)
     }
 
     /**
@@ -37,7 +48,7 @@ export class LiteralDataExpr extends Expr {
      * @type {DataType}
      */
     get type() {
-        return this.#type
+        return this._type
     }
 
     /**
@@ -48,11 +59,11 @@ export class LiteralDataExpr extends Expr {
     }
 
     /**
-     * @param {Scope} scope
+     * @param {Scope} _scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        return new DataEntity(this.#type)
+    evalInternal(_scope) {
+        return new DataEntity(this._type)
     }
 
     /**
@@ -67,6 +78,6 @@ export class LiteralDataExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `##${bytesToHex(this.#data.toCbor())}`
+        return `##${bytesToHex(this._data.toCbor())}`
     }
 }

@@ -63,9 +63,8 @@ export class UnaryExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-
         const a = this._a.eval(scope).asInstance
-        
+
         if (!a) {
             throw CompilerError.type(this._a.site, "not an instance")
         }

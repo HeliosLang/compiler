@@ -16,14 +16,18 @@ import { BoolType, StringType } from "./primitives.js"
  */
 export class BuiltinFunc extends Common {
     /**
+     * @private
+     * @readonly
      * @type {string}
      */
-    #name
+    _name
 
     /**
+     * @private
+     * @readonly
      * @type {FuncType}
      */
-    #type
+    _type
 
     /**
      *
@@ -34,36 +38,36 @@ export class BuiltinFunc extends Common {
      */
     constructor({ name, type }) {
         super()
-        this.#name = name
-        this.#type = type
+        this._name = name
+        this._type = type
     }
 
     /**
      * @type {string}
      */
     get name() {
-        return this.#name
+        return this._name
     }
 
     /**
      * @type {string}
      */
     get path() {
-        return `__helios__${this.#name}`
+        return `__helios__${this._name}`
     }
 
     /**
      * @type {Type}
      */
     get type() {
-        return this.#type
+        return this._type
     }
 
     /**
      * @type {FuncType}
      */
     get funcType() {
-        return this.#type
+        return this._type
     }
 
     /**
@@ -95,7 +99,7 @@ export class BuiltinFunc extends Common {
      * @returns {Typed}
      */
     call(site, args, namedArgs = {}) {
-        const res = this.#type.checkCall(site, args, namedArgs)
+        const res = this._type.checkCall(site, args, namedArgs)
 
         return res.toTyped()
     }

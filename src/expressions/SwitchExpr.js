@@ -11,10 +11,30 @@ import { VoidExpr } from "./VoidExpr.js"
  * Parent class of EnumSwitchExpr and DataSwitchExpr
  */
 export class SwitchExpr extends Expr {
+    /**
+     * @type {Site}
+     */
     dotSite
-    #controlExpr
-    #cases
-    #defaultCase
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _controlExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {SwitchCase[]}
+     */
+    _cases
+
+    /**
+     * @private
+     * @type {Option<SwitchDefault>}
+     */
+    _defaultCase
 
     /**
      * @param {Site} site
@@ -26,37 +46,37 @@ export class SwitchExpr extends Expr {
     constructor(site, dotSite, controlExpr, cases, defaultCase = None) {
         super(site)
         this.dotSite = dotSite
-        this.#controlExpr = controlExpr
-        this.#cases = cases
-        this.#defaultCase = defaultCase
+        this._controlExpr = controlExpr
+        this._cases = cases
+        this._defaultCase = defaultCase
     }
 
     get controlExpr() {
-        return this.#controlExpr
+        return this._controlExpr
     }
 
     get cases() {
-        return this.#cases
+        return this._cases
     }
 
     /**
      * @type {Option<SwitchDefault>}
      */
     get defaultCase() {
-        return this.#defaultCase
+        return this._defaultCase
     }
 
     /**
      * If there isn't enough coverage then we can simply set the default case to void, so the other branches can be error, print or assert
      */
     setDefaultCaseToVoid() {
-        this.#defaultCase = new SwitchDefault(
+        this._defaultCase = new SwitchDefault(
             this.site,
             new VoidExpr(this.site)
         )
     }
 
     toString() {
-        return `${this.#controlExpr.toString()}.switch{${this.#cases.map((c) => c.toString()).join(", ")}${this.#defaultCase ? ", " + this.#defaultCase.toString() : ""}}`
+        return `${this._controlExpr.toString()}.switch{${this._cases.map((c) => c.toString()).join(", ")}${this._defaultCase ? ", " + this._defaultCase.toString() : ""}}`
     }
 }

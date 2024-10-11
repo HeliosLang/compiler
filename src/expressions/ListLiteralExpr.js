@@ -17,8 +17,19 @@ import { Expr } from "./Expr.js"
  * []{...} expression
  */
 export class ListLiteralExpr extends Expr {
-    #itemTypeExpr
-    #itemExprs
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _itemTypeExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr[]}
+     */
+    _itemExprs
 
     /**
      * @param {Site} site
@@ -27,15 +38,15 @@ export class ListLiteralExpr extends Expr {
      */
     constructor(site, itemTypeExpr, itemExprs) {
         super(site)
-        this.#itemTypeExpr = itemTypeExpr
-        this.#itemExprs = itemExprs
+        this._itemTypeExpr = itemTypeExpr
+        this._itemExprs = itemExprs
     }
 
     /**
      * @type {DataType}
      */
     get itemType() {
-        return expectSome(this.#itemTypeExpr.cache?.asDataType)
+        return expectSome(this._itemTypeExpr.cache?.asDataType)
     }
 
     /**
@@ -43,18 +54,18 @@ export class ListLiteralExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const itemType_ = this.#itemTypeExpr.eval(scope)
+        const itemType_ = this._itemTypeExpr.eval(scope)
 
         const itemType = itemType_.asDataType
 
         if (!itemType) {
             throw CompilerError.type(
-                this.#itemTypeExpr.site,
+                this._itemTypeExpr.site,
                 "content of list can't be func"
             )
         }
 
-        for (let itemExpr of this.#itemExprs) {
+        for (let itemExpr of this._itemExprs) {
             const itemVal_ = itemExpr.eval(scope)
             if (!itemVal_) {
                 continue
@@ -95,11 +106,11 @@ export class ListLiteralExpr extends Expr {
 
         // starting from last element, keeping prepending a data version of that item
 
-        for (let i = this.#itemExprs.length - 1; i >= 0; i--) {
+        for (let i = this._itemExprs.length - 1; i >= 0; i--) {
             let itemIR = $([
                 $(`${this.itemType.path}____to_data`),
                 $("("),
-                this.#itemExprs[i].toIR(ctx),
+                this._itemExprs[i].toIR(ctx),
                 $(")")
             ])
 
@@ -113,6 +124,6 @@ export class ListLiteralExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `[]${this.#itemTypeExpr.toString()}{${this.#itemExprs.map((itemExpr) => itemExpr.toString()).join(", ")}}`
+        return `[]${this._itemTypeExpr.toString()}{${this._itemExprs.map((itemExpr) => itemExpr.toString()).join(", ")}}`
     }
 }

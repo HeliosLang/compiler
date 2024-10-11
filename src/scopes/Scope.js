@@ -15,20 +15,25 @@ import { GlobalScope } from "./GlobalScope.js"
  */
 export class Scope extends Common {
     /**
+     * @private
+     * @readonly
      * @type {GlobalScope | Scope}
      */
-    #parent
+    _parent
 
     /**
-     * TopScope can elverage the #values to store ModuleScopes
+     * TopScope can elverage the _values to store ModuleScopes
+     * @private
      * @type {[Word, (EvalEntity | Scope), boolean][]}
      */
-    #values
+    _values
 
     /**
+     * @private
+     * @readonly
      * @type {boolean}
      */
-    #allowShadowing
+    _allowShadowing
 
     /**
      * @param {GlobalScope | Scope} parent
@@ -36,23 +41,23 @@ export class Scope extends Common {
      */
     constructor(parent, allowShadowing = false) {
         super()
-        this.#parent = parent
-        this.#values = [] // list of pairs
-        this.#allowShadowing = allowShadowing
+        this._parent = parent
+        this._values = [] // list of pairs
+        this._allowShadowing = allowShadowing
     }
 
     /**
      * @type {boolean}
      */
     get allowShadowing() {
-        return this.#allowShadowing
+        return this._allowShadowing
     }
 
     /**
      * Used by top-scope to loop over all the statements
      */
     get values() {
-        return this.#values.slice()
+        return this._values.slice()
     }
 
     /**
@@ -61,14 +66,14 @@ export class Scope extends Common {
      * @returns {boolean}
      */
     has(name) {
-        for (let pair of this.#values) {
+        for (let pair of this._values) {
             if (pair[0].toString() == name.toString()) {
                 return true
             }
         }
 
-        if (this.#parent) {
-            return this.#parent.has(name)
+        if (this._parent) {
+            return this._parent.has(name)
         } else {
             return false
         }
@@ -115,7 +120,7 @@ export class Scope extends Common {
             }
         }
 
-        this.#values.push([name, value, false])
+        this._values.push([name, value, false])
     }
 
     /**
@@ -124,14 +129,14 @@ export class Scope extends Common {
      * @param {EvalEntity | Scope} value
      */
     set(name, value) {
-        this.setInternal(name, value, this.#allowShadowing)
+        this.setInternal(name, value, this._allowShadowing)
     }
 
     /**
      * @param {Word} name
      */
     remove(name) {
-        this.#values = this.#values.filter(([n, _]) => n.value != name.value)
+        this._values = this._values.filter(([n, _]) => n.value != name.value)
     }
 
     /**
@@ -164,13 +169,13 @@ export class Scope extends Common {
      * @returns {Option<Named & Namespace>}
      */
     getBuiltinNamespace(name) {
-        if (!this.#parent) {
+        if (!this._parent) {
             throw CompilerError.reference(
                 name.site,
                 `namespace ${name.value} not found`
             )
         } else {
-            return this.#parent.getBuiltinNamespace(name)
+            return this._parent.getBuiltinNamespace(name)
         }
     }
 
@@ -185,22 +190,22 @@ export class Scope extends Common {
             name = new Word(name)
         }
 
-        for (let i = this.#values.length - 1; i >= 0; i--) {
-            const [key, entity, _] = this.#values[i]
+        for (let i = this._values.length - 1; i >= 0; i--) {
+            const [key, entity, _] = this._values[i]
 
             if (key.toString() == name.toString()) {
                 if (!dryRun) {
-                    this.#values[i][2] = true
+                    this._values[i][2] = true
                 }
                 return entity
             }
         }
 
-        if (this.#parent) {
-            if (this.#parent instanceof GlobalScope) {
-                return this.#parent.get(name)
+        if (this._parent) {
+            if (this._parent instanceof GlobalScope) {
+                return this._parent.get(name)
             } else {
-                return this.#parent.get(name, dryRun)
+                return this._parent.get(name, dryRun)
             }
         } else {
             throw CompilerError.reference(
@@ -214,7 +219,7 @@ export class Scope extends Common {
      * @returns {boolean}
      */
     isStrict() {
-        return this.#parent.isStrict()
+        return this._parent.isStrict()
     }
 
     /**
@@ -225,7 +230,7 @@ export class Scope extends Common {
      */
     assertAllUsed(onlyIfStrict = true) {
         if (!onlyIfStrict || this.isStrict()) {
-            for (let [name, entity, used] of this.#values) {
+            for (let [name, entity, used] of this._values) {
                 const flaggedUnused = name.value.startsWith("_")
                 if (!used && !(entity instanceof Scope) && !flaggedUnused) {
                     throw CompilerError.reference(
@@ -248,7 +253,7 @@ export class Scope extends Common {
      * @returns {boolean}
      */
     isUsed(name) {
-        for (let [checkName, entity, used] of this.#values) {
+        for (let [checkName, entity, used] of this._values) {
             if (name.value == checkName.value && !(entity instanceof Scope)) {
                 return used
             }
@@ -261,9 +266,9 @@ export class Scope extends Common {
      * @param {(name: string, type: Type) => void} callback
      */
     loopTypes(callback) {
-        this.#parent.loopTypes(callback)
+        this._parent.loopTypes(callback)
 
-        for (let [k, v] of this.#values) {
+        for (let [k, v] of this._values) {
             if (v.asType) {
                 callback(k.value, v.asType)
             }

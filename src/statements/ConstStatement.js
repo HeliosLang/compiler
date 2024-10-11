@@ -21,14 +21,17 @@ import { Statement } from "./Statement.js"
  */
 export class ConstStatement extends Statement {
     /**
+     * @private
+     * @readonly
      * @type {Option<Expr>}
      */
-    #typeExpr
+    _typeExpr
 
     /**
+     * @private
      * @type {Option<Expr>}
      */
-    #valueExpr
+    _valueExpr
 
     /**
      * @param {Site} site
@@ -38,8 +41,8 @@ export class ConstStatement extends Statement {
      */
     constructor(site, name, typeExpr, valueExpr) {
         super(site, name)
-        this.#typeExpr = typeExpr
-        this.#valueExpr = valueExpr
+        this._typeExpr = typeExpr
+        this._valueExpr = valueExpr
     }
 
     /**
@@ -47,11 +50,11 @@ export class ConstStatement extends Statement {
      */
     get type() {
         return expectSome(
-            this.#typeExpr?.cache?.asDataType ??
-                this.#valueExpr?.cache?.asTyped?.type?.asDataType,
-            this.#typeExpr?.cache?.toString() ??
-                this.#typeExpr?.toString() ??
-                this.#valueExpr?.toString() ??
+            this._typeExpr?.cache?.asDataType ??
+                this._valueExpr?.cache?.asTyped?.type?.asDataType,
+            this._typeExpr?.cache?.toString() ??
+                this._typeExpr?.toString() ??
+                this._valueExpr?.toString() ??
                 "Any"
         )
     }
@@ -60,7 +63,7 @@ export class ConstStatement extends Statement {
      * @returns {boolean}
      */
     isSet() {
-        return isSome(this.#valueExpr)
+        return isSome(this._valueExpr)
     }
 
     /**
@@ -69,16 +72,16 @@ export class ConstStatement extends Statement {
      */
     changeValueSafe(data) {
         const type = this.type
-        const site = this.#valueExpr ? this.#valueExpr.site : this.site
+        const site = this._valueExpr ? this._valueExpr.site : this.site
 
-        this.#valueExpr = new LiteralDataExpr(site, type, data)
+        this._valueExpr = new LiteralDataExpr(site, type, data)
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        return `const ${this.name.toString()}${this.#typeExpr ? `: ${this.#typeExpr.toString()}` : ""}${this.#valueExpr ? ` = ${this.#valueExpr.toString()}` : ""};`
+        return `const ${this.name.toString()}${this._typeExpr ? `: ${this._typeExpr.toString()}` : ""}${this._valueExpr ? ` = ${this._valueExpr.toString()}` : ""};`
     }
 
     /**
@@ -86,10 +89,10 @@ export class ConstStatement extends Statement {
      * @returns {DataType}
      */
     evalType(scope) {
-        if (this.#typeExpr) {
-            return this.#typeExpr.evalAsDataType(scope)
-        } else if (this.#valueExpr) {
-            return this.#valueExpr.evalAsDataType(scope)
+        if (this._typeExpr) {
+            return this._typeExpr.evalAsDataType(scope)
+        } else if (this._valueExpr) {
+            return this._valueExpr.evalAsDataType(scope)
         } else {
             throw new Error("unexpected")
         }
@@ -100,14 +103,14 @@ export class ConstStatement extends Statement {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        let type = this.#typeExpr?.evalAsDataType(scope)
+        let type = this._typeExpr?.evalAsDataType(scope)
 
-        if (this.#valueExpr) {
-            const value = this.#valueExpr.evalAsTyped(scope)
+        if (this._valueExpr) {
+            const value = this._valueExpr.evalAsTyped(scope)
 
             if (type) {
                 if (!type.isBaseOf(value.type)) {
-                    throw CompilerError.type(this.#valueExpr.site, "wrong type")
+                    throw CompilerError.type(this._valueExpr.site, "wrong type")
                 }
             } else {
                 type = value.type.asDataType ?? undefined
@@ -135,13 +138,13 @@ export class ConstStatement extends Statement {
      * @returns {SourceMappedStringI}
      */
     toIRInternal(ctx) {
-        let ir = expectSome(this.#valueExpr).toIR(ctx)
+        let ir = expectSome(this._valueExpr).toIR(ctx)
 
-        if (this.#valueExpr instanceof LiteralDataExpr) {
-            ir = $`${this.#valueExpr.type.path}__from_data${$("(", this.site)}${ir})`
+        if (this._valueExpr instanceof LiteralDataExpr) {
+            ir = $`${this._valueExpr.type.path}__from_data${$("(", this.site)}${ir})`
         }
 
-        // if this.#valueExpr is None, and paramsSubstitutable is true -> param macro with single argument
+        // if this._valueExpr is None, and paramsSubstitutable is true -> param macro with single argument
         if (ctx.paramsSubsitutable) {
             return $`${PARAM_IR_MACRO}("${this.path}", ${ir})`
         } else {
@@ -154,7 +157,7 @@ export class ConstStatement extends Statement {
      * @param {Definitions} map
      */
     toIR(ctx, map) {
-        if (this.#valueExpr) {
+        if (this._valueExpr) {
             const alias = ctx.aliasNamespace
                 ? `${ctx.aliasNamespace}::${this.name.value}`
                 : this.name.value

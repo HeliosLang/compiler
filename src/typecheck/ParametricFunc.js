@@ -18,8 +18,19 @@ import { Parameter } from "./Parameter.js"
  * @implements {Parametric}
  */
 export class ParametricFunc extends Common {
-    #params
-    #fnType
+    /**
+     * @private
+     * @readonly
+     * @type {Parameter[]}
+     */
+    _params
+
+    /**
+     * @private
+     * @readonly
+     * @type {FuncType}
+     */
+    _fnType
 
     /**
      * @param {Parameter[]} params
@@ -27,16 +38,16 @@ export class ParametricFunc extends Common {
      */
     constructor(params, fnType) {
         super()
-        this.#params = params
-        this.#fnType = fnType
+        this._params = params
+        this._fnType = fnType
     }
 
     get params() {
-        return this.#params
+        return this._params
     }
 
     get fnType() {
-        return this.#fnType
+        return this._fnType
     }
 
     /**
@@ -44,7 +55,7 @@ export class ParametricFunc extends Common {
      * @type {TypeClass[]}
      */
     get typeClasses() {
-        return this.#params.map((p) => p.typeClass)
+        return this._params.map((p) => p.typeClass)
     }
 
     /**
@@ -53,7 +64,7 @@ export class ParametricFunc extends Common {
      * @returns {EvalEntity}
      */
     apply(types, site = TokenSite.dummy()) {
-        if (types.length != this.#params.length) {
+        if (types.length != this._params.length) {
             throw CompilerError.type(
                 site,
                 "wrong number of parameter type arguments"
@@ -65,7 +76,7 @@ export class ParametricFunc extends Common {
          */
         const map = new Map()
 
-        this.#params.forEach((p, i) => {
+        this._params.forEach((p, i) => {
             if (!p.typeClass.isImplementedBy(types[i])) {
                 throw CompilerError.type(site, "typeclass match failed")
             }
@@ -73,7 +84,7 @@ export class ParametricFunc extends Common {
             map.set(p, types[i])
         })
 
-        const inferred = this.#fnType.infer(site, map, null)
+        const inferred = this._fnType.infer(site, map, null)
 
         if (inferred instanceof FuncType) {
             return new FuncEntity(inferred)
@@ -103,14 +114,14 @@ export class ParametricFunc extends Common {
          */
         const map = new Map()
 
-        const fnType = this.#fnType.inferArgs(
+        const fnType = this._fnType.inferArgs(
             site,
             map,
             args.map((a) => a.type)
         )
 
         // make sure that each parameter is defined in the map
-        this.#params.forEach((p) => {
+        this._params.forEach((p) => {
             const pt = map.get(p)
 
             if (!pt) {
@@ -132,10 +143,10 @@ export class ParametricFunc extends Common {
      * @returns {Parametric}
      */
     infer(site, map) {
-        const fnType = this.#fnType.infer(site, map, null)
+        const fnType = this._fnType.infer(site, map, null)
 
         if (fnType instanceof FuncType) {
-            return new ParametricFunc(this.#params, fnType)
+            return new ParametricFunc(this._params, fnType)
         } else {
             throw new Error("unexpected")
         }
@@ -145,6 +156,6 @@ export class ParametricFunc extends Common {
      * @returns {string}
      */
     toString() {
-        return `[${this.#params.map((p) => p.toString()).join(", ")}]${this.#fnType.toString()}`
+        return `[${this._params.map((p) => p.toString()).join(", ")}]${this._fnType.toString()}`
     }
 }

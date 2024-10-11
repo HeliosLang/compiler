@@ -58,9 +58,10 @@ export class EntryPointImpl {
     globalScope
 
     /**
+     * @private
      * @type {Option<TopScope>}
      */
-    #topScope
+    _topScope
 
     /**
      * @param {ModuleCollection} modules
@@ -68,7 +69,7 @@ export class EntryPointImpl {
     constructor(modules) {
         this.modules = modules
         this.globalScope = None
-        this.#topScope = None
+        this._topScope = None
     }
 
     /**
@@ -140,7 +141,7 @@ export class EntryPointImpl {
      * @type {Record<string, Record<string, DataType>>}
      */
     get userTypes() {
-        const topScope = expectSome(this.#topScope)
+        const topScope = expectSome(this._topScope)
 
         /**
          * @type {Record<string, Record<string, any>>}
@@ -346,7 +347,7 @@ export class EntryPointImpl {
 
         this.modules.evalTypes(topScope)
 
-        this.#topScope = topScope
+        this._topScope = topScope
     }
 
     /**

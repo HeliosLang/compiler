@@ -122,12 +122,14 @@ export const builtinTypes = {
  */
 export class GlobalScope {
     /**
+     * @private
+     * @readonly
      * @type {[Word, EvalEntity][]}
      */
-    #values
+    _values
 
     constructor() {
-        this.#values = []
+        this._values = []
     }
 
     /**
@@ -136,7 +138,7 @@ export class GlobalScope {
      * @returns {boolean}
      */
     has(name) {
-        for (let pair of this.#values) {
+        for (let pair of this._values) {
             if (pair[0].toString() == name.toString()) {
                 return true
             }
@@ -155,7 +157,7 @@ export class GlobalScope {
         /** @type {Word} */
         let nameWord = !(name instanceof Word) ? new Word(name) : name
 
-        this.#values.push([nameWord, value])
+        this._values.push([nameWord, value])
     }
 
     /**
@@ -165,7 +167,7 @@ export class GlobalScope {
      * @returns {EvalEntity}
      */
     get(name) {
-        for (let pair of this.#values) {
+        for (let pair of this._values) {
             if (pair[0].toString() == name.toString()) {
                 return pair[1]
             }
@@ -183,8 +185,8 @@ export class GlobalScope {
      */
     getBuiltinNamespace(name) {
         if (name.value in builtinNamespaces) {
-            const nameEntity = this.#values.find(
-                ([n, entity]) => n.value == name.value
+            const nameEntity = this._values.find(
+                ([n, _entity]) => n.value == name.value
             )
 
             if (nameEntity) {
@@ -254,7 +256,7 @@ export class GlobalScope {
      * @param {(name: string, type: Type) => void} callback
      */
     loopTypes(callback) {
-        for (let [k, v] of this.#values) {
+        for (let [k, v] of this._values) {
             if (v.asType) {
                 callback(k.value, v.asType)
             }

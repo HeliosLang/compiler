@@ -27,9 +27,11 @@ export class AssignExpr extends ChainExpr {
     semicolonSite
 
     /**
+     * @private
+     * @readonly
      * @type {DestructExpr}
      */
-    #nameType
+    _nameType
 
     /**
      * @param {Site} site
@@ -41,7 +43,7 @@ export class AssignExpr extends ChainExpr {
     constructor(site, semicolonSite, nameType, upstreamExpr, downstreamExpr) {
         super(site, upstreamExpr, downstreamExpr)
         this.semicolonSite = semicolonSite
-        this.#nameType = nameType
+        this._nameType = nameType
     }
 
     /**
@@ -54,8 +56,8 @@ export class AssignExpr extends ChainExpr {
         let upstreamVal = this.upstreamExpr.eval(scope)
 
         if (upstreamVal && upstreamVal.asTyped) {
-            if (this.#nameType.hasType() || this.#nameType.isTuple()) {
-                this.#nameType.evalInAssignExpr(
+            if (this._nameType.hasType() || this._nameType.isTuple()) {
+                this._nameType.evalInAssignExpr(
                     subScope,
                     expectSome(upstreamVal.asTyped.type.asType),
                     0
@@ -77,17 +79,17 @@ export class AssignExpr extends ChainExpr {
                     }
                 }
 
-                subScope.set(this.#nameType.name, upstreamVal)
+                subScope.set(this._nameType.name, upstreamVal)
             }
-        } else if (this.#nameType.hasType()) {
+        } else if (this._nameType.hasType()) {
             // this is the fallback case if the upstream has itself a typeerror
-            this.#nameType.evalInAssignExpr(subScope, null, 0)
+            this._nameType.evalInAssignExpr(subScope, null, 0)
         } else {
             throw CompilerError.type(
                 this.upstreamExpr.site,
                 "rhs isn't an instance"
             )
-            subScope.set(this.#nameType.name, new DataEntity(new AnyType()))
+            subScope.set(this._nameType.name, new DataEntity(new AnyType()))
         }
 
         const downstreamVal = this.downstreamExpr.eval(subScope)
@@ -105,18 +107,18 @@ export class AssignExpr extends ChainExpr {
     toIR(ctx) {
         let inner = this.downstreamExpr.toIR(ctx.tab())
 
-        if (this.#nameType.isTuple() && this.#nameType.isIgnored()) {
+        if (this._nameType.isTuple() && this._nameType.isIgnored()) {
             // TODO: get rid of this on the next major version release, while making sure the default approach is equally efficient (i.e. the callback call is properly inlined)
             // keep using the old way of creating the IR in order to assure backwards compatibility
-            for (let i = this.#nameType.children.length - 1; i >= 0; i--) {
+            for (let i = this._nameType.children.length - 1; i >= 0; i--) {
                 // internally generates enum-member error IR
-                inner = this.#nameType.children[i].wrapDestructIR(ctx, inner, i)
+                inner = this._nameType.children[i].wrapDestructIR(ctx, inner, i)
             }
 
             const ir = $([
                 this.upstreamExpr.toIR(ctx),
                 $(`(\n${ctx.indent + TAB}(`),
-                $(this.#nameType.children.map((nt, i) => nt.toNameIR(i))).join(
+                $(this._nameType.children.map((nt, i) => nt.toNameIR(i))).join(
                     ", "
                 ),
                 $(") "),
@@ -133,14 +135,14 @@ export class AssignExpr extends ChainExpr {
 
             return ir
         } else {
-            inner = this.#nameType.wrapDestructIR(ctx, inner, 0)
+            inner = this._nameType.wrapDestructIR(ctx, inner, 0)
 
             let upstream = this.upstreamExpr.toIR(ctx)
 
             // enum member run-time error IR
             // TODO: should this be nestable
-            if (this.#nameType.hasType()) {
-                const t = this.#nameType.type
+            if (this._nameType.hasType()) {
+                const t = this._nameType.type
 
                 if (t.asEnumMemberType) {
                     upstream = $([
@@ -153,7 +155,7 @@ export class AssignExpr extends ChainExpr {
 
             return $([
                 $("("),
-                this.#nameType.toNameIR(0), // wrapDestructIR depends on this name
+                this._nameType.toNameIR(0), // wrapDestructIR depends on this name
                 $(") "),
                 $(
                     "->",
@@ -177,6 +179,6 @@ export class AssignExpr extends ChainExpr {
     toString() {
         let downstreamStr = this.downstreamExpr.toString()
 
-        return `${this.#nameType.toString()} = ${this.upstreamExpr.toString()}; ${downstreamStr}`
+        return `${this._nameType.toString()} = ${this.upstreamExpr.toString()}; ${downstreamStr}`
     }
 }

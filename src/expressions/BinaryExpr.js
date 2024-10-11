@@ -33,11 +33,38 @@ export const BINARY_SYMBOLS_MAP = {
  * Binary operator expression
  */
 export class BinaryExpr extends Expr {
-    #op
-    #a
-    #b
-    #swap // swap a and b for commutative ops
-    #alt // use alt (each operator can have one overload)
+    /**
+     * @private
+     * @readonly
+     * @typedef {SymbolToken}
+     */
+    _op
+
+    /**
+     * @private
+     * @readonly
+     * @typedef {Expr}
+     */
+    _a
+
+    /**
+     * @private
+     * @readonly
+     * @typedef {Expr}
+     */
+    _b
+
+    /**
+     * @private
+     * @type {boolean}
+     */
+    _swap // swap a and b for commutative ops
+
+    /**
+     * @private
+     * @type {number}
+     */
+    _alt // use alt (each operator can have one overload)
 
     /**
      * @param {SymbolToken} op
@@ -46,29 +73,32 @@ export class BinaryExpr extends Expr {
      */
     constructor(op, a, b) {
         super(op.site)
-        this.#op = op
-        this.#a = a
-        this.#b = b
-        this.#swap = false
-        this.#alt = 0
+        this._op = op
+        this._a = a
+        this._b = b
+        this._swap = false
+        this._alt = 0
     }
 
     /**
      * @type {Expr}
      */
     get first() {
-        return this.#swap ? this.#b : this.#a
+        return this._swap ? this._b : this._a
     }
 
     /**
      * @type {Expr}
      */
     get second() {
-        return this.#swap ? this.#a : this.#b
+        return this._swap ? this._a : this._b
     }
 
+    /**
+     * @returns {string}
+     */
     toString() {
-        return `${this.#a.toString()} ${this.#op.toString()} ${this.#b.toString()}`
+        return `${this._a.toString()} ${this._op.toString()} ${this._b.toString()}`
     }
 
     /**
@@ -77,8 +107,8 @@ export class BinaryExpr extends Expr {
      * @returns {Word}
      */
     translateOp(alt = 0) {
-        const op = this.#op.toString()
-        const site = this.#op.site
+        const op = this._op.toString()
+        const site = this._op.site
 
         let name = BINARY_SYMBOLS_MAP[op]
 
@@ -97,7 +127,7 @@ export class BinaryExpr extends Expr {
      * @returns {boolean}
      */
     isCommutative() {
-        switch (this.#op.toString()) {
+        switch (this._op.toString()) {
             case "+":
             case "*":
             case "==":
@@ -113,22 +143,22 @@ export class BinaryExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const a_ = this.#a.eval(scope)
-        const b_ = this.#b.eval(scope)
+        const a_ = this._a.eval(scope)
+        const b_ = this._b.eval(scope)
 
         const a = a_.asInstance
         if (!a) {
             throw CompilerError.type(
-                this.#a.site,
-                `lhs of ${this.#op.toString()} not an instance`
+                this._a.site,
+                `lhs of ${this._op.toString()} not an instance`
             )
         }
 
         const b = b_.asInstance
         if (!b) {
             throw CompilerError.type(
-                this.#b.site,
-                `rhs of ${this.#op.toString()} not an instance`
+                this._b.site,
+                `rhs of ${this._op.toString()} not an instance`
             )
         }
 
@@ -149,10 +179,10 @@ export class BinaryExpr extends Expr {
                     fnVal.funcType.argTypes[0].isBaseOf(first.type) &&
                     fnVal.funcType.argTypes[1].isBaseOf(second.type)
                 ) {
-                    let res = fnVal.call(this.#op.site, [first, second])
+                    let res = fnVal.call(this._op.site, [first, second])
 
-                    this.#swap = swap
-                    this.#alt = alt
+                    this._swap = swap
+                    this._alt = alt
 
                     return res
                 }
@@ -161,7 +191,7 @@ export class BinaryExpr extends Expr {
 
         throw CompilerError.type(
             this.site,
-            `'${a.type.toString()} ${this.#op.toString()} ${b.type.toString()}' undefined`
+            `'${a.type.toString()} ${this._op.toString()} ${b.type.toString()}' undefined`
         )
     }
 
@@ -172,7 +202,7 @@ export class BinaryExpr extends Expr {
     toIR(ctx) {
         let path = expectSome(this.first.cache?.asTyped?.type.asNamed).path
 
-        let op = this.translateOp(this.#alt).value
+        let op = this.translateOp(this._alt).value
 
         if (op == "__and" || op == "__or") {
             return $([

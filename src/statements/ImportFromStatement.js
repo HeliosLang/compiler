@@ -15,8 +15,19 @@ import { Statement } from "./Statement.js"
  * Each field in `import {...} from <ModuleName>` is given a separate ImportFromStatement
  */
 export class ImportFromStatement extends Statement {
-    #origName
-    #moduleName
+    /**
+     * @private
+     * @readonly
+     * @type {Word}
+     */
+    _origName
+
+    /**
+     * @private
+     * @readonly
+     * @type {Word}
+     */
+    _moduleName
 
     /**
      * @param {Site} site
@@ -26,22 +37,22 @@ export class ImportFromStatement extends Statement {
      */
     constructor(site, name, origName, moduleName) {
         super(site, name)
-        this.#origName = origName
-        this.#moduleName = moduleName
+        this._origName = origName
+        this._moduleName = moduleName
     }
 
     /**
      * @type {Word}
      */
     get moduleName() {
-        return this.#moduleName
+        return this._moduleName
     }
 
     /**
      * @type {string}
      */
     get origPath() {
-        return `${this.basePath}__${this.#origName.toString()}`
+        return `${this.basePath}__${this._origName.toString()}`
     }
 
     /**
@@ -49,7 +60,7 @@ export class ImportFromStatement extends Statement {
      * @returns {boolean}
      */
     isBuiltinNamespace() {
-        return this.#moduleName.value in builtinNamespaces
+        return this._moduleName.value in builtinNamespaces
     }
 
     /**
@@ -58,18 +69,18 @@ export class ImportFromStatement extends Statement {
      */
     evalInternal(scope) {
         if (this.isBuiltinNamespace()) {
-            const namespace = scope.getBuiltinNamespace(this.#moduleName)
+            const namespace = scope.getBuiltinNamespace(this._moduleName)
 
             if (!namespace) {
                 return None
             }
 
-            let member = namespace.namespaceMembers[this.#origName.value]
+            let member = namespace.namespaceMembers[this._origName.value]
 
             if (!member) {
                 throw CompilerError.reference(
-                    this.#origName.site,
-                    `'${this.#moduleName.value}.${this.#origName.value}' undefined`
+                    this._origName.site,
+                    `'${this._moduleName.value}.${this._origName.value}' undefined`
                 )
 
                 return null
@@ -81,21 +92,21 @@ export class ImportFromStatement extends Statement {
 
             return new NamedEntity(
                 this.name.value,
-                `${namespace.path}__${this.#origName.value}`,
+                `${namespace.path}__${this._origName.value}`,
                 member
             )
         } else {
-            const importedScope = scope.getScope(this.#moduleName)
+            const importedScope = scope.getScope(this._moduleName)
 
             if (!importedScope) {
                 return null
             }
 
-            const importedEntity = importedScope.get(this.#origName)
+            const importedEntity = importedScope.get(this._origName)
 
             if (importedEntity instanceof Scope) {
                 throw CompilerError.type(
-                    this.#origName.site,
+                    this._origName.site,
                     `can't import a module from a module`
                 )
                 return null

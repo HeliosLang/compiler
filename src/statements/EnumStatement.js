@@ -31,9 +31,26 @@ import { TypeParameters } from "./TypeParameters.js"
  * @internal
  */
 export class EnumStatement extends Statement {
-    #parameters
-    #members
-    #impl
+    /**
+     * @private
+     * @readonly
+     * @type {TypeParameters}
+     */
+    _parameters
+
+    /**
+     * @private
+     * @readonly
+     * @type {EnumMember[]}
+     */
+    _members
+
+    /**
+     * @private
+     * @readonly
+     * @type {ImplDefinition}
+     */
+    _impl
 
     /**
      * @param {Site} site
@@ -44,12 +61,12 @@ export class EnumStatement extends Statement {
      */
     constructor(site, name, parameters, members, impl) {
         super(site, name)
-        this.#parameters = parameters
-        this.#members = members
-        this.#impl = impl
+        this._parameters = parameters
+        this._members = members
+        this._impl = impl
 
-        for (let i = 0; i < this.#members.length; i++) {
-            this.#members[i].registerParent(this, i)
+        for (let i = 0; i < this._members.length; i++) {
+            this._members[i].registerParent(this, i)
         }
     }
 
@@ -57,21 +74,21 @@ export class EnumStatement extends Statement {
      * @type {string}
      */
     get path() {
-        return this.#parameters.genTypePath(super.path)
+        return this._parameters.genTypePath(super.path)
     }
 
     /**
      * @type {Statement[]}
      */
     get statements() {
-        return this.#impl.statements
+        return this._impl.statements
     }
 
     /**
      * @returns {boolean}
      */
     hasParameters() {
-        return this.#parameters.hasParameters()
+        return this._parameters.hasParameters()
     }
 
     /**
@@ -80,7 +97,7 @@ export class EnumStatement extends Statement {
     setBasePath(basePath) {
         super.setBasePath(basePath)
 
-        this.#impl.setBasePath(this.path)
+        this._impl.setBasePath(this.path)
     }
 
     /**
@@ -93,7 +110,7 @@ export class EnumStatement extends Statement {
     findEnumMember(name) {
         let found = -1
         let i = 0
-        for (let member of this.#members) {
+        for (let member of this._members) {
             if (member.name.toString() == name.toString()) {
                 found = i
                 break
@@ -109,7 +126,7 @@ export class EnumStatement extends Statement {
      * @returns {EnumMember}
      */
     getEnumMember(i) {
-        return expectSome(this.#members[i])
+        return expectSome(this._members[i])
     }
 
     /**
@@ -124,14 +141,14 @@ export class EnumStatement extends Statement {
      * @returns {number}
      */
     get nEnumMembers() {
-        return this.#members.length
+        return this._members.length
     }
 
     /**
      * @param {Scope} scope
      */
     eval(scope) {
-        const [type, typeScope] = this.#parameters.createParametricType(
+        const [type, typeScope] = this._parameters.createParametricType(
             scope,
             this.site,
             (typeScope) => {
@@ -140,7 +157,7 @@ export class EnumStatement extends Statement {
                  */
                 const genFullMembers = {}
 
-                this.#members.forEach((m) => {
+                this._members.forEach((m) => {
                     genFullMembers[m.name.value] = m.evalType(typeScope)
                 })
 
@@ -168,7 +185,7 @@ export class EnumStatement extends Statement {
                             Array.from(parents).concat([this.path])
                         )
 
-                        const internalEnumTypeParts = this.#members.map(
+                        const internalEnumTypeParts = this._members.map(
                             (member) => member.toSchemaInternal(parents_)
                         )
 
@@ -181,12 +198,12 @@ export class EnumStatement extends Statement {
                     },
                     genInstanceMembers: (self) => ({
                         ...genCommonInstanceMembers(self),
-                        ...this.#impl.genInstanceMembers(typeScope)
+                        ...this._impl.genInstanceMembers(typeScope)
                     }),
                     genTypeMembers: (self) => {
                         const typeMembers_ = {
                             ...genCommonTypeMembers(self),
-                            ...this.#impl.genTypeMembers(typeScope)
+                            ...this._impl.genTypeMembers(typeScope)
                         }
 
                         // TODO: detect duplicates
@@ -200,7 +217,7 @@ export class EnumStatement extends Statement {
                     }
                 }
 
-                if (this.#parameters.hasParameters()) {
+                if (this._parameters.hasParameters()) {
                     return new GenericParametricType(props)
                 } else {
                     return new GenericType(props)
@@ -209,17 +226,17 @@ export class EnumStatement extends Statement {
         )
 
         // don't include type parameters in path (except empty), these are added by application statement
-        const path = this.#parameters.hasParameters() ? super.path : this.path
+        const path = this._parameters.hasParameters() ? super.path : this.path
 
         scope.set(this.name, new NamedEntity(this.name.value, path, type))
 
-        this.#members.forEach((m) => {
+        this._members.forEach((m) => {
             m.evalDataFields(typeScope)
         })
 
         typeScope.assertAllUsed()
 
-        this.#impl.eval(typeScope)
+        this._impl.eval(typeScope)
     }
 
     /**
@@ -228,7 +245,7 @@ export class EnumStatement extends Statement {
     toIR_is_valid_data() {
         let ir = $`false`
 
-        this.#members.forEach((m) => {
+        this._members.forEach((m) => {
             ir = $`__core__ifThenElse(
 				${m.path}__is_valid_data(data),
 				() -> {
@@ -251,12 +268,12 @@ export class EnumStatement extends Statement {
     toIR_show() {
         const name = this.name.value
 
-        const last = this.#members[this.#members.length - 1]
+        const last = this._members[this._members.length - 1]
 
         let ir = $`${last.path}__show(data)()`
 
-        for (let i = this.#members.length - 2; i >= 0; i--) {
-            const m = this.#members[i]
+        for (let i = this._members.length - 2; i >= 0; i--) {
+            const m = this._members[i]
 
             ir = $`__core__ifThenElse(
 				__core__equalsInteger(index, ${m.constrIndex}),
@@ -341,17 +358,17 @@ export class EnumStatement extends Statement {
         })
 
         // member __new and copy methods might depend on __to_data, so must be added after
-        for (let member of this.#members) {
+        for (let member of this._members) {
             member.toIR(ctx, map)
         }
 
-        this.#impl.toIR(ctx.appendAliasNamespace(this.name.value), map)
+        this._impl.toIR(ctx.appendAliasNamespace(this.name.value), map)
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        return `enum ${this.name.toString()}${this.#parameters.toString()} {${this.#members.map((m) => m.toString()).join(", ")}}`
+        return `enum ${this.name.toString()}${this._parameters.toString()} {${this._members.map((m) => m.toString()).join(", ")}}`
     }
 }

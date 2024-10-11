@@ -29,9 +29,26 @@ import { DataField } from "./DataField.js"
  * @internal
  */
 export class DataDefinition {
-    #site
-    #name
-    #fields
+    /**
+     * @private
+     * @readonly
+     * @type {Site}
+     */
+    _site
+
+    /**
+     * @private
+     * @readonly
+     * @type {Word}
+     */
+    _name
+
+    /**
+     * @private
+     * @readonly
+     * @type {DataField[]}
+     */
+    _fields
 
     /**
      * @param {Site} site
@@ -39,41 +56,41 @@ export class DataDefinition {
      * @param {DataField[]} fields
      */
     constructor(site, name, fields) {
-        this.#site = site
-        this.#name = name
-        this.#fields = fields
+        this._site = site
+        this._name = name
+        this._fields = fields
     }
 
     /**
      * @type {Site}
      */
     get site() {
-        return this.#site
+        return this._site
     }
 
     /**
      * @type {Word}
      */
     get name() {
-        return this.#name
+        return this._name
     }
 
     /**
      * @type {DataField[]}
      */
     get fields() {
-        return this.#fields.slice()
+        return this._fields.slice()
     }
 
     /**
      * @type {string[]}
      */
     get fieldNames() {
-        return this.#fields.map((f) => f.name.value)
+        return this._fields.map((f) => f.name.value)
     }
 
     isMappedStruct() {
-        return this.#fields.some((f) => f.hasEncodingKey())
+        return this._fields.some((f) => f.hasEncodingKey())
     }
 
     /**
@@ -85,7 +102,7 @@ export class DataDefinition {
     findField(name) {
         let found = -1
         let i = 0
-        for (let f of this.#fields) {
+        for (let f of this._fields) {
             if (f.name.toString() == name.toString()) {
                 found = i
                 break
@@ -116,7 +133,7 @@ export class DataDefinition {
      * @returns {string}
      */
     toStringFields() {
-        return `{${this.#fields.map((f) => f.toString()).join(", ")}}`
+        return `{${this._fields.map((f) => f.toString()).join(", ")}}`
     }
 
     /**
@@ -136,7 +153,7 @@ export class DataDefinition {
          */
         const fields = {}
 
-        for (let f of this.#fields) {
+        for (let f of this._fields) {
             const f_ = f.eval(scope)
 
             if (f_) {
@@ -153,7 +170,7 @@ export class DataDefinition {
      */
     genCopyType(self) {
         return new FuncType(
-            this.#fields.map((f) => new ArgType(f.name, f.type, true)),
+            this._fields.map((f) => new ArgType(f.name, f.type, true)),
             self
         )
     }
@@ -162,7 +179,7 @@ export class DataDefinition {
      * @type {number}
      */
     get nFields() {
-        return this.#fields.length
+        return this._fields.length
     }
 
     /**
@@ -170,7 +187,7 @@ export class DataDefinition {
      * @returns {DataType}
      */
     getFieldType(i) {
-        return this.#fields[i].type
+        return this._fields[i].type
     }
 
     /**
@@ -192,7 +209,7 @@ export class DataDefinition {
      * @returns {string}
      */
     getFieldName(i) {
-        return this.#fields[i].name.toString()
+        return this._fields[i].name.toString()
     }
 
     /**
@@ -204,7 +221,7 @@ export class DataDefinition {
         const members = {
             ...genCommonInstanceMembers(self),
             copy: new FuncType(
-                this.#fields.map((f) => new ArgType(f.name, f.type, true)),
+                this._fields.map((f) => new ArgType(f.name, f.type, true)),
                 self
             )
         }
@@ -236,7 +253,7 @@ export class DataDefinition {
          */
         const fieldSchemas = []
 
-        this.#fields.forEach((f) => {
+        this._fields.forEach((f) => {
             // change to encodingKey
             const externalName = f.name.value
             const encodingKey =
@@ -278,7 +295,7 @@ export class DataDefinition {
             ir = $`__core__mkNilPairData(())`
 
             for (let i = this.nFields - 1; i >= 0; i--) {
-                const f = this.#fields[i]
+                const f = this._fields[i]
 
                 ir = $`__core__mkCons(
 					__core__mkPairData(
@@ -289,7 +306,7 @@ export class DataDefinition {
 				)`
             }
 
-            ir = $`(${$(this.#fields.map((f) => $(f.name.value))).join(", ")}) -> {
+            ir = $`(${$(this._fields.map((f) => $(f.name.value))).join(", ")}) -> {
                 __core__mapData(${ir})
             }`
         } else if (this.nFields == 1) {
@@ -307,7 +324,7 @@ export class DataDefinition {
             ir = $`__core__mkNilData(())`
 
             for (let i = this.nFields - 1; i >= 0; i--) {
-                const f = this.#fields[i]
+                const f = this._fields[i]
 
                 ir = $`__core__mkCons(${f.type.path}____to_data(${f.name.value}), ${ir})`
             }
@@ -316,7 +333,7 @@ export class DataDefinition {
                 ir = $`__core__constrData(${constrIndex}, ${ir})`
             }
 
-            ir = $`(${$(this.#fields.map((f) => $(f.name.value))).join(", ")}) -> {${ir}}`
+            ir = $`(${$(this._fields.map((f) => $(f.name.value))).join(", ")}) -> {${ir}}`
         }
 
         const key = `${path}____new`
@@ -338,13 +355,13 @@ export class DataDefinition {
             ctx,
             this.site,
             path,
-            this.#fields.map((df) => $(df.name.value))
+            this._fields.map((df) => $(df.name.value))
         )
 
         // wrap with defaults
 
         for (let i = getterNames.length - 1; i >= 0; i--) {
-            const fieldName = this.#fields[i].name.toString()
+            const fieldName = this._fields[i].name.toString()
 
             ir = FuncArg.wrapWithDefaultInternal(
                 ir,
@@ -354,7 +371,7 @@ export class DataDefinition {
         }
 
         const args = $(
-            this.#fields.map((f) =>
+            this._fields.map((f) =>
                 $([
                     $(`__useopt__${f.name.toString()}`),
                     $(", "),
@@ -386,7 +403,7 @@ export class DataDefinition {
             let ir = $`""`
 
             for (let i = 0; i < this.nFields; i++) {
-                const f = this.#fields[i]
+                const f = this._fields[i]
                 const p = f.type.path
 
                 ir = $`__core__appendString(
@@ -466,12 +483,12 @@ export class DataDefinition {
 				)
 			}`
         } else if (this.nFields == 1 && !isEnumMember) {
-            return $`${this.#fields[0].type.path}__show`
+            return $`${this._fields[0].type.path}__show`
         } else {
             let ir = $`(fields) -> {""}`
 
             for (let i = this.nFields - 1; i >= 0; i--) {
-                const f = this.#fields[i]
+                const f = this._fields[i]
                 const p = f.type.path
 
                 ir = $`(fields) -> {
@@ -525,9 +542,9 @@ export class DataDefinition {
      */
     toIR_is_valid_data(argIsConstrFields = false) {
         if (this.isMappedStruct()) {
-            const fields = this.#fields
+            const fields = this._fields
 
-            const mStructName = this.#name.value
+            const mStructName = this._name.value
             let ir = $`true`
 
             fields.forEach((f, i) => {
@@ -554,9 +571,9 @@ export class DataDefinition {
                 ${ir}
             }`
         } else if (this.nFields == 1 && !argIsConstrFields) {
-            return $`${this.#fields[0].type.path}__is_valid_data`
+            return $`${this._fields[0].type.path}__is_valid_data`
         } else {
-            const reversedFields = this.#fields.slice().reverse()
+            const reversedFields = this._fields.slice().reverse()
 
             let ir = $`(fields) -> {
 				__core__chooseList(
@@ -610,9 +627,9 @@ export class DataDefinition {
         let irInner = $`true`
 
         // same as reversing the fields:
-        const n = this.#fields.length - 1
-        for (let i = 0; i < this.#fields.length; i++) {
-            const f = this.#fields[n - i]
+        const n = this._fields.length - 1
+        for (let i = 0; i < this._fields.length; i++) {
+            const f = this._fields[n - i]
             // builds the innermost field comparison from the LAST field,
             // so the outermost is likely to be the cheapest to find, given
             // the fields are stored in the same order they're defined in the struct.
@@ -663,7 +680,7 @@ export class DataDefinition {
 				)
 			}`
             /*for (let i = this.nFields - 1; i >= 0; i--) {
-				const f = this.#fields[i]
+				const f = this._fields[i]
 				const ftPath = f.type.path;
 
 				ir = IR.new`(data) -> {
@@ -752,8 +769,8 @@ export class DataDefinition {
         const getterNames = []
 
         if (this.isMappedStruct()) {
-            for (let i = 0; i < this.#fields.length; i++) {
-                const f = this.#fields[i]
+            for (let i = 0; i < this._fields.length; i++) {
+                const f = this._fields[i]
                 const key = `${path}__${f.name.value}`
 
                 // equalsData is much more efficient than first converting to byteArray
@@ -780,8 +797,8 @@ export class DataDefinition {
                 getterNames.push(key)
             } else {
                 // add a getter for each field
-                for (let i = 0; i < this.#fields.length; i++) {
-                    let f = this.#fields[i]
+                for (let i = 0; i < this._fields.length; i++) {
+                    let f = this._fields[i]
                     let key = `${path}__${f.name.value}`
                     getterNames.push(key)
 

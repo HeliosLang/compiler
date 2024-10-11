@@ -15,8 +15,6 @@ import { FuncStatement } from "./FuncStatement.js"
  * Impl statements, which add functions and constants to registry of user types (Struct, Enum Member and Enums)
  */
 export class ImplDefinition {
-    #selfTypeExpr
-
     /**
      * @readonly
      * @type {(FuncStatement | ConstStatement)[]}
@@ -24,11 +22,18 @@ export class ImplDefinition {
     statements
 
     /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _selfTypeExpr
+
+    /**
      * @param {Expr} selfTypeExpr;
      * @param {(FuncStatement | ConstStatement)[]} statements
      */
     constructor(selfTypeExpr, statements) {
-        this.#selfTypeExpr = selfTypeExpr
+        this._selfTypeExpr = selfTypeExpr
         this.statements = statements
     }
 
@@ -36,7 +41,7 @@ export class ImplDefinition {
      * @type {Site}
      */
     get site() {
-        return this.#selfTypeExpr.site
+        return this._selfTypeExpr.site
     }
 
     /**
@@ -111,7 +116,7 @@ export class ImplDefinition {
      * @param {Scope} scope
      */
     eval(scope) {
-        void this.#selfTypeExpr.eval(scope)
+        void this._selfTypeExpr.eval(scope)
 
         for (let s of this.statements) {
             if (s instanceof FuncStatement) {

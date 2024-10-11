@@ -9,7 +9,12 @@ import { Expr } from "./Expr.js"
  */
 
 export class TupleTypeExpr extends Expr {
-    #itemTypeExprs
+    /**
+     * @private
+     * @readonly
+     * @type {Expr[]}
+     */
+    _itemTypeExprs
 
     /**
      * @param {Site} site
@@ -17,7 +22,7 @@ export class TupleTypeExpr extends Expr {
      */
     constructor(site, itemTypeExprs) {
         super(site)
-        this.#itemTypeExprs = itemTypeExprs
+        this._itemTypeExprs = itemTypeExprs
     }
 
     /**
@@ -25,7 +30,7 @@ export class TupleTypeExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const itemTypes_ = this.#itemTypeExprs.map((ite) => {
+        const itemTypes_ = this._itemTypeExprs.map((ite) => {
             const ite_ = ite.eval(scope)
 
             const itemType = ite_.asType
@@ -51,6 +56,6 @@ export class TupleTypeExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `(${this.#itemTypeExprs.map((ite) => ite.toString()).join(", ")})`
+        return `(${this._itemTypeExprs.map((ite) => ite.toString()).join(", ")})`
     }
 }

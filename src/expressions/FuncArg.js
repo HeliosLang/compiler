@@ -16,9 +16,11 @@ import { Expr } from "./Expr.js"
  */
 export class FuncArg extends NameTypePair {
     /**
+     * @private
+     * @readonly
      * @type {Option<Expr>}
      */
-    #defaultValueExpr
+    _defaultValueExpr
 
     /**
      * @param {Word} name
@@ -28,22 +30,22 @@ export class FuncArg extends NameTypePair {
     constructor(name, typeExpr, defaultValueExpr = None) {
         super(name, typeExpr)
 
-        this.#defaultValueExpr = defaultValueExpr
+        this._defaultValueExpr = defaultValueExpr
     }
 
     /**
      * @type {boolean}
      */
     get isOptional() {
-        return isSome(this.#defaultValueExpr)
+        return isSome(this._defaultValueExpr)
     }
 
     /**
      * @param {Scope} scope
      */
     evalDefault(scope) {
-        if (this.#defaultValueExpr) {
-            const v_ = this.#defaultValueExpr.eval(scope)
+        if (this._defaultValueExpr) {
+            const v_ = this._defaultValueExpr.eval(scope)
             if (!v_) {
                 return
             }
@@ -51,7 +53,7 @@ export class FuncArg extends NameTypePair {
             const v = v_.asTyped
             if (!v) {
                 throw CompilerError.type(
-                    this.#defaultValueExpr.site,
+                    this._defaultValueExpr.site,
                     "not typed"
                 )
                 return
@@ -64,7 +66,7 @@ export class FuncArg extends NameTypePair {
 
             if (!t.isBaseOf(v.type)) {
                 throw CompilerError.type(
-                    this.#defaultValueExpr.site,
+                    this._defaultValueExpr.site,
                     `expected ${t.toString()}, got ${v.type.toString()}`
                 )
                 return
@@ -79,7 +81,7 @@ export class FuncArg extends NameTypePair {
     evalArgType(scope) {
         const t = super.evalType(scope)
 
-        return new ArgType(this.name, t, isSome(this.#defaultValueExpr))
+        return new ArgType(this.name, t, isSome(this._defaultValueExpr))
     }
 
     /**
@@ -88,7 +90,7 @@ export class FuncArg extends NameTypePair {
     toIR() {
         const name = super.toIR()
 
-        if (!this.#defaultValueExpr) {
+        if (!this._defaultValueExpr) {
             return name
         } else {
             return $([$(`__useopt__${this.name.toString()}`), $(", "), name])
@@ -135,7 +137,7 @@ export class FuncArg extends NameTypePair {
      * @returns {SourceMappedStringI}
      */
     wrapWithDefault(ctx, bodyIR) {
-        if (!this.#defaultValueExpr) {
+        if (!this._defaultValueExpr) {
             return bodyIR
         } else {
             const name = this.name.toString()
@@ -143,7 +145,7 @@ export class FuncArg extends NameTypePair {
             return FuncArg.wrapWithDefaultInternal(
                 bodyIR,
                 name,
-                this.#defaultValueExpr.toIR(ctx)
+                this._defaultValueExpr.toIR(ctx)
             )
         }
     }

@@ -146,24 +146,32 @@ export class GenericParametricEnumMemberType extends GenericEnumMemberType {
  */
 export class TypeClassImpl extends Common {
     /**
+     * @private
+     * @readonly
      * @type {string}
      */
-    #name
+    _name
 
     /**
+     * @private
+     * @readonly
      * @type {null | ParameterI}
      */
-    #parameter
+    _parameter
 
     /**
+     * @private
+     * @readonly
      * @type {InstanceMembers}
      */
-    #instanceMembers
+    _instanceMembers
 
     /**
+     * @private
+     * @readonly
      * @type {TypeMembers}
      */
-    #typeMembers
+    _typeMembers
 
     /**
      * @param {TypeClass} typeClass
@@ -172,10 +180,10 @@ export class TypeClassImpl extends Common {
      */
     constructor(typeClass, name, parameter) {
         super()
-        this.#name = name
-        this.#parameter = parameter
-        this.#instanceMembers = typeClass.genInstanceMembers(this)
-        this.#typeMembers = typeClass.genTypeMembers(this)
+        this._name = name
+        this._parameter = parameter
+        this._instanceMembers = typeClass.genInstanceMembers(this)
+        this._typeMembers = typeClass.genTypeMembers(this)
     }
 
     /**
@@ -189,21 +197,21 @@ export class TypeClassImpl extends Common {
      * @type {InstanceMembers}
      */
     get instanceMembers() {
-        return this.#instanceMembers
+        return this._instanceMembers
     }
 
     /**
      * @type {string}
      */
     get name() {
-        return this.#name
+        return this._name
     }
 
     /**
      * @type {TypeMembers}
      */
     get typeMembers() {
-        return this.#typeMembers
+        return this._typeMembers
     }
 
     /**
@@ -222,7 +230,7 @@ export class TypeClassImpl extends Common {
      */
     infer(site, map, type) {
         const p = expectSome(
-            this.#parameter,
+            this._parameter,
             "unable to infer dummy TypeClass instantiation"
         )
 
@@ -276,9 +284,11 @@ export class TypeClassImpl extends Common {
  */
 export class DataTypeClassImpl extends TypeClassImpl {
     /**
+     * @private
+     * @readonly
      * @type {string}
      */
-    #path
+    _path
 
     /**
      * @param {TypeClass} typeClass
@@ -289,7 +299,7 @@ export class DataTypeClassImpl extends TypeClassImpl {
     constructor(typeClass, name, path, parameter) {
         super(typeClass, name, parameter)
 
-        this.#path = path
+        this._path = path
     }
 
     /**
@@ -317,7 +327,7 @@ export class DataTypeClassImpl extends TypeClassImpl {
      * @type {string}
      */
     get path() {
-        return this.#path
+        return this._path
     }
 
     /**
@@ -524,9 +534,26 @@ export class SummableTypeClass extends Common {
  * @implements {DataType}
  */
 class AppliedType extends Common {
-    #types
-    #apply
-    #inner
+    /**
+     * @private
+     * @readonly
+     * @type {Type[]}
+     */
+    _types
+
+    /**
+     * @private
+     * @readonly
+     * @type {(types: Type[]) => DataType}
+     */
+    _apply
+
+    /**
+     * @private
+     * @readonly
+     * @type {DataType}
+     */
+    _inner
 
     /**
      * @param {Type[]} types
@@ -536,44 +563,44 @@ class AppliedType extends Common {
     constructor(types, apply, inner) {
         super()
 
-        this.#types = types
-        this.#apply = apply
-        this.#inner = inner
+        this._types = types
+        this._apply = apply
+        this._inner = inner
     }
 
     /**
      * @type {string[]}
      */
     get fieldNames() {
-        return this.#inner.fieldNames
+        return this._inner.fieldNames
     }
 
     /**
      * @type {InstanceMembers}
      */
     get instanceMembers() {
-        return this.#inner.instanceMembers
+        return this._inner.instanceMembers
     }
 
     /**
      * @type {string}
      */
     get name() {
-        return this.#inner.name
+        return this._inner.name
     }
 
     /**
      * @type {string}
      */
     get path() {
-        return this.#inner.path
+        return this._inner.path
     }
 
     /**
      * @type {TypeMembers}
      */
     get typeMembers() {
-        return this.#inner.typeMembers
+        return this._inner.typeMembers
     }
 
     /**
@@ -581,7 +608,7 @@ class AppliedType extends Common {
      * @returns {TypeSchema}
      */
     toSchema(parents = new Set()) {
-        return this.#inner.toSchema(parents)
+        return this._inner.toSchema(parents)
     }
 
     /**
@@ -613,21 +640,21 @@ class AppliedType extends Common {
      */
     infer(site, map, type) {
         if (!type) {
-            const infered = this.#types.map((t) => t.infer(site, map, null))
+            const infered = this._types.map((t) => t.infer(site, map, null))
 
-            return new AppliedType(infered, this.#apply, this.#apply(infered))
+            return new AppliedType(infered, this._apply, this._apply(infered))
         } else if (
             type instanceof AppliedType &&
-            type.#types.length == this.#types.length
+            type._types.length == this._types.length
         ) {
-            const infered = this.#types.map((t, i) =>
-                t.infer(site, map, type.#types[i])
+            const infered = this._types.map((t, i) =>
+                t.infer(site, map, type._types[i])
             )
 
             const res = new AppliedType(
                 infered,
-                this.#apply,
-                this.#apply(infered)
+                this._apply,
+                this._apply(infered)
             )
 
             if (!res.isBaseOf(type)) {
@@ -645,14 +672,14 @@ class AppliedType extends Common {
      * @returns {boolean}
      */
     isBaseOf(other) {
-        return this.#inner.isBaseOf(other)
+        return this._inner.isBaseOf(other)
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        return this.#inner.toString()
+        return this._inner.toString()
     }
 
     /**
@@ -667,9 +694,26 @@ class AppliedType extends Common {
  * @implements {Parametric}
  */
 export class ParametricType extends Common {
-    #name
-    #parameters
-    #apply
+    /**
+     * @private
+     * @readonly
+     * @type {string}
+     */
+    _name
+
+    /**
+     * @private
+     * @readonly
+     * @type {Parameter[]}
+     */
+    _parameters
+
+    /**
+     * @private
+     * @readonly
+     * @type {(types: Type[]) => DataType}
+     */
+    _apply
 
     /**
      * @param {{
@@ -680,9 +724,9 @@ export class ParametricType extends Common {
      */
     constructor({ name, parameters, apply }) {
         super()
-        this.#name = name
-        this.#parameters = parameters
-        this.#apply = apply
+        this._name = name
+        this._parameters = parameters
+        this._apply = apply
     }
 
     /**
@@ -696,7 +740,7 @@ export class ParametricType extends Common {
      * @type {TypeClass[]}
      */
     get typeClasses() {
-        return this.#parameters.map((p) => p.typeClass)
+        return this._parameters.map((p) => p.typeClass)
     }
 
     /**
@@ -705,14 +749,14 @@ export class ParametricType extends Common {
      * @returns {EvalEntity}
      */
     apply(types, site = TokenSite.dummy()) {
-        if (types.length != this.#parameters.length) {
+        if (types.length != this._parameters.length) {
             throw CompilerError.type(
                 site,
-                `expected ${this.#parameters.length} type parameter(s), got ${types.length}`
+                `expected ${this._parameters.length} type parameter(s), got ${types.length}`
             )
         }
 
-        this.#parameters.forEach((p, i) => {
+        this._parameters.forEach((p, i) => {
             if (!p.typeClass.isImplementedBy(types[i])) {
                 throw CompilerError.type(
                     site,
@@ -722,7 +766,7 @@ export class ParametricType extends Common {
         })
 
         // TODO: recursive problem, defer the implementation check
-        return new AppliedType(types, this.#apply, this.#apply(types))
+        return new AppliedType(types, this._apply, this._apply(types))
     }
 
     /**
@@ -750,6 +794,6 @@ export class ParametricType extends Common {
      * @returns {string}
      */
     toString() {
-        return `${this.#name}` //[${this.#parameters.map(p => p.toString())}]`;
+        return `${this._name}` //[${this._parameters.map(p => p.toString())}]`;
     }
 }

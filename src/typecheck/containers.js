@@ -163,7 +163,12 @@ export function IteratorType$(itemTypes) {
  * @implements {DataType}
  */
 export class TupleType extends GenericType {
-    #itemTypes
+    /**
+     * @private
+     * @readonly
+     * @type {Type[]}
+     */
+    _itemTypes
 
     /**
      * @param {GenericTypeProps} props
@@ -172,11 +177,14 @@ export class TupleType extends GenericType {
     constructor(props, itemTypes) {
         super(props)
 
-        this.#itemTypes = itemTypes
+        this._itemTypes = itemTypes
     }
 
+    /**
+     * @type {Type[]}
+     */
     get itemTypes() {
-        return this.#itemTypes
+        return this._itemTypes
     }
 
     /**
@@ -186,9 +194,9 @@ export class TupleType extends GenericType {
     isBaseOf(other) {
         if (other instanceof TupleType) {
             return (
-                other.#itemTypes.length == this.#itemTypes.length &&
-                this.#itemTypes.every((it, i) =>
-                    it.isBaseOf(other.#itemTypes[i])
+                other._itemTypes.length == this._itemTypes.length &&
+                this._itemTypes.every((it, i) =>
+                    it.isBaseOf(other._itemTypes[i])
                 )
             )
         } else {
@@ -203,22 +211,22 @@ export class TupleType extends GenericType {
      * @returns {Type}
      */
     infer(site, map, type) {
-        if (!this.#itemTypes.some((it) => it.isParametric())) {
+        if (!this._itemTypes.some((it) => it.isParametric())) {
             return this
         }
 
         if (!type) {
-            const itemTypes = this.#itemTypes.map((it) =>
+            const itemTypes = this._itemTypes.map((it) =>
                 it.infer(site, map, null)
             )
 
             return TupleType$(itemTypes)
         } else if (
             type instanceof TupleType &&
-            this.#itemTypes.length == type.#itemTypes.length
+            this._itemTypes.length == type._itemTypes.length
         ) {
-            const itemTypes = this.#itemTypes.map((it, i) =>
-                it.infer(site, map, type.#itemTypes[i])
+            const itemTypes = this._itemTypes.map((it, i) =>
+                it.infer(site, map, type._itemTypes[i])
             )
 
             return TupleType$(itemTypes)

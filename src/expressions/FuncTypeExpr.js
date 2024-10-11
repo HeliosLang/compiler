@@ -13,8 +13,19 @@ import { FuncArgTypeExpr } from "./FuncArgTypeExpr.js"
  * (ArgType1, ...) -> RetType expression
  */
 export class FuncTypeExpr extends Expr {
-    #argTypeExprs
-    #retTypeExpr
+    /**
+     * @private
+     * @readonly
+     * @type {FuncArgTypeExpr[]}
+     */
+    _argTypeExprs
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _retTypeExpr
 
     /**
      * @param {Site} site
@@ -23,8 +34,8 @@ export class FuncTypeExpr extends Expr {
      */
     constructor(site, argTypeExprs, retTypeExpr) {
         super(site)
-        this.#argTypeExprs = argTypeExprs
-        this.#retTypeExpr = retTypeExpr
+        this._argTypeExprs = argTypeExprs
+        this._retTypeExpr = retTypeExpr
     }
 
     /**
@@ -32,14 +43,14 @@ export class FuncTypeExpr extends Expr {
      * @returns {Type}
      */
     evalInternal(scope) {
-        const argTypes_ = this.#argTypeExprs.map((a) => a.eval(scope))
+        const argTypes_ = this._argTypeExprs.map((a) => a.eval(scope))
 
-        const retType_ = this.#retTypeExpr.eval(scope)
+        const retType_ = this._retTypeExpr.eval(scope)
 
         const retType = retType_.asType
         if (!retType) {
             throw CompilerError.type(
-                this.#retTypeExpr.site,
+                this._retTypeExpr.site,
                 "return type isn't a type"
             )
         }
@@ -51,6 +62,6 @@ export class FuncTypeExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `(${this.#argTypeExprs.map((a) => a.toString()).join(", ")}) -> ${this.#retTypeExpr.toString()}`
+        return `(${this._argTypeExprs.map((a) => a.toString()).join(", ")}) -> ${this._retTypeExpr.toString()}`
     }
 }

@@ -24,8 +24,19 @@ import { Expr } from "./Expr.js"
  * if-then-else expression
  */
 export class IfElseExpr extends Expr {
-    #conditions
-    #branches
+    /**
+     * @private
+     * @readonly
+     * @type {Expr[]}
+     */
+    _conditions
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr[]}
+     */
+    _branches
 
     /**
      * @param {Site} site
@@ -46,17 +57,17 @@ export class IfElseExpr extends Expr {
         }
 
         super(site)
-        this.#conditions = conditions
-        this.#branches = branches
+        this._conditions = conditions
+        this._branches = branches
     }
 
     toString() {
         let s = ""
-        for (let i = 0; i < this.#conditions.length; i++) {
-            s += `if (${this.#conditions[i].toString()}) {${this.#branches[i].toString()}} else `
+        for (let i = 0; i < this._conditions.length; i++) {
+            s += `if (${this._conditions[i].toString()}) {${this._branches[i].toString()}} else `
         }
 
-        s += `{${this.#branches[this.#conditions.length].toString()}}`
+        s += `{${this._branches[this._conditions.length].toString()}}`
 
         return s
     }
@@ -144,7 +155,7 @@ export class IfElseExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        for (let c of this.#conditions) {
+        for (let c of this._conditions) {
             const cVal_ = c.eval(scope)
             if (!cVal_) {
                 continue
@@ -163,7 +174,7 @@ export class IfElseExpr extends Expr {
          */
         let branchMultiType = null
 
-        for (let b of this.#branches) {
+        for (let b of this._branches) {
             // don't allow shadowing
             const branchScope = new Scope(scope, false)
 
@@ -193,18 +204,18 @@ export class IfElseExpr extends Expr {
      * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
-        let n = this.#conditions.length
+        let n = this._conditions.length
 
         // each branch actually returns a function to allow deferred evaluation
-        let res = $([$("() -> {"), this.#branches[n].toIR(ctx), $("}")])
+        let res = $([$("() -> {"), this._branches[n].toIR(ctx), $("}")])
 
         // TODO: nice indentation
         for (let i = n - 1; i >= 0; i--) {
             res = $([
                 $("__core__ifThenElse("),
-                this.#conditions[i].toIR(ctx),
+                this._conditions[i].toIR(ctx),
                 $(", () -> {"),
-                this.#branches[i].toIR(ctx),
+                this._branches[i].toIR(ctx),
                 $("}, () -> {"),
                 res,
                 $("()})")

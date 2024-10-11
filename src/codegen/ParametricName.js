@@ -25,30 +25,38 @@ const RE_TEMPLATE_NAME = new RegExp(`\\b(${TTPP}|${FTPP})[0-9]*\\b`)
 export class ParametricName {
     /**
      * Base type name
+     * @private
+     * @readonly
      * @type {string}
      */
-    #base
+    _base
 
     /**
      * Type type parameters
      * Note: nested type names can stay strings
      * Note: can be empty
+     * @private
+     * @readonly
      * @type {string[]}
      */
-    #ttp
+    _ttp
 
     /**
      * Function name
+     * @private
+     * @readonly
      * @type {string}
      */
-    #fn
+    _fn
 
     /**
      * Function type parameters
      * Note: can be empty
+     * @private
+     * @readonly
      * @type {string[]}
      */
-    #ftp
+    _ftp
 
     /**
      * @param {string} base
@@ -57,10 +65,10 @@ export class ParametricName {
      * @param {string[]} ftp
      */
     constructor(base, ttp, fn = "", ftp = []) {
-        this.#base = base
-        this.#ttp = ttp
-        this.#fn = fn
-        this.#ftp = ftp
+        this._base = base
+        this._ttp = ttp
+        this._fn = fn
+        this._ftp = ftp
     }
 
     /**
@@ -83,28 +91,28 @@ export class ParametricName {
      * @type {string[]}
      */
     get ttp() {
-        return this.#ttp
+        return this._ttp
     }
 
     /**
      * @type {string[]}
      */
     get ftp() {
-        return this.#ftp
+        return this._ftp
     }
 
     /**
      * @type {string}
      */
     get base() {
-        return this.#base
+        return this._base
     }
 
     /**
      * @type {string}
      */
     get fn() {
-        return this.#fn
+        return this._fn
     }
 
     /**
@@ -113,26 +121,26 @@ export class ParametricName {
      * @returns {ParametricName}
      */
     toImplementation(ttp, ftp = []) {
-        if (ttp.length != this.#ttp.length) {
+        if (ttp.length != this._ttp.length) {
             throw new Error(
-                `expected ${this.#ttp.length} type parameters, got ${ttp.length} (in ${this.toString()})`
+                `expected ${this._ttp.length} type parameters, got ${ttp.length} (in ${this.toString()})`
             )
         }
 
-        if (ftp.length != this.#ftp.length) {
+        if (ftp.length != this._ftp.length) {
             throw new Error(
-                `expected ${this.#ftp.length} function type parameters, got ${ftp.length} (in ${this.toString()})`
+                `expected ${this._ftp.length} function type parameters, got ${ftp.length} (in ${this.toString()})`
             )
         }
 
-        return new ParametricName(this.#base, ttp, this.#fn, ftp)
+        return new ParametricName(this._base, ttp, this._fn, ftp)
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.join("@")}]` : ""}`
+        return `${this._base}${this._ttp.length > 0 ? `[${this._ttp.join("@")}]` : ""}${this._fn}${this._ftp.length > 0 ? `[${this._ftp.join("@")}]` : ""}`
     }
 
     /**
@@ -141,9 +149,9 @@ export class ParametricName {
      */
     toTemplate(emptyParameters = false) {
         if (emptyParameters) {
-            return `${this.#base}${this.#ttp.length > 0 ? "[]" : ""}${this.#fn}${this.#ftp.length > 0 ? "[]" : ""}`
+            return `${this._base}${this._ttp.length > 0 ? "[]" : ""}${this._fn}${this._ftp.length > 0 ? "[]" : ""}`
         } else {
-            return `${this.#base}${this.#ttp.length > 0 ? `[${this.#ttp.map((_, i) => `${TTPP}${i}`).join("@")}]` : ""}${this.#fn}${this.#ftp.length > 0 ? `[${this.#ftp.map((_, i) => `${FTPP}${i}`).join("@")}]` : ""}`
+            return `${this._base}${this._ttp.length > 0 ? `[${this._ttp.map((_, i) => `${TTPP}${i}`).join("@")}]` : ""}${this._fn}${this._ftp.length > 0 ? `[${this._ftp.map((_, i) => `${FTPP}${i}`).join("@")}]` : ""}`
         }
     }
 
@@ -152,11 +160,11 @@ export class ParametricName {
      * @returns {SourceMappedStringI}
      */
     replaceTemplateNames(ir) {
-        this.#ttp.forEach((name, i) => {
+        this._ttp.forEach((name, i) => {
             ir = ir.replace(new RegExp(`\\b${TTPP}${i}`, "gm"), name)
         })
 
-        this.#ftp.forEach((name, i) => {
+        this._ftp.forEach((name, i) => {
             ir = ir.replace(new RegExp(`\\b${FTPP}${i}`, "gm"), name)
         })
 

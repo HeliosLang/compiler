@@ -36,35 +36,42 @@ import { DataDefinition } from "./DataDefinition.js"
 export class EnumMember {
     /**
      * Registered later
+     * @private
      * @type {Option<EnumStatementI>}
      */
-    #parent
+    _parent
 
     /**
+     * @private
      * @type {Option<number>}
      */
-    #constrIndex
+    _constrIndex
 
-    #dataDef
+    /**
+     * @private
+     * @readonly
+     * @type {DataDefinition}
+     */
+    _dataDef
 
     /**
      * @param {Word} name
      * @param {DataField[]} fields
      */
     constructor(name, fields) {
-        this.#parent = null // registered later
-        this.#constrIndex = null
-        this.#dataDef = new DataDefinition(name.site, name, fields)
+        this._parent = null // registered later
+        this._constrIndex = null
+        this._dataDef = new DataDefinition(name.site, name, fields)
     }
 
     /**
      * @returns {number}
      */
     get constrIndex() {
-        if (isNone(this.#constrIndex)) {
+        if (isNone(this._constrIndex)) {
             throw new Error("constrIndex not set")
         } else {
-            return this.#constrIndex
+            return this._constrIndex
         }
     }
 
@@ -72,7 +79,7 @@ export class EnumMember {
      * @type {Word}
      */
     get name() {
-        return this.#dataDef.name
+        return this._dataDef.name
     }
 
     /**
@@ -80,18 +87,18 @@ export class EnumMember {
      * @param {number} i
      */
     registerParent(parent, i) {
-        this.#parent = parent
-        this.#constrIndex = i
+        this._parent = parent
+        this._constrIndex = i
     }
 
     /**
      * @type {EnumStatementI}
      */
     get parent() {
-        if (!this.#parent) {
+        if (!this._parent) {
             throw new Error("parent not yet registered")
         } else {
-            return this.#parent
+            return this._parent
         }
     }
 
@@ -99,14 +106,14 @@ export class EnumMember {
      * @type {DataDefinition}
      */
     get dataDefinition() {
-        return this.#dataDef
+        return this._dataDef
     }
 
     /**
      * @param {Scope} scope
      */
     evalDataFields(scope) {
-        this.#dataDef.evalFieldTypes(scope)
+        this._dataDef.evalFieldTypes(scope)
     }
 
     /**
@@ -114,30 +121,30 @@ export class EnumMember {
      * @returns {(parent: DataType) => EnumMemberType}
      */
     evalType(scope) {
-        if (!this.#parent) {
+        if (!this._parent) {
             throw new Error("parent should've been registered")
         }
 
         return (parent) => {
-            const path = `${parent.path}__${this.#dataDef.name.value}`
+            const path = `${parent.path}__${this._dataDef.name.value}`
 
             /**
              * @type {GenericEnumMemberTypeProps}
              */
             const props = {
-                name: this.#dataDef.name.value,
+                name: this._dataDef.name.value,
                 path: path,
                 constrIndex: this.constrIndex,
                 parentType: parent,
-                fieldNames: this.#dataDef.fieldNames,
+                fieldNames: this._dataDef.fieldNames,
                 genTypeSchema: (self, parents) => {
                     return this.toSchema(parents)
                 },
                 genInstanceMembers: (self) => {
                     const res = {
                         ...genCommonInstanceMembers(self),
-                        ...this.#dataDef.evalFieldTypes(scope),
-                        copy: this.#dataDef.genCopyType(self)
+                        ...this._dataDef.evalFieldTypes(scope),
+                        copy: this._dataDef.genCopyType(self)
                     }
 
                     return res
@@ -156,7 +163,7 @@ export class EnumMember {
     }
 
     get path() {
-        return `${this.parent.path}__${this.#dataDef.name.toString()}`
+        return `${this.parent.path}__${this._dataDef.name.toString()}`
     }
 
     /**
@@ -165,13 +172,13 @@ export class EnumMember {
      */
     toIR(ctx, map) {
         map.set(`${this.path}____eq`, {
-            content: $(`__helios__common____eq`, this.#dataDef.site)
+            content: $(`__helios__common____eq`, this._dataDef.site)
         })
         map.set(`${this.path}____neq`, {
-            content: $(`__helios__common____neq`, this.#dataDef.site)
+            content: $(`__helios__common____neq`, this._dataDef.site)
         })
         map.set(`${this.path}__serialize`, {
-            content: $(`__helios__common__serialize`, this.#dataDef.site)
+            content: $(`__helios__common__serialize`, this._dataDef.site)
         })
         map.set(`${this.path}____is`, {
             content: $`(data) -> {
@@ -188,7 +195,7 @@ export class EnumMember {
 						__core__ifThenElse(
 							__core__equalsInteger(__core__fstPair(pair), ${this.constrIndex}),
 							() -> {
-								${this.#dataDef.toIR_is_valid_data(true)}(__core__listData(__core__sndPair(pair)))
+								${this._dataDef.toIR_is_valid_data(true)}(__core__listData(__core__sndPair(pair)))
 							},
 							() -> {
 								false
@@ -228,7 +235,7 @@ export class EnumMember {
                     `(data) -> {
 				__helios__common__assert_constr_index(data, ${this.constrIndex})
 			}`,
-                    this.#dataDef.site
+                    this._dataDef.site
                 )
             })
         }
@@ -259,21 +266,21 @@ export class EnumMember {
         })
 
         map.set(`${this.path}____to_data`, {
-            content: $("__helios__common__identity", this.#dataDef.site)
+            content: $("__helios__common__identity", this._dataDef.site)
         })
 
         // super.toIR adds __new and copy, which might depend on __to_data, so must come after
-        this.#dataDef.toIR(ctx, this.path, map, this.constrIndex)
+        this._dataDef.toIR(ctx, this.path, map, this.constrIndex)
 
         const longName =
-            (this.#parent?.name?.value ?? "") + "::" + this.name.value
+            (this._parent?.name?.value ?? "") + "::" + this.name.value
         map.set(`${this.path}__show`, {
             content: $`(data) -> {
 			__core__chooseData(
 				data,
 				() -> {
 					(fields) -> {
-						${this.#dataDef.toIR_show(longName, true)}(fields)()
+						${this._dataDef.toIR_show(longName, true)}(fields)()
 					}(__core__sndPair(__core__unConstrData__safe(data)))
 				},
 				() -> {"${longName}{<n/a>}"},
@@ -290,7 +297,7 @@ export class EnumMember {
      * @returns {VariantTypeSchema}
      */
     toSchemaInternal(parents) {
-        const fieldTypes = this.#dataDef.fieldsToSchema(parents)
+        const fieldTypes = this._dataDef.fieldsToSchema(parents)
 
         return {
             kind: "variant",
@@ -314,7 +321,7 @@ export class EnumMember {
         } else {
             const parents_ = new Set(Array.from(parents).concat([this.path]))
 
-            const fieldTypes = this.#dataDef.fieldsToSchema(parents_)
+            const fieldTypes = this._dataDef.fieldsToSchema(parents_)
 
             return {
                 kind: "variant",

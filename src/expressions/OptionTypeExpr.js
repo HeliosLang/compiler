@@ -12,7 +12,12 @@ import { Expr } from "./Expr.js"
  * @internal
  */
 export class OptionTypeExpr extends Expr {
-    #someTypeExpr
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _someTypeExpr
 
     /**
      * @param {Site} site
@@ -20,7 +25,7 @@ export class OptionTypeExpr extends Expr {
      */
     constructor(site, someTypeExpr) {
         super(site)
-        this.#someTypeExpr = someTypeExpr
+        this._someTypeExpr = someTypeExpr
     }
 
     /**
@@ -28,7 +33,7 @@ export class OptionTypeExpr extends Expr {
      * @returns {Type}
      */
     evalInternal(scope) {
-        const someType = this.#someTypeExpr.evalAsType(scope)
+        const someType = this._someTypeExpr.evalAsType(scope)
 
         return OptionType$(someType)
     }
@@ -37,6 +42,6 @@ export class OptionTypeExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `Option[${this.#someTypeExpr.toString()}]`
+        return `Option[${this._someTypeExpr.toString()}]`
     }
 }

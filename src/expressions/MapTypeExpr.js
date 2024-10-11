@@ -12,8 +12,19 @@ import { Expr } from "./Expr.js"
  * Map[KeyType]ValueType expression
  */
 export class MapTypeExpr extends Expr {
-    #keyTypeExpr
-    #valueTypeExpr
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _keyTypeExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _valueTypeExpr
 
     /**
      * @param {Site} site
@@ -22,8 +33,8 @@ export class MapTypeExpr extends Expr {
      */
     constructor(site, keyTypeExpr, valueTypeExpr) {
         super(site)
-        this.#keyTypeExpr = keyTypeExpr
-        this.#valueTypeExpr = valueTypeExpr
+        this._keyTypeExpr = keyTypeExpr
+        this._valueTypeExpr = valueTypeExpr
     }
 
     /**
@@ -31,24 +42,24 @@ export class MapTypeExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const keyType_ = this.#keyTypeExpr.eval(scope)
+        const keyType_ = this._keyTypeExpr.eval(scope)
 
         const keyType = keyType_.asType
 
         if (!keyType) {
             throw CompilerError.type(
-                this.#keyTypeExpr.site,
+                this._keyTypeExpr.site,
                 "map key type not a type"
             )
         }
 
-        const valueType_ = this.#valueTypeExpr.eval(scope)
+        const valueType_ = this._valueTypeExpr.eval(scope)
 
         const valueType = valueType_.asType
 
         if (!valueType) {
             throw CompilerError.type(
-                this.#valueTypeExpr.site,
+                this._valueTypeExpr.site,
                 "map value type not a type"
             )
         }
@@ -60,6 +71,6 @@ export class MapTypeExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `Map[${this.#keyTypeExpr.toString()}]${this.#valueTypeExpr.toString()}`
+        return `Map[${this._keyTypeExpr.toString()}]${this._valueTypeExpr.toString()}`
     }
 }

@@ -32,22 +32,25 @@ import { ImplDefinition } from "./ImplDefinition.js"
  */
 export class StructStatement extends Statement {
     /**
+     * @private
      * @readonly
      * @type {TypeParameters}
      */
-    #parameters
+    _parameters
 
     /**
+     * @private
      * @readonly
      * @type {DataDefinition}
      */
-    #dataDef
+    _dataDef
 
     /**
+     * @private
      * @readonly
      * @type {ImplDefinition}
      */
-    #impl
+    _impl
 
     /**
      * @param {Site} site
@@ -59,20 +62,20 @@ export class StructStatement extends Statement {
     constructor(site, name, parameters, fields, impl) {
         super(site, name)
 
-        this.#parameters = parameters
-        this.#dataDef = new DataDefinition(this.site, name, fields)
-        this.#impl = impl
+        this._parameters = parameters
+        this._dataDef = new DataDefinition(this.site, name, fields)
+        this._impl = impl
     }
 
     get path() {
-        return this.#parameters.genTypePath(super.path)
+        return this._parameters.genTypePath(super.path)
     }
 
     /**
      * @type {Statement[]}
      */
     get statements() {
-        return this.#impl.statements
+        return this._impl.statements
     }
 
     /**
@@ -81,14 +84,14 @@ export class StructStatement extends Statement {
     setBasePath(basePath) {
         super.setBasePath(basePath)
 
-        this.#impl.setBasePath(this.path)
+        this._impl.setBasePath(this.path)
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        return `struct ${this.name.toString()}${this.#parameters.toString()} ${this.#dataDef.toStringFields()}`
+        return `struct ${this.name.toString()}${this._parameters.toString()} ${this._dataDef.toStringFields()}`
     }
 
     /**
@@ -96,7 +99,7 @@ export class StructStatement extends Statement {
      * @param {TopScope} scope
      */
     eval(scope) {
-        const [type, typeScope] = this.#parameters.createParametricType(
+        const [type, typeScope] = this._parameters.createParametricType(
             scope,
             this.site,
             (typeScope) => {
@@ -104,7 +107,7 @@ export class StructStatement extends Statement {
                  * @type {GenericTypeProps}
                  */
                 const props = {
-                    fieldNames: this.#dataDef.fieldNames,
+                    fieldNames: this._dataDef.fieldNames,
                     name: this.name.value,
                     path: this.path, // includes template parameters
                     /**
@@ -114,13 +117,13 @@ export class StructStatement extends Statement {
                      */
                     genTypeSchema: (self, parents) => {
                         const internalTypeFields =
-                            this.#dataDef.fieldsToSchema(parents)
+                            this._dataDef.fieldsToSchema(parents)
 
                         return /* @type {StructTypeSchema} */ {
                             kind: "struct",
-                            format: this.#dataDef.isMappedStruct()
+                            format: this._dataDef.isMappedStruct()
                                 ? "map"
-                                : this.#dataDef.nFields == 1
+                                : this._dataDef.nFields == 1
                                   ? "singleton"
                                   : "list",
                             id: this.path,
@@ -130,17 +133,17 @@ export class StructStatement extends Statement {
                     },
                     genInstanceMembers: (self) => ({
                         ...genCommonInstanceMembers(self),
-                        ...this.#dataDef.evalFieldTypes(typeScope),
-                        ...this.#impl.genInstanceMembers(typeScope),
-                        copy: this.#dataDef.genCopyType(self)
+                        ...this._dataDef.evalFieldTypes(typeScope),
+                        ...this._impl.genInstanceMembers(typeScope),
+                        copy: this._dataDef.genCopyType(self)
                     }),
                     genTypeMembers: (self) => ({
                         ...genCommonTypeMembers(self),
-                        ...this.#impl.genTypeMembers(typeScope)
+                        ...this._impl.genTypeMembers(typeScope)
                     })
                 }
 
-                if (this.#parameters.hasParameters()) {
+                if (this._parameters.hasParameters()) {
                     return new GenericParametricType(props)
                 } else {
                     return new GenericType(props)
@@ -148,15 +151,15 @@ export class StructStatement extends Statement {
             }
         )
 
-        const path = this.#parameters.hasParameters() ? super.path : this.path
+        const path = this._parameters.hasParameters() ? super.path : this.path
 
         scope.set(this.name, new NamedEntity(this.name.value, path, type))
 
-        void this.#dataDef.evalFieldTypes(typeScope)
+        void this._dataDef.evalFieldTypes(typeScope)
 
         typeScope.assertAllUsed()
 
-        this.#impl.eval(typeScope)
+        this._impl.eval(typeScope)
     }
 
     /**
@@ -164,7 +167,7 @@ export class StructStatement extends Statement {
      * @param {Definitions} map
      */
     toIR_mStructEq(ctx, map) {
-        const ir = this.#dataDef.toIR_mStructEq(this.site)
+        const ir = this._dataDef.toIR_mStructEq(this.site)
 
         map.set(`${this.path}____eq`, { content: ir })
     }
@@ -248,8 +251,8 @@ export class StructStatement extends Statement {
      */
     toIR_fStruct(ctx, map) {
         const implPath =
-            this.#dataDef.nFields == 1
-                ? this.#dataDef.getFieldType(0).path
+            this._dataDef.nFields == 1
+                ? this._dataDef.getFieldType(0).path
                 : "__helios__struct"
 
         map.set(`${this.path}____eq`, {
@@ -263,7 +266,7 @@ export class StructStatement extends Statement {
         })
 
         // the from_data method can include field checks
-        if (this.#dataDef.fieldNames.length == 1 || !!ctx.optimize) {
+        if (this._dataDef.fieldNames.length == 1 || !!ctx.optimize) {
             map.set(`${this.path}__from_data`, {
                 content: $(`${implPath}__from_data`, this.site)
             })
@@ -289,10 +292,10 @@ export class StructStatement extends Statement {
                 )
             })
         }
-        if (this.#dataDef.fieldNames.length == 1) {
+        if (this._dataDef.fieldNames.length == 1) {
             map.set(`${this.path}__from_data_safe`, {
                 content: $(
-                    `${this.#dataDef.getFieldType(0).path}__from_data_safe`,
+                    `${this._dataDef.getFieldType(0).path}__from_data_safe`,
                     this.site
                 )
             })
@@ -324,21 +327,21 @@ export class StructStatement extends Statement {
      */
     toIR(ctx, map) {
         map.set(`${this.path}__is_valid_data`, {
-            content: this.#dataDef.toIR_is_valid_data()
+            content: this._dataDef.toIR_is_valid_data()
         })
 
-        if (this.#dataDef.isMappedStruct()) {
+        if (this._dataDef.isMappedStruct()) {
             this.toIR_mStruct(ctx, map)
         } else {
             this.toIR_fStruct(ctx, map)
         }
 
         // super.toIR adds __new and copy, which might depend on __to_data, so must come after
-        this.#dataDef.toIR(ctx, this.path, map, -1)
+        this._dataDef.toIR(ctx, this.path, map, -1)
         map.set(`${this.path}__show`, {
-            content: this.#dataDef.toIR_show(this.name.value)
+            content: this._dataDef.toIR_show(this.name.value)
         })
 
-        this.#impl.toIR(ctx.appendAliasNamespace(this.name.value), map)
+        this._impl.toIR(ctx.appendAliasNamespace(this.name.value), map)
     }
 }

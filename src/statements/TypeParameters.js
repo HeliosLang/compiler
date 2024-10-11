@@ -18,43 +18,55 @@ import { TypeParameter } from "./TypeParameter.js"
  */
 
 export class TypeParameters {
-    #parameterExprs
-    #prefix
+    /**
+     * @private
+     * @readonly
+     * @type {TypeParameter[]}
+     */
+    _parameterExprs
 
     /**
+     * @private
+     * @readonly
+     * @type {string}
+     */
+    _prefix
+
+    /**
+     * @private
      * @type {null | Parameter[]}
      */
-    #parameters
+    _parameters
 
     /**
      * @param {TypeParameter[]} parameterExprs
      * @param {boolean} isForFunc
      */
     constructor(parameterExprs, isForFunc) {
-        this.#parameterExprs = parameterExprs
-        this.#prefix = isForFunc ? FTPP : TTPP
-        this.#parameters = null
+        this._parameterExprs = parameterExprs
+        this._prefix = isForFunc ? FTPP : TTPP
+        this._parameters = null
     }
 
     /**
      * @returns {boolean}
      */
     hasParameters() {
-        return this.#parameterExprs.length > 0
+        return this._parameterExprs.length > 0
     }
 
     /**
      * @type {string[]}
      */
     get parameterNames() {
-        return this.#parameterExprs.map((pe) => pe.name)
+        return this._parameterExprs.map((pe) => pe.name)
     }
 
     /**
      * @returns {Parameter[]}
      */
     getParameters() {
-        return expectSome(this.#parameters, "parameters not yet evaluated")
+        return expectSome(this._parameters, "parameters not yet evaluated")
     }
 
     /**
@@ -63,7 +75,7 @@ export class TypeParameters {
      * @returns {string}
      */
     genTypePath(base) {
-        return `${base}[${this.#parameterExprs.map((_, i) => `${this.#prefix}${i}`).join("@")}]`
+        return `${base}[${this._parameterExprs.map((_, i) => `${this._prefix}${i}`).join("@")}]`
     }
 
     /**
@@ -86,7 +98,7 @@ export class TypeParameters {
         if (!this.hasParameters()) {
             return ""
         } else {
-            return `[${this.#parameterExprs.map((p) => p.toString()).join(", ")}]`
+            return `[${this._parameterExprs.map((p) => p.toString()).join(", ")}]`
         }
     }
 
@@ -97,13 +109,13 @@ export class TypeParameters {
     evalParams(scope) {
         const subScope = new Scope(scope)
 
-        this.#parameters = []
+        this._parameters = []
 
-        this.#parameterExprs.forEach((pe, i) => {
-            const p = pe.eval(subScope, `${this.#prefix}${i}`)
+        this._parameterExprs.forEach((pe, i) => {
+            const p = pe.eval(subScope, `${this._prefix}${i}`)
 
             if (p) {
-                this.#parameters?.push(p)
+                this._parameters?.push(p)
             }
         })
 

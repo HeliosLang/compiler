@@ -52,9 +52,11 @@ export class DestructExpr {
     destructExprs
 
     /**
+     * @private
+     * @readonly
      * @type {boolean}
      */
-    #isTuple
+    _isTuple
 
     /**
      * @param {Site} site - can be a different location than name
@@ -74,7 +76,7 @@ export class DestructExpr {
         this.name = name
         this.typeExpr = typeExpr
         this.destructExprs = destructExprs
-        this.#isTuple = isTuple
+        this._isTuple = isTuple
 
         if (isTuple) {
             if (!(this.destructExprs.length > 0 && !this.typeExpr)) {
@@ -98,7 +100,7 @@ export class DestructExpr {
      * @returns {boolean}
      */
     isTuple() {
-        return this.#isTuple
+        return this._isTuple
     }
 
     /**
@@ -128,7 +130,7 @@ export class DestructExpr {
      */
     get type() {
         if (!this.typeExpr) {
-            if (this.#isTuple) {
+            if (this._isTuple) {
                 const nestedTypes = this.destructExprs.map((e) => e.type)
 
                 if (!nestedTypes) {
@@ -172,7 +174,7 @@ export class DestructExpr {
      */
     toString() {
         if (!this.typeExpr) {
-            if (this.destructExprs.length > 0 && this.#isTuple) {
+            if (this.destructExprs.length > 0 && this._isTuple) {
                 return `${this.name.toString()}: (${this.destructExprs.map((de) => de.toString()).join(", ")})`
             } else {
                 return this.name.toString()
@@ -207,7 +209,7 @@ export class DestructExpr {
         castEnumVariantToParent = true
     ) {
         if (!this.typeExpr) {
-            if (this.#isTuple) {
+            if (this._isTuple) {
                 const upstreamItemTypes = upstreamType
                     ? getTupleItemTypes(upstreamType)
                     : None
@@ -286,7 +288,7 @@ export class DestructExpr {
      */
     evalDestructExprs(scope, upstreamType) {
         if (this.destructExprs.length > 0) {
-            if (this.#isTuple) {
+            if (this._isTuple) {
                 const tupleItemTypes = getTupleItemTypes(upstreamType)
 
                 if (!tupleItemTypes) {
@@ -502,7 +504,7 @@ export class DestructExpr {
             for (let i = this.destructExprs.length - 1; i >= 0; i--) {
                 const de = this.destructExprs[i]
 
-                const innerGetter = this.#isTuple
+                const innerGetter = this._isTuple
                     ? de.toNameIR(i).toString()
                     : `${this.getFieldFn(i)}(${baseName})`
 
@@ -515,7 +517,7 @@ export class DestructExpr {
                 )
             }
 
-            if (this.#isTuple) {
+            if (this._isTuple) {
                 inner = $`${baseName}(
 					(${$(this.destructExprs.map((de, i) => de.toNameIR(i))).join(", ")}) -> {
 						${inner}
@@ -568,7 +570,7 @@ export class DestructExpr {
             for (let i = this.destructExprs.length - 1; i >= 0; i--) {
                 const de = this.destructExprs[i]
 
-                const getter = this.#isTuple
+                const getter = this._isTuple
                     ? de.toNameIR(i).toString()
                     : `${this.getFieldFn(i)}(${baseName})`
 
@@ -581,7 +583,7 @@ export class DestructExpr {
                 )
             }
 
-            if (this.#isTuple) {
+            if (this._isTuple) {
                 return $`${baseName}(
 					(${$(this.destructExprs.map((de, i) => de.toNameIR(i))).join(", ")}) -> {
 						${inner}

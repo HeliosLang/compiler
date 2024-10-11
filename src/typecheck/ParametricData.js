@@ -19,8 +19,19 @@ import { Parameter } from "./Parameter.js"
  * @implements {Parametric}
  */
 export class ParametricData extends Common {
-    #params
-    #dataType
+    /**
+     * @private
+     * @readonly
+     * @type {Parameter[]}
+     */
+    _params
+
+    /**
+     * @private
+     * @readonly
+     * @type {Type}
+     */
+    _dataType
 
     /**
      * @param {Parameter[]} params
@@ -28,16 +39,16 @@ export class ParametricData extends Common {
      */
     constructor(params, dataType) {
         super()
-        this.#params = params
-        this.#dataType = dataType
+        this._params = params
+        this._dataType = dataType
     }
 
     get params() {
-        return this.#params
+        return this._params
     }
 
     get dataType() {
-        return this.#dataType
+        return this._dataType
     }
 
     /**
@@ -45,7 +56,7 @@ export class ParametricData extends Common {
      * @type {TypeClass[]}
      */
     get typeClasses() {
-        return this.#params.map((p) => p.typeClass)
+        return this._params.map((p) => p.typeClass)
     }
 
     /**
@@ -54,7 +65,7 @@ export class ParametricData extends Common {
      * @returns {EvalEntity}
      */
     apply(types, site = TokenSite.dummy()) {
-        if (types.length != this.#params.length) {
+        if (types.length != this._params.length) {
             throw CompilerError.type(
                 site,
                 "wrong number of parameter type arguments"
@@ -66,7 +77,7 @@ export class ParametricData extends Common {
          */
         const map = new Map()
 
-        this.#params.forEach((p, i) => {
+        this._params.forEach((p, i) => {
             if (!p.typeClass.isImplementedBy(types[i])) {
                 throw CompilerError.type(site, "typeclass match failed")
             }
@@ -74,7 +85,7 @@ export class ParametricData extends Common {
             map.set(p, types[i])
         })
 
-        const inferred = this.#dataType.infer(site, map, null)
+        const inferred = this._dataType.infer(site, map, null)
 
         if (inferred.asDataType) {
             return new DataEntity(inferred.asDataType)
@@ -108,10 +119,10 @@ export class ParametricData extends Common {
      * @returns {Parametric}
      */
     infer(site, map) {
-        const dataType = this.#dataType.infer(site, map, null)
+        const dataType = this._dataType.infer(site, map, null)
 
         if (dataType.asDataType) {
-            return new ParametricData(this.#params, dataType.asDataType)
+            return new ParametricData(this._params, dataType.asDataType)
         } else {
             throw new Error("unexpected")
         }
@@ -121,6 +132,6 @@ export class ParametricData extends Common {
      * @returns {string}
      */
     toString() {
-        return `[${this.#params.map((p) => p.toString()).join(", ")}]${this.#dataType.toString()}`
+        return `[${this._params.map((p) => p.toString()).join(", ")}]${this._dataType.toString()}`
     }
 }

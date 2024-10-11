@@ -9,19 +9,25 @@
  */
 export class Parameter {
     /**
+     * @private
+     * @readonly
      * @type {string}
      */
-    #name
+    _name
 
     /**
+     * @private
+     * @readonly
      * @type {string}
      */
-    #path
+    _path
 
     /**
+     * @private
+     * @readonly
      * @type {TypeClass}
      */
-    #typeClass
+    _typeClass
 
     /**
      * @param {string} name - typically "a" or "b"
@@ -29,23 +35,23 @@ export class Parameter {
      * @param {TypeClass} typeClass
      */
     constructor(name, path, typeClass) {
-        this.#name = name
-        this.#path = path
-        this.#typeClass = typeClass
+        this._name = name
+        this._path = path
+        this._typeClass = typeClass
     }
 
     /**
      * @type {string}
      */
     get name() {
-        return this.#name
+        return this._name
     }
 
     /**
      * @type {Type}
      */
     get ref() {
-        return this.#typeClass.toType(this.#name, this.#path, this)
+        return this._typeClass.toType(this._name, this._path, this)
     }
 
     /**
@@ -53,17 +59,17 @@ export class Parameter {
      * @type {TypeClass}
      */
     get typeClass() {
-        return this.#typeClass
+        return this._typeClass
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        if (this.#typeClass && this.#typeClass.toString() != "") {
-            return `${this.#name}: ${this.#typeClass.toString()}`
+        if (this._typeClass && this._typeClass.toString() != "") {
+            return `${this._name}: ${this._typeClass.toString()}`
         } else {
-            return this.#name
+            return this._name
         }
     }
 }

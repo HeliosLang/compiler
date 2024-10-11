@@ -29,18 +29,31 @@ import { PathExpr } from "./PathExpr.js"
  * ...(...) expression
  */
 export class CallExpr extends Expr {
-    #fnExpr
-    #argExprs
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _fnExpr
 
     /**
+     * @private
+     * @readonly
+     * @type {CallArgExpr[]}
+     */
+    _argExprs
+
+    /**
+     * @private
      * @type {Type[]}
      */
-    #paramTypes
+    _paramTypes
 
     /**
+     * @private
      * @type {Option<Func>}
      */
-    #appliedFnVal
+    _appliedFnVal
 
     /**
      * @private
@@ -73,20 +86,20 @@ export class CallExpr extends Expr {
      */
     constructor(site, fnExpr, argExprs) {
         super(site)
-        this.#fnExpr = fnExpr
-        this.#argExprs = argExprs
-        this.#paramTypes = []
-        this.#appliedFnVal = null // only for infered parametric funcions
+        this._fnExpr = fnExpr
+        this._argExprs = argExprs
+        this._paramTypes = []
+        this._appliedFnVal = null // only for infered parametric funcions
         this.posArgVals = []
         this.namedArgVals = {}
     }
 
     get fnExpr() {
-        return this.#fnExpr
+        return this._fnExpr
     }
 
     toString() {
-        return `${this.#fnExpr.toString()}(${this.#argExprs.map((a) => a.toString()).join(", ")})`
+        return `${this._fnExpr.toString()}(${this._argExprs.map((a) => a.toString()).join(", ")})`
     }
 
     /**
@@ -94,9 +107,9 @@ export class CallExpr extends Expr {
      */
     isLiteral() {
         if (
-            this.#fnExpr instanceof PathExpr &&
+            this._fnExpr instanceof PathExpr &&
             this.cache?.asTyped &&
-            this.#fnExpr.baseExpr.cache?.asType?.isBaseOf(
+            this._fnExpr.baseExpr.cache?.asType?.isBaseOf(
                 this.cache.asTyped.type
             )
         ) {
@@ -111,9 +124,9 @@ export class CallExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const fnVal = this.#fnExpr.eval(scope)
+        const fnVal = this._fnExpr.eval(scope)
 
-        const argVals = this.#argExprs.map((ae, i) => {
+        const argVals = this._argExprs.map((ae, i) => {
             const av_ = ae.eval(scope)
 
             const av = av_.asTyped
@@ -130,7 +143,7 @@ export class CallExpr extends Expr {
 
         this.posArgVals = []
 
-        this.#argExprs.forEach((argExpr, i) => {
+        this._argExprs.forEach((argExpr, i) => {
             if (!argExpr.isNamed()) {
                 this.posArgVals.push(argVals[i])
             }
@@ -138,7 +151,7 @@ export class CallExpr extends Expr {
 
         this.namedArgVals = {}
 
-        this.#argExprs.forEach((argExpr, i) => {
+        this._argExprs.forEach((argExpr, i) => {
             if (argExpr.isNamed()) {
                 const val = argVals[i]
 
@@ -159,16 +172,16 @@ export class CallExpr extends Expr {
         this.castedNamedArgVals = { ...this.namedArgVals }
 
         if (fnVal.asParametric) {
-            this.#paramTypes = []
+            this._paramTypes = []
 
-            this.#appliedFnVal = fnVal.asParametric.inferCall(
+            this._appliedFnVal = fnVal.asParametric.inferCall(
                 this.site,
                 this.castedPosArgVals,
                 this.castedNamedArgVals,
-                this.#paramTypes
+                this._paramTypes
             )
 
-            return this.#appliedFnVal.call(
+            return this._appliedFnVal.call(
                 this.site,
                 this.castedPosArgVals,
                 this.castedNamedArgVals,
@@ -183,9 +196,9 @@ export class CallExpr extends Expr {
             )
         } else {
             throw CompilerError.type(
-                this.#fnExpr.site,
+                this._fnExpr.site,
 
-                `unable to call ${fnVal.toString()} (returned by ${this.#fnExpr.toString()})`
+                `unable to call ${fnVal.toString()} (returned by ${this._fnExpr.toString()})`
             )
         }
     }
@@ -195,9 +208,9 @@ export class CallExpr extends Expr {
      * @type {FuncType}
      */
     get fn() {
-        const ft = !!this.#fnExpr.cache?.asParametric
-            ? this.#appliedFnVal?.type?.asType
-            : this.#fnExpr.cache?.asTyped?.type.asType
+        const ft = !!this._fnExpr.cache?.asParametric
+            ? this._appliedFnVal?.type?.asType
+            : this._fnExpr.cache?.asTyped?.type.asType
 
         if (ft instanceof FuncType) {
             return ft
@@ -232,9 +245,9 @@ export class CallExpr extends Expr {
         const i =
             typeof e == "number"
                 ? e
-                : this.#argExprs.findIndex((ae) => ae.valueExpr == e)
+                : this._argExprs.findIndex((ae) => ae.valueExpr == e)
 
-        const ae = this.#argExprs[i]
+        const ae = this._argExprs[i]
         const expr = ae.valueExpr
 
         let ir = expr.toIR(ctx)
@@ -278,7 +291,7 @@ export class CallExpr extends Expr {
          */
         const positional = []
 
-        this.#argExprs.forEach((ae) => {
+        this._argExprs.forEach((ae) => {
             if (!ae.isNamed()) {
                 positional.push(ae.valueExpr)
             }
@@ -289,7 +302,7 @@ export class CallExpr extends Expr {
          */
         const namedOptional = []
 
-        this.#argExprs.forEach((ae, i) => {
+        this._argExprs.forEach((ae, i) => {
             if (ae.isNamed()) {
                 // i is the index in this call, j is the index in function being called (named args can be in a completely different order)
                 const j = fn.getNamedIndex(ae.site, ae.name)
@@ -324,23 +337,23 @@ export class CallExpr extends Expr {
      * @returns {SourceMappedStringI}
      */
     toFnExprIR(ctx) {
-        if (this.#fnExpr.cache?.asParametric instanceof ParametricFunc) {
-            if (this.#paramTypes.length == 0) {
+        if (this._fnExpr.cache?.asParametric instanceof ParametricFunc) {
+            if (this._paramTypes.length == 0) {
                 throw new Error("unexpected")
             }
 
-            const params = ParametricExpr.toApplicationIR(this.#paramTypes)
+            const params = ParametricExpr.toApplicationIR(this._paramTypes)
 
-            if (this.#fnExpr instanceof MemberExpr) {
-                return this.#fnExpr.toIR(ctx, params)
+            if (this._fnExpr instanceof MemberExpr) {
+                return this._fnExpr.toIR(ctx, params)
             } else {
                 return $(
-                    `${this.#fnExpr.toIR(ctx).toString()}${params}`,
-                    this.#fnExpr.site
+                    `${this._fnExpr.toIR(ctx).toString()}${params}`,
+                    this._fnExpr.site
                 )
             }
         } else {
-            return this.#fnExpr.toIR(ctx)
+            return this._fnExpr.toIR(ctx)
         }
     }
 

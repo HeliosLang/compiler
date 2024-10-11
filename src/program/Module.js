@@ -18,15 +18,17 @@ export class Module {
     name
 
     /**
-     * @type {Statement[]}
-     */
-    #statements
-
-    /**
      * @readonly
      * @type {Source}
      */
     sourceCode
+
+    /**
+     * @private
+     * @readonly
+     * @type {Statement[]}
+     */
+    _statements
 
     /**
      * @param {Word} name
@@ -35,9 +37,9 @@ export class Module {
      */
     constructor(name, statements, sourceCode) {
         this.name = name
-        this.#statements = statements
+        this._statements = statements
 
-        this.#statements.forEach((s) =>
+        this._statements.forEach((s) =>
             s.setBasePath(`__module__${this.name.toString()}`)
         )
 
@@ -48,14 +50,14 @@ export class Module {
      * @type {Statement[]}
      */
     get statements() {
-        return this.#statements.slice()
+        return this._statements.slice()
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        return this.#statements.map((s) => s.toString()).join("\n")
+        return this._statements.map((s) => s.toString()).join("\n")
     }
 
     /**
@@ -83,7 +85,7 @@ export class Module {
         let newStack = [this]
         newStack = newStack.concat(stack)
 
-        for (let s of this.#statements) {
+        for (let s of this._statements) {
             if (
                 s instanceof ImportFromStatement ||
                 s instanceof ImportModuleStatement

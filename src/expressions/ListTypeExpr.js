@@ -13,7 +13,12 @@ import { Expr } from "./Expr.js"
  * @internal
  */
 export class ListTypeExpr extends Expr {
-    #itemTypeExpr
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _itemTypeExpr
 
     /**
      * @param {Site} site
@@ -21,7 +26,7 @@ export class ListTypeExpr extends Expr {
      */
     constructor(site, itemTypeExpr) {
         super(site)
-        this.#itemTypeExpr = itemTypeExpr
+        this._itemTypeExpr = itemTypeExpr
     }
 
     /**
@@ -29,13 +34,13 @@ export class ListTypeExpr extends Expr {
      * @returns {Type}
      */
     evalInternal(scope) {
-        const itemType_ = this.#itemTypeExpr.eval(scope)
+        const itemType_ = this._itemTypeExpr.eval(scope)
 
         const itemType = itemType_.asType
 
         if (!itemType) {
             throw CompilerError.type(
-                this.#itemTypeExpr.site,
+                this._itemTypeExpr.site,
                 `'${itemType_.toString()}' isn't a type`
             )
         }
@@ -47,6 +52,6 @@ export class ListTypeExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `[]${this.#itemTypeExpr.toString()}`
+        return `[]${this._itemTypeExpr.toString()}`
     }
 }

@@ -9,31 +9,42 @@ import { DefaultTypeClass, Parameter } from "../typecheck/index.js"
  */
 
 export class TypeParameter {
-    #name
-    #typeClassExpr
+    /**
+     * @private
+     * @readonly
+     * @type {Word}
+     */
+    _name
+
+    /**
+     * @private
+     * @readonly
+     * @type {Option<Expr>}
+     */
+    _typeClassExpr
 
     /**
      * @param {Word} name
      * @param {Option<Expr>} typeClassExpr
      */
     constructor(name, typeClassExpr) {
-        this.#name = name
-        this.#typeClassExpr = typeClassExpr
+        this._name = name
+        this._typeClassExpr = typeClassExpr
     }
 
     /**
      * @type {string}
      */
     get name() {
-        return this.#name.value
+        return this._name.value
     }
 
     /**
      * @type {TypeClass}
      */
     get typeClass() {
-        if (this.#typeClassExpr) {
-            return expectSome(this.#typeClassExpr.cache?.asTypeClass)
+        if (this._typeClassExpr) {
+            return expectSome(this._typeClassExpr.cache?.asTypeClass)
         } else {
             return new DefaultTypeClass()
         }
@@ -50,12 +61,12 @@ export class TypeParameter {
          */
         let typeClass = new DefaultTypeClass()
 
-        if (this.#typeClassExpr) {
-            const typeClass_ = this.#typeClassExpr.eval(scope)
+        if (this._typeClassExpr) {
+            const typeClass_ = this._typeClassExpr.eval(scope)
 
             if (!typeClass_.asTypeClass) {
                 throw CompilerError.type(
-                    this.#typeClassExpr.site,
+                    this._typeClassExpr.site,
                     "not a typeclass"
                 )
             } else {
@@ -66,8 +77,8 @@ export class TypeParameter {
         const parameter = new Parameter(this.name, path, typeClass)
 
         scope.set(
-            this.#name,
-            typeClass.toType(this.#name.value, path, parameter)
+            this._name,
+            typeClass.toType(this._name.value, path, parameter)
         )
 
         return parameter
@@ -77,10 +88,10 @@ export class TypeParameter {
      * @returns {string}
      */
     toString() {
-        if (this.#typeClassExpr) {
-            return `${this.#name}: ${this.#typeClassExpr.toString()}`
+        if (this._typeClassExpr) {
+            return `${this._name}: ${this._typeClassExpr.toString()}`
         } else {
-            return `${this.#name}`
+            return `${this._name}`
         }
     }
 }

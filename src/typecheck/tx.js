@@ -596,9 +596,11 @@ export class MacroType extends Common {
  */
 export class ScriptsType extends MacroType {
     /**
+     * @private
+     * @readonly
      * @type {{[name: string]: Typed}}
      */
-    #scripts
+    _scripts
 
     /**
      * @param {ScriptTypes} scripts
@@ -606,10 +608,10 @@ export class ScriptsType extends MacroType {
     constructor(scripts) {
         super()
 
-        this.#scripts = {}
+        this._scripts = {}
 
         for (let k in scripts) {
-            this.#scripts[k] = scripts[k].toTyped()
+            this._scripts[k] = scripts[k].toTyped()
         }
     }
 
@@ -625,7 +627,7 @@ export class ScriptsType extends MacroType {
      */
     get typeMembers() {
         return {
-            ...this.#scripts
+            ...this._scripts
         }
     }
 
@@ -655,7 +657,7 @@ export class ScriptsType extends MacroType {
      * @returns {boolean}
      */
     isEmpty() {
-        return Object.keys(this.#scripts).length == 0
+        return Object.keys(this._scripts).length == 0
     }
 }
 

@@ -12,7 +12,11 @@ import { Expr } from "./Expr.js"
  * Iterator[Type1, ...] expr
  */
 export class IteratorTypeExpr extends Expr {
-    #itemTypeExprs
+    /**
+     * @private
+     * @type {Expr[]}
+     */
+    _itemTypeExprs
 
     /**
      * @param {Site} site
@@ -21,7 +25,7 @@ export class IteratorTypeExpr extends Expr {
     constructor(site, itemTypeExprs) {
         super(site)
 
-        this.#itemTypeExprs = itemTypeExprs
+        this._itemTypeExprs = itemTypeExprs
     }
 
     /**
@@ -29,7 +33,7 @@ export class IteratorTypeExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const itemTypes = this.#itemTypeExprs.map((ite) => {
+        const itemTypes = this._itemTypeExprs.map((ite) => {
             const ite_ = ite.eval(scope)
 
             const itemType = ite_.asType
@@ -55,6 +59,6 @@ export class IteratorTypeExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `Iterator[${this.#itemTypeExprs.map((ite) => ite.toString()).join(", ")}]`
+        return `Iterator[${this._itemTypeExprs.map((ite) => ite.toString()).join(", ")}]`
     }
 }

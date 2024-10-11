@@ -27,14 +27,18 @@ export function matchBuiltins(s, callback) {
  */
 export class RawFunc {
     /**
+     * @private
+     * @readonly
      * @type {string}
      */
-    #name
+    _name
 
     /**
+     * @private
+     * @readonly
      * @type {((ttp: string[], ftp: string[]) => string)}
      */
-    #definition
+    _definition
 
     /**
      * Construct a RawFunc, and immediately scan the definition for dependencies
@@ -42,17 +46,17 @@ export class RawFunc {
      * @param {string | ((ttp: string[], ftp: string[]) => string)} definition
      */
     constructor(name, definition) {
-        this.#name = name
+        this._name = name
         if (!definition) {
             throw new Error("unexpected")
         }
 
-        this.#definition =
+        this._definition =
             typeof definition == "string"
                 ? (ttp, ftp) => {
-                      if (ParametricName.matches(this.#name)) {
+                      if (ParametricName.matches(this._name)) {
                           // TODO: make sure definition is always a function for parametric names
-                          let pName = ParametricName.parse(this.#name)
+                          let pName = ParametricName.parse(this._name)
                           pName = new ParametricName(
                               pName.base,
                               ttp,
@@ -74,7 +78,7 @@ export class RawFunc {
      * @type {string}
      */
     get name() {
-        return this.#name
+        return this._name
     }
 
     /**
@@ -83,11 +87,11 @@ export class RawFunc {
      * @returns {SourceMappedStringI}
      */
     toIR(ttp = [], ftp = []) {
-        return $(replaceTabs(this.#definition(ttp, ftp)))
+        return $(replaceTabs(this._definition(ttp, ftp)))
     }
 
     /**
-     * Loads 'this.#dependecies' (if not already loaded), then load 'this'
+     * Loads dependecies (if not already loaded), then load 'this'
      * @param {Map<string, RawFunc>} db
      * @param {Definitions} dst
      * @param {string[]} ttp
@@ -95,7 +99,7 @@ export class RawFunc {
      * @returns {void}
      */
     load(db, dst, ttp = [], ftp = []) {
-        let name = this.#name
+        let name = this._name
         if (ttp.length > 0 || ftp.length > 0) {
             let pName = ParametricName.parse(name)
             pName = new ParametricName(pName.base, ttp, pName.fn, ftp)

@@ -19,12 +19,17 @@ export class Statement {
      */
     site
 
-    #name
-
     /**
      * @type {string}
      */
     basePath // set by the parent Module
+
+    /**
+     * @private
+     * @readonly
+     * @type {Word}
+     */
+    _name
 
     /**
      * @param {Site} site
@@ -32,15 +37,15 @@ export class Statement {
      */
     constructor(site, name) {
         this.site = site
-        this.#name = name
         this.basePath = "__user"
+        this._name = name
     }
 
     /**
      * @type {Word}
      */
     get name() {
-        return this.#name
+        return this._name
     }
 
     /**

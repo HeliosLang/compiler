@@ -12,7 +12,11 @@ import { Scope } from "./Scope.js"
  * @internal
  */
 export class TopScope extends Scope {
-    #strict
+    /**
+     * @private
+     * @type {boolean}
+     */
+    _strict
 
     /**
      * @param {GlobalScope} parent
@@ -20,7 +24,7 @@ export class TopScope extends Scope {
      */
     constructor(parent, strict = true) {
         super(parent)
-        this.#strict = strict
+        this._strict = strict
     }
 
     /**
@@ -48,14 +52,14 @@ export class TopScope extends Scope {
      * @param {boolean} s
      */
     setStrict(s) {
-        this.#strict = s
+        this._strict = s
     }
 
     /**
      * @returns {boolean}
      */
     isStrict() {
-        return this.#strict
+        return this._strict
     }
 
     /**
