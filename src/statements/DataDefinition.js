@@ -1,6 +1,6 @@
 import { bytesToHex, encodeUtf8 } from "@helios-lang/codec-utils"
 import { Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { FuncArg, StructLiteralExpr } from "../expressions/index.js"
@@ -15,6 +15,7 @@ import { DataField } from "./DataField.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").InstanceMembers} InstanceMembers
@@ -269,7 +270,7 @@ export class DataDefinition {
         const isConstr = constrIndex != -1
 
         /**
-         * @type {SourceMappedString}
+         * @type {SourceMappedStringI}
          */
         let ir
 
@@ -374,7 +375,7 @@ export class DataDefinition {
     /**
      * @param {string} baseName
      * @param {boolean} isEnumMember
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR_show(baseName, isEnumMember = false) {
         if (this.isMappedStruct()) {
@@ -520,7 +521,7 @@ export class DataDefinition {
 
     /**
      * @param {boolean} argIsConstrFields - true in case of sndPair(unConstrData(...)) call for enum variant
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR_is_valid_data(argIsConstrFields = false) {
         if (this.isMappedStruct()) {
@@ -602,7 +603,7 @@ export class DataDefinition {
 
     /**
      * @param {Site} site
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR_mStructEq(site) {
         // the expected fields must exist in both
@@ -640,7 +641,7 @@ export class DataDefinition {
 
     /**
      * @param {string} path
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR_from_data_fields(path) {
         if (this.isMappedStruct()) {
@@ -785,7 +786,7 @@ export class DataDefinition {
                     getterNames.push(key)
 
                     /**
-                     * @type {SourceMappedString}
+                     * @type {SourceMappedStringI}
                      */
                     let getter
 

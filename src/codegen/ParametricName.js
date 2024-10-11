@@ -1,4 +1,6 @@
-import { SourceMappedString } from "@helios-lang/ir"
+/**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ */
 
 export const RE_IR_PARAMETRIC_NAME =
     /[a-zA-Z_][a-zA-Z_0-9]*[[][a-zA-Z_0-9@[\]]*/g
@@ -146,8 +148,8 @@ export class ParametricName {
     }
 
     /**
-     * @param {SourceMappedString} ir
-     * @returns {SourceMappedString}
+     * @param {SourceMappedStringI} ir
+     * @returns {SourceMappedStringI}
      */
     replaceTemplateNames(ir) {
         this.#ttp.forEach((name, i) => {

@@ -1,10 +1,11 @@
 import { Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -38,10 +39,10 @@ export class RefExpr extends Expr {
     }
 
     /**
-     * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @param {ToIRContext} _ctx
+     * @returns {SourceMappedStringI}
      */
-    toIR(ctx) {
+    toIR(_ctx) {
         const path = this.cache?.asNamed
             ? this.cache.asNamed.path
             : this.name.value

@@ -11,7 +11,6 @@ import { ModuleScope } from "../scopes/index.js"
 /**
  * Base class for all statements
  * Doesn't return a value upon calling eval(scope)
- * @implements {Token}
  */
 export class Statement {
     /**

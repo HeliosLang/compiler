@@ -1,11 +1,12 @@
 import { CompilerError, SymbolToken, Word } from "@helios-lang/compiler-utils"
+import { $ } from "@helios-lang/ir"
+import { expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
-import { expectSome } from "@helios-lang/type-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -166,7 +167,7 @@ export class BinaryExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         let path = expectSome(this.first.cache?.asTyped?.type.asNamed).path

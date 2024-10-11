@@ -1,10 +1,8 @@
 import {
     Group,
-    TokenReader,
     Word,
     anyWord,
     group,
-    oneOf,
     symbol,
     word
 } from "@helios-lang/compiler-utils"
@@ -25,6 +23,10 @@ import {
     VoidTypeExpr
 } from "../expressions/index.js"
 import { ParseContext } from "./ParseContext.js"
+
+/**
+ * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
+ */
 
 /**
  * @param {ParseContext} ctx
@@ -145,7 +147,7 @@ export function parseTypeExpr(ctx) {
 
 /**
  * @param {ParseContext} ctx
- * @param {Group<TokenReader>} ag
+ * @param {Group<TokenReaderI>} ag
  * @returns {FuncArgTypeExpr[]}
  */
 function parseFuncArgTypes(ctx, ag) {

@@ -15,10 +15,11 @@ import { Program } from "../src/program/Program.js"
 import { $ } from "@helios-lang/ir"
 
 /**
- * @typedef {import("@helios-lang/codec-utils").ByteArrayLike} ByteArrayLike
+ * @typedef {import("@helios-lang/codec-utils").BytesLike} BytesLike
  * @typedef {import("@helios-lang/uplc").CekResult} CekResult
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("@helios-lang/uplc").UplcLoggingI} UplcLoggingI
+ * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
  */
 
 /**
@@ -100,7 +101,7 @@ export function compileAndRun(test) {
     it(test.description, () => {
         /**
          *
-         * @returns {[Program, UplcProgramV2]}
+         * @returns {[Program, UplcProgramV2I]}
          */
         const initialTest = () => {
             const program = new Program(test.main, {
@@ -346,8 +347,8 @@ export const False = bool(false)
 export const True = bool(true)
 
 /**
- * @param {ByteArrayLike} mph
- * @param {ByteArrayLike} name
+ * @param {BytesLike} mph
+ * @param {BytesLike} name
  */
 export function assetclass(mph, name) {
     return constr(0, bytes(mph), bytes(name))
@@ -355,7 +356,7 @@ export function assetclass(mph, name) {
 
 /**
  *
- * @param {ByteArrayLike} bs
+ * @param {BytesLike} bs
  * @returns {UplcData}
  */
 export function bytes(bs) {

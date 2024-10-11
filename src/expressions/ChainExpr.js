@@ -1,12 +1,13 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
+import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { ErrorType, VoidType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
-import { $, SourceMappedString } from "@helios-lang/ir"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -76,7 +77,7 @@ export class ChainExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         return $([

@@ -1,5 +1,5 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
@@ -8,12 +8,12 @@ import { VoidExpr } from "./VoidExpr.js"
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("@helios-lang/compiler-utils").Token} Token
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").Typed} Typed
  */
 
 /**
  * Default switch case
- * @implements {Token}
  */
 export class SwitchDefault {
     /**
@@ -62,7 +62,7 @@ export class SwitchDefault {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         return $([

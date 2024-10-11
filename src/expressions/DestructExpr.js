@@ -1,5 +1,5 @@
 import { CompilerError, TokenSite, Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { None, expectSome, isSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -15,6 +15,7 @@ import { RefExpr } from "./RefExpr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -454,7 +455,7 @@ export class DestructExpr {
 
     /**
      * @param {number} argIndex
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toNameIR(argIndex) {
         if (this.isIgnored()) {
@@ -484,11 +485,11 @@ export class DestructExpr {
     /**
      * @private
      * @param {ToIRContext} ctx
-     * @param {SourceMappedString} inner
+     * @param {SourceMappedStringI} inner
      * @param {string} objName
      * @param {number} fieldIndex
      * @param {string} fieldGetter
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     wrapDestructIRInternal(ctx, inner, objName, fieldIndex, fieldGetter) {
         if (this.isIgnored() && this.destructExprs.length == 0) {
@@ -548,9 +549,9 @@ export class DestructExpr {
     /**
      *
      * @param {ToIRContext} ctx
-     * @param {SourceMappedString} inner - downstream IR expression
+     * @param {SourceMappedStringI} inner - downstream IR expression
      * @param {number} argIndex
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     wrapDestructIR(ctx, inner, argIndex) {
         if (this.destructExprs.length == 0) {
@@ -593,7 +594,7 @@ export class DestructExpr {
     }
 
     /**
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR() {
         return $(this.name.toString(), this.name.site)

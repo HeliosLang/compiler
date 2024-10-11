@@ -1,6 +1,6 @@
 import { bytesToHex } from "@helios-lang/codec-utils"
 import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
-import { SourceMappedString, compile as compileIR } from "@helios-lang/ir"
+import { compile as compileIR } from "@helios-lang/ir"
 import { expectSome, isSome } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
@@ -22,6 +22,7 @@ import { UserFunc } from "./UserFunc.js"
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("@helios-lang/ir").OptimizeOptions} OptimizeOptions
  * @typedef {import("@helios-lang/ir").ParseOptions} ParseOptions
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("@helios-lang/uplc").UplcValue} UplcValue
  * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
@@ -285,7 +286,7 @@ export class Program {
      * warning message will be emitted, indicating the lack of loggable details.
      *
      * @param {boolean | CompileOptions} optimizeOrOptions
-     * @returns {UplcProgramV2}
+     * @returns {UplcProgramV2I}
      */
     compile(optimizeOrOptions = {}) {
         /**
@@ -410,7 +411,7 @@ export class Program {
      *   makeParamSubstitutable?: boolean
      *   validatorIndices?: Record<string, number>
      * }} options
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(options) {
         const ctx = new ToIRContext({

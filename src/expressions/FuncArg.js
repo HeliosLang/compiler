@@ -1,11 +1,15 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { None, isSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/ToIRContext.js"
 import { Scope } from "../scopes/index.js"
 import { ArgType } from "../typecheck/index.js"
 import { NameTypePair } from "./NameTypePair.js"
 import { Expr } from "./Expr.js"
+
+/**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ */
 
 /**
  * Function argument class
@@ -79,7 +83,7 @@ export class FuncArg extends NameTypePair {
     }
 
     /**
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR() {
         const name = super.toIR()
@@ -92,10 +96,10 @@ export class FuncArg extends NameTypePair {
     }
 
     /**
-     * @param {SourceMappedString} bodyIR
+     * @param {SourceMappedStringI} bodyIR
      * @param {string} name
-     * @param {SourceMappedString} defaultIR
-     * @returns {SourceMappedString}
+     * @param {SourceMappedStringI} defaultIR
+     * @returns {SourceMappedStringI}
      */
     static wrapWithDefaultInternal(bodyIR, name, defaultIR) {
         return $([
@@ -127,8 +131,8 @@ export class FuncArg extends NameTypePair {
      * )
      * TODO: indentation
      * @param {ToIRContext} ctx
-     * @param {SourceMappedString} bodyIR
-     * @returns {SourceMappedString}
+     * @param {SourceMappedStringI} bodyIR
+     * @returns {SourceMappedStringI}
      */
     wrapWithDefault(ctx, bodyIR) {
         if (!this.#defaultValueExpr) {

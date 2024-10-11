@@ -1,5 +1,5 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -7,6 +7,7 @@ import { Expr } from "./Expr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -14,8 +15,19 @@ import { Expr } from "./Expr.js"
  *  ... . ... expression
  */
 export class MemberExpr extends Expr {
-    #objExpr
-    #memberName
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _objExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {Word}
+     */
+    _memberName
 
     /**
      * @param {Site} site
@@ -24,8 +36,8 @@ export class MemberExpr extends Expr {
      */
     constructor(site, objExpr, memberName) {
         super(site)
-        this.#objExpr = objExpr
-        this.#memberName = memberName
+        this._objExpr = objExpr
+        this._memberName = memberName
     }
 
     /**
@@ -33,29 +45,29 @@ export class MemberExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const objVal_ = this.#objExpr.eval(scope)
+        const objVal_ = this._objExpr.eval(scope)
 
         const objVal = objVal_.asInstance
         if (!objVal) {
             throw CompilerError.type(
-                this.#objExpr.site,
+                this._objExpr.site,
                 `lhs of '.' not an instance`
             )
         }
 
-        let member = objVal.instanceMembers[this.#memberName.value]
+        let member = objVal.instanceMembers[this._memberName.value]
         if (!member) {
             if (objVal?.type?.asEnumMemberType) {
                 member =
                     objVal.type.asEnumMemberType.parentType.instanceMembers[
-                        this.#memberName.value
+                        this._memberName.value
                     ]
             }
 
             if (!member) {
                 throw CompilerError.reference(
-                    this.#memberName.site,
-                    `'${objVal.type.toString()}.${this.#memberName.value}' undefined`
+                    this._memberName.site,
+                    `'${objVal.type.toString()}.${this._memberName.value}' undefined`
                 )
             }
         }
@@ -74,35 +86,35 @@ export class MemberExpr extends Expr {
     /**
      * @param {ToIRContext} ctx
      * @param {string} params - applied type parameters must be inserted Before the call to self
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx, params = "") {
         // members can be functions so, field getters are also encoded as functions for consistency
 
-        const objType = expectSome(this.#objExpr.cache?.asTyped?.type?.asNamed)
+        const objType = expectSome(this._objExpr.cache?.asTyped?.type?.asNamed)
 
         let objPath = objType.path
 
         // if we are getting the member of an enum member we should check if it a field or method, because for a method we have to use the parent type
         if (
             objType.asEnumMemberType &&
-            objType.asEnumMemberType.instanceMembers[this.#memberName.value] ===
+            objType.asEnumMemberType.instanceMembers[this._memberName.value] ===
                 undefined
         ) {
             objPath = objType.asEnumMemberType.parentType.path
         }
 
-        const fullPath = `${objPath}__${this.#memberName.toString()}${params}`
+        const fullPath = `${objPath}__${this._memberName.toString()}${params}`
 
-        let ir = $(fullPath, this.#memberName.site)
+        let ir = $(fullPath, this._memberName.site)
 
-        return $([ir, $("(", this.site), this.#objExpr.toIR(ctx), $(")")])
+        return $([ir, $("(", this.site), this._objExpr.toIR(ctx), $(")")])
     }
 
     /**
      * @returns {string}
      */
     toString() {
-        return `${this.#objExpr.toString()}.${this.#memberName.toString()}`
+        return `${this._objExpr.toString()}.${this._memberName.toString()}`
     }
 }

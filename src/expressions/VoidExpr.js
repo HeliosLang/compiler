@@ -1,4 +1,4 @@
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { VoidEntity } from "../typecheck/index.js"
@@ -6,6 +6,7 @@ import { Expr } from "./Expr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").Instance} Instance
  */
 
@@ -31,7 +32,7 @@ export class VoidExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         return $("()", this.site)

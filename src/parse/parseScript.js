@@ -14,6 +14,7 @@ import { parseStatements } from "./parseStatements.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Token} Token
+ * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
  * @typedef {import("./ScriptPurpose.js").ScriptPurpose} ScriptPurpose
  */
 
@@ -85,7 +86,7 @@ export function createSource(rawSrc) {
 /**
  * @param {string | Source} rawSrc
  * @param {ErrorCollector} errorCollector
- * @returns {TokenReader}
+ * @returns {TokenReaderI}
  */
 function tokenizeScript(rawSrc, errorCollector) {
     const src = createSource(rawSrc)

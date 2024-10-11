@@ -1,40 +1,57 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
-import { None, expectSome, isNone } from "@helios-lang/type-utils"
+import { $ } from "@helios-lang/ir"
+import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import {
-    AllType,
-    ByteArrayType,
-    Common,
-    IntType,
-    ListType$,
-    MapType$,
-    RawDataType
-} from "../typecheck/index.js"
+import { AllType } from "../typecheck/index.js"
 import { DestructExpr } from "./DestructExpr.js"
 import { Expr } from "./Expr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("@helios-lang/compiler-utils").Token} Token
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/index.js").Typed} Typed
  */
 
 /**
+ * @typedef {{
+ *   site: Site
+ *   lhs: DestructExpr
+ *   body: Expr
+ *   memberNames: Option<Word>[]
+ *   toString(): string
+ *   evalEnumMember(scope: Scope, enumTypes: DataType[]): Typed
+ *   toControlIR(ctx: ToIRContext, dataIRs: SourceMappedStringI[]): SourceMappedStringI
+ *   toIR(ctx: ToIRContext): SourceMappedStringI
+ * }} SwitchCaseI
+ */
+
+/**
  * Switch case for a switch expression
- * @implements {Token}
+ * @implements {SwitchCaseI}
  */
 export class SwitchCase {
+    /**
+     * @readonly
+     * @type {Site}
+     */
+    site
+
     /**
      * @readonly
      * @type {DestructExpr}
      */
     lhs
 
-    #bodyExpr
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _bodyExpr
 
     /**
      * @param {Site} site
@@ -44,14 +61,14 @@ export class SwitchCase {
     constructor(site, lhs, bodyExpr) {
         this.site = site
         this.lhs = lhs
-        this.#bodyExpr = bodyExpr
+        this._bodyExpr = bodyExpr
     }
 
     /**
      * @type {Expr}
      */
     get body() {
-        return this.#bodyExpr
+        return this._bodyExpr
     }
 
     /**
@@ -80,7 +97,7 @@ export class SwitchCase {
      * @returns {string}
      */
     toString() {
-        return `${this.lhs.toString()} => ${this.#bodyExpr.toString()}`
+        return `${this.lhs.toString()} => ${this._bodyExpr.toString()}`
     }
 
     /**
@@ -115,12 +132,10 @@ export class SwitchCase {
 
         this.lhs.evalInSwitchCase(caseScope, caseTypes)
 
-        const bodyVal_ = this.#bodyExpr.eval(caseScope)
-
-        const bodyVal = bodyVal_.asTyped
+        const bodyVal = this._bodyExpr.eval(caseScope).asTyped
 
         if (!bodyVal) {
-            throw CompilerError.type(this.#bodyExpr.site, "not typed")
+            throw CompilerError.type(this._bodyExpr.site, "not typed")
         }
 
         caseScope.assertAllUsed()
@@ -129,11 +144,11 @@ export class SwitchCase {
     }
 
     /**
-     * @param {ToIRContext} ctx
-     * @param {SourceMappedString[]} dataIRs
-     * @returns {SourceMappedString}
+     * @param {ToIRContext} _ctx
+     * @param {SourceMappedStringI[]} dataIRs
+     * @returns {SourceMappedStringI}
      */
-    toControlIR(ctx, dataIRs) {
+    toControlIR(_ctx, dataIRs) {
         if (this.lhs.isTuple()) {
             const indices = this.lhs.destructExprs
                 .map((de, i) => {
@@ -173,10 +188,10 @@ export class SwitchCase {
     /**
      * Accept an arg because will be called with the result of the controlexpr
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
-        let inner = this.#bodyExpr.toIR(ctx.tab())
+        let inner = this._bodyExpr.toIR(ctx.tab())
 
         inner = this.lhs.wrapDestructIR(ctx, inner, 0)
 

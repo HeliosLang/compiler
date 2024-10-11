@@ -1,12 +1,13 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
+import { $ } from "@helios-lang/ir"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { ErrorType, TupleType$, VoidType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
-import { $, SourceMappedString } from "@helios-lang/ir"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -14,7 +15,12 @@ import { $, SourceMappedString } from "@helios-lang/ir"
  * Parentheses expression, which is also used for tuples
  */
 export class ParensExpr extends Expr {
-    #exprs
+    /**
+     * @private
+     * @readonly
+     * @type {Expr[]}
+     */
+    _exprs
 
     /**
      * @param {Site} site
@@ -22,14 +28,14 @@ export class ParensExpr extends Expr {
      */
     constructor(site, exprs) {
         super(site)
-        this.#exprs = exprs
+        this._exprs = exprs
     }
 
     /**
      * @returns {boolean}
      */
     isLiteral() {
-        return this.#exprs.every((e) => e.isLiteral())
+        return this._exprs.every((e) => e.isLiteral())
     }
 
     /**
@@ -37,12 +43,12 @@ export class ParensExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        if (this.#exprs.length === 0) {
+        if (this._exprs.length === 0) {
             return new VoidType().toTyped()
-        } else if (this.#exprs.length === 1) {
-            return this.#exprs[0].eval(scope)
+        } else if (this._exprs.length === 1) {
+            return this._exprs[0].eval(scope)
         } else {
-            const entries = this.#exprs.map((e) => {
+            const entries = this._exprs.map((e) => {
                 const v_ = e.eval(scope)
 
                 const v = v_.asTyped
@@ -66,13 +72,13 @@ export class ParensExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
-        if (this.#exprs.length === 0) {
+        if (this._exprs.length === 0) {
             return $`()`
-        } else if (this.#exprs.length === 1) {
-            return this.#exprs[0].toIR(ctx)
+        } else if (this._exprs.length === 1) {
+            return this._exprs[0].toIR(ctx)
         } else {
             return $(
                 [
@@ -82,7 +88,7 @@ export class ParensExpr extends Expr {
                     )
                 ]
                     .concat(
-                        $(this.#exprs.map((e) => e.toIR(ctx.tab().tab()))).join(
+                        $(this._exprs.map((e) => e.toIR(ctx.tab().tab()))).join(
                             `,\n${ctx.indent + TAB + TAB}`
                         )
                     )
@@ -95,6 +101,6 @@ export class ParensExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `(${this.#exprs.map((e) => e.toString()).join(", ")})`
+        return `(${this._exprs.map((e) => e.toString()).join(", ")})`
     }
 }

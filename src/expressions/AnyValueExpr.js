@@ -1,4 +1,4 @@
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { AnyEntity } from "../typecheck/index.js"
@@ -6,6 +6,7 @@ import { Expr } from "./Expr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").Instance} Instance
  */
 
@@ -21,18 +22,18 @@ export class AnyValueExpr extends Expr {
     }
 
     /**
-     * @param {Scope} scope
+     * @param {Scope} _scope
      * @returns {Instance}
      */
-    evalInternal(scope) {
+    evalInternal(_scope) {
         return new AnyEntity()
     }
 
     /**
-     * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @param {ToIRContext} _ctx
+     * @returns {SourceMappedStringI}
      */
-    toIR(ctx) {
+    toIR(_ctx) {
         return $("()", this.site)
     }
 

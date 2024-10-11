@@ -1,5 +1,5 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -9,6 +9,7 @@ import { StructLiteralField } from "./StructLiteralField.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -17,8 +18,19 @@ import { StructLiteralField } from "./StructLiteralField.js"
  * Struct literal constructor
  */
 export class StructLiteralExpr extends Expr {
-    #typeExpr
-    #fields
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _typeExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {StructLiteralField[]}
+     */
+    _fields
 
     /**
      * @param {Expr} typeExpr
@@ -26,8 +38,8 @@ export class StructLiteralExpr extends Expr {
      */
     constructor(typeExpr, fields) {
         super(typeExpr.site)
-        this.#typeExpr = typeExpr
-        this.#fields = fields
+        this._typeExpr = typeExpr
+        this._fields = fields
     }
 
     /**
@@ -35,21 +47,21 @@ export class StructLiteralExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const type_ = this.#typeExpr.eval(scope)
+        const type_ = this._typeExpr.eval(scope)
 
         const type = type_.asDataType
 
         if (!type) {
             throw CompilerError.type(
-                this.#typeExpr.site,
-                `'${this.#typeExpr.toString()}' doesn't evaluate to a data type`
+                this._typeExpr.site,
+                `'${this._typeExpr.toString()}' doesn't evaluate to a data type`
             )
         }
 
-        if (type.fieldNames.length != this.#fields.length) {
+        if (type.fieldNames.length != this._fields.length) {
             throw CompilerError.type(
                 this.site,
-                `wrong number of fields for ${type.toString()}, expected ${type.fieldNames.length}, got ${this.#fields.length}`
+                `wrong number of fields for ${type.toString()}, expected ${type.fieldNames.length}, got ${this._fields.length}`
             )
         }
 
@@ -79,8 +91,8 @@ export class StructLiteralExpr extends Expr {
             return memberType
         }
 
-        for (let i = 0; i < this.#fields.length; i++) {
-            const f = this.#fields[i]
+        for (let i = 0; i < this._fields.length; i++) {
+            const f = this._fields[i]
 
             const fieldVal_ = f.eval(scope)
 
@@ -140,16 +152,16 @@ export class StructLiteralExpr extends Expr {
      */
     isNamed() {
         // the expression builder already checked that all fields are named or all or positional (i.e. not mixed)
-        return this.#fields.length > 0 && this.#fields[0].isNamed()
+        return this._fields.length > 0 && this._fields[0].isNamed()
     }
 
     /**
-     * @param {ToIRContext} ctx
+     * @param {ToIRContext} _ctx
      * @param {Site} site
      * @param {string} path
-     * @param {SourceMappedString[]} fields
+     * @param {SourceMappedStringI[]} fields
      */
-    static toIRInternal(ctx, site, path, fields) {
+    static toIRInternal(_ctx, site, path, fields) {
         return $(
             [$(`${path}____new`), $("("), $(fields).join(", "), $(")")],
             site
@@ -158,12 +170,12 @@ export class StructLiteralExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
-        const type = expectSome(this.#typeExpr.cache?.asDataType)
+        const type = expectSome(this._typeExpr.cache?.asDataType)
 
-        const fields = this.#fields.slice()
+        const fields = this._fields.slice()
 
         // sort fields by correct name
         if (this.isNamed()) {
@@ -188,6 +200,6 @@ export class StructLiteralExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `${this.#typeExpr.toString()}{${this.#fields.map((f) => f.toString()).join(", ")}}`
+        return `${this._typeExpr.toString()}{${this._fields.map((f) => f.toString()).join(", ")}}`
     }
 }

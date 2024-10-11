@@ -1,5 +1,5 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
@@ -8,6 +8,7 @@ import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
@@ -79,7 +80,7 @@ export class GenericEntryPoint extends EntryPointImpl {
     /**
      * @param {ToIRContext} ctx
      * @param {Option<Definitions>} extra
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx, extra = None) {
         const ir = this.toIRInternal(ctx)
@@ -97,7 +98,7 @@ export class GenericEntryPoint extends EntryPointImpl {
     /**
      * @protected
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIRInternal(ctx) {
         const argTypeNames = this.mainFunc.argTypeNames

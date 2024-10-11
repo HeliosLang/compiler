@@ -1,5 +1,4 @@
-import { $, SourceMappedString, compile as compileIR } from "@helios-lang/ir"
-import { UplcProgramV2 } from "@helios-lang/uplc"
+import { $, compile as compileIR } from "@helios-lang/ir"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
 import { ConstStatement, FuncStatement } from "../statements/index.js"
 import { ModuleCollection } from "./ModuleCollection.js"
@@ -8,6 +7,8 @@ import { FuncArg } from "../expressions/FuncArg.js"
 import { expectSome } from "@helios-lang/type-utils"
 
 /**
+ * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
  */
@@ -100,7 +101,7 @@ export class UserFunc {
      *   hashDependencies: Record<string, string>
      *   currentScriptValue?: string
      * }} props
-     * @returns {UplcProgramV2}
+     * @returns {UplcProgramV2I}
      */
     compile(props) {
         const { ir } = this.toIR({
@@ -128,7 +129,7 @@ export class UserFunc {
      *   currentScriptValue?: string
      * }} props
      * @returns {{
-     *   ir: SourceMappedString
+     *   ir: SourceMappedStringI
      *   requiresScriptContext: boolean
      *   requiresCurrentScript: boolean
      * }}
@@ -191,7 +192,7 @@ export class UserFunc {
         const args = fn instanceof FuncStatement ? fn.args : []
 
         /**
-         * @type {SourceMappedString}
+         * @type {SourceMappedStringI}
          */
         let ir
 

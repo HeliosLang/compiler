@@ -1,5 +1,5 @@
 import { CompilerError, TokenSite, Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome, isSome } from "@helios-lang/type-utils"
 import { ToIRContext, PARAM_IR_MACRO } from "../codegen/index.js"
 import { Expr, LiteralDataExpr } from "../expressions/index.js"
@@ -9,6 +9,7 @@ import { Statement } from "./Statement.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
@@ -131,7 +132,7 @@ export class ConstStatement extends Statement {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIRInternal(ctx) {
         let ir = expectSome(this.#valueExpr).toIR(ctx)

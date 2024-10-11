@@ -1,13 +1,14 @@
 import { Word } from "@helios-lang/compiler-utils"
+import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { DataEntity } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 import { PathExpr } from "./PathExpr.js"
-import { $, SourceMappedString } from "@helios-lang/ir"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -53,7 +54,7 @@ export class ValuePathExpr extends PathExpr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         const v = this.cache

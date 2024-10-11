@@ -1,6 +1,5 @@
 import { Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
-import { None, expectSome, isSome } from "@helios-lang/type-utils"
+import { None, expectSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
 import {
@@ -14,6 +13,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
@@ -38,7 +38,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
  *   requiredParams: Set<string>
  *   changeParam(name: string, data: UplcData): boolean
  *   evalTypes(scriptTypes: ScriptTypes): void
- *   toIR(ctx: ToIRContext, extra?: Option<Definitions>): SourceMappedString
+ *   toIR(ctx: ToIRContext, extra?: Option<Definitions>): SourceMappedStringI
  *   toString(): string
  * }} EntryPoint
  */
@@ -299,7 +299,7 @@ export class EntryPointImpl {
 
     /**
      * @protected
-     * @param {SourceMappedString} ir
+     * @param {SourceMappedStringI} ir
      * @param {Definitions} definitions
      * @returns {Set<string>}
      */
@@ -311,7 +311,7 @@ export class EntryPointImpl {
         const used = new Set()
 
         /**
-         * @type {SourceMappedString[]}
+         * @type {SourceMappedStringI[]}
          */
         const stack = [ir]
 
@@ -375,7 +375,7 @@ export class EntryPointImpl {
      * Non-positional named parameters
      * @protected
      * @param {ToIRContext} ctx
-     * @param {SourceMappedString} ir
+     * @param {SourceMappedStringI} ir
      * @returns {Set<string>}
      */
     getRequiredParametersInternal(ctx, ir) {
@@ -412,9 +412,9 @@ export class EntryPointImpl {
     /**
      * @protected
      * @param {ToIRContext} ctx
-     * @param {SourceMappedString} ir
+     * @param {SourceMappedStringI} ir
      * @param {Option<Definitions>} extra
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     wrapEntryPoint(ctx, ir, extra = None) {
         const map = this.modules.fetchDefinitions(

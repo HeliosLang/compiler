@@ -46,6 +46,7 @@ import { parseDestructExpr } from "./parseDestructExpr.js"
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("@helios-lang/compiler-utils").Token} Token
+ * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
  * @typedef {import("./ValueExprParser.js").ValueExprParser} ValueExprParser
  */
 
@@ -187,7 +188,7 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {Expr} fnExpr
-     * @param {Group<TokenReader>} argGroup
+     * @param {Group<TokenReaderI>} argGroup
      * @returns {CallExpr}
      */
     function parseCallExpr(ctx, fnExpr, argGroup) {
@@ -225,7 +226,7 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {Expr} baseExpr
-     * @param {Group<TokenReader>} pg
+     * @param {Group<TokenReaderI>} pg
      * @returns {ParametricExpr}
      */
     function parseParametricValueExpr(ctx, baseExpr, pg) {
@@ -239,8 +240,8 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {Word} keyword
-     * @param {Group<TokenReader>} firstCond
-     * @param {Group<TokenReader>} firstBranch
+     * @param {Group<TokenReaderI>} firstCond
+     * @param {Group<TokenReaderI>} firstBranch
      * @returns {IfElseExpr}
      */
     function parseIfElseExpr(ctx, keyword, firstCond, firstBranch) {
@@ -295,7 +296,7 @@ export function makeChainedExprParser(parseValueExpr) {
      * @param {Expr} objExpr
      * @param {SymbolToken} dot
      * @param {Word} kw
-     * @param {Group<TokenReader>} braces
+     * @param {Group<TokenReaderI>} braces
      * @returns {EnumSwitchExpr}
      */
     function parseSwitchExpr(ctx, objExpr, dot, kw, braces) {
@@ -516,8 +517,8 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      *
      * @param {ParseContext} ctx
-     * @param {TokenReader} itemTypeReader
-     * @param {Group<TokenReader>} braces
+     * @param {TokenReaderI} itemTypeReader
+     * @param {Group<TokenReaderI>} braces
      * @returns {ListLiteralExpr}
      */
     function parseListLiteralExpr(ctx, itemTypeReader, braces) {
@@ -538,7 +539,7 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {Token[]} itemTypeTokens
-     * @param {TokenReader} itemReader
+     * @param {TokenReaderI} itemReader
      * @returns {Expr}
      */
     function parseInferrableItem(ctx, itemTypeTokens, itemReader) {
@@ -559,9 +560,9 @@ export function makeChainedExprParser(parseValueExpr) {
 
     /**
      * @param {ParseContext} ctx
-     * @param {TokenReader} keyTypeReader
-     * @param {TokenReader} valueTypeReader
-     * @param {Group<TokenReader>} braces
+     * @param {TokenReaderI} keyTypeReader
+     * @param {TokenReaderI} valueTypeReader
+     * @param {Group<TokenReaderI>} braces
      * @returns {MapLiteralExpr}
      */
     function parseMapLiteralExpr(ctx, keyTypeReader, valueTypeReader, braces) {
@@ -634,8 +635,8 @@ export function makeChainedExprParser(parseValueExpr) {
 
     /**
      * @param {ParseContext} ctx
-     * @param {TokenReader} typeReader
-     * @param {Group<TokenReader>} braces
+     * @param {TokenReaderI} typeReader
+     * @param {Group<TokenReaderI>} braces
      */
     function parseStructLiteralExpr(ctx, typeReader, braces) {
         const typeExpr = parseTypeExpr(ctx.withReader(typeReader))

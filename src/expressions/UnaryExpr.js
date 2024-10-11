@@ -1,11 +1,12 @@
 import { CompilerError, SymbolToken, Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -14,8 +15,19 @@ import { Expr } from "./Expr.js"
  * Note: there are no post-unary operators, only pre
  */
 export class UnaryExpr extends Expr {
-    #op
-    #a
+    /**
+     * @private
+     * @readonly
+     * @type {SymbolToken}
+     */
+    _op
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _a
 
     /**
      * @param {SymbolToken} op
@@ -23,8 +35,8 @@ export class UnaryExpr extends Expr {
      */
     constructor(op, a) {
         super(op.site)
-        this.#op = op
-        this.#a = a
+        this._op = op
+        this._a = a
     }
 
     /**
@@ -32,8 +44,8 @@ export class UnaryExpr extends Expr {
      * @returns {Word}
      */
     translateOp() {
-        const op = this.#op.toString()
-        const site = this.#op.site
+        const op = this._op.toString()
+        const site = this._op.site
 
         if (op == "+") {
             return new Word("__pos", site)
@@ -51,11 +63,11 @@ export class UnaryExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const a_ = this.#a.eval(scope)
 
-        const a = a_.asInstance
+        const a = this._a.eval(scope).asInstance
+        
         if (!a) {
-            throw CompilerError.type(this.#a.site, "not an instance")
+            throw CompilerError.type(this._a.site, "not an instance")
         }
 
         const op = this.translateOp().value
@@ -64,18 +76,18 @@ export class UnaryExpr extends Expr {
 
         if (fnVal) {
             // immediately applied
-            return fnVal.asFunc.call(this.#op.site, [a])
+            return fnVal.asFunc.call(this._op.site, [a])
         } else {
             throw CompilerError.type(
-                this.#a.site,
-                `'${this.#op.toString()} ${a.type.toString()}' undefined`
+                this._a.site,
+                `'${this._op.toString()} ${a.type.toString()}' undefined`
             )
         }
     }
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         const path = expectSome(this.cache?.asTyped?.type?.asNamed).path
@@ -83,7 +95,7 @@ export class UnaryExpr extends Expr {
         return $([
             $(`${path}__${this.translateOp().value}`, this.site),
             $("("),
-            this.#a.toIR(ctx),
+            this._a.toIR(ctx),
             $(")")
         ])
     }
@@ -92,6 +104,6 @@ export class UnaryExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `${this.#op.toString()}${this.#a.toString()}`
+        return `${this._op.toString()}${this._a.toString()}`
     }
 }

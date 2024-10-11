@@ -1,11 +1,12 @@
 import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -13,8 +14,19 @@ import { Expr } from "./Expr.js"
  * Name::Member expression
  */
 export class PathExpr extends Expr {
-    #baseExpr
-    #memberName
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _baseExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {Word}
+     */
+    _memberName
 
     /**
      * @param {Site} site
@@ -23,15 +35,15 @@ export class PathExpr extends Expr {
      */
     constructor(site, baseExpr, memberName) {
         super(site)
-        this.#baseExpr = baseExpr
-        this.#memberName = memberName
+        this._baseExpr = baseExpr
+        this._memberName = memberName
     }
 
     /**
      * @type {Expr}
      */
     get baseExpr() {
-        return this.#baseExpr
+        return this._baseExpr
     }
 
     /**
@@ -39,7 +51,7 @@ export class PathExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const base = this.#baseExpr.eval(scope)
+        const base = this._baseExpr.eval(scope)
 
         /**
          * @type {null | EvalEntity}
@@ -47,17 +59,17 @@ export class PathExpr extends Expr {
         let member = null
 
         if (base.asNamespace) {
-            member = base.asNamespace.namespaceMembers[this.#memberName.value]
+            member = base.asNamespace.namespaceMembers[this._memberName.value]
         } else if (base.asType) {
             const typeMembers = base.asType.typeMembers
 
-            member = typeMembers[this.#memberName.value]
+            member = typeMembers[this._memberName.value]
         }
 
         if (!member) {
             throw CompilerError.reference(
-                this.#memberName.site,
-                `${base.toString()}::${this.#memberName.value} not found`
+                this._memberName.site,
+                `${base.toString()}::${this._memberName.value} not found`
             )
         }
 
@@ -70,16 +82,16 @@ export class PathExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         const v = this.cache
 
         if (v?.asNamed) {
             return $(`${v.asNamed.path}`, this.site)
-        } else if (this.#baseExpr.cache?.asNamed) {
+        } else if (this._baseExpr.cache?.asNamed) {
             return $(
-                `${this.#baseExpr.cache.asNamed.path}__${this.#memberName.value}`,
+                `${this._baseExpr.cache.asNamed.path}__${this._memberName.value}`,
                 this.site
             )
         } else {
@@ -91,6 +103,6 @@ export class PathExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `${this.#baseExpr.toString()}::${this.#memberName.toString()}`
+        return `${this._baseExpr.toString()}::${this._memberName.toString()}`
     }
 }

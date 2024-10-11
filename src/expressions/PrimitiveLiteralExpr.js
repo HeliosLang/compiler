@@ -5,7 +5,7 @@ import {
     RealLiteral,
     StringLiteral
 } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
@@ -19,6 +19,7 @@ import {
 import { Expr } from "./Expr.js"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -31,29 +32,34 @@ import { Expr } from "./Expr.js"
  * Literal expression class (wraps literal tokens)
  */
 export class PrimitiveLiteralExpr extends Expr {
-    #primitive
+    /**
+     * @private
+     * @readonly
+     * @type {PrimitiveLiteral}
+     */
+    _primitive
 
     /**
      * @param {PrimitiveLiteral} primitive
      */
     constructor(primitive) {
         super(primitive.site)
-        this.#primitive = primitive
+        this._primitive = primitive
     }
 
     /**
      * @type {DataType}
      */
     get type() {
-        if (this.#primitive instanceof IntLiteral) {
+        if (this._primitive instanceof IntLiteral) {
             return IntType
-        } else if (this.#primitive instanceof RealLiteral) {
+        } else if (this._primitive instanceof RealLiteral) {
             return RealType
-        } else if (this.#primitive instanceof BoolLiteral) {
+        } else if (this._primitive instanceof BoolLiteral) {
             return BoolType
-        } else if (this.#primitive instanceof StringLiteral) {
+        } else if (this._primitive instanceof StringLiteral) {
             return StringType
-        } else if (this.#primitive instanceof ByteArrayLiteral) {
+        } else if (this._primitive instanceof ByteArrayLiteral) {
             return ByteArrayType
         } else {
             throw new Error("unhandled primitive type")
@@ -76,15 +82,15 @@ export class PrimitiveLiteralExpr extends Expr {
     }
 
     /**
-     * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @param {ToIRContext} _ctx
+     * @returns {SourceMappedStringI}
      */
-    toIR(ctx) {
-        if (this.#primitive instanceof RealLiteral) {
-            return $(this.#primitive.value.toString(), this.#primitive.site)
+    toIR(_ctx) {
+        if (this._primitive instanceof RealLiteral) {
+            return $(this._primitive.value.toString(), this._primitive.site)
         } else {
             // all literals except RealLiteral can be reused in their string-form in the IR
-            return $(this.#primitive.toString(), this.#primitive.site)
+            return $(this._primitive.toString(), this._primitive.site)
         }
     }
 
@@ -92,6 +98,6 @@ export class PrimitiveLiteralExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return this.#primitive.toString()
+        return this._primitive.toString()
     }
 }

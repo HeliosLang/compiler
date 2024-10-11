@@ -1,7 +1,12 @@
 import { replaceTabs } from "@helios-lang/codec-utils"
-import { SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { ParametricName } from "./ParametricName.js"
+
+/**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @typedef {import("./Definitions.js").Definitions} Definitions
+ */
 
 /**
  *
@@ -15,10 +20,6 @@ export function matchBuiltins(s, callback) {
         callback(m[2])
     }
 }
-
-/**
- * @typedef {import("./Definitions.js").Definitions} Definitions
- */
 
 /**
  * Wrapper for a builtin function (written in IR)
@@ -59,9 +60,7 @@ export class RawFunc {
                               ftp
                           )
                           const [def, _] = pName
-                              .replaceTemplateNames(
-                                  new SourceMappedString(definition)
-                              )
+                              .replaceTemplateNames($(definition))
                               .toStringWithSourceMap()
                           return def
                       } else {
@@ -81,10 +80,10 @@ export class RawFunc {
     /**
      * @param {string[]} ttp
      * @param {string[]} ftp
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ttp = [], ftp = []) {
-        return new SourceMappedString(replaceTabs(this.#definition(ttp, ftp)))
+        return $(replaceTabs(this.#definition(ttp, ftp)))
     }
 
     /**

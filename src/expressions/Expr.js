@@ -1,12 +1,12 @@
-import { SourceMappedString } from "@helios-lang/ir"
+import { CompilerError } from "@helios-lang/compiler-utils"
 import { None } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { CompilerError } from "@helios-lang/compiler-utils"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Token} Token
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -14,8 +14,23 @@ import { CompilerError } from "@helios-lang/compiler-utils"
  */
 
 /**
+ * @typedef {{
+ *   site: Site
+ *   cache: Option<EvalEntity>
+ *   evalInternal(scope: Scope): EvalEntity
+ *   eval(scope: Scope): EvalEntity
+ *   evalAsDataType(scope: Scope): DataType
+ *   evalAsType(scope: Scope): Type
+ *   evalAsTyped(scope: Scope): Typed
+ *   isLiteral(): boolean
+ *   toIR(ctx: ToIRContext): SourceMappedStringI
+ *   toString(): string
+ * }} ExprI
+ */
+
+/**
  * Base class of every Type and Instance expression.
- * @implements {Token}
+ * @implements {ExprI}
  */
 export class Expr {
     /**
@@ -40,10 +55,10 @@ export class Expr {
     }
 
     /**
-     * @param {Scope} scope
+     * @param {Scope} _scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
+    evalInternal(_scope) {
         throw new Error("not yet implemented")
     }
 
@@ -114,7 +129,7 @@ export class Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         throw new Error("not yet implemented")

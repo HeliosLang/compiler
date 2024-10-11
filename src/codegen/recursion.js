@@ -1,16 +1,17 @@
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("./Definitions.js").Definitions} Definitions
  */
 
 /**
  * For top-level statements
  * TODO: rely on ir library mutual recursion handling
- * @param {SourceMappedString} mainIR
+ * @param {SourceMappedStringI} mainIR
  * @param {Definitions} map
- * @returns {SourceMappedString}
+ * @returns {SourceMappedStringI}
  */
 export function injectMutualRecursions(mainIR, map) {
     const keys = Array.from(map.keys())

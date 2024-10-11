@@ -1,10 +1,5 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
-import {
-    $,
-    DEFAULT_PARSE_OPTIONS,
-    SourceMappedString,
-    compile
-} from "@helios-lang/ir"
+import { $, DEFAULT_PARSE_OPTIONS, compile } from "@helios-lang/ir"
 import { None } from "@helios-lang/type-utils"
 import { UplcProgramV2 } from "@helios-lang/uplc"
 import { TAB, ToIRContext } from "../codegen/index.js"
@@ -14,6 +9,8 @@ import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
+ * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
@@ -65,7 +62,7 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
     /**
      * Used by cli
      * @param {boolean} isTestnet
-     * @returns {UplcProgramV2}
+     * @returns {UplcProgramV2I}
      */
     compileDatumCheck(isTestnet) {
         const ctx = new ToIRContext({ optimize: false, isTestnet: isTestnet })
@@ -121,7 +118,7 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
     /**
      * @param {ToIRContext} ctx
      * @param {Option<Definitions>} extra
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx, extra = None) {
         let ir = this.toIRInternal(ctx)
@@ -145,7 +142,7 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
     /**
      * @protected
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIRInternal(ctx) {
         const argTypeNames = this.mainFunc.argTypeNames
@@ -183,7 +180,7 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
     /**
      * @internal
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     datumCheckToIR(ctx) {
         if (this.datumTypeName == "") {

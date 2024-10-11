@@ -1,15 +1,15 @@
-import { SourceMappedString } from "@helios-lang/ir"
 import { ParametricName, RE_IR_PARAMETRIC_NAME } from "./ParametricName.js"
 import { ToIRContext } from "./ToIRContext.js"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("./Definitions.js").Definitions} Definitions
  */
 
 /**
  * Also merges builtins and map
  * @param {ToIRContext} ctx
- * @param {SourceMappedString} mainIR
+ * @param {SourceMappedStringI} mainIR
  * @param {Definitions} map
  * @returns {Definitions}
  */
@@ -17,7 +17,7 @@ export function applyTypeParameters(ctx, mainIR, map) {
     const builtinGenerics = ctx.fetchRawGenerics()
 
     /**
-     * @type {Map<string, [string, SourceMappedString]>}
+     * @type {Map<string, [string, SourceMappedStringI]>}
      */
     const added = new Map()
 
@@ -43,7 +43,7 @@ export function applyTypeParameters(ctx, mainIR, map) {
 
         if (!ir) {
             throw new Error(`${genericName} undefined in ir`)
-        } else if (ir instanceof SourceMappedString) {
+        } else if ("content" in ir) {
             ir = pName.replaceTemplateNames(ir)
 
             added.set(name, [location, ir])

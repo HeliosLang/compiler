@@ -1,5 +1,5 @@
 import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -10,6 +10,7 @@ import { FuncArg } from "./FuncArg.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -31,7 +32,12 @@ export class FuncLiteralExpr extends Expr {
      */
     retTypeExpr
 
-    #bodyExpr
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _bodyExpr
 
     /**
      * @param {Site} site
@@ -43,7 +49,7 @@ export class FuncLiteralExpr extends Expr {
         super(site)
         this.args = args
         this.retTypeExpr = retTypeExpr
-        this.#bodyExpr = bodyExpr
+        this._bodyExpr = bodyExpr
     }
 
     /**
@@ -78,7 +84,7 @@ export class FuncLiteralExpr extends Expr {
      * @type {Expr}
      */
     get retExpr() {
-        let expr = this.#bodyExpr
+        let expr = this._bodyExpr
 
         while (expr instanceof ChainExpr) {
             expr = expr.downstreamExpr
@@ -144,7 +150,7 @@ export class FuncLiteralExpr extends Expr {
             }
         })
 
-        let bodyVal = this.#bodyExpr.eval(subScope)
+        let bodyVal = this._bodyExpr.eval(subScope)
 
         if (!this.retTypeExpr) {
             if (bodyVal.asTyped) {
@@ -153,7 +159,7 @@ export class FuncLiteralExpr extends Expr {
                 )
             } else {
                 throw CompilerError.type(
-                    this.#bodyExpr.site,
+                    this._bodyExpr.site,
                     "expect multi or typed"
                 )
             }
@@ -166,7 +172,7 @@ export class FuncLiteralExpr extends Expr {
             }
         } else {
             throw CompilerError.type(
-                this.#bodyExpr.site,
+                this._bodyExpr.site,
                 "expect multi or typed"
             )
         }
@@ -181,7 +187,7 @@ export class FuncLiteralExpr extends Expr {
     }
 
     /**
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     argsToIR() {
         let args = this.args.map((a) => a.toIR())
@@ -195,8 +201,8 @@ export class FuncLiteralExpr extends Expr {
     /**
      * In reverse order, because later opt args might depend on earlier args
      * @param {ToIRContext} ctx
-     * @param {SourceMappedString} innerIR
-     * @returns {SourceMappedString}
+     * @param {SourceMappedStringI} innerIR
+     * @returns {SourceMappedStringI}
      */
     wrapWithDefaultArgs(ctx, innerIR) {
         const args = this.args.slice().reverse()
@@ -210,7 +216,7 @@ export class FuncLiteralExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIRInternal(ctx) {
         let argsWithCommas = this.argsToIR()
@@ -221,7 +227,7 @@ export class FuncLiteralExpr extends Expr {
             innerIndent += TAB
         }
 
-        let innerIR = this.#bodyExpr.toIR(ctx.tab())
+        let innerIR = this._bodyExpr.toIR(ctx.tab())
 
         innerIR = this.wrapWithDefaultArgs(ctx, innerIR)
 
@@ -258,7 +264,7 @@ export class FuncLiteralExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         return this.toIRInternal(ctx)
@@ -269,9 +275,9 @@ export class FuncLiteralExpr extends Expr {
      */
     toString() {
         if (this.retTypeExpr) {
-            return `(${this.args.map((a) => a.toString()).join(", ")}) -> ${this.retTypeExpr.toString()} {${this.#bodyExpr.toString()}}`
+            return `(${this.args.map((a) => a.toString()).join(", ")}) -> ${this.retTypeExpr.toString()} {${this._bodyExpr.toString()}}`
         } else {
-            return `(${this.args.map((a) => a.toString()).join(", ")}) -> {${this.#bodyExpr.toString()}}`
+            return `(${this.args.map((a) => a.toString()).join(", ")}) -> {${this._bodyExpr.toString()}}`
         }
     }
 }

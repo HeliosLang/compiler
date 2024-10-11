@@ -5,11 +5,20 @@ import { Expr } from "./Expr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/compiler-utils").Token} Token
  */
 
 /**
- * @implements {Token}
+ * @typedef {{
+ *   site: Site
+ *   isNamed(): boolean
+ *   isOptional(): boolean
+ *   eval(scope: Scope): ArgType
+ *   toString(): string
+ * }} FuncArgTypeExprI
+ */
+
+/**
+ * @implements {FuncArgTypeExprI}
  */
 export class FuncArgTypeExpr {
     /**
@@ -18,9 +27,26 @@ export class FuncArgTypeExpr {
      */
     site
 
-    #name
-    #typeExpr
-    optional
+    /**
+     * @private
+     * @readonly
+     * @type {Option<Word>}
+     */
+    _name
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _typeExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {boolean}
+     */
+    _optional
 
     /**
      * @param {Site} site
@@ -30,23 +56,23 @@ export class FuncArgTypeExpr {
      */
     constructor(site, name, typeExpr, optional) {
         this.site = site
-        this.#name = name
-        this.#typeExpr = typeExpr
-        this.optional = optional
+        this._name = name
+        this._typeExpr = typeExpr
+        this._optional = optional
     }
 
     /**
      * @returns {boolean}
      */
     isNamed() {
-        return !this.#name
+        return !this._name
     }
 
     /**
      * @returns {boolean}
      */
     isOptional() {
-        return this.optional
+        return this._optional
     }
 
     /**
@@ -54,18 +80,18 @@ export class FuncArgTypeExpr {
      * @returns {ArgType}
      */
     eval(scope) {
-        const type_ = this.#typeExpr.eval(scope)
+        const type_ = this._typeExpr.eval(scope)
 
         const type = type_.asType
 
         if (!type) {
             throw CompilerError.type(
-                this.#typeExpr.site,
+                this._typeExpr.site,
                 `'${type_.toString()}' isn't a type`
             )
         }
 
-        return new ArgType(this.#name, type, this.optional)
+        return new ArgType(this._name, type, this._optional)
     }
 
     /**
@@ -73,9 +99,9 @@ export class FuncArgTypeExpr {
      */
     toString() {
         return [
-            this.#name != null ? `${this.#name.toString()}: ` : "",
-            this.optional ? "?" : "",
-            this.#typeExpr.toString()
+            this._name != null ? `${this._name.toString()}: ` : "",
+            this._optional ? "?" : "",
+            this._typeExpr.toString()
         ].join("")
     }
 }

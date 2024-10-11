@@ -1,5 +1,5 @@
 import { CompilerError, TokenSite, Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { isSome } from "@helios-lang/type-utils"
 import { Scope } from "../scopes/index.js"
 import { AllType } from "../typecheck/index.js"
@@ -7,6 +7,7 @@ import { Expr } from "./Expr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").Type} Type
  */
 
@@ -130,7 +131,7 @@ export class NameTypePair {
     }
 
     /**
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR() {
         return $(

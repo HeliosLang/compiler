@@ -1,5 +1,4 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
-import { SourceMappedString } from "@helios-lang/ir"
 import { None } from "@helios-lang/type-utils"
 import {
     ToIRContext,
@@ -14,6 +13,7 @@ import { MainModule } from "./MainModule.js"
 import { Module } from "./Module.js"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  */
 
@@ -100,7 +100,7 @@ export class ModuleCollection {
 
     /**
      * @private
-     * @param {SourceMappedString} ir
+     * @param {SourceMappedStringI} ir
      * @param {Definitions} definitions
      * @returns {Definitions}
      */
@@ -159,7 +159,7 @@ export class ModuleCollection {
      * Loops over all statements, until endCond == true (includes the matches statement)
      * Then applies type parameters
      * @param {ToIRContext} ctx
-     * @param {SourceMappedString} ir
+     * @param {SourceMappedStringI} ir
      * @param {(s: Statement, isImport: boolean) => boolean} endCond
      * @param {Option<Definitions>} extra
      * @returns {Definitions}
@@ -216,9 +216,9 @@ export class ModuleCollection {
 
     /**
      * @param {ToIRContext} ctx
-     * @param {SourceMappedString} ir
+     * @param {SourceMappedStringI} ir
      * @param {Definitions} definitions
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     wrap(ctx, ir, definitions) {
         ir = injectMutualRecursions(ir, definitions)

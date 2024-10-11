@@ -1,5 +1,5 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -9,6 +9,7 @@ import { MemberExpr } from "./MemberExpr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -17,8 +18,19 @@ import { MemberExpr } from "./MemberExpr.js"
  * value[...] expression
  */
 export class ParametricExpr extends Expr {
-    #baseExpr
-    #parameters
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _baseExpr
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr[]}
+     */
+    _parameters
 
     /**
      * @param {Site} site - site of brackets
@@ -27,15 +39,15 @@ export class ParametricExpr extends Expr {
      */
     constructor(site, baseExpr, parameters) {
         super(site)
-        this.#baseExpr = baseExpr
-        this.#parameters = parameters
+        this._baseExpr = baseExpr
+        this._parameters = parameters
     }
 
     /**
      * @type {Type[]}
      */
     get paramTypes() {
-        return this.#parameters.map((p) => {
+        return this._parameters.map((p) => {
             const pt = p.cache?.asType
 
             if (!pt) {
@@ -51,9 +63,9 @@ export class ParametricExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(scope) {
-        const paramTypes = this.#parameters.map((p) => p.evalAsType(scope))
+        const paramTypes = this._parameters.map((p) => p.evalAsType(scope))
 
-        const baseVal = this.#baseExpr.eval(scope)
+        const baseVal = this._baseExpr.eval(scope)
 
         if (!baseVal.asParametric) {
             throw CompilerError.type(
@@ -84,16 +96,16 @@ export class ParametricExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         const params = ParametricExpr.toApplicationIR(this.paramTypes)
 
-        if (this.#baseExpr instanceof MemberExpr) {
-            return this.#baseExpr.toIR(ctx, params)
+        if (this._baseExpr instanceof MemberExpr) {
+            return this._baseExpr.toIR(ctx, params)
         } else {
             return $(
-                [$`${this.#baseExpr.toIR(ctx).toString()}${params}`],
+                [$`${this._baseExpr.toIR(ctx).toString()}${params}`],
                 this.site
             )
         }
@@ -103,6 +115,6 @@ export class ParametricExpr extends Expr {
      * @returns {string}
      */
     toString() {
-        return `${this.#baseExpr.toString()}[${this.#parameters.map((p) => p.toString()).join(", ")}]`
+        return `${this._baseExpr.toString()}[${this._parameters.map((p) => p.toString()).join(", ")}]`
     }
 }

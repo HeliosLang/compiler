@@ -1,5 +1,5 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome, None } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -18,6 +18,7 @@ import { PathExpr } from "./PathExpr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Func} Func
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -209,9 +210,9 @@ export class CallExpr extends Expr {
      * @private
      * @param {Type} argType
      * @param {Type} targetType
-     * @param {SourceMappedString} argIR
+     * @param {SourceMappedStringI} argIR
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     injectCastIR(argType, targetType, argIR, ctx) {
         if (IntType.isBaseOf(argType) && RealType.isBaseOf(targetType)) {
@@ -225,7 +226,7 @@ export class CallExpr extends Expr {
      * @private
      * @param {number | Expr} e
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     argExprToIR(e, ctx) {
         const i =
@@ -266,7 +267,7 @@ export class CallExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {[Expr[], SourceMappedString[]]} - first list are positional args, second list named args and remaining opt args
+     * @returns {[Expr[], SourceMappedStringI[]]} - first list are positional args, second list named args and remaining opt args
      */
     expandArgs(ctx) {
         const fn = this.fn
@@ -284,7 +285,7 @@ export class CallExpr extends Expr {
         })
 
         /**
-         * @type {SourceMappedString[]}
+         * @type {SourceMappedStringI[]}
          */
         const namedOptional = []
 
@@ -320,7 +321,7 @@ export class CallExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toFnExprIR(ctx) {
         if (this.#fnExpr.cache?.asParametric instanceof ParametricFunc) {
@@ -405,7 +406,7 @@ export class CallExpr extends Expr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         let fnIR = this.toFnExprIR(ctx)
@@ -418,7 +419,7 @@ export class CallExpr extends Expr {
 
         /**
          * First step is to eliminate the named args
-         * @type {[Expr[], SourceMappedString[]]}
+         * @type {[Expr[], SourceMappedStringI[]]}
          */
         const [posExprs, namedOptExprs] = this.expandArgs(ctx)
 

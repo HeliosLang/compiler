@@ -1,10 +1,10 @@
-import { SourceMappedString } from "@helios-lang/ir"
 import { ParametricName } from "./ParametricName.js"
 import { RawFunc, matchBuiltins } from "./RawFunc.js"
 import { makeRawFunctions } from "./makeRawFuncs.js"
 import { wrapWithDefs, TAB } from "./Definitions.js"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("./Definitions.js").Definitions} Definitions
  */
 
@@ -95,11 +95,11 @@ export class ToIRContext {
 
     /**
      * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
-     * @returns {Map<string, ((ttp: string[], ftp: string[]) => SourceMappedString)>}
+     * @returns {Map<string, ((ttp: string[], ftp: string[]) => SourceMappedStringI)>}
      */
     fetchRawGenerics() {
         /**
-         * @type {Map<string, ((ttp: string[], ftp: string[]) => SourceMappedString)>}
+         * @type {Map<string, ((ttp: string[], ftp: string[]) => SourceMappedStringI)>}
          */
         const map = new Map()
 
@@ -110,7 +110,7 @@ export class ToIRContext {
                  *
                  * @param {string[]} ttp
                  * @param {string[]} ftp
-                 * @returns {SourceMappedString}
+                 * @returns {SourceMappedStringI}
                  */
                 const fn = (ttp, ftp) => v.toIR(ttp, ftp)
                 map.set(k, fn)
@@ -122,7 +122,7 @@ export class ToIRContext {
 
     /**
      * Doesn't add templates
-     * @param {SourceMappedString} ir
+     * @param {SourceMappedStringI} ir
      * @param {Option<Definitions>} userDefs - some userDefs might have the __helios prefix
      * @returns {Definitions}
      */
@@ -188,8 +188,8 @@ export class ToIRContext {
     }
 
     /**
-     * @param {SourceMappedString} ir
-     * @returns {SourceMappedString}
+     * @param {SourceMappedStringI} ir
+     * @returns {SourceMappedStringI}
      */
     wrapWithRawFunctions(ir) {
         const map = this.fetchRawFunctions(ir)

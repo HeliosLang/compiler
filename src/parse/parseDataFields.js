@@ -1,6 +1,5 @@
 import {
     StringLiteral,
-    TokenReader,
     Word,
     strlit,
     symbol
@@ -13,6 +12,7 @@ import { parseTypeExpr } from "./parseTypeExpr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
  */
 
 /**
@@ -94,7 +94,7 @@ export function parseDataFields(ctx, allowEncodingKeys = false) {
 
             if ((m = typeReader.findLastMatch(strlit()))) {
                 /**
-                 * @satisfies {[TokenReader, StringLiteral]}
+                 * @satisfies {[TokenReaderI, StringLiteral]}
                  */
                 const [before, tag] = m
                 typeReader.end()

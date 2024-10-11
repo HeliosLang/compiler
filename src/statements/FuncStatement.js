@@ -1,5 +1,4 @@
 import { TokenSite, Word } from "@helios-lang/compiler-utils"
-import { SourceMappedString } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { FuncArg, FuncLiteralExpr } from "../expressions/index.js"
 import { Scope } from "../scopes/index.js"
@@ -9,6 +8,7 @@ import { TypeParameters } from "./TypeParameters.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -182,7 +182,7 @@ export class FuncStatement extends Statement {
     /**
      * Returns IR of function
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIRInternal(ctx) {
         return this.#funcExpr.toIR(ctx)

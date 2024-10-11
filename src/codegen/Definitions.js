@@ -1,15 +1,16 @@
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  */
 
 /**
  * `keySite` is an optional way to give the key a proper name
  * @typedef {{
- *   content: SourceMappedString
+ *   content: SourceMappedStringI
  *   keySite?: Site
  * }} Definition
  */
@@ -25,9 +26,9 @@ export const PARAM_IR_MACRO = `${PARAM_IR_PREFIX}param`
 
 /**
  * Wraps 'inner' IR source with some definitions (used for top-level statements and for builtins)
- * @param {SourceMappedString} inner
+ * @param {SourceMappedStringI} inner
  * @param {Definitions} definitions - name -> definition
- * @returns {SourceMappedString}
+ * @returns {SourceMappedStringI}
  */
 export function wrapWithDefs(inner, definitions) {
     const keys = Array.from(definitions.keys()).reverse()
@@ -93,7 +94,7 @@ export function genExtraDefs(options) {
         const key = `__helios__scripts__${options.name}`
 
         let ir = expectSome(
-            /** @type {Record<string, SourceMappedString>} */ ({
+            /** @type {Record<string, SourceMappedStringI>} */ ({
                 mixed: $(`__helios__scriptcontext__get_current_script_hash()`),
                 spending: $(
                     `__helios__scriptcontext__get_current_validator_hash()`
@@ -158,7 +159,7 @@ export function genExtraDefs(options) {
 
 /**
  * @protected
- * @param {SourceMappedString} ir
+ * @param {SourceMappedStringI} ir
  * @param {Definitions} definitions
  * @returns {Set<string>}
  */
@@ -170,7 +171,7 @@ export function collectAllUsed(ir, definitions) {
     const used = new Set()
 
     /**
-     * @type {SourceMappedString[]}
+     * @type {SourceMappedStringI[]}
      */
     const stack = [ir]
 

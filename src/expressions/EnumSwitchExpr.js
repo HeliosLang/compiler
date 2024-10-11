@@ -1,5 +1,5 @@
 import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -15,6 +15,7 @@ import { SwitchDefault } from "./SwitchDefault.js"
 import { IfElseExpr } from "./IfElseExpr.js"
 
 /**
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
@@ -311,7 +312,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 
     /**
      * @param {ToIRContext} ctx
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
         let cases = this.cases.slice()
@@ -336,7 +337,7 @@ export class EnumSwitchExpr extends SwitchExpr {
         }
 
         /**
-         * @type {SourceMappedString[]}
+         * @type {SourceMappedStringI[]}
          */
         const es = []
 

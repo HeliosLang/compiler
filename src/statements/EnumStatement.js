@@ -1,5 +1,5 @@
 import { Word } from "@helios-lang/compiler-utils"
-import { $, SourceMappedString } from "@helios-lang/ir"
+import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/ToIRContext.js"
 import { Scope } from "../scopes/index.js"
@@ -17,6 +17,7 @@ import { TypeParameters } from "./TypeParameters.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
@@ -222,7 +223,7 @@ export class EnumStatement extends Statement {
     }
 
     /**
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR_is_valid_data() {
         let ir = $`false`
@@ -245,7 +246,7 @@ export class EnumStatement extends Statement {
     }
 
     /**
-     * @returns {SourceMappedString}
+     * @returns {SourceMappedStringI}
      */
     toIR_show() {
         const name = this.name.value

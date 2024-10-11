@@ -1,4 +1,4 @@
-import { Group, TokenReader, group, symbol } from "@helios-lang/compiler-utils"
+import { Group, group, symbol } from "@helios-lang/compiler-utils"
 import {
     AnyValueExpr,
     Expr,
@@ -11,18 +11,19 @@ import { parseTypeExpr } from "./parseTypeExpr.js"
 import { parseName } from "./parseName.js"
 
 /**
+ * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
  * @typedef {import("./ValueExprParser.js").ValueExprParser} ValueExprParser
  */
 
 /**
  * @param {ValueExprParser} parseValueExpr
- * @returns {(ctx: ParseContext, args: Group<TokenReader>, methodOf?: Option<Expr>) => FuncLiteralExpr}
+ * @returns {(ctx: ParseContext, args: Group<TokenReaderI>, methodOf?: Option<Expr>) => FuncLiteralExpr}
  */
 export function makeFuncLiteralExprParser(parseValueExpr) {
     /**
      * Assumes that everything up to and including the arrow has been read already
      * @param {ParseContext} ctx
-     * @param {Group<TokenReader>} ag
+     * @param {Group<TokenReaderI>} ag
      * @param {Option<Expr>} methodOf
      * @returns {FuncLiteralExpr}
      */

@@ -1,7 +1,7 @@
 import { Word } from "@helios-lang/compiler-utils"
-import { Expr } from "./Expr.js"
 import { expectSome } from "@helios-lang/type-utils"
 import { Scope } from "../scopes/Scope.js"
+import { Expr } from "./Expr.js"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -10,7 +10,20 @@ import { Scope } from "../scopes/Scope.js"
  */
 
 /**
- * @implements {Token}
+ * @typedef {{
+ *   site: Site
+ *   name: string
+ *   valueExpr: Expr
+ *   value: EvalEntity
+ *   isNamed(): boolean
+ *   isLiteral(): boolean
+ *   toString(): string
+ *   eval(scope: Scope): EvalEntity
+ * }} CallArgExprI
+ */
+
+/**
+ * @implements {CallArgExprI}
  */
 export class CallArgExpr {
     /**
@@ -19,8 +32,19 @@ export class CallArgExpr {
      */
     site
 
-    #name
-    #valueExpr
+    /**
+     * @private
+     * @readonly
+     * @type {Option<Word>}
+     */
+    _name
+
+    /**
+     * @private
+     * @readonly
+     * @type {Expr}
+     */
+    _valueExpr
 
     /**
      * @param {Site} site
@@ -30,43 +54,43 @@ export class CallArgExpr {
     constructor(site, name, valueExpr) {
         this.site = site
 
-        this.#name = name
-        this.#valueExpr = valueExpr
+        this._name = name
+        this._valueExpr = valueExpr
     }
 
     /**
      * @type {string}
      */
     get name() {
-        return this.#name?.toString() ?? ""
+        return this._name?.toString() ?? ""
     }
 
     /**
      * @type {Expr}
      */
     get valueExpr() {
-        return this.#valueExpr
+        return this._valueExpr
     }
 
     /**
      * @type {EvalEntity}
      */
     get value() {
-        return expectSome(this.#valueExpr.cache)
+        return expectSome(this._valueExpr.cache)
     }
 
     /**
      * @returns {boolean}
      */
     isNamed() {
-        return this.#name != null
+        return this._name != null
     }
 
     /**
      * @returns {boolean}
      */
     isLiteral() {
-        return this.#valueExpr.isLiteral()
+        return this._valueExpr.isLiteral()
     }
 
     /**
@@ -74,8 +98,8 @@ export class CallArgExpr {
      */
     toString() {
         return [
-            this.#name != null ? `${this.#name.toString()}: ` : "",
-            this.#valueExpr.toString()
+            this._name != null ? `${this._name.toString()}: ` : "",
+            this._valueExpr.toString()
         ].join("")
     }
 
@@ -84,6 +108,6 @@ export class CallArgExpr {
      * @returns {EvalEntity}
      */
     eval(scope) {
-        return this.#valueExpr.eval(scope)
+        return this._valueExpr.eval(scope)
     }
 }
