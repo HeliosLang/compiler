@@ -8,9 +8,10 @@
     "author": "Christian Schmitz",
     "license": "BSD-3-Clause",
     "scripts": {
-        "prebuild": "./.pre-push-hook install && pnpm run test:version && pnpm run prettify",
+        "prebuild": "./.pre-push-hook install && pnpm run build:version && pnpm run prettify",
         "build": "pnpm run build:types && pnpm run test:suite",
         "build:types": "tsc -p jsconfig.json --noEmit false --emitDeclarationOnly",
+        "build:version": "node -e \"import('fs').then(m => {fs.writeFileSync('./src/program/version.js', 'export const VERSION = \\\"' + process.env.npm_package_version + '\\\"\\n')})\"",
         "lockfile:sync": "pnpm install --ignore-workspace",
         "prettify": "prettier . --write",
         "pretest": "./.pre-push-hook install && pnpm test:version && pnpm run test:pretty",
