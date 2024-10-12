@@ -14,6 +14,7 @@ import {
     ScriptHashType,
     StakingValidatorHashType,
     ValidatorHashType,
+    VoidType,
     scriptHashType
 } from "../typecheck/index.js"
 import { Module } from "./Module.js"
@@ -406,11 +407,12 @@ function analyzeFunctions(fns, validatorTypes, isInModule) {
                                           ).toSchema()
                                       }
                                   }),
-                    returns: expectSome(
-                        main instanceof ConstStatement
-                            ? main.type.asDataType
-                            : main.retType.asDataType
-                    ).toSchema()
+                    returns: (main instanceof ConstStatement
+                        ? expectSome(main.type.asDataType)
+                        : new VoidType().isBaseOf(main.retType)
+                          ? undefined
+                          : expectSome(main.retType.asDataType)
+                    )?.toSchema()
                 }
             ]
         })

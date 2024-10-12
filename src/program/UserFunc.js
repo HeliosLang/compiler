@@ -1,10 +1,11 @@
 import { $, compile as compileIR } from "@helios-lang/ir"
-import { ToIRContext, genExtraDefs } from "../codegen/index.js"
-import { ConstStatement, FuncStatement } from "../statements/index.js"
-import { ModuleCollection } from "./ModuleCollection.js"
-import { IR_PARSE_OPTIONS } from "../parse/index.js"
-import { FuncArg } from "../expressions/FuncArg.js"
 import { expectSome } from "@helios-lang/type-utils"
+import { ToIRContext, genExtraDefs } from "../codegen/index.js"
+import { FuncArg } from "../expressions/index.js"
+import { IR_PARSE_OPTIONS } from "../parse/index.js"
+import { ConstStatement, FuncStatement } from "../statements/index.js"
+import { VoidType } from "../typecheck/index.js"
+import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
@@ -206,8 +207,10 @@ export class UserFunc {
                 ? $`${fn.path}(${argsToString(args.slice(0, 1))})(${argsToString(args.slice(1))})`
                 : $`${fn.path}(${argsToString(args)})`
 
-            const retTypePath = expectSome(fn.retType.asDataType).path
-            ir = $`${retTypePath}____to_data(${ir})`
+            if (!new VoidType().isBaseOf(fn.retType)) {
+                const retTypePath = expectSome(fn.retType.asDataType).path
+                ir = $`${retTypePath}____to_data(${ir})`
+            }
         }
 
         const defs = this.modules.fetchDefinitions(

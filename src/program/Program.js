@@ -11,7 +11,7 @@ import {
     FuncStatement,
     StructStatement
 } from "../statements/index.js"
-import { isDataType } from "../typecheck/index.js"
+import { VoidType, isDataType } from "../typecheck/index.js"
 import { newEntryPoint } from "./newEntryPoint.js"
 import { MainModule } from "./MainModule.js"
 import { Module } from "./Module.js"
@@ -166,7 +166,8 @@ export class Program {
             // make sure all arg types and return type are compatible and that the function doesn't have any typeparameters
             if (
                 fn.argTypes.every((a) => isDataType(a)) &&
-                isDataType(fn.retType) &&
+                (isDataType(fn.retType) ||
+                    new VoidType().isBaseOf(fn.retType)) &&
                 !fn.typeParameters.hasParameters()
             ) {
                 const filteredImportedModules =
