@@ -311,6 +311,24 @@ describe("Assign", () => {
             }`,
             inputs: [int(1), int(1)],
             output: int(2)
+        },
+        {
+            description:
+                "can assert a condition inside a function that returns multiple values",
+            main: `testing assert_inside_multi_val
+            
+            func multi_val(a: Int) -> (Int, Int) {
+                assert(a == 1, "not 1");
+
+                (a, 0)
+            }
+
+            func main(a: Int) -> Int {
+                (b, c) = multi_val(a);
+                b + c
+            }`,
+            inputs: [int(1)],
+            output: int(1)
         }
     ])
 })

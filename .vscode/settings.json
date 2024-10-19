@@ -4,7 +4,7 @@
         "editor.tabSize": 4,
         "editor.insertSpaces": true,
         "editor.codeActionsOnSave": {
-            "source.sortMembers": true
+            "source.sortMembers": "explicit"
         }
     },
     "javascript.preferences.importModuleSpecifierEnding": "js",
