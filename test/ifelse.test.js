@@ -14,6 +14,20 @@ describe("if-else", () => {
             }`,
             inputs: [True],
             output: True
+        },
+        {
+            description: "an if else branch can contain a void expr",
+            main: `testing  if_else_void_branch
+            func main(b: Bool) -> Bool {
+                if (b) {
+                    ()
+                } else {
+                    (); (); (); error("false")
+                };
+                true
+            }`,
+            inputs: [True],
+            output: True
         }
     ])
 })

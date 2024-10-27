@@ -96,6 +96,8 @@ export function makeChainedExprParser(parseValueExpr) {
             ))
         ) {
             return new PrimitiveLiteralExpr(m)
+        } else if ((m = r.matches(group("(", { length: 0 })))) {
+            return new VoidExpr(m.site)
         } else if ((m = r.matches(group("(", { minLength: 1 })))) {
             const fieldExprs = m.fields.map((f, i) =>
                 parseValueExpr(ctx.inGroup(m, i), 0)

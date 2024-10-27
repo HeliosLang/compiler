@@ -3,7 +3,7 @@ import { $ } from "@helios-lang/ir"
 import { expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { AnyType, DataEntity } from "../typecheck/index.js"
+import { AnyType, DataEntity, VoidType } from "../typecheck/index.js"
 import { CallExpr } from "./CallExpr.js"
 import { ChainExpr } from "./ChainExpr.js"
 import { DestructExpr } from "./DestructExpr.js"
@@ -56,6 +56,13 @@ export class AssignExpr extends ChainExpr {
         let upstreamVal = this.upstreamExpr.eval(scope)
 
         if (upstreamVal && upstreamVal.asTyped) {
+            if (new VoidType().isBaseOf(upstreamVal.asTyped.type)) {
+                throw CompilerError.type(
+                    this.upstreamExpr.site,
+                    "can't assign to unit type"
+                )
+            }
+
             if (this._nameType.hasType() || this._nameType.isTuple()) {
                 this._nameType.evalInAssignExpr(
                     subScope,
