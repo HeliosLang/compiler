@@ -6,7 +6,7 @@ import {
 import { createSource, parseScript } from "../parse/index.js"
 import { MintingEntryPoint } from "./MintingEntryPoint.js"
 import { SpendingEntryPoint } from "./SpendingEntryPoint.js"
-import { StakingProgram } from "./StakingEntryPoint.js"
+import { StakingEntryPoint } from "./StakingEntryPoint.js"
 import { TestingEntryPoint } from "./TestingEntryPoint.js"
 import { Module } from "./Module.js"
 import { MainModule } from "./MainModule.js"
@@ -58,7 +58,7 @@ export function newEntryPoint(
             entryPoint = new MixedEntryPoint(moduleCol)
             break
         case "staking":
-            entryPoint = new StakingProgram(moduleCol)
+            entryPoint = new StakingEntryPoint(moduleCol)
             break
         default:
             entryPoint = new GenericEntryPoint(purpose ?? "unknown", moduleCol)

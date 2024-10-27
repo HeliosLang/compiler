@@ -3,7 +3,7 @@ import { $ } from "@helios-lang/ir"
 import { None, expectSome } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
-import { isDataType } from "../typecheck/index.js"
+import { isDataType, VoidType } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
@@ -69,7 +69,7 @@ export class GenericEntryPoint extends EntryPointImpl {
             }
         })
 
-        if (!isDataType(retType)) {
+        if (!isDataType(retType) && !new VoidType().isBaseOf(retType)) {
             throw CompilerError.type(
                 main.site,
                 `illegal return type for main: '${retType.toString()}'`
@@ -120,9 +120,10 @@ export class GenericEntryPoint extends EntryPointImpl {
 
         let ir = $([$(`${this.mainPath}(`), $(innerArgs).join(", "), $(")")])
 
-        const retType = expectSome(this.mainFunc.retType.asDataType)
-
-        ir = $([$(`${retType.path}____to_data`), $("("), ir, $(")")])
+        if (!new VoidType().isBaseOf(this.mainFunc.retType)) {
+            const retType = expectSome(this.mainFunc.retType.asDataType)
+            ir = $([$(`${retType.path}____to_data`), $("("), ir, $(")")])
+        }
 
         const outerArgs = this.mainFunc.argTypes.map((_, i) => $(`arg${i}`))
 

@@ -1,8 +1,9 @@
 import { deepEqual, match, strictEqual, throws } from "node:assert"
 import { describe, it } from "node:test"
 import { removeWhitespace } from "@helios-lang/codec-utils"
-import { expectLeft, expectSome } from "@helios-lang/type-utils"
+import { expectLeft, expectSome, isRight } from "@helios-lang/type-utils"
 import {
+    ConstrData,
     IntData,
     UplcDataValue,
     UplcProgramV2,
@@ -229,6 +230,127 @@ describe(Program.name, () => {
                 }
             ]
         })
+    })
+
+    it("testing entry point can return void", () => {
+        const src = `testing m
+        
+        func main() -> () {
+            ()
+        }`
+
+        const uplc = new Program(src).compile(true)
+
+        const res = uplc.eval([])
+
+        strictEqual(
+            isRight(res.result) &&
+                typeof res.result.right != "string" &&
+                res.result.right.kind == "unit",
+            true
+        )
+    })
+
+    it("spending entry point can return void", () => {
+        const src = `spending m
+        
+        func main(_, _) -> () {
+            ()
+        }`
+
+        const uplc = new Program(src).compile(true)
+
+        const res = uplc.eval([
+            new UplcDataValue(new IntData(0)),
+            new UplcDataValue(new IntData(0)),
+            new UplcDataValue(new IntData(0))
+        ])
+
+        strictEqual(
+            isRight(res.result) &&
+                typeof res.result.right != "string" &&
+                res.result.right.kind == "unit",
+            true
+        )
+    })
+
+    it("minting entry point can return void", () => {
+        const src = `minting m
+        
+        func main(_) -> () {
+            ()
+        }`
+
+        const uplc = new Program(src).compile(true)
+
+        const res = uplc.eval([
+            new UplcDataValue(new IntData(0)),
+            new UplcDataValue(new IntData(0))
+        ])
+
+        strictEqual(
+            isRight(res.result) &&
+                typeof res.result.right != "string" &&
+                res.result.right.kind == "unit",
+            true
+        )
+    })
+
+    it("staking entry point can return void", () => {
+        const src = `staking m
+        
+        func main(_) -> () {
+            ()
+        }`
+
+        const uplc = new Program(src).compile(true)
+
+        const res = uplc.eval([
+            new UplcDataValue(new IntData(0)),
+            new UplcDataValue(new IntData(0))
+        ])
+
+        strictEqual(
+            isRight(res.result) &&
+                typeof res.result.right != "string" &&
+                res.result.right.kind == "unit",
+            true
+        )
+    })
+
+    it("mixed entry point can return void", () => {
+        const src = `mixed m
+        
+        func main(_) -> () {
+            ()
+        }`
+
+        const uplc = new Program(src).compile(true)
+
+        const resSpending = uplc.eval([
+            new UplcDataValue(new IntData(0)),
+            new UplcDataValue(new ConstrData(1, [new IntData(0)])),
+            new UplcDataValue(new ConstrData(0, []))
+        ])
+
+        strictEqual(
+            isRight(resSpending.result) &&
+                typeof resSpending.result.right != "string" &&
+                resSpending.result.right.kind == "unit",
+            true
+        )
+
+        const resMinting = uplc.eval([
+            new UplcDataValue(new ConstrData(0, [new IntData(0)])),
+            new UplcDataValue(new ConstrData(0, []))
+        ])
+
+        strictEqual(
+            isRight(resMinting.result) &&
+                typeof resMinting.result.right != "string" &&
+                resMinting.result.right.kind == "unit",
+            true
+        )
     })
 
     it("source code mapping stack trace ok", () => {

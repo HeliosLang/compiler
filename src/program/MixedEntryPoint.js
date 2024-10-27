@@ -3,7 +3,7 @@ import { $ } from "@helios-lang/ir"
 import { None } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
-import { BoolType, MixedArgsType } from "../typecheck/index.js"
+import { BoolType, MixedArgsType, VoidType } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
@@ -66,10 +66,10 @@ export class MixedEntryPoint extends EntryPointImpl {
             )
         }
 
-        if (!BoolType.isBaseOf(retType)) {
+        if (!BoolType.isBaseOf(retType) && !new VoidType().isBaseOf(retType)) {
             throw CompilerError.type(
                 main.site,
-                `illegal return type for main, expected 'Bool', got '${retType.toString()}'`
+                `illegal return type for main, expected 'Bool' or '()', got '${retType.toString()}'`
             )
         }
     }
@@ -137,16 +137,21 @@ export class MixedEntryPoint extends EntryPointImpl {
      * @returns {SourceMappedStringI}
      */
     toIRInternal(ctx) {
-        let ir = $([
-            $(`${TAB}${TAB}__core__ifThenElse`),
-            $("(", this.mainRetExprSite),
-            $(`\n${TAB}${TAB}${TAB}${this.mainPath}(__MIXED`),
-            $(
-                `),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__helios__error("validation returned false")}\n${TAB}${TAB})`
-            ),
-            $("(", this.mainRetExprSite),
-            $(")")
-        ])
+        let ir = $([$(`${this.mainPath}(__MIXED)`)])
+
+        if (BoolType.isBaseOf(this.mainFunc.retType)) {
+            ir = $([
+                $(`${TAB}${TAB}__core__ifThenElse`),
+                $("(", this.mainRetExprSite),
+                $(`\n${TAB}${TAB}${TAB}`),
+                ir,
+                $(
+                    `,\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__helios__error("validation returned false")}\n${TAB}${TAB})`
+                ),
+                $("(", this.mainRetExprSite),
+                $(")")
+            ])
+        }
 
         return ir
     }

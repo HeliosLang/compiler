@@ -8,7 +8,7 @@ import { RedeemerEntryPoint } from "./RedeemerEntryPoint.js"
 /**
  * @implements {EntryPoint}
  */
-export class StakingProgram extends RedeemerEntryPoint {
+export class StakingEntryPoint extends RedeemerEntryPoint {
     /**
      * @param {ModuleCollection} modules
      */

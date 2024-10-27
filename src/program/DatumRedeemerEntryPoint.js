@@ -1,10 +1,9 @@
 import { CompilerError } from "@helios-lang/compiler-utils"
 import { $, DEFAULT_PARSE_OPTIONS, compile } from "@helios-lang/ir"
 import { None } from "@helios-lang/type-utils"
-import { UplcProgramV2 } from "@helios-lang/uplc"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
-import { BoolType, isDataType } from "../typecheck/index.js"
+import { BoolType, isDataType, VoidType } from "../typecheck/index.js"
 import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
@@ -107,10 +106,10 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
             }
         }
 
-        if (!BoolType.isBaseOf(retType)) {
+        if (!BoolType.isBaseOf(retType) && !new VoidType().isBaseOf(retType)) {
             throw CompilerError.type(
                 main.site,
-                `illegal return type for main, expected 'Bool', got '${retType.toString()}'`
+                `illegal return type for main, expected 'Bool' or '()', got '${retType.toString()}'`
             )
         }
     }
@@ -162,17 +161,21 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
             }
         })
 
-        let ir = $([
-            $(`${TAB}${TAB}__core__ifThenElse`),
-            $("(", this.mainRetExprSite),
-            $(`\n${TAB}${TAB}${TAB}${this.mainPath}(`),
-            $(innerArgs).join(", "),
-            $(
-                `),\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__helios__error("validation returned false")}\n${TAB}${TAB})`
-            ),
-            $("(", this.mainRetExprSite),
-            $(")")
-        ])
+        let ir = $([$(`${this.mainPath}(`), $(innerArgs).join(", "), $(`)`)])
+
+        if (BoolType.isBaseOf(this.mainFunc.retType)) {
+            ir = $([
+                $(`${TAB}${TAB}__core__ifThenElse`),
+                $("(", this.mainRetExprSite),
+                $(`\n${TAB}${TAB}${TAB}`),
+                ir,
+                $(
+                    `,\n${TAB}${TAB}${TAB}() -> {()},\n${TAB}${TAB}${TAB}() -> {__helios__error("validation returned false")}\n${TAB}${TAB})`
+                ),
+                $("(", this.mainRetExprSite),
+                $(")")
+            ])
+        }
 
         return ir
     }
