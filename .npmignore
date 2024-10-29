@@ -11,3 +11,5 @@ log.*
 *.test.js
 *.test.d.ts
 *.test.d.ts.map
+test/*
+docs/*
