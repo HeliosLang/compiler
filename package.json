@@ -5,6 +5,14 @@
     "main": "src/index.js",
     "types": "types/index.d.ts",
     "type": "module",
+    "exports": {
+        ".": {
+            "import": "./src/index.js",
+            "require": "./src/index.js",
+            "types": "./types/index.d.ts"
+        },
+        "./test": "./test/utils.js"
+    },
     "author": "Christian Schmitz",
     "license": "BSD-3-Clause",
     "scripts": {

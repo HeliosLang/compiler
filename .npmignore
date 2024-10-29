@@ -13,3 +13,4 @@ log.*
 *.test.d.ts.map
 test/*
 docs/*
+*.png
