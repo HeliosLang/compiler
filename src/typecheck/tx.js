@@ -971,7 +971,7 @@ export const StakingPurposeType = new GenericType({
 })
 
 /**
- * Builtin ScriptPurpose::Minting
+ * Builtin StakingPurpose::Certifying
  * @type {EnumMemberType}
  */
 const StakingPurposeCertifyingType = new GenericEnumMemberType({
@@ -1000,7 +1000,7 @@ const StakingPurposeCertifyingType = new GenericEnumMemberType({
 })
 
 /**
- * Builtin ScriptPurpose::Minting
+ * Builtin StakingPurpose::Rewarding
  * @type {EnumMemberType}
  */
 const StakingPurposeRewardingType = new GenericEnumMemberType({
