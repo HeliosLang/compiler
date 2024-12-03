@@ -7,4 +7,5 @@ export { VERSION } from "./version.js"
  * @typedef {import("./Program.js").CompileOptions} CompileOptions
  * @typedef {import("./Program.js").ProgramProps} ProgramProps
  * @typedef {import("../typecheck/common.js").DataType} DataType
+ * @typedef {import("../typecheck/common.js").EnumMemberType} EnumMemberType
  */
