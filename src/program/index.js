@@ -1,6 +1,7 @@
 export { newEntryPoint } from "./newEntryPoint.js"
 export { Program } from "./Program.js"
 export { analyzeMulti, getScriptHashType } from "./multi.js"
+export { extractName } from "../parse/parseHeader.js"
 export { VERSION } from "./version.js"
 
 /**
