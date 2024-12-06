@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
 import { TupleType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
@@ -36,14 +36,14 @@ export class TupleTypeExpr extends Expr {
             const itemType = ite_.asType
 
             if (!itemType) {
-                throw CompilerError.type(ite.site, "not a type")
+                throw makeTypeError(ite.site, "not a type")
             }
 
             return itemType
         })
 
         if (itemTypes_.length > 10) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this.site,
                 "too many Type type args (limited to 10)"
             )

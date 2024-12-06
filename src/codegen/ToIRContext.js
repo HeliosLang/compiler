@@ -47,7 +47,7 @@ export class ToIRContext {
     }
 
     /**
-     * @type {Option<string>}
+     * @type {string | undefined}
      */
     get aliasNamespace() {
         return this.props?.aliasNamespace
@@ -123,10 +123,10 @@ export class ToIRContext {
     /**
      * Doesn't add templates
      * @param {SourceMappedStringI} ir
-     * @param {Option<Definitions>} userDefs - some userDefs might have the __helios prefix
+     * @param {Definitions | undefined} userDefs - some userDefs might have the __helios prefix
      * @returns {Definitions}
      */
-    fetchRawFunctions(ir, userDefs = null) {
+    fetchRawFunctions(ir, userDefs = undefined) {
         let [src, _] = ir.toStringWithSourceMap()
 
         /**

@@ -1,5 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
+import { makeReferenceError } from "@helios-lang/compiler-utils"
 import {
     ToIRContext,
     applyTypeParameters,
@@ -125,7 +124,7 @@ export class ModuleCollection {
             const path = cs.path
 
             if (used.has(path) && !definitions.has(cs.path)) {
-                throw CompilerError.reference(
+                throw makeReferenceError(
                     cs.site,
                     `used unset const '${name}' (hint: use program.parameters['${name}'] = ...)`
                 )
@@ -161,10 +160,10 @@ export class ModuleCollection {
      * @param {ToIRContext} ctx
      * @param {SourceMappedStringI} ir
      * @param {(s: Statement, isImport: boolean) => boolean} endCond
-     * @param {Option<Definitions>} extra
+     * @param {Definitions | undefined} extra
      * @returns {Definitions}
      */
-    fetchDefinitions(ctx, ir, endCond, extra = None) {
+    fetchDefinitions(ctx, ir, endCond, extra = undefined) {
         let map = this.statementsToIR(ctx, endCond)
 
         map = applyTypeParameters(ctx, ir, map)

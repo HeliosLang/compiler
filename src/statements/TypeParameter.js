@@ -1,10 +1,11 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { expectSome } from "@helios-lang/type-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { Expr } from "../expressions/index.js"
 import { Scope } from "../scopes/index.js"
 import { DefaultTypeClass, Parameter } from "../typecheck/index.js"
 
 /**
+ * @import { Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").TypeClass} TypeClass
  */
 
@@ -19,13 +20,13 @@ export class TypeParameter {
     /**
      * @private
      * @readonly
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
     _typeClassExpr
 
     /**
      * @param {Word} name
-     * @param {Option<Expr>} typeClassExpr
+     * @param {Expr | undefined} typeClassExpr
      */
     constructor(name, typeClassExpr) {
         this._name = name
@@ -44,7 +45,7 @@ export class TypeParameter {
      */
     get typeClass() {
         if (this._typeClassExpr) {
-            return expectSome(this._typeClassExpr.cache?.asTypeClass)
+            return expectDefined(this._typeClassExpr.cache?.asTypeClass)
         } else {
             return new DefaultTypeClass()
         }
@@ -65,10 +66,7 @@ export class TypeParameter {
             const typeClass_ = this._typeClassExpr.eval(scope)
 
             if (!typeClass_.asTypeClass) {
-                throw CompilerError.type(
-                    this._typeClassExpr.site,
-                    "not a typeclass"
-                )
+                throw makeTypeError(this._typeClassExpr.site, "not a typeclass")
             } else {
                 typeClass = typeClass_.asTypeClass
             }

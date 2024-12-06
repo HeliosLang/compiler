@@ -1,10 +1,8 @@
-import { Word } from "@helios-lang/compiler-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { ModuleScope } from "../scopes/index.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/compiler-utils").Token} Token
+ * @import { Site, Token, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  */
 

@@ -1,6 +1,6 @@
 import { replaceTabs } from "@helios-lang/codec-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ParametricName } from "./ParametricName.js"
 
 /**
@@ -146,7 +146,7 @@ export class RawFunc {
                         )
                     }
                 } else {
-                    expectSome(db.get(dep)).load(db, dst)
+                    expectDefined(db.get(dep)).load(db, dst)
                 }
             }
 

@@ -1,6 +1,6 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome, None } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
@@ -17,7 +17,7 @@ import { ParametricExpr } from "./ParametricExpr.js"
 import { PathExpr } from "./PathExpr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Func} Func
@@ -51,7 +51,7 @@ export class CallExpr extends Expr {
 
     /**
      * @private
-     * @type {Option<Func>}
+     * @type {Func | undefined}
      */
     _appliedFnVal
 
@@ -89,7 +89,7 @@ export class CallExpr extends Expr {
         this._fnExpr = fnExpr
         this._argExprs = argExprs
         this._paramTypes = []
-        this._appliedFnVal = null // only for infered parametric funcions
+        this._appliedFnVal = undefined // only for infered parametric funcions
         this.posArgVals = []
         this.namedArgVals = {}
     }
@@ -132,10 +132,7 @@ export class CallExpr extends Expr {
             const av = av_.asTyped
 
             if (!av) {
-                throw CompilerError.type(
-                    ae.site,
-                    `arg ${i + 1} not an instance`
-                )
+                throw makeTypeError(ae.site, `arg ${i + 1} not an instance`)
             }
 
             return av
@@ -195,7 +192,7 @@ export class CallExpr extends Expr {
                 viableCasts
             )
         } else {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._fnExpr.site,
 
                 `unable to call ${fnVal.toString()} (returned by ${this._fnExpr.toString()})`
@@ -445,7 +442,7 @@ export class CallExpr extends Expr {
 
             posExprs.forEach((e, i) => {
                 if ((isExpandedTuple.get(e) ?? 0) > 0) {
-                    n += expectSome(isExpandedTuple.get(e))
+                    n += expectDefined(isExpandedTuple.get(e))
                 } else {
                     n += 1
                 }
@@ -475,8 +472,8 @@ export class CallExpr extends Expr {
             ])
 
             for (let namedIR of namedOptExprs.slice().reverse()) {
-                const n2 = expectSome(names.pop())
-                const n1 = expectSome(names.pop())
+                const n2 = expectDefined(names.pop())
+                const n1 = expectDefined(names.pop())
                 if (!n1.startsWith("__useopt__")) {
                     throw new Error("unexpected")
                 }
@@ -489,7 +486,7 @@ export class CallExpr extends Expr {
                     $(") -> {"),
                     ir,
                     $("}("),
-                    expectSome(namedIR), // bool - val pair
+                    expectDefined(namedIR), // bool - val pair
                     $(")")
                 ])
             }
@@ -498,19 +495,19 @@ export class CallExpr extends Expr {
                 const e = posExprs[i]
 
                 if ((isExpandedTuple.get(e) ?? 0) > 0) {
-                    const nMulti = expectSome(isExpandedTuple.get(e))
+                    const nMulti = expectDefined(isExpandedTuple.get(e))
                     const multiNames = []
                     const multiOpt = []
 
                     while (multiNames.length < nMulti) {
-                        multiNames.unshift(expectSome(names.pop()))
+                        multiNames.unshift(expectDefined(names.pop()))
 
                         if (
                             names.length > 0 &&
                             names[names.length - 1] ==
                                 `__useopt__${multiNames[0]}`
                         ) {
-                            multiOpt.unshift(expectSome(names.pop()))
+                            multiOpt.unshift(expectDefined(names.pop()))
                         }
                     }
 
@@ -535,7 +532,7 @@ export class CallExpr extends Expr {
                         $("})")
                     ])
                 } else {
-                    const name = expectSome(names.pop())
+                    const name = expectDefined(names.pop())
 
                     if (
                         names.length > 0 &&
@@ -543,7 +540,7 @@ export class CallExpr extends Expr {
                     ) {
                         ir = $([
                             $("("),
-                            $(expectSome(names.pop())),
+                            $(expectDefined(names.pop())),
                             $(") -> {"),
                             $("}(true)")
                         ])
@@ -590,12 +587,12 @@ export class CallExpr extends Expr {
 /**
  * @param {Type} argType
  * @param {Type} targetType
- * @returns {Option<Type>}
+ * @returns {Type | undefined}
  */
 function viableCasts(argType, targetType) {
     if (IntType.isBaseOf(argType) && RealType.isBaseOf(targetType)) {
         return targetType
     } else {
-        return None
+        return undefined
     }
 }

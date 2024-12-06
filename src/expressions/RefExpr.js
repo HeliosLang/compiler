@@ -1,10 +1,10 @@
-import { Word } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
 
 /**
+ * @import { Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */

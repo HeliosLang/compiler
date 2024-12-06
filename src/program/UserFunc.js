@@ -1,5 +1,5 @@
 import { $, compile as compileIR } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
 import { FuncArg } from "../expressions/index.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
@@ -8,7 +8,7 @@ import { VoidType } from "../typecheck/index.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
- * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
+ * @typedef {import("@helios-lang/uplc").UplcProgramV2} UplcProgramV2
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
@@ -102,7 +102,7 @@ export class UserFunc {
      *   hashDependencies: Record<string, string>
      *   currentScriptValue?: string
      * }} props
-     * @returns {UplcProgramV2I}
+     * @returns {UplcProgramV2}
      */
     compile(props) {
         const { ir } = this.toIR({
@@ -166,7 +166,7 @@ export class UserFunc {
             return args
                 .map((arg) => {
                     const name = arg.name.value
-                    const typePath = expectSome(arg.type.asDataType).path
+                    const typePath = expectDefined(arg.type.asDataType).path
 
                     if (arg.isIgnored()) {
                         return "()"
@@ -198,7 +198,7 @@ export class UserFunc {
         let ir
 
         if (fn instanceof ConstStatement) {
-            const retTypePath = expectSome(fn.type).path
+            const retTypePath = expectDefined(fn.type).path
             ir = $`${retTypePath}____to_data(${fn.path})`
         } else {
             const isMethod = fn.funcExpr.isMethod()
@@ -208,7 +208,7 @@ export class UserFunc {
                 : $`${fn.path}(${argsToString(args)})`
 
             if (!new VoidType().isBaseOf(fn.retType)) {
-                const retTypePath = expectSome(fn.retType.asDataType).path
+                const retTypePath = expectDefined(fn.retType.asDataType).path
                 ir = $`${retTypePath}____to_data(${ir})`
             }
         }

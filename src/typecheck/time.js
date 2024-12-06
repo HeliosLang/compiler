@@ -1,4 +1,4 @@
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { DataEntity, FuncType, GenericType } from "./common.js"
 import {
     BoolType,
@@ -25,7 +25,7 @@ export var DurationType = new GenericType({
         ...genCommonInstanceMembers(self)
     }),
     genTypeMembers: (self) => {
-        const selfInstance = new DataEntity(expectSome(self.asDataType))
+        const selfInstance = new DataEntity(expectDefined(self.asDataType))
 
         return {
             ...genCommonTypeMembers(self),
@@ -90,7 +90,7 @@ export var TimeRangeType = new GenericType({
         is_after: new FuncType([TimeType], BoolType)
     }),
     genTypeMembers: (self) => {
-        const selfInstance = new DataEntity(expectSome(self.asDataType))
+        const selfInstance = new DataEntity(expectDefined(self.asDataType))
 
         return {
             ...genCommonTypeMembers(self),

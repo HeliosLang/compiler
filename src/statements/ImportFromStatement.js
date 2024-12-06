@@ -1,12 +1,11 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
+import { makeReferenceError, makeTypeError } from "@helios-lang/compiler-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { ModuleScope, Scope, builtinNamespaces } from "../scopes/index.js"
 import { NamedEntity } from "../typecheck/index.js"
 import { Statement } from "./Statement.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -65,25 +64,25 @@ export class ImportFromStatement extends Statement {
 
     /**
      * @param {ModuleScope} scope
-     * @returns {null | EvalEntity}
+     * @returns {EvalEntity | undefined}
      */
     evalInternal(scope) {
         if (this.isBuiltinNamespace()) {
             const namespace = scope.getBuiltinNamespace(this._moduleName)
 
             if (!namespace) {
-                return None
+                return undefined
             }
 
             let member = namespace.namespaceMembers[this._origName.value]
 
             if (!member) {
-                throw CompilerError.reference(
+                throw makeReferenceError(
                     this._origName.site,
                     `'${this._moduleName.value}.${this._origName.value}' undefined`
                 )
 
-                return null
+                return undefined
             }
 
             if (member.asType?.toTyped().asFunc) {
@@ -99,17 +98,17 @@ export class ImportFromStatement extends Statement {
             const importedScope = scope.getScope(this._moduleName)
 
             if (!importedScope) {
-                return null
+                return undefined
             }
 
             const importedEntity = importedScope.get(this._origName)
 
             if (importedEntity instanceof Scope) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this._origName.site,
                     `can't import a module from a module`
                 )
-                return null
+                return undefined
             } else {
                 return importedEntity
             }

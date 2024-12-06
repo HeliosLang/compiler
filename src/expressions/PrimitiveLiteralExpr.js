@@ -1,10 +1,3 @@
-import {
-    BoolLiteral,
-    ByteArrayLiteral,
-    IntLiteral,
-    RealLiteral,
-    StringLiteral
-} from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -19,6 +12,7 @@ import {
 import { Expr } from "./Expr.js"
 
 /**
+ * @import { BoolLiteral, ByteArrayLiteral, IntLiteral, RealLiteral, StringLiteral } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
@@ -51,15 +45,15 @@ export class PrimitiveLiteralExpr extends Expr {
      * @type {DataType}
      */
     get type() {
-        if (this._primitive instanceof IntLiteral) {
+        if (this._primitive.kind == "int") {
             return IntType
-        } else if (this._primitive instanceof RealLiteral) {
+        } else if (this._primitive.kind == "real") {
             return RealType
-        } else if (this._primitive instanceof BoolLiteral) {
+        } else if (this._primitive.kind == "bool") {
             return BoolType
-        } else if (this._primitive instanceof StringLiteral) {
+        } else if (this._primitive.kind == "string") {
             return StringType
-        } else if (this._primitive instanceof ByteArrayLiteral) {
+        } else if (this._primitive.kind == "bytes") {
             return ByteArrayType
         } else {
             throw new Error("unhandled primitive type")
@@ -86,7 +80,7 @@ export class PrimitiveLiteralExpr extends Expr {
      * @returns {SourceMappedStringI}
      */
     toIR(_ctx) {
-        if (this._primitive instanceof RealLiteral) {
+        if (this._primitive.kind == "real") {
             return $(this._primitive.value.toString(), this._primitive.site)
         } else {
             // all literals except RealLiteral can be reused in their string-form in the IR

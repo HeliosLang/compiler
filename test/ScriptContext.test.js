@@ -1,6 +1,5 @@
 import { strictEqual } from "node:assert"
 import { describe, it } from "node:test"
-import { ConstrData } from "@helios-lang/uplc"
 import {
     bytes,
     compileAndRun,

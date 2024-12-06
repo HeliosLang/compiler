@@ -1,7 +1,7 @@
 import { bytesToHex, encodeUtf8 } from "@helios-lang/codec-utils"
-import { Word } from "@helios-lang/compiler-utils"
+import { makeWord } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { FuncArg, StructLiteralExpr } from "../expressions/index.js"
 import { Scope } from "../scopes/index.js"
@@ -14,7 +14,7 @@ import {
 import { DataField } from "./DataField.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
@@ -195,7 +195,7 @@ export class DataDefinition {
      * @returns {number}
      */
     getFieldIndex(name) {
-        const i = this.findField(new Word(name))
+        const i = this.findField(makeWord({ value: name }))
 
         if (i == -1) {
             throw new Error(`field ${name} not find in ${this.toString()}`)
@@ -259,7 +259,7 @@ export class DataDefinition {
             const encodingKey =
                 (f.hasEncodingKey() && f.encodedFieldName) || null
 
-            const ts = expectSome(f.type.toSchema(parents))
+            const ts = expectDefined(f.type.toSchema(parents))
             fieldSchemas.push({
                 name: externalName,
                 type: ts,

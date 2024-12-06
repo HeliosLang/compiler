@@ -1,14 +1,10 @@
-import { Word } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { TopScope } from "../scopes/index.js"
 import {
-    BoolType,
-    FuncType,
     GenericParametricType,
     GenericType,
     NamedEntity,
-    RawDataType,
     genCommonInstanceMembers,
     genCommonTypeMembers
 } from "../typecheck/index.js"
@@ -19,7 +15,7 @@ import { TypeParameters } from "./TypeParameters.js"
 import { ImplDefinition } from "./ImplDefinition.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").GenericTypeProps} GenericTypeProps
  * @typedef {import("../typecheck/index.js").Type} Type

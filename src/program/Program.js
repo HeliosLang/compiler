@@ -1,8 +1,7 @@
 import { bytesToHex } from "@helios-lang/codec-utils"
-import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
+import { makeErrorCollector } from "@helios-lang/compiler-utils"
 import { compile as compileIR } from "@helios-lang/ir"
-import { expectSome, isSome } from "@helios-lang/type-utils"
-import { UplcProgramV2 } from "@helios-lang/uplc"
+import { expectDefined, isDefined } from "@helios-lang/type-utils"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
 import {
@@ -19,13 +18,13 @@ import { ModuleCollection } from "./ModuleCollection.js"
 import { UserFunc } from "./UserFunc.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { ErrorCollector, Site, Source } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").OptimizeOptions} OptimizeOptions
  * @typedef {import("@helios-lang/ir").ParseOptions} ParseOptions
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("@helios-lang/uplc").UplcValue} UplcValue
- * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
+ * @typedef {import("@helios-lang/uplc").UplcProgramV2} UplcProgramV2
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
@@ -94,7 +93,7 @@ export class Program {
     constructor(mainSource, props = DEFAULT_PROGRAM_PROPS) {
         this.props = props
 
-        this.errors = new ErrorCollector()
+        this.errors = makeErrorCollector()
 
         this.entryPoint = newEntryPoint(
             mainSource,
@@ -130,7 +129,7 @@ export class Program {
     }
 
     /**
-     * @type {Option<number>}
+     * @type {number | undefined}
      */
     get currentScriptIndex() {
         return this.entryPoint.currentScriptIndex
@@ -287,7 +286,7 @@ export class Program {
      * warning message will be emitted, indicating the lack of loggable details.
      *
      * @param {boolean | CompileOptions} optimizeOrOptions
-     * @returns {UplcProgramV2I}
+     * @returns {UplcProgramV2}
      */
     compile(optimizeOrOptions = {}) {
         /**
@@ -358,7 +357,7 @@ export class Program {
     }
 
     /**
-     * @param {(name: string, uplc: UplcProgramV2I) => void} onCompile
+     * @param {(name: string, uplc: UplcProgramV2) => void} onCompile
      * @param {{
      *   excludeUserFuncs: Set<string>
      *   hashDependencies: Record<string, string>
@@ -375,7 +374,7 @@ export class Program {
                 if (!options.excludeUserFuncs.has(fullName)) {
                     const currentScriptValue =
                         moduleName == this.name && options.validatorIndices
-                            ? `__core__constrData(${expectSome(options.validatorIndices[this.name])}, __core__mkNilData(()))`
+                            ? `__core__constrData(${expectDefined(options.validatorIndices[this.name])}, __core__mkNilData(()))`
                             : undefined
                     const uplc = fn
                         .compile({
@@ -429,7 +428,7 @@ export class Program {
             validatorTypes: this.props.validatorTypes,
             validatorIndices: options.validatorIndices,
             makeParamsSubstitutable: options.makeParamSubstitutable ?? false,
-            currentScriptValue: isSome(this.currentScriptIndex)
+            currentScriptValue: isDefined(this.currentScriptIndex)
                 ? `__core__constrData(
                 ${this.currentScriptIndex.toString()},
                 __core__mkNilData(())

@@ -1,6 +1,5 @@
-import { Word } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/ToIRContext.js"
 import { Scope } from "../scopes/index.js"
 import {
@@ -16,7 +15,7 @@ import { Statement } from "./Statement.js"
 import { TypeParameters } from "./TypeParameters.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
@@ -126,7 +125,7 @@ export class EnumStatement extends Statement {
      * @returns {EnumMember}
      */
     getEnumMember(i) {
-        return expectSome(this._members[i])
+        return expectDefined(this._members[i])
     }
 
     /**
@@ -210,7 +209,7 @@ export class EnumStatement extends Statement {
                         for (let memberName in genFullMembers) {
                             typeMembers_[memberName] = genFullMembers[
                                 memberName
-                            ](expectSome(self.asDataType))
+                            ](expectDefined(self.asDataType))
                         }
 
                         return typeMembers_

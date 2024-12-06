@@ -1,6 +1,10 @@
-import { CompilerError, Source, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { FuncStatement, Statement } from "../statements/index.js"
 import { Module } from "./Module.js"
+
+/**
+ * @import { Source, Word } from "@helios-lang/compiler-utils"
+ */
 
 /**
  * The entrypoint module
@@ -22,7 +26,7 @@ export class MainModule extends Module {
         for (let s of this.statements) {
             if (s.name.value == "main") {
                 if (!(s instanceof FuncStatement)) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         s.site,
                         "'main' isn't a function statement"
                     )

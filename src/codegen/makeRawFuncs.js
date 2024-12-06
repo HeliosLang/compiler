@@ -1,5 +1,5 @@
 import { REAL_PRECISION } from "@helios-lang/compiler-utils"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { FTPP, TTPP } from "./ParametricName.js"
 import { RawFunc } from "./RawFunc.js"
 import { $ } from "@helios-lang/ir"
@@ -902,7 +902,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         }
 
         let woFirst = args.slice()
-        let first = expectSome(woFirst.shift())
+        let first = expectDefined(woFirst.shift())
 
         add(
             new RawFunc(

@@ -1,4 +1,4 @@
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { FTPP } from "../codegen/ParametricName.js"
 import {
     FuncType,
@@ -232,7 +232,7 @@ const RawConstrDataType = new GenericEnumMemberType({
     fieldNames: ["tag", "fields"],
     genInstanceMembers: (self) => ({
         tag: IntType,
-        fields: expectSome(makeListType)(RawDataType)
+        fields: expectDefined(makeListType)(RawDataType)
     }),
     genTypeMembers: (self) => ({
         __is: new FuncType([RawDataType], BoolType)
@@ -249,7 +249,7 @@ const RawMapDataType = new GenericEnumMemberType({
         name: "Data"
     }),
     genInstanceMembers: (self) => ({
-        entries: expectSome(makeMapType)(RawDataType, RawDataType)
+        entries: expectDefined(makeMapType)(RawDataType, RawDataType)
     }),
     genTypeMembers: (self) => ({
         __is: new FuncType([RawDataType], BoolType)
@@ -266,7 +266,7 @@ const RawListDataType = new GenericEnumMemberType({
         name: "Data"
     }),
     genInstanceMembers: (self) => ({
-        items: expectSome(makeListType)(RawDataType)
+        items: expectDefined(makeListType)(RawDataType)
     }),
     genTypeMembers: (self) => ({
         __is: new FuncType([RawDataType], BoolType)

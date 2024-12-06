@@ -1,9 +1,9 @@
-import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
+import { makeDummySite, makeTypeError } from "@helios-lang/compiler-utils"
 import { Common, DataEntity } from "./common.js"
 import { Parameter } from "./Parameter.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
  * @typedef {import("./common.js").InferenceMap} InferenceMap
  * @typedef {import("./common.js").DataType} DataType
  * @typedef {import("./common.js").Func} Func
@@ -64,9 +64,9 @@ export class ParametricData extends Common {
      * @param {Site} site
      * @returns {EvalEntity}
      */
-    apply(types, site = TokenSite.dummy()) {
+    apply(types, site = makeDummySite()) {
         if (types.length != this._params.length) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 site,
                 "wrong number of parameter type arguments"
             )
@@ -79,7 +79,7 @@ export class ParametricData extends Common {
 
         this._params.forEach((p, i) => {
             if (!p.typeClass.isImplementedBy(types[i])) {
-                throw CompilerError.type(site, "typeclass match failed")
+                throw makeTypeError(site, "typeclass match failed")
             }
 
             map.set(p, types[i])
@@ -110,7 +110,7 @@ export class ParametricData extends Common {
      * @returns {Func}
      */
     inferCall(site, args, namedArgs = {}, paramTypes = []) {
-        throw CompilerError.type(site, "uncallable")
+        throw makeTypeError(site, "uncallable")
     }
 
     /**

@@ -1,4 +1,4 @@
-import { Group, group, symbol } from "@helios-lang/compiler-utils"
+import { group, symbol } from "@helios-lang/compiler-utils"
 import {
     AnyValueExpr,
     Expr,
@@ -6,28 +6,27 @@ import {
     FuncLiteralExpr
 } from "../expressions/index.js"
 import { ParseContext } from "./ParseContext.js"
-import { None, isNone } from "@helios-lang/type-utils"
 import { parseTypeExpr } from "./parseTypeExpr.js"
 import { parseName } from "./parseName.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
+ * @import { GenericGroup, TokenReader } from "@helios-lang/compiler-utils"
  * @typedef {import("./ValueExprParser.js").ValueExprParser} ValueExprParser
  */
 
 /**
  * @param {ValueExprParser} parseValueExpr
- * @returns {(ctx: ParseContext, args: Group<TokenReaderI>, methodOf?: Option<Expr>) => FuncLiteralExpr}
+ * @returns {(ctx: ParseContext, args: GenericGroup<TokenReader>, methodOf?: Expr | undefined) => FuncLiteralExpr}
  */
 export function makeFuncLiteralExprParser(parseValueExpr) {
     /**
      * Assumes that everything up to and including the arrow has been read already
      * @param {ParseContext} ctx
-     * @param {Group<TokenReaderI>} ag
-     * @param {Option<Expr>} methodOf
+     * @param {GenericGroup<TokenReader>} ag
+     * @param {Expr | undefined} methodOf
      * @returns {FuncLiteralExpr}
      */
-    function parseFuncLiteralExpr(ctx, ag, methodOf = None) {
+    function parseFuncLiteralExpr(ctx, ag, methodOf = undefined) {
         const r = ctx.reader
 
         const args = ag.fields.map((f, i) => {
@@ -37,9 +36,9 @@ export function makeFuncLiteralExprParser(parseValueExpr) {
         })
 
         /**
-         * @type {Option<Expr>}
+         * @type {Expr | undefined}
          */
-        let retTypeExpr = None
+        let retTypeExpr = undefined
 
         /**
          * @type {Expr}
@@ -71,10 +70,10 @@ export function makeFuncLiteralExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {number} index
-     * @param {Option<Expr>} methodOf
+     * @param {Expr | undefined} methodOf
      * @returns {FuncArg}
      */
-    function parseFuncArg(ctx, index, methodOf = None) {
+    function parseFuncArg(ctx, index, methodOf = undefined) {
         let r = ctx.reader
 
         let m
@@ -82,15 +81,15 @@ export function makeFuncLiteralExprParser(parseValueExpr) {
         const name = parseName(ctx)
 
         if (name.value == "self") {
-            if (index != 0 || isNone(methodOf)) {
+            if (index != 0 || methodOf === undefined) {
                 ctx.errors.syntax(name.site, "'self' is reserved")
             }
         }
 
         /**
-         * @type {Option<Expr>}
+         * @type {Expr | undefined}
          */
-        let defaultValueExpr = None
+        let defaultValueExpr = undefined
 
         if ((m = r.findNextMatch(symbol("=")))) {
             const [before, equals] = m
@@ -107,9 +106,9 @@ export function makeFuncLiteralExprParser(parseValueExpr) {
         }
 
         /**
-         * @type {Option<Expr>}
+         * @type {Expr | undefined}
          */
-        let typeExpr = index == 0 && methodOf ? methodOf : None
+        let typeExpr = index == 0 && methodOf ? methodOf : undefined
 
         if ((m = r.matches(symbol(":")))) {
             typeExpr = parseTypeExpr(ctx.withReader(r))

@@ -1,6 +1,6 @@
-import { CompilerError, TokenSite, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError, makeWord } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { None, expectSome, isSome } from "@helios-lang/type-utils"
+import { expectDefined, isDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
@@ -14,7 +14,7 @@ import { Expr } from "./Expr.js"
 import { RefExpr } from "./RefExpr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -41,7 +41,7 @@ export class DestructExpr {
 
     /**
      * @readonly
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
     typeExpr
 
@@ -61,14 +61,14 @@ export class DestructExpr {
     /**
      * @param {Site} site - can be a different location than name
      * @param {Word} name - use an underscore as a sink
-     * @param {Option<Expr>} typeExpr
+     * @param {Expr | undefined} typeExpr
      * @param {DestructExpr[]} destructExprs
      * @param {boolean} isTuple typeExpr must be `null` if isTuple is `true` and `destructExpr.length` must be `> 0`
      */
     constructor(
         site,
         name,
-        typeExpr = None,
+        typeExpr = undefined,
         destructExprs = [],
         isTuple = false
     ) {
@@ -121,7 +121,7 @@ export class DestructExpr {
      * @returns {boolean}
      */
     hasType() {
-        return isSome(this.typeExpr)
+        return isDefined(this.typeExpr)
     }
 
     /**
@@ -134,7 +134,7 @@ export class DestructExpr {
                 const nestedTypes = this.destructExprs.map((e) => e.type)
 
                 if (!nestedTypes) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         this.site,
                         `invalid nested tuple in in destruct expression`
                     )
@@ -148,9 +148,9 @@ export class DestructExpr {
             }
         } else {
             if (!this.typeExpr.cache?.asType) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this.typeExpr.site,
-                    `invalid type '${expectSome(this.typeExpr.cache, "cache unset").toString()}'`
+                    `invalid type '${expectDefined(this.typeExpr.cache, "cache unset").toString()}'`
                 )
             } else {
                 return this.typeExpr.cache.asType
@@ -163,9 +163,12 @@ export class DestructExpr {
      */
     get typeName() {
         if (!this.typeExpr) {
-            return new Word("", this.site)
+            return makeWord({ value: "", site: this.site })
         } else {
-            return new Word(this.typeExpr.toString(), this.typeExpr.site)
+            return makeWord({
+                value: this.typeExpr.toString(),
+                site: this.typeExpr.site
+            })
         }
     }
 
@@ -197,34 +200,34 @@ export class DestructExpr {
     /**
      * Evaluates the type, used by FuncLiteralExpr and DataDefinition
      * @param {Scope} scope
-     * @param {Option<Type>} upstreamType
-     * @param {Option<Type>} downstreamType - could be enum variant
+     * @param {Type | undefined} upstreamType
+     * @param {Type | undefined} downstreamType - could be enum variant
      * @param {boolean} castEnumVariantToParent - set to false in assignments where the full typeExpr information is needed
-     * @returns {Option<Type>}
+     * @returns {Type | undefined}
      */
     evalType(
         scope,
-        upstreamType = None,
-        downstreamType = None,
+        upstreamType = undefined,
+        downstreamType = undefined,
         castEnumVariantToParent = true
     ) {
         if (!this.typeExpr) {
             if (this._isTuple) {
                 const upstreamItemTypes = upstreamType
                     ? getTupleItemTypes(upstreamType)
-                    : None
+                    : undefined
                 const downStreamItemTypes = downstreamType
                     ? getTupleItemTypes(downstreamType)
-                    : None
+                    : undefined
                 const nestedTypes = this.destructExprs.map((e, i) => {
                     const de = e.evalType(
                         scope,
-                        upstreamItemTypes ? upstreamItemTypes[i] : None,
-                        downStreamItemTypes ? downStreamItemTypes[i] : None
+                        upstreamItemTypes ? upstreamItemTypes[i] : undefined,
+                        downStreamItemTypes ? downStreamItemTypes[i] : undefined
                     )
 
                     if (!de) {
-                        throw CompilerError.type(
+                        throw makeTypeError(
                             this.site,
                             `invalid nested tuple in in destruct expression`
                         )
@@ -248,7 +251,7 @@ export class DestructExpr {
             this.typeExpr.name.value in upstreamType.typeMembers &&
             upstreamType.typeMembers[this.typeExpr.name.value].asEnumMemberType
         ) {
-            const variant = expectSome(
+            const variant = expectDefined(
                 upstreamType.typeMembers[this.typeExpr.name.value]
                     .asEnumMemberType
             )
@@ -292,14 +295,14 @@ export class DestructExpr {
                 const tupleItemTypes = getTupleItemTypes(upstreamType)
 
                 if (!tupleItemTypes) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         this.site,
                         "upstream value isn't a tuple, can't destruct"
                     )
                 }
 
                 if (tupleItemTypes.length != this.destructExprs.length) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         this.site,
                         `wrong number of destruct tuple fields, expected ${tupleItemTypes.length}, got ${this.destructExprs.length}`
                     )
@@ -314,16 +317,13 @@ export class DestructExpr {
                 }
             } else {
                 if (!upstreamType.asDataType) {
-                    throw CompilerError.type(
-                        this.site,
-                        "can't destruct a function"
-                    )
+                    throw makeTypeError(this.site, "can't destruct a function")
                 }
 
                 const upstreamFieldNames = upstreamType.asDataType.fieldNames
 
                 if (upstreamFieldNames.length != this.destructExprs.length) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         this.site,
                         `wrong number of destruct fields, expected ${upstreamFieldNames.length} (${upstreamType.toString()}), got ${this.destructExprs.length}`
                     )
@@ -332,7 +332,7 @@ export class DestructExpr {
                 for (let i = 0; i < this.destructExprs.length; i++) {
                     this.destructExprs[i].evalInternal(
                         scope,
-                        expectSome(
+                        expectDefined(
                             upstreamType.instanceMembers[upstreamFieldNames[i]]
                                 .asDataType
                         ), // we `asDataType` because methods can't be destructed
@@ -351,7 +351,7 @@ export class DestructExpr {
      */
     evalInternal(scope, upstreamType, i) {
         if (this.hasType()) {
-            const t = this.evalType(scope, upstreamType, None, false)
+            const t = this.evalType(scope, upstreamType, undefined, false)
             if (!t) {
                 return
             }
@@ -365,7 +365,7 @@ export class DestructExpr {
             }
 
             if (!checkType.isBaseOf(upstreamType)) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this.site,
                     `expected ${checkType.toString()} for destructure field ${i + 1}, got ${upstreamType.toString()}`
                 )
@@ -417,14 +417,14 @@ export class DestructExpr {
 
     /**
      * @param {Scope} scope
-     * @param {Option<Type>} upstreamType
+     * @param {Type | undefined} upstreamType
      * @param {number} i
      */
     evalInAssignExpr(scope, upstreamType, i) {
         /**
-         * @type {Option<Type>}
+         * @type {Type | undefined}
          */
-        const t = this.evalType(scope, upstreamType, None, false)
+        const t = this.evalType(scope, upstreamType, undefined, false)
 
         if (!t) {
             if (!this.isIgnored()) {
@@ -440,7 +440,7 @@ export class DestructExpr {
 
         if (checkType && upstreamType) {
             if (!checkType.isBaseOf(upstreamType)) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this.site,
                     `expected ${checkType.toString()} for rhs ${i + 1}, got ${upstreamType.toString()}`
                 )
@@ -465,7 +465,7 @@ export class DestructExpr {
         } else {
             return $(
                 this.name.toString(),
-                TokenSite.fromSite(this.name.site).withAlias(this.name.value)
+                this.name.site.withDescription(this.name.value)
             )
         }
     }
@@ -540,7 +540,7 @@ export class DestructExpr {
                 $("("),
                 $(baseName, this.name.site),
                 $(") "),
-                $("->", TokenSite.fromSite(this.site).withAlias("<destruct>")),
+                $("->", this.site.withDescription("<destruct>")),
                 $(` {\n${ctx.indent}${TAB}`),
                 inner,
                 $(`\n${ctx.indent}}(${getter})`)

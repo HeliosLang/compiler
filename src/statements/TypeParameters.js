@@ -1,4 +1,4 @@
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { FTPP, ParametricName, TTPP } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
@@ -66,7 +66,7 @@ export class TypeParameters {
      * @returns {Parameter[]}
      */
     getParameters() {
-        return expectSome(this._parameters, "parameters not yet evaluated")
+        return expectDefined(this._parameters, "parameters not yet evaluated")
     }
 
     /**
@@ -183,14 +183,14 @@ export class TypeParameters {
                         map.set(p, pt)
                     })
 
-                    const appliedType = expectSome(
+                    const appliedType = expectDefined(
                         type.infer(site, map, null).asDataType
                     )
 
                     const appliedPath = ParametricName.parse(type.path, true)
                         .toImplementation(
                             paramTypes.map(
-                                (pt) => expectSome(pt.asDataType).path
+                                (pt) => expectDefined(pt.asDataType).path
                             )
                         )
                         .toString()

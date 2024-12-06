@@ -1,4 +1,4 @@
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { DataEntity, FuncType, GenericType } from "./common.js"
 import { ListType$, MapType$ } from "./containers.js"
 import { MintingPolicyHashType } from "./hashes.js"
@@ -37,7 +37,7 @@ export const AssetClassType = new GenericType({
         token_name: ByteArrayType
     }),
     genTypeMembers: (self) => {
-        const selfInstance = new DataEntity(expectSome(self.asDataType))
+        const selfInstance = new DataEntity(expectDefined(self.asDataType))
 
         return {
             ...genCommonTypeMembers(self),
@@ -92,7 +92,7 @@ export const ValueType = new GenericType({
         value: self // so that Value implements Valuable itself as well
     }),
     genTypeMembers: (self) => {
-        const selfInstance = new DataEntity(expectSome(self.asDataType))
+        const selfInstance = new DataEntity(expectDefined(self.asDataType))
 
         return {
             ...genCommonTypeMembers(self),

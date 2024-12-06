@@ -1,18 +1,11 @@
-import {
-    StringLiteral,
-    Word,
-    strlit,
-    symbol
-} from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
+import { makeStringLiteral, strlit, symbol } from "@helios-lang/compiler-utils"
 import { DataField } from "../statements/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { anyName } from "./parseName.js"
 import { parseTypeExpr } from "./parseTypeExpr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
+ * @import { Site, StringLiteral, TokenReader, Word } from "@helios-lang/compiler-utils"
  */
 
 /**
@@ -61,7 +54,7 @@ export function parseDataFields(ctx, allowEncodingKeys = false) {
 
     /**
      * @param {Word} fieldName
-     * @returns {Option<StringLiteral>}
+     * @returns {StringLiteral | undefined}
      */
     function getFieldEncodingKey(fieldName) {
         const fieldKey = encodingKeys.get(fieldName.value)
@@ -69,13 +62,16 @@ export function parseDataFields(ctx, allowEncodingKeys = false) {
         if (fieldKey) {
             return fieldKey
         } else if (encodingKeys.size == 0) {
-            return None
+            return undefined
         } else if (encodingKeys.has(fieldName.value)) {
             ctx.errors.syntax(
                 fieldName.site,
                 `duplicate tag '${fieldName.value}' (created implicitly)`
             )
-            return new StringLiteral(fieldName.value, fieldName.site)
+            return makeStringLiteral({
+                value: fieldName.value,
+                site: fieldName.site
+            })
         }
     }
 
@@ -94,7 +90,7 @@ export function parseDataFields(ctx, allowEncodingKeys = false) {
 
             if ((m = typeReader.findLastMatch(strlit()))) {
                 /**
-                 * @satisfies {[TokenReaderI, StringLiteral]}
+                 * @satisfies {[TokenReader, StringLiteral]}
                  */
                 const [before, tag] = m
                 typeReader.end()

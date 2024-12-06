@@ -1,18 +1,21 @@
 import {
-    StringLiteral,
-    Word,
+    makeWord,
     group,
     oneOf,
     strlit,
     word
 } from "@helios-lang/compiler-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import {
     ImportFromStatement,
     ImportModuleStatement
 } from "../statements/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { anyName } from "./parseName.js"
-import { None, expectSome } from "@helios-lang/type-utils"
+
+/**
+ * @import { StringLiteral, Word } from "@helios-lang/compiler-utils"
+ */
 
 /**
  * @param {ParseContext} ctx
@@ -72,18 +75,18 @@ export function parseImportStatements(ctx) {
  *
  * @param {ParseContext} ctx
  * @param {Word | StringLiteral} path
- * @returns {Option<Word>}
+ * @returns {Word | undefined}
  */
 function translateImportPath(ctx, path) {
-    if (path instanceof StringLiteral) {
-        const moduleNameStr = expectSome(ctx.importPathTranslator)(path)
+    if (path.kind == "string") {
+        const moduleNameStr = expectDefined(ctx.importPathTranslator)(path)
 
         if (moduleNameStr) {
-            return new Word(moduleNameStr, path.site)
+            return makeWord({ value: moduleNameStr, site: path.site })
         } else {
             ctx.errors.syntax(path.site, `invalid module path '${path.value}'`)
 
-            return None
+            return undefined
         }
     } else {
         return path

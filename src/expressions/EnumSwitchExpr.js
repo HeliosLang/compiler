@@ -1,6 +1,6 @@
-import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
+import { makeDummySite, makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { None, expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
@@ -39,7 +39,7 @@ export class EnumSwitchExpr extends SwitchExpr {
         const controlVal = controlVal_.asTyped
 
         if (!controlVal) {
-            throw CompilerError.type(this.controlExpr.site, "not typed")
+            throw makeTypeError(this.controlExpr.site, "not typed")
         }
 
         if (controlVal.type instanceof TupleType) {
@@ -54,14 +54,11 @@ export class EnumSwitchExpr extends SwitchExpr {
                 let enumType = itemType.asDataType
 
                 if (!enumType) {
-                    throw CompilerError.type(
-                        this.controlExpr.site,
-                        "not an enum"
-                    )
+                    throw makeTypeError(this.controlExpr.site, "not an enum")
                 }
 
                 if (itemType.asEnumMemberType) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         this.controlExpr.site,
                         `${itemType.toString()} is an enum variant, not an enum`
                     )
@@ -76,11 +73,11 @@ export class EnumSwitchExpr extends SwitchExpr {
             let enumType = controlVal.type.asDataType
 
             if (!enumType) {
-                throw CompilerError.type(this.controlExpr.site, "not an enum")
+                throw makeTypeError(this.controlExpr.site, "not an enum")
             }
 
             if (controlVal.type.asEnumMemberType) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this.controlExpr.site,
                     `${controlVal.type.toString()} is an enum variant, not an enum`
                 )
@@ -104,7 +101,7 @@ export class EnumSwitchExpr extends SwitchExpr {
             const vs = collectEnumMembers(enumType)
 
             if (vs.length == 0) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this.controlExpr.site,
                     `'${enumType.name}' isn't an enum type`
                 )
@@ -229,7 +226,7 @@ export class EnumSwitchExpr extends SwitchExpr {
             }
 
             if (!isSomeReachable(indices)) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     c.lhs.site,
                     `unreachable condition '${c.lhs.toString()}'`
                 )
@@ -241,7 +238,7 @@ export class EnumSwitchExpr extends SwitchExpr {
         const someRemainingReachable = reachable.some((r) => r)
 
         if (this.defaultCase && !someRemainingReachable) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this.defaultCase.site,
                 "unreachable default case"
             )
@@ -264,9 +261,9 @@ export class EnumSwitchExpr extends SwitchExpr {
         }
 
         /**
-         * @type {Option<Type>}
+         * @type {Type | undefined}
          */
-        let branchMultiType = None
+        let branchMultiType = undefined
 
         for (let c of this.cases) {
             // TODO: pass a list of enumTypes (can be multiswitch)
@@ -289,7 +286,7 @@ export class EnumSwitchExpr extends SwitchExpr {
                 branchMultiType &&
                 !new VoidType().isBaseOf(branchMultiType)
             ) {
-                throw CompilerError.type(this.site, "incomplete enum coverage")
+                throw makeTypeError(this.site, "incomplete enum coverage")
             }
 
             const defaultVal = this.defaultCase.eval(scope)
@@ -322,7 +319,7 @@ export class EnumSwitchExpr extends SwitchExpr {
         if (this.defaultCase) {
             last = this.defaultCase
         } else {
-            last = expectSome(cases.pop())
+            last = expectDefined(cases.pop())
         }
 
         let n = cases.length
@@ -349,9 +346,7 @@ export class EnumSwitchExpr extends SwitchExpr {
             }
         }
 
-        const switchLambdaSite = TokenSite.fromSite(this.site).withAlias(
-            "<switch>"
-        )
+        const switchLambdaSite = this.site.withDescription("<switch>")
 
         for (let i = n - 1; i >= 0; i--) {
             const c = cases[i]
@@ -373,7 +368,7 @@ export class EnumSwitchExpr extends SwitchExpr {
                 $("("),
                 $(
                     IR_CONTROL_EXPR_NAME,
-                    TokenSite.dummy().withAlias("<condition>")
+                    makeDummySite().withDescription("<condition>")
                 ),
                 $(")"),
                 $("->", switchLambdaSite),
@@ -390,7 +385,7 @@ export class EnumSwitchExpr extends SwitchExpr {
         } else {
             return $([
                 $(
-                    `(${$(IR_CONTROL_EXPR_NAME, TokenSite.dummy().withAlias("<condition>"))}) `
+                    `(${$(IR_CONTROL_EXPR_NAME, makeDummySite().withDescription("<condition>"))}) `
                 ),
                 $("->", switchLambdaSite),
                 $(`\n${ctx.indent}${TAB}{(\n`),

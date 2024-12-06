@@ -1,6 +1,6 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { None, expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { AllType } from "../typecheck/index.js"
@@ -8,8 +8,7 @@ import { DestructExpr } from "./DestructExpr.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/compiler-utils").Token} Token
+ * @import { Site, Token, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
@@ -21,7 +20,7 @@ import { Expr } from "./Expr.js"
  *   site: Site
  *   lhs: DestructExpr
  *   body: Expr
- *   memberNames: Option<Word>[]
+ *   memberNames: (Word | undefined)[]
  *   toString(): string
  *   evalEnumMember(scope: Scope, enumTypes: DataType[]): Typed
  *   toControlIR(ctx: ToIRContext, dataIRs: SourceMappedStringI[]): SourceMappedStringI
@@ -73,20 +72,20 @@ export class SwitchCase {
 
     /**
      * Used by parser to check if typeExpr reference the same base enum
-     * @type {Option<Word>[]} - word representation of type, TODO: change to list in order to allow  multi enum switch
+     * @type {(Word | undefined)[]} - word representation of type, TODO: change to list in order to allow  multi enum switch
      */
     get memberNames() {
         if (this.lhs.isTuple()) {
             return this.lhs.destructExprs.map((de) => {
                 if (de.isIgnored() && !de.typeExpr) {
-                    return None
+                    return undefined
                 } else {
                     return de.typeName
                 }
             })
         } else {
             if (this.lhs.isIgnored() && !this.lhs.typeExpr) {
-                return [None]
+                return [undefined]
             } else {
                 return [this.lhs.typeName]
             }
@@ -116,7 +115,7 @@ export class SwitchCase {
                     enumType.typeMembers[memberName.value]?.asEnumMemberType
 
                 if (!caseType) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         memberName.site,
                         `${memberName.value} isn't a valid enum member of ${enumType.toString()}`
                     )
@@ -135,7 +134,7 @@ export class SwitchCase {
         const bodyVal = this._bodyExpr.eval(caseScope).asTyped
 
         if (!bodyVal) {
-            throw CompilerError.type(this._bodyExpr.site, "not typed")
+            throw makeTypeError(this._bodyExpr.site, "not typed")
         }
 
         caseScope.assertAllUsed()
@@ -167,20 +166,20 @@ export class SwitchCase {
             } else if (n == 1) {
                 const i = indices[0]
                 const de = this.lhs.destructExprs[i]
-                const lhsType = expectSome(de.type.asDataType)
+                const lhsType = expectDefined(de.type.asDataType)
                 return $`${lhsType.path}____is(${dataIRs[i]})`
             } else {
                 return $`__helios__bool__and${n}(${$(
                     indices.map((i) => {
                         const de = this.lhs.destructExprs[i]
-                        const lhsType = expectSome(de.type.asDataType)
+                        const lhsType = expectDefined(de.type.asDataType)
 
                         return $`${lhsType.path}____is(${dataIRs[i]})`
                     })
                 ).join(", ")})`
             }
         } else {
-            const lhsType = expectSome(this.lhs.type.asDataType)
+            const lhsType = expectDefined(this.lhs.type.asDataType)
             return $`${lhsType.path}____is(${dataIRs[0]})`
         }
     }

@@ -1,6 +1,5 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { None } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
 import { BoolType, isDataType, VoidType } from "../typecheck/index.js"
@@ -56,18 +55,18 @@ export class RedeemerEntryPoint extends EntryPointImpl {
         const nArgs = argTypes.length
 
         if (nArgs != 1) {
-            throw CompilerError.type(main.site, "expected 1 arg for main")
+            throw makeTypeError(main.site, "expected 1 arg for main")
         }
 
         if (argTypeNames[0] != "" && !isDataType(argTypes[0])) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 main.site,
                 `illegal redeemer argument type in main: '${argTypes[0].toString()}`
             )
         }
 
         if (!BoolType.isBaseOf(retType) && !new VoidType().isBaseOf(retType)) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 main.site,
                 `illegal return type for main, expected 'Bool' or '()', got '${retType.toString()}'`
             )
@@ -76,10 +75,10 @@ export class RedeemerEntryPoint extends EntryPointImpl {
 
     /**
      * @param {ToIRContext} ctx
-     * @param {Option<Definitions>} extra
+     * @param {Definitions | undefined} extra
      * @returns {SourceMappedStringI}
      */
-    toIR(ctx, extra = None) {
+    toIR(ctx, extra = undefined) {
         let ir = this.toIRInternal(ctx)
 
         ir = this.wrapEntryPoint(ctx, ir, extra)

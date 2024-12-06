@@ -1,5 +1,5 @@
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 
 /**
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
@@ -93,7 +93,7 @@ export function genExtraDefs(options) {
     if (options.dependsOnOwnHash) {
         const key = `__helios__scripts__${options.name}`
 
-        let ir = expectSome(
+        let ir = expectDefined(
             /** @type {Record<string, SourceMappedStringI>} */ ({
                 mixed: $(`__helios__scriptcontext__get_current_script_hash()`),
                 spending: $(
@@ -105,7 +105,7 @@ export function genExtraDefs(options) {
                 staking: $(
                     `__helios__scriptcontext__get_current_staking_validator_hash()`
                 )
-            })[expectSome(options.purpose)]
+            })[expectDefined(options.purpose)]
         )
 
         const ownHash = options.hashDependencies[options.name]
@@ -178,7 +178,7 @@ export function collectAllUsed(ir, definitions) {
     const RE = /__[a-zA-Z0-9_[\]@]+/g
 
     while (stack.length > 0) {
-        const ir = expectSome(stack.pop())
+        const ir = expectDefined(stack.pop())
 
         ir.search(RE, (match) => {
             if (!used.has(match)) {

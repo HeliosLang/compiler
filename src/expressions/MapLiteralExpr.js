@@ -1,6 +1,6 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { DataEntity, MapType$ } from "../typecheck/index.js"
@@ -56,14 +56,14 @@ export class MapLiteralExpr extends Expr {
      * @type {DataType}
      */
     get keyType() {
-        return expectSome(this._keyTypeExpr.cache?.asDataType)
+        return expectDefined(this._keyTypeExpr.cache?.asDataType)
     }
 
     /**
      * @type {DataType}
      */
     get valueType() {
-        return expectSome(this._valueTypeExpr.cache?.asDataType)
+        return expectDefined(this._valueTypeExpr.cache?.asDataType)
     }
 
     /**
@@ -75,7 +75,7 @@ export class MapLiteralExpr extends Expr {
 
         const keyType = keyType_.asDataType
         if (!keyType) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._keyTypeExpr.site,
                 "key-type of Map can't be func"
             )
@@ -85,7 +85,7 @@ export class MapLiteralExpr extends Expr {
 
         const valueType = valueType_.asDataType
         if (!valueType) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._valueTypeExpr.site,
                 "value-type of Map can't be func"
             )
@@ -99,7 +99,7 @@ export class MapLiteralExpr extends Expr {
 
             const keyVal = keyVal_.asTyped
             if (!keyVal) {
-                throw CompilerError.type(keyExpr.site, "not typed")
+                throw makeTypeError(keyExpr.site, "not typed")
                 continue
             }
 
@@ -110,12 +110,12 @@ export class MapLiteralExpr extends Expr {
 
             const valueVal = valueVal_.asTyped
             if (!valueVal) {
-                throw CompilerError.type(valueExpr.site, "not typed")
+                throw makeTypeError(valueExpr.site, "not typed")
                 continue
             }
 
             if (!keyType.isBaseOf(keyVal.type)) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     keyExpr.site,
                     `expected ${keyType.toString()} for map key, got ${keyVal.toString()}`
                 )
@@ -123,7 +123,7 @@ export class MapLiteralExpr extends Expr {
             }
 
             if (!valueType.isBaseOf(valueVal.type)) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     valueExpr.site,
                     `expected ${valueType.toString()} for map value, got ${valueVal.toString()}`
                 )

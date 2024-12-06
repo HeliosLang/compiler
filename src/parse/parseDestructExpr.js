@@ -1,9 +1,12 @@
-import { Word, group, symbol, word } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
+import { makeWord, group, symbol, word } from "@helios-lang/compiler-utils"
 import { DestructExpr, Expr } from "../expressions/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { anyName } from "./parseName.js"
 import { parseTypeExpr } from "./parseTypeExpr.js"
+
+/**
+ * @import { Word } from "@helios-lang/compiler-utils"
+ */
 
 /**
  * @param {ParseContext} ctx
@@ -16,12 +19,12 @@ export function parseDestructExpr(ctx, switchingDepth) {
     /**
      * @type {Word}
      */
-    let name = new Word("_", ctx.currentSite)
+    let name = makeWord({ value: "_", site: ctx.currentSite })
 
     /**
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
-    let typeExpr = None
+    let typeExpr = undefined
 
     /**
      * @type {DestructExpr[]}

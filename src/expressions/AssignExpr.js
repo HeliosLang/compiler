@@ -1,6 +1,6 @@
-import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { AnyType, DataEntity, VoidType } from "../typecheck/index.js"
@@ -57,7 +57,7 @@ export class AssignExpr extends ChainExpr {
 
         if (upstreamVal && upstreamVal.asTyped) {
             if (new VoidType().isBaseOf(upstreamVal.asTyped.type)) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this.upstreamExpr.site,
                     "can't assign to unit type"
                 )
@@ -66,7 +66,7 @@ export class AssignExpr extends ChainExpr {
             if (this._nameType.hasType() || this._nameType.isTuple()) {
                 this._nameType.evalInAssignExpr(
                     subScope,
-                    expectSome(upstreamVal.asTyped.type.asType),
+                    expectDefined(upstreamVal.asTyped.type.asType),
                     0
                 )
             } else {
@@ -90,12 +90,9 @@ export class AssignExpr extends ChainExpr {
             }
         } else if (this._nameType.hasType()) {
             // this is the fallback case if the upstream has itself a typeerror
-            this._nameType.evalInAssignExpr(subScope, null, 0)
+            this._nameType.evalInAssignExpr(subScope, undefined, 0)
         } else {
-            throw CompilerError.type(
-                this.upstreamExpr.site,
-                "rhs isn't an instance"
-            )
+            throw makeTypeError(this.upstreamExpr.site, "rhs isn't an instance")
             subScope.set(this._nameType.name, new DataEntity(new AnyType()))
         }
 
@@ -129,12 +126,7 @@ export class AssignExpr extends ChainExpr {
                     ", "
                 ),
                 $(") "),
-                $(
-                    "->",
-                    TokenSite.fromSite(this.site).withAlias(
-                        IR_ASSIGN_LAMBDA_ALIAS
-                    )
-                ),
+                $("->", this.site.withDescription(IR_ASSIGN_LAMBDA_ALIAS)),
                 $(` {\n${ctx.indent}${TAB}${TAB}`),
                 inner,
                 $(`\n${ctx.indent + TAB}}\n${ctx.indent})`)
@@ -166,9 +158,7 @@ export class AssignExpr extends ChainExpr {
                 $(") "),
                 $(
                     "->",
-                    TokenSite.fromSite(this.semicolonSite).withAlias(
-                        IR_ASSIGN_LAMBDA_ALIAS
-                    )
+                    this.semicolonSite.withDescription(IR_ASSIGN_LAMBDA_ALIAS)
                 ),
                 $(` {\n${ctx.indent}${TAB}`),
                 inner,

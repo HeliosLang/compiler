@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
 import { MapType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
@@ -47,7 +47,7 @@ export class MapTypeExpr extends Expr {
         const keyType = keyType_.asType
 
         if (!keyType) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._keyTypeExpr.site,
                 "map key type not a type"
             )
@@ -58,7 +58,7 @@ export class MapTypeExpr extends Expr {
         const valueType = valueType_.asType
 
         if (!valueType) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._valueTypeExpr.site,
                 "map value type not a type"
             )

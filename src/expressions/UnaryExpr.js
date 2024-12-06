@@ -1,11 +1,12 @@
-import { CompilerError, SymbolToken, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError, makeWord } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
 
 /**
+ * @import { SymbolToken, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -48,11 +49,11 @@ export class UnaryExpr extends Expr {
         const site = this._op.site
 
         if (op == "+") {
-            return new Word("__pos", site)
+            return makeWord({ value: "__pos", site })
         } else if (op == "-") {
-            return new Word("__neg", site)
+            return makeWord({ value: "__neg", site })
         } else if (op == "!") {
-            return new Word("__not", site)
+            return makeWord({ value: "__not", site })
         } else {
             throw new Error("unhandled unary op")
         }
@@ -66,7 +67,7 @@ export class UnaryExpr extends Expr {
         const a = this._a.eval(scope).asInstance
 
         if (!a) {
-            throw CompilerError.type(this._a.site, "not an instance")
+            throw makeTypeError(this._a.site, "not an instance")
         }
 
         const op = this.translateOp().value
@@ -77,7 +78,7 @@ export class UnaryExpr extends Expr {
             // immediately applied
             return fnVal.asFunc.call(this._op.site, [a])
         } else {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._a.site,
                 `'${this._op.toString()} ${a.type.toString()}' undefined`
             )
@@ -89,7 +90,7 @@ export class UnaryExpr extends Expr {
      * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
-        const path = expectSome(this.cache?.asTyped?.type?.asNamed).path
+        const path = expectDefined(this.cache?.asTyped?.type?.asNamed).path
 
         return $([
             $(`${path}__${this.translateOp().value}`, this.site),

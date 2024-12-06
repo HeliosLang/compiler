@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -53,11 +53,11 @@ export class ParensExpr extends Expr {
 
                 const v = v_.asTyped
                 if (!v) {
-                    throw CompilerError.type(e.site, "not typed")
+                    throw makeTypeError(e.site, "not typed")
                 }
 
                 if (new ErrorType().isBaseOf(v.type)) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         e.site,
                         "unexpected error call in multi-valued expression"
                     )

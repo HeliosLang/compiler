@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -47,7 +47,7 @@ export class SwitchDefault {
         const bodyVal = bodyVal_.asTyped
 
         if (!bodyVal) {
-            throw CompilerError.type(this.body.site, "not typed")
+            throw makeTypeError(this.body.site, "not typed")
         }
 
         return bodyVal

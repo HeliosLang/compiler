@@ -1,10 +1,11 @@
-import { CompilerError, StringLiteral, Word } from "@helios-lang/compiler-utils"
-import { expectSome, isSome } from "@helios-lang/type-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
+import { expectDefined, isDefined } from "@helios-lang/type-utils"
 import { Expr, NameTypePair } from "../expressions/index.js"
 import { Scope } from "../scopes/index.js"
 import { isDataType } from "../typecheck/index.js"
 
 /**
+ * @import { StringLiteral, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  */
 
@@ -15,16 +16,16 @@ export class DataField extends NameTypePair {
     /**
      * @readonly
      * @private
-     * @type {Option<string>}
+     * @type {string | undefined}
      */
     encodingKey
 
     /**
      * @param {Word} name
      * @param {Expr} typeExpr
-     * @param {Option<StringLiteral>} encodingKey
+     * @param {StringLiteral | undefined} encodingKey
      */
-    constructor(name, typeExpr, encodingKey = null) {
+    constructor(name, typeExpr, encodingKey = undefined) {
         super(name, typeExpr)
         this.encodingKey = encodingKey?.value
     }
@@ -34,14 +35,14 @@ export class DataField extends NameTypePair {
      * @type {DataType}
      */
     get type() {
-        return expectSome(super.type.asDataType)
+        return expectDefined(super.type.asDataType)
     }
 
     /**
      * @returns {boolean}
      */
     hasEncodingKey() {
-        return isSome(this.encodingKey)
+        return isDefined(this.encodingKey)
     }
 
     /**
@@ -55,7 +56,7 @@ export class DataField extends NameTypePair {
     /**
      * Evaluates the type, used by FuncLiteralExpr and DataDefinition
      * @param {Scope} scope
-     * @returns {null | DataType}
+     * @returns {DataType | undefined}
      */
     eval(scope) {
         if (!this.typeExpr) {
@@ -71,7 +72,7 @@ export class DataField extends NameTypePair {
                 }
             }
 
-            throw CompilerError.type(
+            makeTypeError(
                 this.typeExpr.site,
                 `'${t.toString()}' isn't a valid data field type`
             )

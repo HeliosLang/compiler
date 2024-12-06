@@ -1,12 +1,12 @@
-import { CompilerError, TokenSite, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { isSome } from "@helios-lang/type-utils"
+import { isDefined } from "@helios-lang/type-utils"
 import { Scope } from "../scopes/index.js"
 import { AllType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -25,13 +25,13 @@ export class NameTypePair {
     /**
      * @private
      * @readonly
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
     _typeExpr
 
     /**
      * @param {Word} name
-     * @param {Option<Expr>} typeExpr
+     * @param {Expr | undefined} typeExpr
      */
     constructor(name, typeExpr) {
         this._name = name
@@ -70,7 +70,7 @@ export class NameTypePair {
     }
 
     /**
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
     get typeExpr() {
         return this._typeExpr
@@ -98,7 +98,7 @@ export class NameTypePair {
      * @returns {boolean}
      */
     hasType() {
-        return isSome(this._typeExpr)
+        return isDefined(this._typeExpr)
     }
 
     /**
@@ -111,7 +111,7 @@ export class NameTypePair {
             if (this.isIgnored()) {
                 return new AllType()
             } else {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this.site,
                     `missing type for arg '${this.name.value}'`
                 )
@@ -120,7 +120,7 @@ export class NameTypePair {
             const t = this._typeExpr.eval(scope)
 
             if (!t.asType) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this._typeExpr.site,
                     `'${t.toString()} isn't a valid type`
                 )
@@ -136,7 +136,7 @@ export class NameTypePair {
     toIR() {
         return $(
             this._name.toString(),
-            TokenSite.fromSite(this._name.site).withAlias(this._name.value)
+            this._name.site.withDescription(this._name.value)
         )
     }
 

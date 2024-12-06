@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
 import { FuncType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
@@ -49,7 +49,7 @@ export class FuncTypeExpr extends Expr {
 
         const retType = retType_.asType
         if (!retType) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._retTypeExpr.site,
                 "return type isn't a type"
             )

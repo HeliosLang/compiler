@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
 import { IteratorType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
@@ -39,14 +39,14 @@ export class IteratorTypeExpr extends Expr {
             const itemType = ite_.asType
 
             if (!itemType) {
-                throw CompilerError.type(ite.site, "not a type")
+                throw makeTypeError(ite.site, "not a type")
             }
 
             return itemType
         })
 
         if (itemTypes.length > 10) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this.site,
                 "too many Iterator type args (limited to 10)"
             )

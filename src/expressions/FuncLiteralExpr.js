@@ -1,6 +1,6 @@
-import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { AllType, FuncEntity, FuncType } from "../typecheck/index.js"
@@ -9,7 +9,7 @@ import { Expr } from "./Expr.js"
 import { FuncArg } from "./FuncArg.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -28,7 +28,7 @@ export class FuncLiteralExpr extends Expr {
 
     /**
      * @readonly
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
     retTypeExpr
 
@@ -42,7 +42,7 @@ export class FuncLiteralExpr extends Expr {
     /**
      * @param {Site} site
      * @param {FuncArg[]} args
-     * @param {Option<Expr>} retTypeExpr
+     * @param {Expr | undefined} retTypeExpr
      * @param {Expr} bodyExpr
      */
     constructor(site, args, retTypeExpr, bodyExpr) {
@@ -100,7 +100,7 @@ export class FuncLiteralExpr extends Expr {
         if (!this.retTypeExpr) {
             return new AllType()
         } else {
-            return expectSome(this.retTypeExpr.cache?.asType)
+            return expectDefined(this.retTypeExpr.cache?.asType)
         }
     }
 
@@ -158,23 +158,20 @@ export class FuncLiteralExpr extends Expr {
                     new FuncType(fnType.argTypes, bodyVal.asTyped.type)
                 )
             } else {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this._bodyExpr.site,
                     "expect multi or typed"
                 )
             }
         } else if (bodyVal.asTyped) {
             if (!fnType.retType.isBaseOf(bodyVal.asTyped.type)) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this.retTypeExpr.site,
                     `wrong return type, expected ${fnType.retType.toString()} but got ${bodyVal.asTyped.type.toString()}`
                 )
             }
         } else {
-            throw CompilerError.type(
-                this._bodyExpr.site,
-                "expect multi or typed"
-            )
+            throw makeTypeError(this._bodyExpr.site, "expect multi or typed")
         }
 
         subScope.assertAllUsed()
@@ -232,7 +229,7 @@ export class FuncLiteralExpr extends Expr {
         innerIR = this.wrapWithDefaultArgs(ctx, innerIR)
 
         let arrowSite = ctx.aliasNamespace
-            ? TokenSite.fromSite(this.site).withAlias(ctx.aliasNamespace)
+            ? this.site.withDescription(ctx.aliasNamespace)
             : this.site
 
         let ir = $([
@@ -249,10 +246,7 @@ export class FuncLiteralExpr extends Expr {
         if (this.isMethod()) {
             ir = $([
                 $("("),
-                $(
-                    "self",
-                    TokenSite.fromSite(this.args[0].site).withAlias("self")
-                ),
+                $("self", this.args[0].site.withDescription("self")),
                 $(`) -> {\n${methodIndent}${TAB}`),
                 ir,
                 $(`\n${methodIndent}}`)

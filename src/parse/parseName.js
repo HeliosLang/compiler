@@ -1,23 +1,22 @@
-import { Word, anyWord } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
+import { makeWord } from "@helios-lang/compiler-utils"
 import { ParseContext } from "./ParseContext.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").TokenMatcher<Word>} TokenMatcher
+ * @import { TokenMatcher, Word } from "@helios-lang/compiler-utils"
  */
 
 const reserved = ["if", "else", "switch"]
 
 /**
- * @type {TokenMatcher}
+ * @type {TokenMatcher<Word>}
  */
 export const anyName = {
     matches: (t) =>
-        t instanceof Word &&
+        t.kind == "word" &&
         !t.value.startsWith("__") &&
         !reserved.includes(t.value)
             ? t
-            : None,
+            : undefined,
     toString: () => "<name>"
 }
 
@@ -35,6 +34,6 @@ export function parseName(ctx) {
     } else {
         r.endMatch()
 
-        return new Word("", ctx.currentSite)
+        return makeWord({ value: "", site: ctx.currentSite })
     }
 }

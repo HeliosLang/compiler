@@ -1,6 +1,5 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $, DEFAULT_PARSE_OPTIONS, compile } from "@helios-lang/ir"
-import { None } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
 import { BoolType, isDataType, VoidType } from "../typecheck/index.js"
@@ -8,7 +7,7 @@ import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
- * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
+ * @typedef {import("@helios-lang/uplc").UplcProgramV2} UplcProgramV2
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
@@ -61,7 +60,7 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
     /**
      * Used by cli
      * @param {boolean} isTestnet
-     * @returns {UplcProgramV2I}
+     * @returns {UplcProgramV2}
      */
     compileDatumCheck(isTestnet) {
         const ctx = new ToIRContext({ optimize: false, isTestnet: isTestnet })
@@ -94,12 +93,12 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
         const nArgs = main.nArgs
 
         if (argTypes.length != 2) {
-            throw CompilerError.type(main.site, "expected 2 args for main")
+            throw makeTypeError(main.site, "expected 2 args for main")
         }
 
         for (let i = 0; i < nArgs; i++) {
             if (argTypeNames[i] != "" && !isDataType(argTypes[i])) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     main.site,
                     `illegal type for arg ${i + 1} in main ${i == nArgs - 2 ? "(datum) " : i == nArgs - 3 ? "(redeemer) " : ""}: '${argTypes[i].toString()}`
                 )
@@ -107,7 +106,7 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
         }
 
         if (!BoolType.isBaseOf(retType) && !new VoidType().isBaseOf(retType)) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 main.site,
                 `illegal return type for main, expected 'Bool' or '()', got '${retType.toString()}'`
             )
@@ -116,10 +115,10 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
 
     /**
      * @param {ToIRContext} ctx
-     * @param {Option<Definitions>} extra
+     * @param {Definitions | undefined} extra
      * @returns {SourceMappedStringI}
      */
-    toIR(ctx, extra = None) {
+    toIR(ctx, extra = undefined) {
         let ir = this.toIRInternal(ctx)
 
         ir = this.wrapEntryPoint(ctx, ir, extra)

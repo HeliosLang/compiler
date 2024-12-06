@@ -1,8 +1,14 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import {
+    makeReferenceError,
+    makeSyntaxError,
+    makeTypeError,
+    makeWord
+} from "@helios-lang/compiler-utils"
 import { Common } from "../typecheck/index.js"
 import { GlobalScope } from "./GlobalScope.js"
 
 /**
+ * @import { Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Named} Named
  * @typedef {import("../typecheck/index.js").Namespace} Namespace
@@ -107,13 +113,13 @@ export class Scope extends Common {
                         value.asTyped.type.isBaseOf(prevEntity.asTyped.type)
                     )
                 ) {
-                    throw CompilerError.syntax(
+                    throw makeSyntaxError(
                         name.site,
                         `'${name.toString()}' already defined`
                     )
                 }
             } else {
-                throw CompilerError.syntax(
+                throw makeSyntaxError(
                     name.site,
                     `'${name.toString()}' already defined`
                 )
@@ -148,15 +154,17 @@ export class Scope extends Common {
             throw new Error("unexpected")
         }
 
-        const entity = this.get(new Word(`__scope__${name.value}`, name.site))
+        const entity = this.get(
+            makeWord({ value: `__scope__${name.value}`, site: name.site })
+        )
 
         if (entity instanceof Scope) {
             return entity
         } else if (!entity) {
-            throw CompilerError.type(name.site, `expected Scope`)
+            throw makeTypeError(name.site, `expected Scope`)
             return null
         } else {
-            throw CompilerError.type(
+            throw makeTypeError(
                 name.site,
                 `expected Scope, got ${entity.toString()}`
             )
@@ -166,11 +174,11 @@ export class Scope extends Common {
 
     /**
      * @param {Word} name
-     * @returns {Option<Named & Namespace>}
+     * @returns {(Named & Namespace) | undefined}
      */
     getBuiltinNamespace(name) {
         if (!this._parent) {
-            throw CompilerError.reference(
+            throw makeReferenceError(
                 name.site,
                 `namespace ${name.value} not found`
             )
@@ -186,8 +194,8 @@ export class Scope extends Common {
      * @returns {EvalEntity | Scope}
      */
     get(name, dryRun = false) {
-        if (!(name instanceof Word)) {
-            name = new Word(name)
+        if (typeof name == "string") {
+            name = makeWord({ value: name })
         }
 
         for (let i = this._values.length - 1; i >= 0; i--) {
@@ -208,7 +216,7 @@ export class Scope extends Common {
                 return this._parent.get(name, dryRun)
             }
         } else {
-            throw CompilerError.reference(
+            throw makeReferenceError(
                 name.site,
                 `'${name.toString()}' undefined`
             )
@@ -233,13 +241,13 @@ export class Scope extends Common {
             for (let [name, entity, used] of this._values) {
                 const flaggedUnused = name.value.startsWith("_")
                 if (!used && !(entity instanceof Scope) && !flaggedUnused) {
-                    throw CompilerError.reference(
+                    throw makeReferenceError(
                         name.site,
                         `'${name.toString()}' unused`
                     )
                 }
                 if (flaggedUnused && used) {
-                    throw CompilerError.reference(
+                    throw makeReferenceError(
                         name.site,
                         `_-prefixed variable '${name.toString()}' must be unused`
                     )

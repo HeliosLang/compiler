@@ -1,6 +1,6 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { None, expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { GlobalScope } from "../scopes/index.js"
 import { isDataType, VoidType } from "../typecheck/index.js"
@@ -62,7 +62,7 @@ export class GenericEntryPoint extends EntryPointImpl {
 
         argTypeNames.forEach((argTypeName, i) => {
             if (argTypeName != "" && !isDataType(argTypes[i])) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     main.site,
                     `illegal argument type in main: '${argTypes[i].toString()}`
                 )
@@ -70,7 +70,7 @@ export class GenericEntryPoint extends EntryPointImpl {
         })
 
         if (!isDataType(retType) && !new VoidType().isBaseOf(retType)) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 main.site,
                 `illegal return type for main: '${retType.toString()}'`
             )
@@ -79,10 +79,10 @@ export class GenericEntryPoint extends EntryPointImpl {
 
     /**
      * @param {ToIRContext} ctx
-     * @param {Option<Definitions>} extra
+     * @param {Definitions | undefined} extra
      * @returns {SourceMappedStringI}
      */
-    toIR(ctx, extra = None) {
+    toIR(ctx, extra = undefined) {
         const ir = this.toIRInternal(ctx)
 
         return this.wrapEntryPoint(ctx, ir, extra)
@@ -121,7 +121,7 @@ export class GenericEntryPoint extends EntryPointImpl {
         let ir = $([$(`${this.mainPath}(`), $(innerArgs).join(", "), $(")")])
 
         if (!new VoidType().isBaseOf(this.mainFunc.retType)) {
-            const retType = expectSome(this.mainFunc.retType.asDataType)
+            const retType = expectDefined(this.mainFunc.retType.asDataType)
             ir = $([$(`${retType.path}____to_data`), $("("), ir, $(")")])
         }
 

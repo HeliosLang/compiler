@@ -1,5 +1,5 @@
-import { Word } from "@helios-lang/compiler-utils"
-import { None, expectSome } from "@helios-lang/type-utils"
+import { makeWord } from "@helios-lang/compiler-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
 import {
@@ -26,7 +26,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
  * @typedef {{
  *   name: string
  *   purpose: string
- *   currentScriptIndex: Option<number>
+ *   currentScriptIndex: number | undefined
  *   mainArgTypes: DataType[]
  *   mainFunc: FuncStatement
  *   moduleDependencies: string[]
@@ -38,7 +38,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
  *   requiredParams: Set<string>
  *   changeParam(name: string, data: UplcData): boolean
  *   evalTypes(scriptTypes: ScriptTypes): void
- *   toIR(ctx: ToIRContext, extra?: Option<Definitions>): SourceMappedStringI
+ *   toIR(ctx: ToIRContext, extra?: Definitions | undefined): SourceMappedStringI
  *   toString(): string
  * }} EntryPoint
  */
@@ -53,13 +53,13 @@ export class EntryPointImpl {
     /**
      * Used to retrieve current script index
      * @protected
-     * @type {Option<GlobalScope>}
+     * @type {GlobalScope | undefined}
      */
     globalScope
 
     /**
      * @private
-     * @type {Option<TopScope>}
+     * @type {TopScope | undefined}
      */
     _topScope
 
@@ -68,27 +68,27 @@ export class EntryPointImpl {
      */
     constructor(modules) {
         this.modules = modules
-        this.globalScope = None
-        this._topScope = None
+        this.globalScope = undefined
+        this._topScope = undefined
     }
 
     /**
-     * @type {Option<number>}
+     * @type {number | undefined}
      */
     get currentScriptIndex() {
         // add the current script to the context
         if (this.globalScope) {
             const ctx = this.globalScope.getBuiltinNamespace(
-                new Word("ScriptContext")
+                makeWord({ value: "ScriptContext" })
             )
 
             if (!ctx) {
-                return None
+                return undefined
             }
 
             const member = ctx.namespaceMembers["Script"]
             if (!member) {
-                return None
+                return undefined
             }
 
             const scriptType = member.asType
@@ -103,7 +103,7 @@ export class EntryPointImpl {
             }
         }
 
-        return None
+        return undefined
     }
 
     /**
@@ -141,7 +141,7 @@ export class EntryPointImpl {
      * @type {Record<string, Record<string, DataType>>}
      */
     get userTypes() {
-        const topScope = expectSome(this._topScope)
+        const topScope = expectDefined(this._topScope)
 
         /**
          * @type {Record<string, Record<string, any>>}
@@ -156,7 +156,7 @@ export class EntryPointImpl {
             const module_ =
                 moduleName.value == this.name
                     ? this.mainModule
-                    : expectSome(
+                    : expectDefined(
                           this.mainImportedModules.find(
                               (m) => m.name.value == moduleName.value
                           ),
@@ -196,7 +196,7 @@ export class EntryPointImpl {
      * @type {DataType[]}
      */
     get mainArgTypes() {
-        return this.mainFunc.argTypes.map((at) => expectSome(at.asDataType))
+        return this.mainFunc.argTypes.map((at) => expectDefined(at.asDataType))
     }
 
     /**
@@ -319,7 +319,7 @@ export class EntryPointImpl {
         const RE = /__[a-zA-Z0-9_[\]@]+/g
 
         while (stack.length > 0) {
-            const ir = expectSome(stack.pop())
+            const ir = expectDefined(stack.pop())
 
             ir.search(RE, (match) => {
                 if (!used.has(match)) {
@@ -353,13 +353,13 @@ export class EntryPointImpl {
     /**
      * @protected
      * @param {string} name
-     * @returns {Option<ConstStatement>}
+     * @returns {ConstStatement | undefined}
      */
     findConstStatement(name) {
         /**
-         * @type {Option<ConstStatement>}
+         * @type {ConstStatement | undefined}
          */
-        let cs = None
+        let cs = undefined
 
         this.loopConstStatements((constName, constStatement) => {
             if (!cs) {
@@ -414,10 +414,10 @@ export class EntryPointImpl {
      * @protected
      * @param {ToIRContext} ctx
      * @param {SourceMappedStringI} ir
-     * @param {Option<Definitions>} extra
+     * @param {Definitions | undefined} extra
      * @returns {SourceMappedStringI}
      */
-    wrapEntryPoint(ctx, ir, extra = None) {
+    wrapEntryPoint(ctx, ir, extra = undefined) {
         const map = this.modules.fetchDefinitions(
             ctx,
             ir,

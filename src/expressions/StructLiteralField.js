@@ -1,10 +1,10 @@
-import { Word } from "@helios-lang/compiler-utils"
-import { isSome } from "@helios-lang/type-utils"
+import { isDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
 
 /**
+ * @import { Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -16,7 +16,7 @@ export class StructLiteralField {
     /**
      * @private
      * @readonly
-     * @type {Option<Word>}
+     * @type {Word | undefined}
      */
     _name
 
@@ -28,7 +28,7 @@ export class StructLiteralField {
     _value
 
     /**
-     * @param {Option<Word>} name
+     * @param {Word | undefined} name
      * @param {Expr} value
      */
     constructor(name, value) {
@@ -67,7 +67,7 @@ export class StructLiteralField {
      * @returns {boolean}
      */
     isNamed() {
-        return isSome(this._name)
+        return isDefined(this._name)
     }
 
     /**

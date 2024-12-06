@@ -1,4 +1,3 @@
-import { None } from "@helios-lang/type-utils"
 import { Expr } from "./Expr.js"
 import { SwitchCase } from "./SwitchCase.js"
 import { SwitchDefault } from "./SwitchDefault.js"
@@ -32,7 +31,7 @@ export class SwitchExpr extends Expr {
 
     /**
      * @private
-     * @type {Option<SwitchDefault>}
+     * @type {SwitchDefault | undefined}
      */
     _defaultCase
 
@@ -41,9 +40,9 @@ export class SwitchExpr extends Expr {
      * @param {Site} dotSite
      * @param {Expr} controlExpr - input value of the switch
      * @param {SwitchCase[]} cases
-     * @param {Option<SwitchDefault>} defaultCase
+     * @param {SwitchDefault | undefined} defaultCase
      */
-    constructor(site, dotSite, controlExpr, cases, defaultCase = None) {
+    constructor(site, dotSite, controlExpr, cases, defaultCase = undefined) {
         super(site)
         this.dotSite = dotSite
         this._controlExpr = controlExpr
@@ -60,7 +59,7 @@ export class SwitchExpr extends Expr {
     }
 
     /**
-     * @type {Option<SwitchDefault>}
+     * @type {SwitchDefault | undefined}
      */
     get defaultCase() {
         return this._defaultCase

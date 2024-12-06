@@ -1,8 +1,4 @@
-import {
-    CompilerError,
-    ErrorCollector,
-    Source
-} from "@helios-lang/compiler-utils"
+import { isCompilerError, makeSyntaxError } from "@helios-lang/compiler-utils"
 import { createSource, parseScript } from "../parse/index.js"
 import { MintingEntryPoint } from "./MintingEntryPoint.js"
 import { SpendingEntryPoint } from "./SpendingEntryPoint.js"
@@ -15,6 +11,7 @@ import { MixedEntryPoint } from "./MixedEntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
+ * @import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
  * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
@@ -68,7 +65,7 @@ export function newEntryPoint(
     try {
         entryPoint.evalTypes(validatorTypes)
     } catch (e) {
-        if (e instanceof CompilerError) {
+        if (isCompilerError(e)) {
             errorCollector.errors.push(e)
         } else {
             throw e
@@ -82,7 +79,7 @@ export function newEntryPoint(
  * @param {string | Source} mainSrc
  * @param {(string | Source)[]} moduleSrcs
  * @param {ErrorCollector} errorCollector
- * @returns {[Option<string>, Module[]]}
+ * @returns {[string | undefined, Module[]]}
  */
 function parseMain(mainSrc, moduleSrcs, errorCollector) {
     let [purpose, modules] = parseMainInternal(mainSrc, errorCollector)
@@ -118,7 +115,7 @@ function parseMain(mainSrc, moduleSrcs, errorCollector) {
         .concat(modules.slice(1))
 
     if (purpose.value == "module") {
-        throw CompilerError.syntax(site, "can't use module for main")
+        throw makeSyntaxError(site, "can't use module for main")
     }
 
     return [purpose.value, modules]

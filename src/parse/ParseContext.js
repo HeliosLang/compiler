@@ -1,26 +1,22 @@
-import { Group, StringLiteral } from "@helios-lang/compiler-utils"
-
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/compiler-utils").ErrorCollectorI} ErrorCollectorI
- * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
+ * @import { ErrorCollector, GenericGroup, Site, StringLiteral, TokenReader } from "@helios-lang/compiler-utils"
  */
 
 /**
- * @typedef {(path: StringLiteral) => Option<string>} ImportPathTranslator
+ * @typedef {(path: StringLiteral) => (string | undefined)} ImportPathTranslator
  */
 
 /**
  * @typedef {{
  *   currentSite?: Site
- *   importPathTranslator?: Option<ImportPathTranslator>
+ *   importPathTranslator?: ImportPathTranslator | undefined
  * }} ParseContextOptions
  */
 
 export class ParseContext {
     /**
      * @readonly
-     * @type {TokenReaderI}
+     * @type {TokenReader}
      */
     reader
 
@@ -32,12 +28,12 @@ export class ParseContext {
 
     /**
      * @readonly
-     * @type {Option<ImportPathTranslator>}
+     * @type {ImportPathTranslator | undefined}
      */
     importPathTranslator
 
     /**
-     * @param {TokenReaderI} reader
+     * @param {TokenReader} reader
      * @param {ParseContextOptions} options
      */
     constructor(reader, options = {}) {
@@ -47,7 +43,7 @@ export class ParseContext {
     }
 
     /**
-     * @type {ErrorCollectorI}
+     * @type {ErrorCollector}
      */
     get errors() {
         return this.reader.errors
@@ -65,7 +61,7 @@ export class ParseContext {
     }
 
     /**
-     * @param {Group<TokenReaderI>} group
+     * @param {GenericGroup<TokenReader>} group
      * @param {number} fieldIndex
      * @returns {ParseContext}
      */
@@ -74,7 +70,7 @@ export class ParseContext {
     }
 
     /**
-     * @param {TokenReaderI} r
+     * @param {TokenReader} r
      * @returns {ParseContext}
      */
     withReader(r) {

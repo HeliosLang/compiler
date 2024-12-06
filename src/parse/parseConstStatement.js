@@ -1,5 +1,4 @@
 import { symbol } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
 import { Expr } from "../expressions/index.js"
 import { ConstStatement } from "../statements/index.js"
 import { anyTopLevelKeyword } from "./keywords.js"
@@ -20,14 +19,14 @@ export function parseConstStatement(ctx) {
     r = r.readUntil(anyTopLevelKeyword)
 
     /**
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
-    let typeExpr = None
+    let typeExpr = undefined
 
     /**
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
-    let valueExpr = None
+    let valueExpr = undefined
 
     let m
 
@@ -35,7 +34,7 @@ export function parseConstStatement(ctx) {
         const [typeReader, equals] = m
 
         typeExpr = typeReader.isEof()
-            ? None
+            ? undefined
             : parseConstType(ctx.withReader(typeReader).atSite(name.site))
         valueExpr = parseValueExpr(ctx.withReader(r).atSite(equals.site))
     } else {
@@ -48,15 +47,15 @@ export function parseConstStatement(ctx) {
 
 /**
  * @param {ParseContext} ctx
- * @returns {Option<Expr>}
+ * @returns {Expr | undefined}
  */
 function parseConstType(ctx) {
     const r = ctx.reader
 
     /**
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
-    let typeExpr = None
+    let typeExpr = undefined
 
     let m
 

@@ -1,6 +1,6 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { FuncType } from "../typecheck/index.js"
@@ -68,7 +68,7 @@ export class ParametricExpr extends Expr {
         const baseVal = this._baseExpr.eval(scope)
 
         if (!baseVal.asParametric) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this.site,
                 `'${baseVal.toString()}' isn't a parametric type`
             )
@@ -88,7 +88,7 @@ export class ParametricExpr extends Expr {
                 if (pt instanceof FuncType) {
                     return "__fn"
                 } else {
-                    return expectSome(pt.asNamed).path
+                    return expectDefined(pt.asNamed).path
                 }
             })
             .join("@")}]`

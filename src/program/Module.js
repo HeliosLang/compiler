@@ -1,4 +1,7 @@
-import { CompilerError, Source, Word } from "@helios-lang/compiler-utils"
+import {
+    makeReferenceError,
+    makeSyntaxError
+} from "@helios-lang/compiler-utils"
 import { ModuleScope, builtinNamespaces } from "../scopes/index.js"
 import {
     ConstStatement,
@@ -7,6 +10,9 @@ import {
     Statement
 } from "../statements/index.js"
 
+/**
+ * @import { Source, Word } from "@helios-lang/compiler-utils"
+ */
 /**
  * A Module is a collection of statements
  */
@@ -93,12 +99,9 @@ export class Module {
                 let mn = s.moduleName.value
 
                 if (mn == this.name.value) {
-                    throw CompilerError.syntax(s.site, "can't import self")
+                    throw makeSyntaxError(s.site, "can't import self")
                 } else if (stack.some((d) => d.name.value == mn)) {
-                    throw CompilerError.syntax(
-                        s.site,
-                        "circular import detected"
-                    )
+                    throw makeSyntaxError(s.site, "circular import detected")
                 }
 
                 // if already in deps, then don't add (because it will have been added before along with all its dependencies)
@@ -107,7 +110,7 @@ export class Module {
 
                     if (mn in builtinNamespaces) {
                         if (m) {
-                            throw CompilerError.syntax(
+                            throw makeSyntaxError(
                                 m.name.site,
                                 "reserved module name"
                             )
@@ -117,7 +120,7 @@ export class Module {
                     }
 
                     if (!m) {
-                        throw CompilerError.reference(
+                        throw makeReferenceError(
                             s.site,
                             `module '${mn}' not found`
                         )

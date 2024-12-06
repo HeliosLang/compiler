@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
 import { ListType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
@@ -39,7 +39,7 @@ export class ListTypeExpr extends Expr {
         const itemType = itemType_.asType
 
         if (!itemType) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._itemTypeExpr.site,
                 `'${itemType_.toString()}' isn't a type`
             )

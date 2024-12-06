@@ -1,11 +1,9 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Token} Token
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Token } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
@@ -16,7 +14,7 @@ import { Scope } from "../scopes/index.js"
 /**
  * @typedef {{
  *   site: Site
- *   cache: Option<EvalEntity>
+ *   cache: EvalEntity | undefined
  *   evalInternal(scope: Scope): EvalEntity
  *   eval(scope: Scope): EvalEntity
  *   evalAsDataType(scope: Scope): DataType
@@ -42,7 +40,7 @@ export class Expr {
     /**
      * Written in switch cases where initial typeExpr is used as memberName instead
      * @readwrite
-     * @type {Option<EvalEntity>}
+     * @type {EvalEntity | undefined}
      */
     cache
 
@@ -51,7 +49,7 @@ export class Expr {
      */
     constructor(site) {
         this.site = site
-        this.cache = None
+        this.cache = undefined
     }
 
     /**
@@ -82,7 +80,7 @@ export class Expr {
         const result = result_.asDataType
 
         if (!result) {
-            throw CompilerError.type(this.site, "not a data type")
+            throw makeTypeError(this.site, "not a data type")
         }
 
         return result
@@ -98,7 +96,7 @@ export class Expr {
         const result = r.asType
 
         if (!result) {
-            throw CompilerError.type(this.site, `${r.toString()} isn't a type`)
+            throw makeTypeError(this.site, `${r.toString()} isn't a type`)
         }
 
         return result
@@ -114,7 +112,7 @@ export class Expr {
         const result = r.asTyped
 
         if (!result) {
-            throw CompilerError.type(this.site, `${r.toString()} isn't a value`)
+            throw makeTypeError(this.site, `${r.toString()} isn't a value`)
         }
 
         return result

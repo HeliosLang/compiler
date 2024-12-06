@@ -1,5 +1,4 @@
 import { group, symbol } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
 import { AnyValueExpr, Expr, FuncLiteralExpr } from "../expressions/index.js"
 import { FuncStatement } from "../statements/index.js"
 import { ParseContext } from "./ParseContext.js"
@@ -11,10 +10,10 @@ import { parseValueExpr } from "./parseValueExpr.js"
 const parseFuncLiteralExpr = makeFuncLiteralExprParser(parseValueExpr)
 /**
  * @param {ParseContext} ctx
- * @param {Option<Expr>} methodOf
+ * @param {Expr | undefined} methodOf
  * @returns {FuncStatement}
  */
-export function parseFuncStatement(ctx, methodOf = None) {
+export function parseFuncStatement(ctx, methodOf = undefined) {
     const r = ctx.reader
 
     const name = parseName(ctx)
@@ -26,7 +25,7 @@ export function parseFuncStatement(ctx, methodOf = None) {
     let fnExpr = new FuncLiteralExpr(
         ctx.currentSite,
         [],
-        None,
+        undefined,
         new AnyValueExpr(ctx.currentSite)
     )
 

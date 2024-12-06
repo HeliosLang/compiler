@@ -1,8 +1,8 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { expectSome, isSome, None } from "@helios-lang/type-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
+import { expectDefined, isDefined } from "@helios-lang/type-utils"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/type-utils").StructTypeSchema} StructTypeSchema
  * @typedef {import("@helios-lang/type-utils").FieldTypeSchema} FieldTypeSchema
  * @typedef {import("@helios-lang/type-utils").TypeSchema} TypeSchema
@@ -11,15 +11,15 @@ import { expectSome, isSome, None } from "@helios-lang/type-utils"
  */
 
 /**
- * @typedef {(argType: Type, targetType: Type) => Option<Type>} ViableCasts
+ * @typedef {(argType: Type, targetType: Type) => (Type | undefined)} ViableCasts
  */
 
 /**
- * @typedef {(type: Type) => Option<Type[]>} ExpandTupleCallback
+ * @typedef {(type: Type) => (Type[] | undefined)} ExpandTupleCallback
  */
 
 /**
- * @type {Option<ExpandTupleCallback>}
+ * @type {ExpandTupleCallback | undefined}
  */
 var expandTupleType
 
@@ -35,7 +35,7 @@ export function registerExpandTupleType(callback) {
  */
 
 /**
- * @type {Option<MakeListCallback>}
+ * @type {MakeListCallback | undefined}
  */
 export var makeListType
 
@@ -51,7 +51,7 @@ export function registerMakeListType(callback) {
  */
 
 /**
- * @type {Option<MakeMapCallback>}
+ * @type {MakeMapCallback | undefined}
  */
 export var makeMapType
 
@@ -199,7 +199,7 @@ export function registerMakeMapType(callback) {
  * @returns {DataType}
  */
 export function applyTypes(parametric, ...types) {
-    return expectSome(parametric.apply(types).asDataType)
+    return expectDefined(parametric.apply(types).asDataType)
 }
 
 export class Common {
@@ -606,7 +606,7 @@ export class ArgType {
     /**
      * @private
      * @readonly
-     * @type {Option<Word>}
+     * @type {Word | undefined}
      */
     _name
 
@@ -625,8 +625,7 @@ export class ArgType {
     _optional
 
     /**
-     *
-     * @param {Option<Word>} name
+     * @param {Word | undefined} name
      * @param {Type} type
      * @param {boolean} optional
      */
@@ -696,7 +695,7 @@ export class ArgType {
      * @returns {boolean}
      */
     isNamed() {
-        return isSome(this._name)
+        return isDefined(this._name)
     }
 
     /**
@@ -744,7 +743,7 @@ export class FuncType extends Common {
         super()
 
         this.origArgTypes = argTypes.map((at) =>
-            at instanceof ArgType ? at : new ArgType(null, at)
+            at instanceof ArgType ? at : new ArgType(undefined, at)
         )
 
         this._retType = retType
@@ -871,10 +870,10 @@ export class FuncType extends Common {
      * @param {Site} site
      * @param {Typed[]} origPosArgs - pos args with tuples, expanded internally
      * @param {{[name: string]: Typed}} namedArgs
-     * @param {Option<(argType: Type, targetType: Type) => Option<Type>>} viableCasts
+     * @param {((argType: Type, targetType: Type) => (Type | undefined)) | undefined} viableCasts
      * @returns {Type}
      */
-    checkCall(site, origPosArgs, namedArgs = {}, viableCasts = None) {
+    checkCall(site, origPosArgs, namedArgs = {}, viableCasts = undefined) {
         const posArgs = this.expandTuplesInPosArgs(origPosArgs)
 
         if (posArgs.length < this.nNonOptArgs) {
@@ -882,20 +881,20 @@ export class FuncType extends Common {
             for (let i = 0; i < this.nNonOptArgs; i++) {
                 if (!this.origArgTypes[i].isNamed()) {
                     // TODO: collect instead of throwing
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         site,
                         `expected at least ${this.origArgTypes.filter((at) => !at.isNamed()).length} positional arg(s), got ${posArgs.length} positional arg(s)`
                     )
                 } else if (!(this.origArgTypes[i].name in namedArgs)) {
                     // TODO: collect instead of throwing
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         site,
                         `expected at least ${this.nNonOptArgs} arg(s), missing '${this.origArgTypes[i].name}'`
                     )
                 }
             }
         } else if (posArgs.length > this.origArgTypes.length) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 site,
                 `expected at most ${this.origArgTypes.length} arg(s), got ${posArgs.length} arg(s)`
             )
@@ -913,12 +912,12 @@ export class FuncType extends Common {
                 const altType =
                     origIndex != -1 && viableCasts
                         ? viableCasts(posArg.type, expectedArgType)
-                        : None
+                        : undefined
 
                 if (altType) {
                     origPosArgs[origIndex] = altType.toTyped()
                 } else {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         site,
                         `expected '${expectedArgType.toString()}' for arg ${i + 1}, got '${posArg.type.toString()}'`
                     )
@@ -930,14 +929,14 @@ export class FuncType extends Common {
             const i = this.origArgTypes.findIndex((at) => at.name == key)
 
             if (i == -1) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     site,
                     `arg named ${key} not found in function type ${this.toString()}`
                 )
             }
 
             if (i < posArgs.length) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     site,
                     `named arg '${key}' already covered by positional arg ${i + 1}`
                 )
@@ -950,13 +949,13 @@ export class FuncType extends Common {
             if (!Common.instanceOf(namedArg, thisArg.type)) {
                 const altType = viableCasts
                     ? viableCasts(namedArg.type, thisArg.type)
-                    : None
+                    : undefined
 
                 if (altType) {
                     // mutate the namedArgs object
                     namedArgs[key] = altType.toTyped()
                 } else {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         site,
                         `expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArg.toString()}`
                     )
@@ -991,10 +990,7 @@ export class FuncType extends Common {
             }
         }
 
-        throw CompilerError.type(
-            site,
-            `unable to infer type of ${this.toString()}`
-        )
+        throw makeTypeError(site, `unable to infer type of ${this.toString()}`)
     }
 
     /**
@@ -1014,7 +1010,7 @@ export class FuncType extends Common {
             )
         }
 
-        throw CompilerError.type(
+        throw makeTypeError(
             site,
             `expected ${this.argTypes.length} arg(s), got ${argTypes.length}`
         )
@@ -1104,7 +1100,7 @@ export class FuncType extends Common {
         const i = this.origArgTypes.findIndex((at) => at.name == name)
 
         if (i == -1) {
-            throw CompilerError.type(site, `arg name ${name} not found`)
+            throw makeTypeError(site, `arg name ${name} not found`)
         } else {
             return i
         }
@@ -1173,20 +1169,20 @@ export class GenericType extends Common {
 
     /**
      * @private
-     * @type {null | InstanceMembers}
+     * @type {InstanceMembers | undefined}
      */
     _instanceMembers
 
     /**
      * @private
-     * @type {null | TypeMembers}
+     * @type {TypeMembers | undefined}
      */
     _typeMembers
 
     /**
      * @private
      * @readonly
-     * @type {Option<(self: Type, parents: Set<string>) => TypeSchema>}
+     * @type {((self: Type, parents: Set<string>) => TypeSchema) | undefined}
      */
     _genTypeSchema
 
@@ -1215,9 +1211,9 @@ export class GenericType extends Common {
 
         this._genInstanceMembers = genInstanceMembers
         this._genTypeMembers = genTypeMembers
-        this._instanceMembers = null
-        this._typeMembers = null
-        this._genTypeSchema = genTypeSchema ?? null
+        this._instanceMembers = undefined
+        this._typeMembers = undefined
+        this._genTypeSchema = genTypeSchema ?? undefined
         this._genDepth = 0
     }
 
@@ -1933,10 +1929,10 @@ export class FuncEntity extends Common {
      * @param {Site} site
      * @param {Typed[]} args
      * @param {{[name: string]: Typed}} namedArgs
-     * @param {Option<ViableCasts>} viableCasts
+     * @param {ViableCasts | undefined} viableCasts
      * @returns {Typed}
      */
-    call(site, args, namedArgs = {}, viableCasts = None) {
+    call(site, args, namedArgs = {}, viableCasts = undefined) {
         const type = this._type.checkCall(site, args, namedArgs, viableCasts)
 
         return type.toTyped()

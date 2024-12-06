@@ -1,4 +1,4 @@
-import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
+import { makeDummySite, makeTypeError } from "@helios-lang/compiler-utils"
 import { Common, FuncEntity, FuncType } from "./common.js"
 import { Parameter } from "./Parameter.js"
 
@@ -63,9 +63,9 @@ export class ParametricFunc extends Common {
      * @param {Site} site
      * @returns {EvalEntity}
      */
-    apply(types, site = TokenSite.dummy()) {
+    apply(types, site = makeDummySite()) {
         if (types.length != this._params.length) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 site,
                 "wrong number of parameter type arguments"
             )
@@ -78,7 +78,7 @@ export class ParametricFunc extends Common {
 
         this._params.forEach((p, i) => {
             if (!p.typeClass.isImplementedBy(types[i])) {
-                throw CompilerError.type(site, "typeclass match failed")
+                throw makeTypeError(site, "typeclass match failed")
             }
 
             map.set(p, types[i])
@@ -125,7 +125,7 @@ export class ParametricFunc extends Common {
             const pt = map.get(p)
 
             if (!pt) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     site,
                     `failed to infer type of '${p.name}'  (hint: apply directly using [...])`
                 )

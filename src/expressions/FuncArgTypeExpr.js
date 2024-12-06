@@ -1,10 +1,10 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
 import { ArgType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  */
 
 /**
@@ -30,7 +30,7 @@ export class FuncArgTypeExpr {
     /**
      * @private
      * @readonly
-     * @type {Option<Word>}
+     * @type {Word | undefined}
      */
     _name
 
@@ -50,7 +50,7 @@ export class FuncArgTypeExpr {
 
     /**
      * @param {Site} site
-     * @param {Option<Word>} name
+     * @param {Word | undefined} name
      * @param {Expr} typeExpr
      * @param {boolean} optional
      */
@@ -85,7 +85,7 @@ export class FuncArgTypeExpr {
         const type = type_.asType
 
         if (!type) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._typeExpr.site,
                 `'${type_.toString()}' isn't a type`
             )

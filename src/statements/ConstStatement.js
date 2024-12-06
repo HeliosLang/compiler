@@ -1,6 +1,6 @@
-import { CompilerError, TokenSite, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome, isSome } from "@helios-lang/type-utils"
+import { expectDefined, isDefined } from "@helios-lang/type-utils"
 import { ToIRContext, PARAM_IR_MACRO } from "../codegen/index.js"
 import { Expr, LiteralDataExpr } from "../expressions/index.js"
 import { Scope, TopScope } from "../scopes/index.js"
@@ -8,7 +8,7 @@ import { DataEntity, NamedEntity } from "../typecheck/index.js"
 import { Statement } from "./Statement.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("../codegen/index.js").Definitions} Definitions
@@ -23,21 +23,21 @@ export class ConstStatement extends Statement {
     /**
      * @private
      * @readonly
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
     _typeExpr
 
     /**
      * @private
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
     _valueExpr
 
     /**
      * @param {Site} site
      * @param {Word} name
-     * @param {Option<Expr>} typeExpr - can be null in case of type inference
-     * @param {Option<Expr>} valueExpr
+     * @param {Expr | undefined} typeExpr - can be null in case of type inference
+     * @param {Expr | undefined} valueExpr
      */
     constructor(site, name, typeExpr, valueExpr) {
         super(site, name)
@@ -49,7 +49,7 @@ export class ConstStatement extends Statement {
      * @type {DataType}
      */
     get type() {
-        return expectSome(
+        return expectDefined(
             this._typeExpr?.cache?.asDataType ??
                 this._valueExpr?.cache?.asTyped?.type?.asDataType,
             this._typeExpr?.cache?.toString() ??
@@ -63,7 +63,7 @@ export class ConstStatement extends Statement {
      * @returns {boolean}
      */
     isSet() {
-        return isSome(this._valueExpr)
+        return isDefined(this._valueExpr)
     }
 
     /**
@@ -110,14 +110,14 @@ export class ConstStatement extends Statement {
 
             if (type) {
                 if (!type.isBaseOf(value.type)) {
-                    throw CompilerError.type(this._valueExpr.site, "wrong type")
+                    throw makeTypeError(this._valueExpr.site, "wrong type")
                 }
             } else {
                 type = value.type.asDataType ?? undefined
             }
         }
 
-        const data = new DataEntity(expectSome(type))
+        const data = new DataEntity(expectDefined(type))
         const res = new NamedEntity(this.name.value, this.path, data)
 
         return res
@@ -138,7 +138,7 @@ export class ConstStatement extends Statement {
      * @returns {SourceMappedStringI}
      */
     toIRInternal(ctx) {
-        let ir = expectSome(this._valueExpr).toIR(ctx)
+        let ir = expectDefined(this._valueExpr).toIR(ctx)
 
         if (this._valueExpr instanceof LiteralDataExpr) {
             ir = $`${this._valueExpr.type.path}__from_data${$("(", this.site)}${ir})`
@@ -158,10 +158,10 @@ export class ConstStatement extends Statement {
      */
     toIR(ctx, map) {
         if (this._valueExpr) {
-            const alias = ctx.aliasNamespace
+            const description = ctx.aliasNamespace
                 ? `${ctx.aliasNamespace}::${this.name.value}`
                 : this.name.value
-            const keySite = TokenSite.fromSite(this.name.site).withAlias(alias)
+            const keySite = this.name.site.withDescription(description)
 
             map.set(this.path, {
                 content: this.toIRInternal(

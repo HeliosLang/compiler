@@ -3,13 +3,12 @@ import { it } from "node:test"
 import { bytesToHex, encodeUtf8 } from "@helios-lang/codec-utils"
 import { isLeft, isRight, isString } from "@helios-lang/type-utils"
 import {
-    ByteArrayData,
-    ConstrData,
-    IntData,
-    ListData,
-    MapData,
-    UplcDataValue,
-    UplcProgramV2
+    makeByteArrayData,
+    makeConstrData,
+    makeIntData,
+    makeListData,
+    makeMapData,
+    makeUplcDataValue
 } from "@helios-lang/uplc"
 import { Program } from "../src/program/Program.js"
 import { $ } from "@helios-lang/ir"
@@ -18,8 +17,8 @@ import { $ } from "@helios-lang/ir"
  * @typedef {import("@helios-lang/codec-utils").BytesLike} BytesLike
  * @typedef {import("@helios-lang/uplc").CekResult} CekResult
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
- * @typedef {import("@helios-lang/uplc").UplcLoggingI} UplcLoggingI
- * @typedef {import("@helios-lang/uplc").UplcProgramV2I} UplcProgramV2I
+ * @typedef {import("@helios-lang/uplc").UplcLogger} UplcLogger
+ * @typedef {import("@helios-lang/uplc").UplcProgramV2} UplcProgramV2
  */
 
 /**
@@ -101,7 +100,7 @@ export function compileAndRun(test) {
     it(test.description, () => {
         /**
          *
-         * @returns {[Program, UplcProgramV2I]}
+         * @returns {[Program, UplcProgramV2]}
          */
         const initialTest = () => {
             const program = new Program(test.main, {
@@ -124,7 +123,7 @@ export function compileAndRun(test) {
             return
         }
         const [program, uplc0] = initialTest()
-        const args = test.inputs.map((d) => new UplcDataValue(d))
+        const args = test.inputs.map((d) => makeUplcDataValue(d))
         const result0 = uplc0.eval(args)
 
         resultEquals(result0, test.output)
@@ -209,7 +208,7 @@ export function compileForRun(mainSrc, options = {}) {
             throw new Error(
                 "must specify arg2: a HeliosTestOutput result to test against for this run"
             )
-        const args = inputs.map((d) => new UplcDataValue(d))
+        const args = inputs.map((d) => makeUplcDataValue(d))
 
         const result0 = uplcUnopt.eval(args)
 
@@ -287,7 +286,7 @@ export function evalSingle(src, dataArgs = []) {
 
     const uplc = program.compile(false)
 
-    const args = dataArgs.map((d) => new UplcDataValue(d))
+    const args = dataArgs.map((d) => makeUplcDataValue(d))
     const res = uplc.eval(args)
 
     if (isRight(res.result)) {
@@ -340,7 +339,7 @@ export function evalTypesMany(tests) {
  * @returns {UplcData}
  */
 export function bool(b) {
-    return new ConstrData(b ? 1 : 0, [])
+    return makeConstrData(b ? 1 : 0, [])
 }
 
 export const False = bool(false)
@@ -360,7 +359,7 @@ export function assetclass(mph, name) {
  * @returns {UplcData}
  */
 export function bytes(bs) {
-    return new ByteArrayData(bs)
+    return makeByteArrayData(bs)
 }
 
 /**
@@ -368,7 +367,7 @@ export function bytes(bs) {
  * @returns {UplcData}
  */
 export function cbor(d) {
-    return new ByteArrayData(d.toCbor())
+    return makeByteArrayData(d.toCbor())
 }
 
 /**
@@ -377,7 +376,7 @@ export function cbor(d) {
  * @returns {UplcData}
  */
 export function constr(tag, ...fields) {
-    return new ConstrData(tag, fields)
+    return makeConstrData(tag, fields)
 }
 
 /**
@@ -385,7 +384,7 @@ export function constr(tag, ...fields) {
  * @returns {UplcData}
  */
 export function int(i) {
-    return new IntData(i)
+    return makeIntData(i)
 }
 
 /**
@@ -393,7 +392,7 @@ export function int(i) {
  * @returns {UplcData}
  */
 export function map(pairs) {
-    return new MapData(pairs)
+    return makeMapData(pairs)
 }
 
 /**
@@ -401,7 +400,7 @@ export function map(pairs) {
  * @returns {UplcData}
  */
 export function list(...d) {
-    return new ListData(d)
+    return makeListData(d)
 }
 
 /**
@@ -409,7 +408,7 @@ export function list(...d) {
  * @returns {UplcData}
  */
 export function mixedOther(d) {
-    return new ConstrData(0, [d])
+    return makeConstrData(0, [d])
 }
 
 /**
@@ -417,7 +416,7 @@ export function mixedOther(d) {
  * @returns {UplcData}
  */
 export function mixedSpending(d) {
-    return new ConstrData(1, [d])
+    return makeConstrData(1, [d])
 }
 
 /**
@@ -427,9 +426,9 @@ export function mixedSpending(d) {
  */
 export function ratio(top, bottom) {
     if (bottom < 0) {
-        return new ListData([new IntData(-top), new IntData(-bottom)])
+        return makeListData([makeIntData(-top), makeIntData(-bottom)])
     } else {
-        return new ListData([new IntData(top), new IntData(bottom)])
+        return makeListData([makeIntData(top), makeIntData(bottom)])
     }
 }
 
@@ -438,7 +437,7 @@ export function ratio(top, bottom) {
  * @returns {UplcData}
  */
 export function real(i) {
-    return new IntData(Math.trunc(i * 1000000))
+    return makeIntData(Math.trunc(i * 1000000))
 }
 
 /**
@@ -446,7 +445,7 @@ export function real(i) {
  * @returns {UplcData}
  */
 export function str(s) {
-    return new ByteArrayData(encodeUtf8(s))
+    return makeByteArrayData(encodeUtf8(s))
 }
 
 /**

@@ -1,13 +1,4 @@
-import {
-    Word,
-    group,
-    oneOf,
-    word,
-    StringLiteral,
-    symbol,
-    strlit
-} from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
+import { group, makeWord } from "@helios-lang/compiler-utils"
 import { Expr, ParametricExpr, RefExpr } from "../expressions/index.js"
 import {
     DataField,
@@ -17,13 +8,12 @@ import {
 } from "../statements/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { parseImplDefinition, anyImplKeyword } from "./parseImplDefinition.js"
-import { anyName, parseName } from "./parseName.js"
+import { parseName } from "./parseName.js"
 import { parseTypeParameters } from "./parseTypeParameters.js"
-import { parseTypeExpr } from "./parseTypeExpr.js"
 import { parseDataFields } from "./parseDataFields.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  */
 
 /**
@@ -82,7 +72,8 @@ export function createSelfTypeExpr(name, parameters) {
             selfTypeExpr.site,
             selfTypeExpr,
             parameters.parameterNames.map(
-                (n) => new RefExpr(new Word(n, selfTypeExpr.site))
+                (n) =>
+                    new RefExpr(makeWord({ value: n, site: selfTypeExpr.site }))
             )
         )
     }

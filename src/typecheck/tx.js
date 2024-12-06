@@ -1,4 +1,4 @@
-import { None, expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { FTPP } from "../codegen/ParametricName.js"
 import {
     Common,
@@ -132,7 +132,7 @@ const DCertDelegateType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 2,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Delegate",
         fieldTypes: [
             {
@@ -165,7 +165,7 @@ const DCertDeregisterType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 1,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Deregister",
         fieldTypes: [
             {
@@ -193,7 +193,7 @@ const DCertRegisterType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 0,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Register",
         fieldTypes: [
             {
@@ -221,7 +221,7 @@ const DCertRegisterPoolType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 3,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "RegisterPool",
         fieldTypes: [
             {
@@ -254,7 +254,7 @@ const DCertRetirePoolType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 4,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "RetirePool",
         fieldTypes: [
             {
@@ -316,7 +316,7 @@ const SpendingCredentialPubKeyType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 0,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "PubKey",
         fieldTypes: [
             {
@@ -345,7 +345,7 @@ const SpendingCredentialValidatorType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 1,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Validator",
         fieldTypes: [
             {
@@ -406,7 +406,7 @@ const TxOutputDatumHashType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 1,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Hash",
         fieldTypes: [
             {
@@ -435,7 +435,7 @@ const TxOutputDatumInlineType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 2,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Inline",
         fieldTypes: [
             {
@@ -464,7 +464,7 @@ const TxOutputDatumNoneType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 0,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "None",
         fieldTypes: []
     }),
@@ -767,7 +767,7 @@ const ScriptPurposeCertifyingType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 3,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Certifying",
         fieldTypes: [
             {
@@ -797,7 +797,7 @@ const ScriptPurposeMintingType = new GenericEnumMemberType({
         kind: "variant",
         name: "Minting",
         tag: 0,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         fieldTypes: [
             {
                 name: "policy_hash",
@@ -826,7 +826,7 @@ const ScriptPurposeTypeRewarding = new GenericEnumMemberType({
         kind: "variant",
         name: "Rewarding",
         tag: 2,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         fieldTypes: [
             {
                 name: "credential",
@@ -855,7 +855,7 @@ const ScriptPurposeSpendingType = new GenericEnumMemberType({
         kind: "variant",
         name: "Spending",
         tag: 1,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         fieldTypes: [
             {
                 name: "output_id",
@@ -909,7 +909,7 @@ const StakingCredentialHashType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 0,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Hash",
         fieldTypes: [
             {
@@ -938,7 +938,7 @@ const StakingCredentialPtrType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 1,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Ptr",
         fieldTypes: []
     }),
@@ -981,7 +981,7 @@ const StakingPurposeCertifyingType = new GenericEnumMemberType({
     genTypeSchema: (self, parents) => ({
         kind: "variant",
         tag: 3,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         name: "Certifying",
         fieldTypes: [
             {
@@ -1011,7 +1011,7 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
         kind: "variant",
         name: "Rewarding",
         tag: 2,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         fieldTypes: [
             {
                 name: "credential",
@@ -1317,7 +1317,7 @@ const MixedArgsOtherType = new GenericEnumMemberType({
         kind: "variant",
         name: "Other",
         tag: 0,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         fieldTypes: [
             {
                 name: "redeemer",
@@ -1339,7 +1339,7 @@ const MixedArgsSpendingType = new GenericEnumMemberType({
         kind: "variant",
         name: "Spending",
         tag: 1,
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         fieldTypes: [
             {
                 name: "datum",
@@ -1394,12 +1394,12 @@ function createScriptType(scriptTypes) {
             new GenericEnumMemberType({
                 name: k,
                 constrIndex: i,
-                parentType: expectSome(scriptEnumType),
+                parentType: expectDefined(scriptEnumType),
                 genTypeSchema: (self, parents) => ({
                     kind: "variant",
                     tag: i,
                     name: k,
-                    id: expectSome(self.asDataType).path,
+                    id: expectDefined(self.asDataType).path,
                     fieldTypes: []
                 }),
                 genInstanceMembers: (self) => ({}),
@@ -1418,9 +1418,9 @@ function createScriptType(scriptTypes) {
 export function ScriptContextNamespace(info) {
     // TODO: generate an EnumType for the scripts
     /**
-     * @type {Option<GenericType>}
+     * @type {GenericType | undefined}
      */
-    let scriptEnum = None
+    let scriptEnum = undefined
 
     if (
         info.currentScript &&

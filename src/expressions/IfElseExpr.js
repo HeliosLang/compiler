@@ -1,6 +1,6 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
@@ -74,7 +74,7 @@ export class IfElseExpr extends Expr {
 
     /**
      * @param {Site} site
-     * @param {Option<Type>} prevType
+     * @param {Type | undefined} prevType
      * @param {Type} newType
      * @returns {Type}
      */
@@ -120,7 +120,7 @@ export class IfElseExpr extends Expr {
                     }
                 }
 
-                throw CompilerError.type(site, "inconsistent types")
+                throw makeTypeError(site, "inconsistent types")
             }
         } else {
             return prevType
@@ -129,9 +129,9 @@ export class IfElseExpr extends Expr {
 
     /**
      * @param {Site} site
-     * @param {null | Type} prevType
+     * @param {Type | undefined} prevType
      * @param {Typed} newValue
-     * @returns {null | Type} - never ErrorType
+     * @returns {Type | undefined} - never ErrorType
      */
     static reduceBranchMultiType(site, prevType, newValue) {
         if (
@@ -141,7 +141,7 @@ export class IfElseExpr extends Expr {
             return prevType
         }
 
-        const newType = expectSome(newValue.asTyped).type
+        const newType = expectDefined(newValue.asTyped).type
 
         if (!prevType) {
             return newType
@@ -164,15 +164,15 @@ export class IfElseExpr extends Expr {
             const cVal = cVal_.asTyped
 
             if (!cVal || !BoolType.isBaseOf(cVal.type)) {
-                throw CompilerError.type(c.site, "expected bool")
+                throw makeTypeError(c.site, "expected bool")
                 continue
             }
         }
 
         /**
-         * @type {null | Type}
+         * @type {Type | undefined}
          */
-        let branchMultiType = null
+        let branchMultiType = undefined
 
         for (let b of this._branches) {
             // don't allow shadowing

@@ -1,4 +1,4 @@
-import { Word, group } from "@helios-lang/compiler-utils"
+import { makeWord, group } from "@helios-lang/compiler-utils"
 import {
     DataField,
     EnumMember,
@@ -62,7 +62,7 @@ function parseEnumMembers(ctx) {
     const members = []
 
     while (!r.isEof()) {
-        let name = new Word("Unnamed", ctx.currentSite)
+        let name = makeWord({ value: "Unnamed", site: ctx.currentSite })
 
         let m
 

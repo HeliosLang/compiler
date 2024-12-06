@@ -1,4 +1,4 @@
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { FuncType, GenericEnumMemberType, GenericType } from "./common.js"
 import {
     BoolType,
@@ -160,7 +160,7 @@ export const StakingHashStakeKeyType = new GenericEnumMemberType({
         kind: "variant",
         tag: 0,
         name: "StakeKey",
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         fieldTypes: [
             {
                 name: "hash",
@@ -189,7 +189,7 @@ export const StakingHashValidatorType = new GenericEnumMemberType({
         kind: "variant",
         tag: 1,
         name: "Validator",
-        id: expectSome(self.asDataType).path,
+        id: expectDefined(self.asDataType).path,
         fieldTypes: [
             {
                 name: "hash",

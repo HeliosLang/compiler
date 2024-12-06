@@ -1,11 +1,9 @@
-import { Word } from "@helios-lang/compiler-utils"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { Scope } from "../scopes/Scope.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/compiler-utils").Token} Token
+ * @import { Site, Token, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -35,7 +33,7 @@ export class CallArgExpr {
     /**
      * @private
      * @readonly
-     * @type {Option<Word>}
+     * @type {Word | undefined}
      */
     _name
 
@@ -48,7 +46,7 @@ export class CallArgExpr {
 
     /**
      * @param {Site} site
-     * @param {Option<Word>} name
+     * @param {Word | undefined} name
      * @param {Expr} valueExpr
      */
     constructor(site, name, valueExpr) {
@@ -76,7 +74,7 @@ export class CallArgExpr {
      * @type {EvalEntity}
      */
     get value() {
-        return expectSome(this._valueExpr.cache)
+        return expectDefined(this._valueExpr.cache)
     }
 
     /**

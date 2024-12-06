@@ -1,6 +1,6 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError, makeWord } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined as expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { DataEntity } from "../typecheck/index.js"
@@ -8,7 +8,7 @@ import { Expr } from "./Expr.js"
 import { StructLiteralField } from "./StructLiteralField.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -52,14 +52,14 @@ export class StructLiteralExpr extends Expr {
         const type = type_.asDataType
 
         if (!type) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._typeExpr.site,
                 `'${this._typeExpr.toString()}' doesn't evaluate to a data type`
             )
         }
 
         if (type.fieldNames.length != this._fields.length) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this.site,
                 `wrong number of fields for ${type.toString()}, expected ${type.fieldNames.length}, got ${this._fields.length}`
             )
@@ -73,7 +73,7 @@ export class StructLiteralExpr extends Expr {
             const memberVal = type.instanceMembers[name.value]
 
             if (!memberVal) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     name.site,
                     `member '${name.value}' not defined`
                 )
@@ -82,7 +82,7 @@ export class StructLiteralExpr extends Expr {
             const memberType = memberVal.asType
 
             if (!memberType) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     name.site,
                     `member '${name.value}' isn't a type`
                 )
@@ -98,12 +98,12 @@ export class StructLiteralExpr extends Expr {
 
             const fieldVal = fieldVal_.asTyped
             if (!fieldVal) {
-                throw CompilerError.type(f.site, "not typed")
+                throw makeTypeError(f.site, "not typed")
             }
 
             if (f.isNamed()) {
                 if (type.fieldNames.findIndex((n) => n == f.name.value) == -1) {
-                    throw CompilerError.type(f.name.site, "not a valid field")
+                    throw makeTypeError(f.name.site, "not a valid field")
                 }
 
                 // check the named type
@@ -113,7 +113,7 @@ export class StructLiteralExpr extends Expr {
                 }
 
                 if (!memberType.isBaseOf(fieldVal.type)) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         f.site,
                         `wrong field type for '${f.name.toString()}', expected ${memberType.toString()}, got ${fieldVal.type.toString()}`
                     )
@@ -121,7 +121,7 @@ export class StructLiteralExpr extends Expr {
             } else {
                 // check the positional type
                 const memberType = getMemberType(
-                    new Word(type.fieldNames[i], f.site)
+                    makeWord({ value: type.fieldNames[i], site: f.site })
                 )
 
                 if (!memberType) {
@@ -129,7 +129,7 @@ export class StructLiteralExpr extends Expr {
                 }
 
                 if (!memberType.isBaseOf(fieldVal.type)) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         f.site,
                         `wrong field type for field ${i.toString()}, expected ${memberType.toString()}, got ${fieldVal.type.toString()}`
                     )
@@ -173,7 +173,7 @@ export class StructLiteralExpr extends Expr {
      * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
-        const type = expectSome(this._typeExpr.cache?.asDataType)
+        const type = expectDefined(this._typeExpr.cache?.asDataType)
 
         const fields = this._fields.slice()
 

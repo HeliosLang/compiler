@@ -1,11 +1,10 @@
-import { Word } from "@helios-lang/compiler-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { ModuleScope, Scope, builtinNamespaces } from "../scopes/index.js"
 import { ModuleNamespace } from "../typecheck/index.js"
 import { Statement } from "./Statement.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").NamespaceMembers} NamespaceMembers
@@ -32,7 +31,7 @@ export class ImportModuleStatement extends Statement {
 
     /**
      * @param {ModuleScope} scope
-     * @returns {Option<EvalEntity>}
+     * @returns {EvalEntity | undefined}
      */
     evalInternal(scope) {
         if (this.name.value in builtinNamespaces) {
@@ -41,7 +40,7 @@ export class ImportModuleStatement extends Statement {
             const importedScope = scope.getScope(this.name)
 
             if (!importedScope) {
-                return null
+                return undefined
             }
 
             /**

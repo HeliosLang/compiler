@@ -1,20 +1,17 @@
 import {
-    ErrorCollector,
-    Source,
-    TokenReader,
-    TokenSite,
-    Tokenizer,
-    Word
+    makeErrorCollector,
+    makeSource,
+    makeTokenReader,
+    makeTokenizer,
+    mergeSites
 } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
 import { Statement } from "../statements/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { extractName, parseHeader } from "./parseHeader.js"
 import { parseStatements } from "./parseStatements.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Token} Token
- * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
+ * @import { ErrorCollector, Source, Token, TokenReader, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("./ScriptPurpose.js").ScriptPurpose} ScriptPurpose
  */
 
@@ -45,11 +42,11 @@ const AUTOMATIC_METHODS = [
 
 /**
  * @param {string | Source} src
- * @param {Option<ErrorCollector>} errorCollector
+ * @param {ErrorCollector | undefined} errorCollector
  * @returns {ParsedScript}
  */
-export function parseScript(src, errorCollector = None) {
-    const errors = errorCollector ?? new ErrorCollector()
+export function parseScript(src, errorCollector = undefined) {
+    const errors = errorCollector ?? makeErrorCollector()
 
     const reader = tokenizeScript(src, errors)
 
@@ -79,25 +76,25 @@ export function parseScript(src, errorCollector = None) {
  */
 export function createSource(rawSrc) {
     return typeof rawSrc == "string"
-        ? new Source(rawSrc, { name: extractName(rawSrc) ?? "unknown" })
-        : new Source(rawSrc.content, { name: rawSrc.name }) // the input Source instance might use a class from a different package
+        ? makeSource(rawSrc, { name: extractName(rawSrc) ?? "unknown" })
+        : makeSource(rawSrc.content, { name: rawSrc.name }) // the input Source instance might use a class from a different package
 }
 
 /**
  * @param {string | Source} rawSrc
  * @param {ErrorCollector} errorCollector
- * @returns {TokenReaderI}
+ * @returns {TokenReader}
  */
 function tokenizeScript(rawSrc, errorCollector) {
     const src = createSource(rawSrc)
 
-    const tokenizer = new Tokenizer(src, {
+    const tokenizer = makeTokenizer(src, {
         errorCollector: errorCollector
     })
 
     const ts = tokenizer.tokenize()
 
-    return new TokenReader(ts, errorCollector)
+    return makeTokenReader({ tokens: ts, errors: errorCollector })
 }
 
 /**
@@ -121,7 +118,7 @@ function findEntryPoint({ errors }, purpose, statements) {
             if (i == -1) {
                 const firstStatementSite = statements[0].site
                 const lastStatementSite = statements[statements.length - 1].site
-                const scriptBodySite = TokenSite.merge(
+                const scriptBodySite = mergeSites(
                     firstStatementSite,
                     lastStatementSite
                 )

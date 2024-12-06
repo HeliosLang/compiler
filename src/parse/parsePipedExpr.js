@@ -1,11 +1,9 @@
 import {
-    Group,
-    TokenReader,
-    TokenSite,
+    makeGroup,
+    makeTokenReader,
     oneOf,
     symbol
 } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
 import { CallExpr, CallArgExpr, Expr } from "../expressions/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { anyBinOp } from "./parseBinaryExpr.js"
@@ -50,14 +48,16 @@ export function makePipedExprParser(parseValueExpr) {
                 if ((m = r.matches(anyPipeOp))) {
                     const site = m.site
 
-                    // TODO: this is dirty, get rid of this
-                    if (!(site instanceof TokenSite)) {
-                        throw new Error("unexpected")
-                    }
+                    const tokens = [
+                        makeGroup({
+                            kind: "(",
+                            fields: [before.tokens],
+                            separators: [],
+                            site
+                        })
+                    ]
 
-                    const tokens = [new Group("(", [before.tokens], [], site)]
-
-                    const rr = new TokenReader(tokens, ctx.errors)
+                    const rr = makeTokenReader({ tokens, errors: ctx.errors })
 
                     return parseValueExpr(ctx.withReader(rr), precedence + 1)
                 } else {
@@ -73,7 +73,7 @@ export function makePipedExprParser(parseValueExpr) {
                     )
 
                     return new CallExpr(pipe.site, afterExpr, [
-                        new CallArgExpr(beforeExpr.site, None, beforeExpr)
+                        new CallArgExpr(beforeExpr.site, undefined, beforeExpr)
                     ])
                 }
             }

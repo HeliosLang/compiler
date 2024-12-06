@@ -1,4 +1,4 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -53,18 +53,18 @@ export class ChainExpr extends Expr {
             const upstreamVal = upstreamVal_.asTyped
 
             if (!upstreamVal) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this.upstreamExpr.site,
                     "upstream isn't typed"
                 )
             } else {
                 if (new ErrorType().isBaseOf(upstreamVal.type)) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         this.downstreamExpr.site,
                         "unreachable code (upstream always throws error)"
                     )
                 } else if (!new VoidType().isBaseOf(upstreamVal.type)) {
-                    throw CompilerError.type(
+                    throw makeTypeError(
                         this.upstreamExpr.site,
                         "unexpected return value (hint: use '='"
                     )

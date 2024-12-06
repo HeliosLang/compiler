@@ -1,5 +1,5 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { expectSome } from "@helios-lang/type-utils"
+import { makeTypeError, makeWord } from "@helios-lang/compiler-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import {
     ArgType,
     Common,
@@ -232,7 +232,7 @@ export class TupleType extends GenericType {
             return TupleType$(itemTypes)
         }
 
-        throw CompilerError.type(
+        throw makeTypeError(
             site,
             `unable to infer type of ${this.toString()} (${type instanceof TupleType} ${type instanceof GenericType})`
         )
@@ -290,7 +290,7 @@ export function TupleType$(itemTypes, isAllDataTypes = null) {
                 return {
                     kind: "tuple",
                     itemTypes: itemTypes.map((it) =>
-                        expectSome(it.asDataType).toSchema()
+                        expectDefined(it.asDataType).toSchema()
                     )
                 }
             } else {
@@ -328,13 +328,13 @@ export function TupleType$(itemTypes, isAllDataTypes = null) {
 /**
  * Returns null if `type` isn't a tuple
  * @param {Type} type
- * @returns {null | Type[]}
+ * @returns {Type[] | undefined}
  */
 export function getTupleItemTypes(type) {
     if (type instanceof TupleType) {
         return type.itemTypes
     } else {
-        return null
+        return undefined
     }
 }
 
@@ -404,7 +404,7 @@ export const ListType = new ParametricType({
     name: "[]",
     parameters: [new Parameter("ItemType", `${TTPP}0`, new DefaultTypeClass())],
     apply: ([itemType_]) => {
-        const itemType = expectSome(itemType_.asDataType)
+        const itemType = expectDefined(itemType_.asDataType)
 
         /**
          * @type {GenericTypeProps}
@@ -414,7 +414,7 @@ export const ListType = new ParametricType({
             path: `__helios__list[${itemType.path}]`,
             genTypeSchema: (self, parents) => ({
                 kind: /** @type {const} */ ("list"),
-                itemType: expectSome(itemType.toSchema(parents))
+                itemType: expectDefined(itemType.toSchema(parents))
             }),
             genInstanceMembers: (self) => {
                 /**
@@ -426,14 +426,20 @@ export const ListType = new ParametricType({
                     specialMembers.sum = new FuncType([], itemType)
                 } else if (StringType.isBaseOf(itemType)) {
                     specialMembers.join = new FuncType(
-                        [new ArgType(new Word("separator"), StringType, true)],
+                        [
+                            new ArgType(
+                                makeWord({ value: "separator" }),
+                                StringType,
+                                true
+                            )
+                        ],
                         StringType
                     )
                 } else if (ByteArrayType.isBaseOf(itemType)) {
                     specialMembers.join = new FuncType(
                         [
                             new ArgType(
-                                new Word("separator"),
+                                makeWord({ value: "separator" }),
                                 ByteArrayType,
                                 true
                             )
@@ -705,8 +711,8 @@ export const MapType = new ParametricType({
         new Parameter("ValueType", `${TTPP}1`, new DefaultTypeClass())
     ],
     apply: ([keyType_, valueType_]) => {
-        const keyType = expectSome(keyType_.asDataType)
-        const valueType = expectSome(valueType_.asDataType)
+        const keyType = expectDefined(keyType_.asDataType)
+        const valueType = expectDefined(valueType_.asDataType)
 
         /**
          * @type {GenericTypeProps}
@@ -716,8 +722,8 @@ export const MapType = new ParametricType({
             path: `__helios__map[${keyType.path}@${valueType.path}]`,
             genTypeSchema: (self, parents) => ({
                 kind: /** @type {const} */ ("map"),
-                keyType: expectSome(keyType.toSchema(parents)),
-                valueType: expectSome(valueType.toSchema(parents))
+                keyType: expectDefined(keyType.toSchema(parents)),
+                valueType: expectDefined(valueType.toSchema(parents))
             }),
             genInstanceMembers: (self) => ({
                 ...genCommonInstanceMembers(self),
@@ -969,7 +975,7 @@ const OptionType = new ParametricType({
     name: "Option",
     parameters: [new Parameter("SomeType", `${TTPP}0`, new DefaultTypeClass())],
     apply: ([someType_]) => {
-        const someType = expectSome(someType_.asDataType)
+        const someType = expectDefined(someType_.asDataType)
         const someTypePath = someType.path
 
         /**
@@ -990,7 +996,7 @@ const OptionType = new ParametricType({
             path: `__helios__option[${someTypePath}]`,
             genTypeSchema: (self, parents) => ({
                 kind: "option",
-                someType: expectSome(someType.toSchema(parents))
+                someType: expectDefined(someType.toSchema(parents))
             }),
             genInstanceMembers: (self) => ({
                 ...genCommonInstanceMembers(self),
@@ -1012,8 +1018,8 @@ const OptionType = new ParametricType({
             }),
             genTypeMembers: (self) => ({
                 ...genCommonTypeMembers(self),
-                None: expectSome(NoneType),
-                Some: expectSome(SomeType)
+                None: expectDefined(NoneType),
+                Some: expectDefined(SomeType)
             })
         }
 
@@ -1046,7 +1052,7 @@ const OptionType = new ParametricType({
             genTypeMembers: (self) => ({
                 ...genCommonTypeMembers(self),
                 __is: new FuncType(
-                    [expectSome(self.asEnumMemberType).parentType],
+                    [expectDefined(self.asEnumMemberType).parentType],
                     BoolType
                 )
             })
@@ -1074,7 +1080,7 @@ const OptionType = new ParametricType({
             genTypeMembers: (self) => ({
                 ...genCommonTypeMembers(self),
                 __is: new FuncType(
-                    [expectSome(self.asEnumMemberType).parentType],
+                    [expectDefined(self.asEnumMemberType).parentType],
                     BoolType
                 )
             })

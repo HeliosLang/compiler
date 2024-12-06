@@ -1,12 +1,4 @@
-import {
-    Group,
-    Word,
-    anyWord,
-    group,
-    symbol,
-    word
-} from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
+import { anyWord, group, symbol, word } from "@helios-lang/compiler-utils"
 import {
     AnyTypeExpr,
     Expr,
@@ -25,7 +17,7 @@ import {
 import { ParseContext } from "./ParseContext.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
+ * @import { GenericGroup, TokenReader, Word } from "@helios-lang/compiler-utils"
  */
 
 /**
@@ -34,9 +26,9 @@ import { ParseContext } from "./ParseContext.js"
  */
 export function parseTypeExpr(ctx) {
     /**
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
-    let typeExpr = None
+    let typeExpr = undefined
 
     const r = ctx.reader
 
@@ -147,7 +139,7 @@ export function parseTypeExpr(ctx) {
 
 /**
  * @param {ParseContext} ctx
- * @param {Group<TokenReaderI>} ag
+ * @param {GenericGroup<TokenReader>} ag
  * @returns {FuncArgTypeExpr[]}
  */
 function parseFuncArgTypes(ctx, ag) {
@@ -187,9 +179,9 @@ function parseFuncArgType(ctx) {
     const r = ctx.reader
 
     /**
-     * @type {Option<Word>}
+     * @type {Word | undefined}
      */
-    let name = None
+    let name = undefined
 
     /**
      * @type {Expr}

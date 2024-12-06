@@ -1,4 +1,3 @@
-import { TokenSite, Word } from "@helios-lang/compiler-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { FuncArg, FuncLiteralExpr } from "../expressions/index.js"
 import { Scope } from "../scopes/index.js"
@@ -7,7 +6,7 @@ import { Statement } from "./Statement.js"
 import { TypeParameters } from "./TypeParameters.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
@@ -200,7 +199,7 @@ export class FuncStatement extends Statement {
         const alias = ctx.aliasNamespace
             ? `${ctx.aliasNamespace}::${this.name.value}`
             : this.name.value
-        const keySite = TokenSite.fromSite(this.name.site).withAlias(alias)
+        const keySite = this.name.site.withDescription(alias)
 
         map.set(this.path, {
             content: this.toIRInternal(

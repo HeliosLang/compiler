@@ -1,9 +1,10 @@
-import { Word } from "@helios-lang/compiler-utils"
+import { makeWord } from "@helios-lang/compiler-utils"
 import { GlobalScope } from "./GlobalScope.js"
 import { ModuleScope } from "./ModuleScope.js"
 import { Scope } from "./Scope.js"
 
 /**
+ * @import { Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -37,7 +38,10 @@ export class TopScope extends Scope {
             throw new Error("unexpected")
         }
 
-        this.set(new Word(`__scope__${name.value}`, name.site), value)
+        this.set(
+            makeWord({ value: `__scope__${name.value}`, site: name.site }),
+            value
+        )
     }
 
     /**
@@ -72,7 +76,7 @@ export class TopScope extends Scope {
         }
 
         const maybeModuleScope = this.get(
-            new Word(`__scope__${name.value}`, name.site)
+            makeWord({ value: `__scope__${name.value}`, site: name.site })
         )
 
         if (maybeModuleScope instanceof ModuleScope) {

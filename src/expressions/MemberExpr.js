@@ -1,12 +1,12 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { makeReferenceError, makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined as expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -49,7 +49,7 @@ export class MemberExpr extends Expr {
 
         const objVal = objVal_.asInstance
         if (!objVal) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._objExpr.site,
                 `lhs of '.' not an instance`
             )
@@ -65,7 +65,7 @@ export class MemberExpr extends Expr {
             }
 
             if (!member) {
-                throw CompilerError.reference(
+                throw makeReferenceError(
                     this._memberName.site,
                     `'${objVal.type.toString()}.${this._memberName.value}' undefined`
                 )
@@ -91,7 +91,9 @@ export class MemberExpr extends Expr {
     toIR(ctx, params = "") {
         // members can be functions so, field getters are also encoded as functions for consistency
 
-        const objType = expectSome(this._objExpr.cache?.asTyped?.type?.asNamed)
+        const objType = expectDefined(
+            this._objExpr.cache?.asTyped?.type?.asNamed
+        )
 
         let objPath = objType.path
 

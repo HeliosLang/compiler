@@ -1,5 +1,5 @@
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 
 /**
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
@@ -31,9 +31,9 @@ export function injectMutualRecursions(mainIR, map) {
         let set = new Set()
 
         while (stack.length > 0) {
-            const name = expectSome(stack.shift())
+            const name = expectDefined(stack.shift())
 
-            const ir = expectSome(map.get(name)).content
+            const ir = expectDefined(map.get(name)).content
 
             const localDependencies = keys
                 .slice(
@@ -71,7 +71,7 @@ export function injectMutualRecursions(mainIR, map) {
             continue
         }
 
-        let prefix = expectSome(k.match(/([^[]+)(\[|$)/))[0]
+        let prefix = expectDefined(k.match(/([^[]+)(\[|$)/))[0]
 
         // get all following definitions including self, excluding constants
         // also don't mutual recurse helios functions
@@ -89,7 +89,7 @@ export function injectMutualRecursions(mainIR, map) {
             // do the actual replacing
             for (let k_ of keys) {
                 map.set(k_, {
-                    content: expectSome(map.get(k_)).content.replace(
+                    content: expectDefined(map.get(k_)).content.replace(
                         re,
                         newStr
                     ),
@@ -101,7 +101,7 @@ export function injectMutualRecursions(mainIR, map) {
 
             const wrapped = $([
                 $(`(${dependencies.join(", ")}) -> {`),
-                expectSome(map.get(k)).content,
+                expectDefined(map.get(k)).content,
                 $("}")
             ])
 

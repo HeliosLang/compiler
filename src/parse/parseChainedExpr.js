@@ -1,8 +1,6 @@
 import {
-    Group,
-    SymbolToken,
-    TokenReader,
-    Word,
+    makeTokenReader,
+    makeWord,
     anyWord,
     boollit,
     byteslit,
@@ -39,14 +37,11 @@ import {
 import { ParseContext } from "./ParseContext.js"
 import { makeFuncLiteralExprParser } from "./parseFuncLiteralExpr.js"
 import { parseTypeExpr } from "./parseTypeExpr.js"
-import { None } from "@helios-lang/type-utils"
 import { anyName } from "./parseName.js"
 import { parseDestructExpr } from "./parseDestructExpr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/compiler-utils").Token} Token
- * @typedef {import("@helios-lang/compiler-utils").TokenReaderI} TokenReaderI
+ * @import { GenericGroup, Site, SymbolToken, Token, TokenReader, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("./ValueExprParser.js").ValueExprParser} ValueExprParser
  */
 
@@ -190,7 +185,7 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {Expr} fnExpr
-     * @param {Group<TokenReaderI>} argGroup
+     * @param {GenericGroup<TokenReader>} argGroup
      * @returns {CallExpr}
      */
     function parseCallExpr(ctx, fnExpr, argGroup) {
@@ -206,9 +201,9 @@ export function makeChainedExprParser(parseValueExpr) {
             let site = argGroup.site
 
             /**
-             * @type {Option<Word>}
+             * @type {Word | undefined}
              */
-            let argName = None
+            let argName = undefined
 
             if ((m = f.matches(anyName, symbol(":")))) {
                 argName = m[0]
@@ -228,7 +223,7 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {Expr} baseExpr
-     * @param {Group<TokenReaderI>} pg
+     * @param {GenericGroup<TokenReader>} pg
      * @returns {ParametricExpr}
      */
     function parseParametricValueExpr(ctx, baseExpr, pg) {
@@ -242,8 +237,8 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {Word} keyword
-     * @param {Group<TokenReaderI>} firstCond
-     * @param {Group<TokenReaderI>} firstBranch
+     * @param {GenericGroup<TokenReader>} firstCond
+     * @param {GenericGroup<TokenReader>} firstBranch
      * @returns {IfElseExpr}
      */
     function parseIfElseExpr(ctx, keyword, firstCond, firstBranch) {
@@ -298,7 +293,7 @@ export function makeChainedExprParser(parseValueExpr) {
      * @param {Expr} objExpr
      * @param {SymbolToken} dot
      * @param {Word} kw
-     * @param {Group<TokenReaderI>} braces
+     * @param {GenericGroup<TokenReader>} braces
      * @returns {EnumSwitchExpr}
      */
     function parseSwitchExpr(ctx, objExpr, dot, kw, braces) {
@@ -308,9 +303,9 @@ export function makeChainedExprParser(parseValueExpr) {
         const cases = []
 
         /**
-         * @type {Option<SwitchDefault>}
+         * @type {SwitchDefault | undefined}
          */
-        let def = None
+        let def = undefined
 
         braces.fields.forEach((f) => {
             let m
@@ -375,7 +370,9 @@ export function makeChainedExprParser(parseValueExpr) {
         const additional = []
 
         for (let i = 0; i < n; i++) {
-            additional.push(new DestructExpr(site, new Word("_", site)))
+            additional.push(
+                new DestructExpr(site, makeWord({ value: "_", site }))
+            )
         }
 
         return additional
@@ -384,7 +381,7 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {DestructExpr} destructExpr
-     * @param {Option<DestructExpr>} prevDestructExpr
+     * @param {DestructExpr | undefined} prevDestructExpr
      * @returns {DestructExpr} - can return a modified destructexpr in order to accomodate errors
      */
     function assertValidCaseLhs(ctx, destructExpr, prevDestructExpr) {
@@ -393,7 +390,7 @@ export function makeChainedExprParser(parseValueExpr) {
                 ctx.errors.syntax(destructExpr.site, "invalid syntax")
                 destructExpr = new DestructExpr(
                     destructExpr.site,
-                    new Word("_", destructExpr.name.site),
+                    makeWord({ value: "_", site: destructExpr.name.site }),
                     destructExpr.typeExpr,
                     destructExpr.destructExprs,
                     true
@@ -432,7 +429,7 @@ export function makeChainedExprParser(parseValueExpr) {
                         destructExpr = new DestructExpr(
                             destructExpr.site,
                             destructExpr.name,
-                            None,
+                            undefined,
                             destructExpr.destructExprs.slice(
                                 0,
                                 prevDestructExpr.destructExprs.length
@@ -447,7 +444,7 @@ export function makeChainedExprParser(parseValueExpr) {
                         destructExpr = new DestructExpr(
                             destructExpr.site,
                             destructExpr.name,
-                            None,
+                            undefined,
                             destructExpr.destructExprs.concat(
                                 createDummyDestructExprs(
                                     nDiff,
@@ -479,8 +476,8 @@ export function makeChainedExprParser(parseValueExpr) {
                 const nDiff = prevDestructExpr.destructExprs.length - 1
                 destructExpr = new DestructExpr(
                     destructExpr.site,
-                    new Word("_", destructExpr.name.site),
-                    None,
+                    makeWord({ value: "_", site: destructExpr.name.site }),
+                    undefined,
                     [destructExpr].concat(
                         createDummyDestructExprs(nDiff, destructExpr.site)
                     ),
@@ -519,8 +516,8 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      *
      * @param {ParseContext} ctx
-     * @param {TokenReaderI} itemTypeReader
-     * @param {Group<TokenReaderI>} braces
+     * @param {TokenReader} itemTypeReader
+     * @param {GenericGroup<TokenReader>} braces
      * @returns {ListLiteralExpr}
      */
     function parseListLiteralExpr(ctx, itemTypeReader, braces) {
@@ -541,16 +538,16 @@ export function makeChainedExprParser(parseValueExpr) {
     /**
      * @param {ParseContext} ctx
      * @param {Token[]} itemTypeTokens
-     * @param {TokenReaderI} itemReader
+     * @param {TokenReader} itemReader
      * @returns {Expr}
      */
     function parseInferrableItem(ctx, itemTypeTokens, itemReader) {
         if (itemReader.matches(group("{"))) {
             // TODO: this is ugly, find a better approach
-            const readerWithItemTypeTokens = new TokenReader(
-                itemTypeTokens.concat(itemReader.tokens),
-                ctx.errors
-            )
+            const readerWithItemTypeTokens = makeTokenReader({
+                tokens: itemTypeTokens.concat(itemReader.tokens),
+                errors: ctx.errors
+            })
 
             return parseValueExpr(ctx.withReader(readerWithItemTypeTokens), 0)
         } else {
@@ -562,9 +559,9 @@ export function makeChainedExprParser(parseValueExpr) {
 
     /**
      * @param {ParseContext} ctx
-     * @param {TokenReaderI} keyTypeReader
-     * @param {TokenReaderI} valueTypeReader
-     * @param {Group<TokenReaderI>} braces
+     * @param {TokenReader} keyTypeReader
+     * @param {TokenReader} valueTypeReader
+     * @param {GenericGroup<TokenReader>} braces
      * @returns {MapLiteralExpr}
      */
     function parseMapLiteralExpr(ctx, keyTypeReader, valueTypeReader, braces) {
@@ -637,8 +634,8 @@ export function makeChainedExprParser(parseValueExpr) {
 
     /**
      * @param {ParseContext} ctx
-     * @param {TokenReaderI} typeReader
-     * @param {Group<TokenReaderI>} braces
+     * @param {TokenReader} typeReader
+     * @param {GenericGroup<TokenReader>} braces
      */
     function parseStructLiteralExpr(ctx, typeReader, braces) {
         const typeExpr = parseTypeExpr(ctx.withReader(typeReader))
@@ -647,9 +644,9 @@ export function makeChainedExprParser(parseValueExpr) {
             let m
 
             /**
-             * @type {Option<Word>}
+             * @type {Word | undefined}
              */
-            let fieldName = None
+            let fieldName = undefined
 
             /**
              * @type {Expr}

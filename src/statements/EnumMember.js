@@ -1,6 +1,4 @@
-import { Word } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { isNone } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/Scope.js"
 import {
@@ -13,6 +11,7 @@ import { DataField } from "./DataField.js"
 import { DataDefinition } from "./DataDefinition.js"
 
 /**
+ * @import { Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../codegen/index.js").Definitions} Definitions
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
@@ -37,13 +36,13 @@ export class EnumMember {
     /**
      * Registered later
      * @private
-     * @type {Option<EnumStatementI>}
+     * @type {EnumStatementI | undefined}
      */
     _parent
 
     /**
      * @private
-     * @type {Option<number>}
+     * @type {number | undefined}
      */
     _constrIndex
 
@@ -59,8 +58,8 @@ export class EnumMember {
      * @param {DataField[]} fields
      */
     constructor(name, fields) {
-        this._parent = null // registered later
-        this._constrIndex = null
+        this._parent = undefined // registered later
+        this._constrIndex = undefined
         this._dataDef = new DataDefinition(name.site, name, fields)
     }
 
@@ -68,7 +67,7 @@ export class EnumMember {
      * @returns {number}
      */
     get constrIndex() {
-        if (isNone(this._constrIndex)) {
+        if (this._constrIndex === undefined) {
             throw new Error("constrIndex not set")
         } else {
             return this._constrIndex

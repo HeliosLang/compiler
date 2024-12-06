@@ -1,6 +1,6 @@
-import { CompilerError } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { DataEntity, ListType$ } from "../typecheck/index.js"
@@ -46,7 +46,7 @@ export class ListLiteralExpr extends Expr {
      * @type {DataType}
      */
     get itemType() {
-        return expectSome(this._itemTypeExpr.cache?.asDataType)
+        return expectDefined(this._itemTypeExpr.cache?.asDataType)
     }
 
     /**
@@ -59,7 +59,7 @@ export class ListLiteralExpr extends Expr {
         const itemType = itemType_.asDataType
 
         if (!itemType) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._itemTypeExpr.site,
                 "content of list can't be func"
             )
@@ -74,12 +74,12 @@ export class ListLiteralExpr extends Expr {
             const itemVal = itemVal_.asTyped
 
             if (!itemVal) {
-                throw CompilerError.type(itemExpr.site, "not typed")
+                throw makeTypeError(itemExpr.site, "not typed")
                 continue
             }
 
             if (!itemType.isBaseOf(itemVal.type)) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     itemExpr.site,
                     `expected ${itemType.toString()}, got ${itemVal.type.toString()}`
                 )

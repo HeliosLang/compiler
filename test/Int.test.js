@@ -1,6 +1,6 @@
 import { describe, it } from "node:test"
 import { encodeIntBE } from "@helios-lang/codec-utils"
-import { IntData } from "@helios-lang/uplc"
+import { makeIntData } from "@helios-lang/uplc"
 import {
     False,
     True,
@@ -947,15 +947,15 @@ describe("Int", () => {
         }`)
 
         it("int serialization for 1 returns correct CBOR", () => {
-            runner([int(1)], cbor(new IntData(1)))
+            runner([int(1)], cbor(makeIntData(1)))
         })
 
         it("int serialization for -1 returns correct CBOR", () => {
-            runner([int(-1)], cbor(new IntData(-1)))
+            runner([int(-1)], cbor(makeIntData(-1)))
         })
 
         it("int serialization for -1234567890 returns correct CBOR", () => {
-            runner([int(-1234567890)], cbor(new IntData(-1234567890)))
+            runner([int(-1234567890)], cbor(makeIntData(-1234567890)))
         })
     })
 

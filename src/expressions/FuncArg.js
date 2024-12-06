@@ -1,6 +1,6 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { None, isSome } from "@helios-lang/type-utils"
+import { isDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/ToIRContext.js"
 import { Scope } from "../scopes/index.js"
 import { ArgType } from "../typecheck/index.js"
@@ -8,6 +8,7 @@ import { NameTypePair } from "./NameTypePair.js"
 import { Expr } from "./Expr.js"
 
 /**
+ * @import { Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  */
 
@@ -18,16 +19,16 @@ export class FuncArg extends NameTypePair {
     /**
      * @private
      * @readonly
-     * @type {Option<Expr>}
+     * @type {Expr | undefined}
      */
     _defaultValueExpr
 
     /**
      * @param {Word} name
-     * @param {Option<Expr>} typeExpr
-     * @param {Option<Expr>} defaultValueExpr
+     * @param {Expr | undefined} typeExpr
+     * @param {Expr | undefined} defaultValueExpr
      */
-    constructor(name, typeExpr, defaultValueExpr = None) {
+    constructor(name, typeExpr, defaultValueExpr = undefined) {
         super(name, typeExpr)
 
         this._defaultValueExpr = defaultValueExpr
@@ -37,7 +38,7 @@ export class FuncArg extends NameTypePair {
      * @type {boolean}
      */
     get isOptional() {
-        return isSome(this._defaultValueExpr)
+        return isDefined(this._defaultValueExpr)
     }
 
     /**
@@ -52,10 +53,7 @@ export class FuncArg extends NameTypePair {
 
             const v = v_.asTyped
             if (!v) {
-                throw CompilerError.type(
-                    this._defaultValueExpr.site,
-                    "not typed"
-                )
+                throw makeTypeError(this._defaultValueExpr.site, "not typed")
                 return
             }
 
@@ -65,7 +63,7 @@ export class FuncArg extends NameTypePair {
             }
 
             if (!t.isBaseOf(v.type)) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     this._defaultValueExpr.site,
                     `expected ${t.toString()}, got ${v.type.toString()}`
                 )
@@ -81,7 +79,7 @@ export class FuncArg extends NameTypePair {
     evalArgType(scope) {
         const t = super.evalType(scope)
 
-        return new ArgType(this.name, t, isSome(this._defaultValueExpr))
+        return new ArgType(this.name, t, isDefined(this._defaultValueExpr))
     }
 
     /**

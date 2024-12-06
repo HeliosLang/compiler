@@ -1,9 +1,8 @@
-import { CompilerError, TokenSite } from "@helios-lang/compiler-utils"
-import { expectSome } from "@helios-lang/type-utils"
+import { makeDummySite, makeTypeError } from "@helios-lang/compiler-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import {
     Common,
     DataEntity,
-    FuncEntity,
     FuncType,
     GenericType,
     GenericEnumMemberType,
@@ -13,6 +12,7 @@ import { Parameter } from "./Parameter.js"
 import { BoolType, ByteArrayType, RawDataType } from "./primitives.js"
 
 /**
+ * @import { Site } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/compiler-utils").Site} Site
  * @typedef {import("@helios-lang/uplc").UplcData} UplcData
  * @typedef {import("./common.js").TypeSchema} TypeSchema
@@ -104,7 +104,7 @@ export class GenericParametricEnumMemberType extends GenericEnumMemberType {
                 }
             })
 
-            const parentType = expectSome(
+            const parentType = expectDefined(
                 this.parentType.infer(site, map, null).asDataType
             )
 
@@ -126,7 +126,7 @@ export class GenericParametricEnumMemberType extends GenericEnumMemberType {
                         id: partialProps.path,
                         fieldTypes: partialProps.fieldNames.map((fn) => ({
                             name: fn,
-                            type: expectSome(
+                            type: expectDefined(
                                 typeMembers[fn].asDataType
                             ).toSchema(parents)
                         }))
@@ -229,7 +229,7 @@ export class TypeClassImpl extends Common {
      * @returns {Type}
      */
     infer(site, map, type) {
-        const p = expectSome(
+        const p = expectDefined(
             this._parameter,
             "unable to infer dummy TypeClass instantiation"
         )
@@ -658,12 +658,12 @@ class AppliedType extends Common {
             )
 
             if (!res.isBaseOf(type)) {
-                throw CompilerError.type(site, "unable to infer type")
+                throw makeTypeError(site, "unable to infer type")
             }
 
             return res
         } else {
-            throw CompilerError.type(site, "unable to infer type")
+            throw makeTypeError(site, "unable to infer type")
         }
     }
 
@@ -748,9 +748,9 @@ export class ParametricType extends Common {
      * @param {Site} site
      * @returns {EvalEntity}
      */
-    apply(types, site = TokenSite.dummy()) {
+    apply(types, site = makeDummySite()) {
         if (types.length != this._parameters.length) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 site,
                 `expected ${this._parameters.length} type parameter(s), got ${types.length}`
             )
@@ -758,7 +758,7 @@ export class ParametricType extends Common {
 
         this._parameters.forEach((p, i) => {
             if (!p.typeClass.isImplementedBy(types[i])) {
-                throw CompilerError.type(
+                throw makeTypeError(
                     site,
                     `${types[i].toString()} doesn't implement ${p.typeClass.toString()}`
                 )
@@ -778,7 +778,7 @@ export class ParametricType extends Common {
      * @returns {Func}
      */
     inferCall(site, args, namedArgs = {}, paramTypes = []) {
-        throw CompilerError.type(site, "not a parametric function")
+        throw makeTypeError(site, "not a parametric function")
     }
 
     /**
@@ -787,7 +787,7 @@ export class ParametricType extends Common {
      * @returns {Parametric}
      */
     infer(site, map) {
-        throw CompilerError.type(site, "not a parametric function")
+        throw makeTypeError(site, "not a parametric function")
     }
 
     /**

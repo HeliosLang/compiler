@@ -1,14 +1,14 @@
 import { deepEqual, match, strictEqual, throws } from "node:assert"
 import { describe, it } from "node:test"
 import { removeWhitespace } from "@helios-lang/codec-utils"
-import { expectLeft, expectSome, isRight } from "@helios-lang/type-utils"
+import { expectLeft, expectDefined, isRight } from "@helios-lang/type-utils"
 import {
-    ConstrData,
-    IntData,
-    UplcDataValue,
-    UplcProgramV2,
-    UplcRuntimeError,
-    UplcSourceMap
+    decodeUplcProgramV2FromCbor,
+    makeConstrData,
+    makeIntData,
+    makeUplcDataValue,
+    makeUplcSourceMap,
+    UplcRuntimeError
 } from "@helios-lang/uplc"
 import { getScriptHashType } from "./multi.js"
 import { Program } from "./Program.js"
@@ -261,9 +261,9 @@ describe(Program.name, () => {
         const uplc = new Program(src).compile(true)
 
         const res = uplc.eval([
-            new UplcDataValue(new IntData(0)),
-            new UplcDataValue(new IntData(0)),
-            new UplcDataValue(new IntData(0))
+            makeUplcDataValue(makeIntData(0)),
+            makeUplcDataValue(makeIntData(0)),
+            makeUplcDataValue(makeIntData(0))
         ])
 
         strictEqual(
@@ -284,8 +284,8 @@ describe(Program.name, () => {
         const uplc = new Program(src).compile(true)
 
         const res = uplc.eval([
-            new UplcDataValue(new IntData(0)),
-            new UplcDataValue(new IntData(0))
+            makeUplcDataValue(makeIntData(0)),
+            makeUplcDataValue(makeIntData(0))
         ])
 
         strictEqual(
@@ -306,8 +306,8 @@ describe(Program.name, () => {
         const uplc = new Program(src).compile(true)
 
         const res = uplc.eval([
-            new UplcDataValue(new IntData(0)),
-            new UplcDataValue(new IntData(0))
+            makeUplcDataValue(makeIntData(0)),
+            makeUplcDataValue(makeIntData(0))
         ])
 
         strictEqual(
@@ -328,9 +328,9 @@ describe(Program.name, () => {
         const uplc = new Program(src).compile(true)
 
         const resSpending = uplc.eval([
-            new UplcDataValue(new IntData(0)),
-            new UplcDataValue(new ConstrData(1, [new IntData(0)])),
-            new UplcDataValue(new ConstrData(0, []))
+            makeUplcDataValue(makeIntData(0)),
+            makeUplcDataValue(makeConstrData(1, [makeIntData(0)])),
+            makeUplcDataValue(makeConstrData(0, []))
         ])
 
         strictEqual(
@@ -341,8 +341,8 @@ describe(Program.name, () => {
         )
 
         const resMinting = uplc.eval([
-            new UplcDataValue(new ConstrData(0, [new IntData(0)])),
-            new UplcDataValue(new ConstrData(0, []))
+            makeUplcDataValue(makeConstrData(0, [makeIntData(0)])),
+            makeUplcDataValue(makeConstrData(0, []))
         ])
 
         strictEqual(
@@ -400,21 +400,21 @@ describe(Program.name, () => {
         let uplc = program.compile(false)
 
         // Extract the sourcemap, serialize, deserialize and reapply. This way we are sure that all information is also included in the source maps
-        const sourceMap = UplcSourceMap.fromUplcTerm(uplc.root)
-        uplc = UplcProgramV2.fromCbor(uplc.toCbor())
+        const sourceMap = makeUplcSourceMap({ term: uplc.root })
+        uplc = decodeUplcProgramV2FromCbor(uplc.toCbor())
         sourceMap.apply(uplc.root)
 
-        const res = uplc.eval([new UplcDataValue(new IntData(1))])
+        const res = uplc.eval([makeUplcDataValue(makeIntData(1))])
         const err = expectLeft(res.result)
 
         try {
             throw new UplcRuntimeError(err.error, err.callSites)
         } catch (err) {
             if (err instanceof Error) {
-                const lines = expectSome(err.stack).split("\n").slice(1)
+                const lines = expectDefined(err.stack).split("\n").slice(1)
 
                 const expectedHeliosLines = [
-                    "at <anonymous> (helios:m:12:31) [__lhs_0=(Constr 1 [])]",
+                    "at <anonymous> (helios:m:12:31)",
                     "at <switch> (helios:m:10:21) [<condition>=(Constr 1 [])]",
                     "at MyEnum::fn4 (helios:m:10:21) [self=(Constr 1 []), _a=3]",
                     "at MyStruct::fn4 (helios:m:21:36) [self=3]",

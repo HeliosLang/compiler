@@ -1,5 +1,4 @@
 import { group, symbol } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
 import { Expr, RefExpr } from "../expressions/index.js"
 import { TypeParameter, TypeParameters } from "../statements/index.js"
 import { ParseContext } from "./ParseContext.js"
@@ -21,9 +20,9 @@ export function parseTypeParameters(ctx, isForFunc = false) {
                 const name = m
 
                 /**
-                 * @type {Option<Expr>}
+                 * @type {Expr | undefined}
                  */
-                let typeClassExpr = None
+                let typeClassExpr = undefined
 
                 if ((m = f.matches(symbol(":")))) {
                     typeClassExpr = parseTypeClassRef(
@@ -52,7 +51,7 @@ export function parseTypeParameters(ctx, isForFunc = false) {
 
 /**
  * @param {ParseContext} ctx
- * @returns {Option<Expr>}
+ * @returns {Expr | undefined}
  */
 function parseTypeClassRef(ctx) {
     const r = ctx.reader
@@ -66,6 +65,6 @@ function parseTypeClassRef(ctx) {
         r.endMatch()
         r.end()
 
-        return None
+        return undefined
     }
 }

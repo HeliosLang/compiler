@@ -1,11 +1,12 @@
-import { CompilerError, SymbolToken, Word } from "@helios-lang/compiler-utils"
+import { makeTypeError, makeWord } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
-import { expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
 
 /**
+ * @import { SymbolToken, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -120,7 +121,7 @@ export class BinaryExpr extends Expr {
             name += alt.toString()
         }
 
-        return new Word(name, site)
+        return makeWord({ value: name, site })
     }
 
     /**
@@ -148,7 +149,7 @@ export class BinaryExpr extends Expr {
 
         const a = a_.asInstance
         if (!a) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._a.site,
                 `lhs of ${this._op.toString()} not an instance`
             )
@@ -156,7 +157,7 @@ export class BinaryExpr extends Expr {
 
         const b = b_.asInstance
         if (!b) {
-            throw CompilerError.type(
+            throw makeTypeError(
                 this._b.site,
                 `rhs of ${this._op.toString()} not an instance`
             )
@@ -189,7 +190,7 @@ export class BinaryExpr extends Expr {
             }
         }
 
-        throw CompilerError.type(
+        throw makeTypeError(
             this.site,
             `'${a.type.toString()} ${this._op.toString()} ${b.type.toString()}' undefined`
         )
@@ -200,7 +201,7 @@ export class BinaryExpr extends Expr {
      * @returns {SourceMappedStringI}
      */
     toIR(ctx) {
-        let path = expectSome(this.first.cache?.asTyped?.type.asNamed).path
+        let path = expectDefined(this.first.cache?.asTyped?.type.asNamed).path
 
         let op = this.translateOp(this._alt).value
 

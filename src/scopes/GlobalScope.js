@@ -1,6 +1,4 @@
-import { CompilerError, Word } from "@helios-lang/compiler-utils"
-import { None } from "@helios-lang/type-utils"
-
+import { makeReferenceError, makeWord } from "@helios-lang/compiler-utils"
 import {
     AddressType,
     AnyTypeClass,
@@ -51,6 +49,7 @@ import {
 } from "../typecheck/index.js"
 
 /**
+ * @import { Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Func} Func
@@ -155,7 +154,8 @@ export class GlobalScope {
      */
     set(name, value) {
         /** @type {Word} */
-        let nameWord = !(name instanceof Word) ? new Word(name) : name
+        let nameWord =
+            typeof name == "string" ? makeWord({ value: name }) : name
 
         this._values.push([nameWord, value])
     }
@@ -173,15 +173,12 @@ export class GlobalScope {
             }
         }
 
-        throw CompilerError.reference(
-            name.site,
-            `'${name.toString()}' undefined`
-        )
+        throw makeReferenceError(name.site, `'${name.toString()}' undefined`)
     }
 
     /**
      * @param {Word} name
-     * @returns {Option<Named & Namespace>}
+     * @returns {(Named & Namespace) | undefined}
      */
     getBuiltinNamespace(name) {
         if (name.value in builtinNamespaces) {
@@ -195,15 +192,12 @@ export class GlobalScope {
                 if (entity.asNamed && entity.asNamespace) {
                     return /** @type {any} */ (entity)
                 } else {
-                    return None
+                    return undefined
                 }
             }
         }
 
-        throw CompilerError.reference(
-            name.site,
-            `namespace ${name.value} not found`
-        )
+        throw makeReferenceError(name.site, `namespace ${name.value} not found`)
     }
 
     /**

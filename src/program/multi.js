@@ -5,7 +5,7 @@
 
 import { readHeader } from "@helios-lang/compiler-utils"
 import { collectParams, prepare as prepareIR } from "@helios-lang/ir"
-import { None, expectSome } from "@helios-lang/type-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { FuncArg } from "../expressions/index.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
 import { ConstStatement } from "../statements/index.js"
@@ -306,12 +306,12 @@ function analyzeMainFunction(purpose, args) {
                                 ? "$datum"
                                 : dArg.name.value,
                         isOptional: false,
-                        type: expectSome(dArg.type.asDataType).toSchema()
+                        type: expectDefined(dArg.type.asDataType).toSchema()
                     },
                     {
                         name: rArg.name.value,
                         isOptional: false,
-                        type: expectSome(rArg.type.asDataType).toSchema()
+                        type: expectDefined(rArg.type.asDataType).toSchema()
                     }
                 ]
 
@@ -328,7 +328,7 @@ function analyzeMainFunction(purpose, args) {
                     {
                         name: rArg.name.value,
                         isOptional: false,
-                        type: expectSome(rArg.type.asDataType).toSchema()
+                        type: expectDefined(rArg.type.asDataType).toSchema()
                     }
                 ]
 
@@ -402,16 +402,16 @@ function analyzeFunctions(fns, validatorTypes, isInModule) {
                                       return {
                                           name: arg.name.value,
                                           isOptional: arg.isOptional,
-                                          type: expectSome(
+                                          type: expectDefined(
                                               type.asDataType
                                           ).toSchema()
                                       }
                                   }),
                     returns: (main instanceof ConstStatement
-                        ? expectSome(main.type.asDataType)
+                        ? expectDefined(main.type.asDataType)
                         : new VoidType().isBaseOf(main.retType)
                           ? undefined
-                          : expectSome(main.retType.asDataType)
+                          : expectDefined(main.retType.asDataType)
                     )?.toSchema()
                 }
             ]
@@ -421,7 +421,7 @@ function analyzeFunctions(fns, validatorTypes, isInModule) {
 
 /**
  * @param {Program[]} programs
- * @returns {Option<Record<string, number>>}
+ * @returns {Record<string, number> | undefined}
  */
 function getValidatorIndices(programs) {
     /**
@@ -433,7 +433,7 @@ function getValidatorIndices(programs) {
         if (p.currentScriptIndex) {
             indices[p.name] = p.currentScriptIndex
         } else {
-            return None
+            return undefined
         }
     }
 
@@ -455,7 +455,7 @@ function buildDag(programs) {
      */
     const dag = {}
 
-    const validatorTypes = expectSome(
+    const validatorTypes = expectDefined(
         programs[0].props.validatorTypes,
         "validatorTypes unset"
     )
