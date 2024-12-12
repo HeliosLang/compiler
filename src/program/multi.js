@@ -72,7 +72,7 @@ import { UserFunc } from "./UserFunc.js"
  */
 
 /**
- * Maps purposes to concreate ScriptHashTypes
+ * Maps purposes to concrete ScriptHashTypes
  * @param {string} purpose
  * @returns {ScriptHashType}
  */
