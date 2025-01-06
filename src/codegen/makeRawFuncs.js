@@ -739,7 +739,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     // map is expected to already have been extracted
-	// uses data-option instead of callback-option because the optimizer isn't able to optimize out the callback in recursions (calling Any results in MaybeError being added during Analysis)
+    // uses data-option instead of callback-option because the optimizer isn't able to optimize out the callback in recursions (calling Any results in MaybeError being added during Analysis)
     add(
         new RawFunc(
             "__helios__common__mStruct_field_safe",
