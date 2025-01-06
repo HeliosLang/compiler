@@ -8,7 +8,8 @@ import {
     compileForRun,
     bytes,
     constr,
-    str
+    str,
+    assertOptimizedAs
 } from "./utils.js"
 
 describe("Map", () => {
@@ -321,6 +322,72 @@ describe("Map", () => {
                     [int(0), int(0)],
                     [int(1), int(1)]
                 ])
+            )
+        })
+    })
+
+    describe("Map[Int]Int.show", () => {
+        const runner = compileForRun(`testing map_show
+            func main(m: Map[Int]Int) -> String {
+                m.show()
+            }`)
+
+        it('{} shows as "{}"', () => {
+            runner([map([])], str("{}"))
+        })
+
+        it('{1:1} shows as "{1:1}"', () => {
+            runner([map([[int(1), int(1)]])], str("{1:1}"))
+        })
+
+        it('{1:1,2:2} shows as "{1:1,2:2}"', () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)]
+                    ])
+                ],
+                str("{1:1,2:2}")
+            )
+        })
+
+        it('{1:1,2:2,3:3} shows as "{1:1,2:2,3:3}"', () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)],
+                        [int(3), int(3)]
+                    ])
+                ],
+                str("{1:1,2:2,3:3}")
+            )
+        })
+
+        it('{1:1,2:2,3:ConstrData(3, [])} shows as "{1:1,2:2,3:3{}}" (wrong structure, but can\'t fail)', () => {
+            runner(
+                [
+                    map([
+                        [int(1), int(1)],
+                        [int(2), int(2)],
+                        [int(3), constr(3)]
+                    ])
+                ],
+                str("{1:1,2:2,3:3{}}")
+            )
+        })
+
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing map_show_in_print_actual
+                func main(map: Map[Int]Int) -> () {
+                    print(map.show())
+                }`,
+                `testing map_show_in_print_expected_optimized
+                func main(_: Map[Int]Int) -> () {
+                    ()
+                }`
             )
         })
     })

@@ -2,12 +2,14 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
     int,
     list,
-    map
+    map,
+    str
 } from "./utils.js"
 
 describe("StakingCredential", () => {
@@ -87,6 +89,71 @@ describe("StakingCredential", () => {
 
         it("returns false for mapData", () => {
             runner([map([])], False)
+        })
+    })
+
+    describe("StakingCredential.show", () => {
+        const runner = compileForRun(`testing spendingcredential_show
+        func main(cred: StakingCredential) -> String {
+            cred.show()
+        }`)
+
+        it('StakingCredential::Hash{StakeKey{#}}.show() == "Hash{hash:StakeKey{hash:}}"', () => {
+            runner(
+                [constr(0, constr(0, bytes("")))],
+                str("Hash{hash:StakeKey{hash:}}")
+            )
+        })
+
+        it('StakingCredential::Hash{StakeKey{#01020304050607080910111213141516171819202122232425262728}}.show() == "Hash{hash:StakeKey{hash:01020304050607080910111213141516171819202122232425262728}}"', () => {
+            runner(
+                [
+                    constr(
+                        0,
+                        constr(
+                            0,
+                            bytes(
+                                "01020304050607080910111213141516171819202122232425262728"
+                            )
+                        )
+                    )
+                ],
+                str(
+                    "Hash{hash:StakeKey{hash:01020304050607080910111213141516171819202122232425262728}}"
+                )
+            )
+        })
+
+        it('StakingCredential::Hash{Validator{#01020304050607080910111213141516171819202122232425262728}}.show() == "Hash{hash:Validator{hash:01020304050607080910111213141516171819202122232425262728}}"', () => {
+            runner(
+                [
+                    constr(
+                        0,
+                        constr(
+                            1,
+                            bytes(
+                                "01020304050607080910111213141516171819202122232425262728"
+                            )
+                        )
+                    )
+                ],
+                str(
+                    "Hash{hash:Validator{hash:01020304050607080910111213141516171819202122232425262728}}"
+                )
+            )
+        })
+
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing stakingcredential_show_in_print_actual
+                func main(cred: StakingCredential) -> () {
+                    print(cred.show())
+                }`,
+                `testing stakingcredential_show_in_print_expected_optimized
+                func main(_: StakingCredential) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

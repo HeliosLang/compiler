@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
@@ -11,16 +12,18 @@ import {
 } from "./utils.js"
 
 describe("Enum with two variants", () => {
+    const ENUM_DEF = `enum E {
+        A
+        B {
+            a: Int
+            b: Int
+        }
+    }`
+
     describe("is_valid_data", () => {
         const runner =
             compileForRun(`testing enum_with_two_variants_is_valid_data
-        enum E {
-            A
-            B {
-                a: Int
-                b: Int
-            }
-        }
+        ${ENUM_DEF}
         
         func main(d: Data) -> Bool {
             E::is_valid_data(d)
@@ -68,6 +71,38 @@ describe("Enum with two variants", () => {
 
         it("returns false for mapData", () => {
             runner([map([])], False)
+        })
+    })
+
+    describe("show()", () => {
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `testing enum_show_in_print_actual
+                ${ENUM_DEF}
+                func main(e: E) -> () {
+                    print(e.show())
+                }`,
+                `testing enum_show_in_print_expected_optimized
+                ${ENUM_DEF}
+                func main(_: E) -> () {
+                    ()
+                }`
+            )
+        })
+
+        it("is optimized out in print() for variant", () => {
+            assertOptimizedAs(
+                `testing enum_show_in_print_actual
+                ${ENUM_DEF}
+                func main(e: E::A) -> () {
+                    print(e.show())
+                }`,
+                `testing enum_show_in_print_expected_optimized
+                ${ENUM_DEF}
+                func main(_: E::A) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

@@ -2,12 +2,14 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
     int,
     list,
-    map
+    map,
+    str
 } from "./utils.js"
 
 describe("TxId", () => {
@@ -51,6 +53,46 @@ describe("TxId", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("TxId.show", () => {
+        const runner = compileForRun(`testing txid_show
+            func main(bs: ByteArray) -> String {
+                TxId::new(bs).show()
+            }`)
+
+        it('shows # as ""', () => {
+            runner([bytes("")], str(""))
+        })
+
+        it('shows #0001020304050607080910111213141516171819202122232425262728293031 as "0001020304050607080910111213141516171819202122232425262728293031"', () => {
+            runner(
+                [
+                    bytes(
+                        "0001020304050607080910111213141516171819202122232425262728293031"
+                    )
+                ],
+                str(
+                    "0001020304050607080910111213141516171819202122232425262728293031"
+                )
+            )
+        })
+
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `
+            testing txid_show_in_print_actual
+
+            func main(id: TxId) -> () {
+                print(id.show())
+            }`,
+                `testing txid_show_in_print_expected_optimized
+            
+            func main(_: TxId) -> () {
+                ()
+            }`
+            )
         })
     })
 })

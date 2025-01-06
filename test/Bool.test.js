@@ -9,7 +9,8 @@ import {
     constr,
     bytes,
     list,
-    map
+    map,
+    assertOptimizedAs
 } from "./utils.js"
 
 describe("Bool", () => {
@@ -268,6 +269,19 @@ describe("Bool", () => {
 
         it('true.show() == "true"', () => {
             runner([True], str("true"))
+        })
+
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing bool_show_in_print_actual
+                func main(b: Bool) -> () {
+                    print(b.show())
+                }`,
+                `testing bool_show_in_print_expected_optimized
+                func main(_: Bool) -> () {
+                    ()
+                }`
+            )
         })
     })
 

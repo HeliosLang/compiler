@@ -8,12 +8,18 @@ import {
     constr,
     int,
     list,
-    map
+    map,
+    assertOptimizedAs
 } from "./utils.js"
 import { encodeUtf8 } from "@helios-lang/codec-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 
+/**
+ * @param {number} stackOffset
+ * @returns {number}
+ */
 function getLine(stackOffset) {
-    var stack = new Error().stack.split("\n"),
+    var stack = expectDefined(new Error().stack).split("\n"),
         line = stack[(stackOffset || 1) + 1].split(":")
     return parseInt(line[line.length - 2], 10)
 }
@@ -57,12 +63,13 @@ describe("Singleton-field-struct ", () => {
 })
 
 describe("field-list struct Pair[Int, Int]", () => {
+    const PAIR_DEF = `struct fStruct {
+        a: Int
+        b: Int
+    }`
     describe("Pair[Int, Int]::is_valid_data", () => {
         const runner = compileForRun(`testing pair_int_int_is_valid_data
-        struct fStruct {
-            a: Int
-            b: Int
-        }
+        ${PAIR_DEF}
 
         func main(d: Data) -> Bool {
             fStruct::is_valid_data(d)
@@ -100,21 +107,39 @@ describe("field-list struct Pair[Int, Int]", () => {
             runner([constr(1)], False)
         })
     })
+
+    describe("show", () => {
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `testing pair_show_in_print_actual
+                ${PAIR_DEF}
+                func main(pair: fStruct) -> () {
+                    print(pair.show())
+                }`,
+                `testing pair_show_in_print_expected_optimized
+                ${PAIR_DEF}
+                func main(_: fStruct) -> () {
+                    ()
+                }`
+            )
+        })
+    })
 })
 
 describe("mStruct Pair[Int, Int]", () => {
     const $a = str("a")
     const $b = str("b")
 
+    const PAIR_DEF = `struct Pair {
+        a: Int "a"
+        b: Int "b"
+    }`
     describe("Pair[Int, Int]::is_valid_data", () => {
         const runner = compileForRun(`testing pair_int_int_is_valid_data
-        struct intPairStruct {
-            a: Int "a"
-            b: Int "b"
-        }
+        ${PAIR_DEF}
 
         func main(d: Data) -> Bool {
-            intPairStruct::is_valid_data(d)
+            Pair::is_valid_data(d)
         }`)
 
         const goodMapData = map([
@@ -143,27 +168,11 @@ describe("mStruct Pair[Int, Int]", () => {
         })
 
         it("returns false if one of the fields is missing", () => {
-            runner(
-                [
-                    //prettier-ignore
-                    map([
-                        [$a, int(0)]
-                    ])
-                ],
-                False
-            )
+            runner([map([[$a, int(0)]])], False)
         })
 
         it("issues warnings from unoptimized version (missing field and invalid ‹struct-name›)", () => {
-            const [result] = runner(
-                [
-                    //prettier-ignore
-                    map([
-                        [$a, int(0)]
-					])
-                ],
-                False
-            )
+            const [result] = runner([map([[$a, int(0)]])], False)
             const logs = result.logs.map((l) => l.message)
             if (!logs.some((x) => x.match(/field not found: b/))) {
                 // from is_valid_data() path
@@ -172,16 +181,16 @@ describe("mStruct Pair[Int, Int]", () => {
                         logs.map((l) => `unoptimized> ${l}`).join("\n")
                 )
             }
-            if (!logs.some((x) => x.match(/invalid intPairStruct data/))) {
+            if (!logs.some((x) => x.match(/invalid Pair data/))) {
                 throw new Error(
-                    "Expected warning about invalid intPairStruct, got logs:\n" +
+                    "Expected warning about invalid Pair, got logs:\n" +
                         logs.map((l) => `unoptimized> ${l}`).join("\n")
                 )
             }
         })
 
         it("fails without warnings in optimized version (missing field or invalid ‹struct-name›)", () => {
-            const [_, { logs }] = runner(
+            const [_, res2] = runner(
                 [
                     //prettier-ignore
                     map([
@@ -190,6 +199,8 @@ describe("mStruct Pair[Int, Int]", () => {
                 ],
                 False
             )
+            const { logs } = expectDefined(res2)
+
             if (logs.length > 0) {
                 throw new Error(
                     "Unexpected log entries from optimized version:\n" +
@@ -348,7 +359,7 @@ describe("mStruct Pair[Int, Int]", () => {
         })
 
         it("optimized version issues no message if the second pair is missing an entry", () => {
-            const [_, optimizedResult] = runner(
+            const [_, optimizedResult_] = runner(
                 [
                     int(0),
                     int(1),
@@ -359,6 +370,9 @@ describe("mStruct Pair[Int, Int]", () => {
                 ],
                 { error: "" }
             )
+
+            const optimizedResult = expectDefined(optimizedResult_)
+
             if (
                 optimizedResult.logs.some((x) =>
                     x.message.match(/field not found/)
@@ -374,9 +388,9 @@ describe("mStruct Pair[Int, Int]", () => {
             if (optimizedResult.logs.length > 0) {
                 throw new Error(
                     "Optimized version: Unexpected log entries: \n " +
-                        optimizedResult.logs.map((l) =>
-                            `optimized> ${l.message}`.join("\n")
-                        )
+                        optimizedResult.logs
+                            .map((l) => `optimized> ${l.message}`)
+                            .join("\n")
                 )
             }
         })
@@ -384,10 +398,7 @@ describe("mStruct Pair[Int, Int]", () => {
 
     describe("mStruct Pair[Int, Int] != Pair", () => {
         const runner = compileForRun(`testing mStruct_pair_neq
-        struct Pair {
-            a: Int "a"
-            b: Int "b"
-        }
+        ${PAIR_DEF}
         func main(a: Int, b: Int, y: Pair) -> Bool {
 			x = Pair{a, b};
 			x != y
@@ -503,6 +514,23 @@ describe("mStruct Pair[Int, Int]", () => {
             }
         })
     })
+
+    describe("show", () => {
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `testing pair_show_in_print_actual
+                ${PAIR_DEF}
+                func main(pair: Pair) -> () {
+                    print(pair.show())
+                }`,
+                `testing pair_show_in_print_expected_optimized
+                ${PAIR_DEF}
+                func main(_: Pair) -> () {
+                    ()
+                }`
+            )
+        })
+    })
 })
 
 const cip68_and_mStructs__defs = `
@@ -553,7 +581,7 @@ describe("CIP-68 encoding", () => {
         ])
 
         const StrictCip68Datum = constr(
-            0n,
+            0,
             unwrappedMap,
             int(2),
             bytes(encodeUtf8("extra"))

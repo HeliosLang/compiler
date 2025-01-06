@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
@@ -63,6 +64,21 @@ describe("MintingPolicyHash", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("MintingPolicyHash.show()", () => {
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing mintingpolicyhash_show_in_print_actual
+                func main(mph: MintingPolicyHash) -> () {
+                    print(mph.show())
+                }`,
+                `testing mintingpolicyhash_show_in_print_expected_optimized
+                func main(_: MintingPolicyHash) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

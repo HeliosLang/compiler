@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
@@ -35,6 +36,21 @@ describe("Duration", () => {
 
         it("returns false for map", () => {
             runner([map([])], False)
+        })
+    })
+
+    describe("Duration.show()", () => {
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing duration_show_in_print_actual
+                func main(d: Duration) -> () {
+                    print(d.show())
+                }`,
+                `testing duration_show_in_print_expected_optimized
+                func main(_: Duration) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

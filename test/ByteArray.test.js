@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
@@ -45,6 +46,21 @@ describe("ByteArray", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("ByteArray.show()", () => {
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing bytearray_show_in_print_actual
+                func main(bytes: ByteArray) -> () {
+                    print(bytes.show())
+                }`,
+                `testing bytearray_show_in_print_expected_optimized
+                func main(_: ByteArray) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

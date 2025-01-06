@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
@@ -48,6 +49,21 @@ describe("PubKeyHash", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("PubKeyHash.show()", () => {
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing pubkeyhash_show_in_print_actual
+                func main(pkh: PubKeyHash) -> () {
+                    print(pkh.show())
+                }`,
+                `testing pubkeyhash_show_in_print_expected_optimized
+                func main(_: PubKeyHash) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

@@ -1,5 +1,12 @@
 import { describe, it } from "node:test"
-import { compileForRun, int } from "./utils.js"
+import {
+    assertOptimizedAs,
+    bytes,
+    compileForRun,
+    constr,
+    int,
+    str
+} from "./utils.js"
 import { throws } from "node:assert"
 
 describe("TxOutputDatum", () => {
@@ -56,6 +63,40 @@ describe("TxOutputDatum", () => {
             throws(() => {
                 runner2([int(0)], int(0))
             })
+        })
+    })
+
+    describe("TxOutputDatum.show()", () => {
+        const runner = compileForRun(
+            `testing txoutputdatum_show
+            func main(datum: TxOutputDatum) -> String {
+                datum.show()
+            }`
+        )
+
+        it('TxOutputDatum::None shows as "None"', () => {
+            runner([constr(0)], str("None"))
+        })
+
+        it('TxOutputDatum::Hash{#} shows as "Hash{hash:}"', () => {
+            runner([constr(1, bytes(""))], str("Hash{hash:}"))
+        })
+
+        it('TxOutputDatum::Inline{IntData{0}} shows as "Inline{data:0}"', () => {
+            runner([constr(2, int(0))], str("Inline{data:0}"))
+        })
+
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `testing txoutputdatum_show_in_print_actual
+                func main(datum: TxOutputDatum) -> () {
+                    print(datum.show())
+                }`,
+                `testing txoutputdatum_show_in_print_expected_optimized
+                func main(_: TxOutputDatum) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

@@ -2,12 +2,14 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
     int,
     list,
-    map
+    map,
+    str
 } from "./utils.js"
 
 describe("AssetClass", () => {
@@ -117,6 +119,50 @@ describe("AssetClass", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("AssetClass.show()", () => {
+        const runner = compileForRun(`testing assetclass_show
+            func main(a: ByteArray, b: ByteArray) -> String {
+                AssetClass::new(MintingPolicyHash::new(a), b).show()
+            }`)
+
+        it(`#.# shows as \".\"`, () => {
+            runner([bytes(""), bytes("")], str("."))
+        })
+
+        it(`#01020304050607080910.# shows as \"01020304050607080910.\"`, () => {
+            runner(
+                [bytes("01020304050607080910"), bytes("")],
+                str("01020304050607080910.")
+            )
+        })
+
+        const rawRunner = compileForRun(`testing raw_assetclass_show
+        func main(ac: AssetClass) -> String {
+            ac.show()
+        }`)
+
+        it(`#.0 shows as \".0\" (invalid data structure, but show() can't fail)`, () => {
+            rawRunner([constr(0, bytes(""), int(0))], str(".0"))
+        })
+
+        it(`0.0 shows as \"0.0\" (invalid data structure, but show() can't fail)`, () => {
+            rawRunner([constr(0, int(0), int(0))], str("0.0"))
+        })
+
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `testing assetclass_show_in_print_actual
+                func main(ac: AssetClass) -> () {
+                    print(ac.show())
+                }`,
+                `testing assetclass_show_in_print_expected_optimized
+                func main(_: AssetClass) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

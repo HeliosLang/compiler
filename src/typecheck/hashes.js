@@ -137,6 +137,7 @@ export const StakingHashType = new GenericType({
     name: "StakingHash",
     genInstanceMembers: genCommonInstanceMembers,
     genTypeMembers: (self) => ({
+        ...genCommonTypeMembers(self),
         StakeKey: StakingHashStakeKeyType,
         Validator: StakingHashValidatorType,
         is_valid_data: new FuncType([RawDataType], BoolType),

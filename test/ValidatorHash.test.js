@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
@@ -44,6 +45,24 @@ describe("ValidatorHash", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("ValidatorHash.show", () => {
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `
+            testing validatorhash_show_in_print_actual
+
+            func main(vh: ValidatorHash) -> () {
+                print(vh.show())
+            }`,
+                `testing validatorhash_show_in_print_expected_optimized
+            
+            func main(_: ValidatorHash) -> () {
+                ()
+            }`
+            )
         })
     })
 })

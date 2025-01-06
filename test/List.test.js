@@ -2,13 +2,15 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bool,
     bytes,
     compileForRun,
     constr,
     int,
     list,
-    map
+    map,
+    str
 } from "./utils.js"
 
 describe("List", () => {
@@ -293,6 +295,61 @@ describe("List", () => {
 
         it("returns false for constrData", () => {
             runner([constr(123)], False)
+        })
+    })
+
+    describe("[]Bool.show()", () => {
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing bool_list_show_in_print_actual
+                func main(lst: []Bool) -> () {
+                    print(lst.show())
+                }`,
+                `testing bool_list_show_int_print_expected_optimized
+                func main(_: []Bool) -> () {
+                    ()
+                }`
+            )
+        })
+    })
+
+    describe("[]Int.show()", () => {
+        const runner = compileForRun(`testing list_show
+            func main(a: []Int) -> String {
+                a.show()
+            }`)
+
+        it('[] shows as "[]"', () => {
+            runner([list()], str("[]"))
+        })
+
+        it('[1] shows as "[1]"', () => {
+            runner([list(int(1))], str("[1]"))
+        })
+
+        it('[1,2] shows as "[1,2]"', () => {
+            runner([list(int(1), int(2))], str("[1,2]"))
+        })
+
+        it('[1,2,3] shows as "[1,2,3]"', () => {
+            runner([list(int(1), int(2), int(3))], str("[1,2,3]"))
+        })
+
+        it('[1,2,ConstrData(3, [])] shows as "[1,2,3{}]" (wrong structure but can\'t fail', () => {
+            runner([list(int(1), int(2), constr(3))], str("[1,2,3{}]"))
+        })
+
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing int_list_show_in_print_actual
+                func main(lst: []Int) -> () {
+                    print(lst.show())
+                }`,
+                `testing int_list_show_in_print_expected_optimized
+                func main(_: []Int) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

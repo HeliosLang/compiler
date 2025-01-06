@@ -8,7 +8,9 @@ import {
     bytes,
     compileForRun,
     list,
-    constr
+    constr,
+    assertOptimizedAs,
+    str
 } from "./utils.js"
 
 describe("Address", () => {
@@ -160,6 +162,46 @@ describe("Address", () => {
 
         it("returns false for mapData", () => {
             runner([map([])], False)
+        })
+    })
+
+    describe("Address.show()", () => {
+        const runner = compileForRun(
+            `testing address_show
+            func main(addr: Address) -> String {
+                addr.show()
+            }`
+        )
+
+        it('Address::new(SpendingCredential::PubKey{#}, None) shows as "{spending_credential:,staking_credential:None}"', () => {
+            runner(
+                [constr(0, constr(0, bytes("")), constr(1))],
+                str(
+                    "{spending_credential:PubKey{hash:},staking_credential:None}"
+                )
+            )
+        })
+
+        it('Address::new(SpendingCredential::PubKey{#}) shows as "{spending_credential:,staking_credential:<missing>}" (wrong structure but can\'t fail)', () => {
+            runner(
+                [constr(0, constr(0, bytes("")))],
+                str(
+                    "{spending_credential:PubKey{hash:},staking_credential:<missing>}"
+                )
+            )
+        })
+
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `testing address_show_in_print_actual
+                func main(addr: Address) -> () {
+                    print(addr.show())
+                }`,
+                `testing address_show_in_print_expected_optimized
+                func main(_: Address) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

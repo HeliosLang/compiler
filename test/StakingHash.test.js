@@ -2,12 +2,14 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
     int,
     list,
-    map
+    map,
+    str
 } from "./utils.js"
 
 describe("StakingHash", () => {
@@ -82,6 +84,62 @@ describe("StakingHash", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("StakingHash.show", () => {
+        const runner = compileForRun(`testing stakinghash_show
+        func main(sh: StakingHash) -> String {
+            sh.show()
+        }`)
+
+        it('StakingHash::StakeKey{#}.show() == "StakeKey{hash:}"', () => {
+            runner([constr(0, bytes(""))], str("StakeKey{hash:}"))
+        })
+
+        it('StakingHash::StakeKey{#01020304050607080910111213141516171819202122232425262728}.show() == "StakeKey{hash:01020304050607080910111213141516171819202122232425262728}"', () => {
+            runner(
+                [
+                    constr(
+                        0,
+                        bytes(
+                            "01020304050607080910111213141516171819202122232425262728"
+                        )
+                    )
+                ],
+                str(
+                    "StakeKey{hash:01020304050607080910111213141516171819202122232425262728}"
+                )
+            )
+        })
+
+        it('StakingHash::Validator{#01020304050607080910111213141516171819202122232425262728}.show() == "Validator{hash:01020304050607080910111213141516171819202122232425262728}"', () => {
+            runner(
+                [
+                    constr(
+                        1,
+                        bytes(
+                            "01020304050607080910111213141516171819202122232425262728"
+                        )
+                    )
+                ],
+                str(
+                    "Validator{hash:01020304050607080910111213141516171819202122232425262728}"
+                )
+            )
+        })
+
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing stakinghash_show_in_print_actual
+                func main(sh: StakingHash) -> () {
+                    print(sh.show())
+                }`,
+                `testing stakinghash_show_in_print_expected_optimized
+                func main(_: StakingHash) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

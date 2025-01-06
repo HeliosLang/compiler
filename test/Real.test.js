@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
@@ -758,6 +759,19 @@ describe("Real", () => {
 
         it('-0.394872.show() == "-0.394872"', () => {
             runner([real(-0.394872)], str("-0.394872"))
+        })
+
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing real_show_in_print_actual
+                func main(r: Real) -> () {
+                    print(r.show())
+                }`,
+                `testing real_show_in_print_expected_optimized
+                func main(_: Real) -> () {
+                    ()
+                }`
+            )
         })
     })
 

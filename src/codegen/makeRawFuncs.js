@@ -2,7 +2,8 @@ import { REAL_PRECISION } from "@helios-lang/compiler-utils"
 import { expectDefined } from "@helios-lang/type-utils"
 import { FTPP, TTPP } from "./ParametricName.js"
 import { RawFunc } from "./RawFunc.js"
-import { $ } from "@helios-lang/ir"
+
+const MISSING = "<missing>"
 
 /**
  * Initializes the db containing all the builtin functions
@@ -738,16 +739,17 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     // map is expected to already have been extracted
+	// uses data-option instead of callback-option because the optimizer isn't able to optimize out the callback in recursions (calling Any results in MaybeError being added during Analysis)
     add(
         new RawFunc(
             "__helios__common__mStruct_field_safe",
             `(map, name) -> {
 		name = __core__bData(name);
-		recurse = (recurse, map) -> {
+		recurse = (map) -> {
 			__core__chooseList(
 				map,
 				() -> {
-					__helios__option__NONE_FUNC
+				 	__helios__option__NONE
 				},
 				() -> {
 					head = __core__headList__safe(map);
@@ -755,16 +757,16 @@ export function makeRawFunctions(simplify, isTestnet) {
 					__core__ifThenElse(
 						__core__equalsData(key, name),
 						() -> {
-							__helios__option__SOME_FUNC(__core__sndPair(head))
+						 	__helios__option[__helios__data]__some__new(__core__sndPair(head))
 						},
 						() -> {
-							recurse(recurse, __core__tailList__safe(map))
+							recurse(__core__tailList__safe(map))
 						}
 					)()
 				}
 			)()
 		};
-		recurse(recurse, map)
+		recurse(map)
 	}`
         )
     )
@@ -991,47 +993,106 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
-            "__helios__common__test_constr_data",
-            `(data, fn) -> {
-			__core__chooseList(
+            "__helios__common__unConstrData__safe",
+            `(data, callback_ok, callback_nok) -> {
+			__core__chooseData(
+				data,
 				() -> {
-					pair = __core__unConstrData(data);
-					fn(__core__fstPair(pair), __core__sndPair(pair))
+				 	pair = __core__unConstrData__safe(data);
+					callback_ok(__core__fstPair(pair), __core__sndPair(pair))
 				},
-				() -> {false},
-				() -> {false},
-				() -> {false},
-				() -> {false}
+				callback_nok,
+				callback_nok,
+				callback_nok,
+				callback_nok
 			)()
 		}`
         )
     )
     add(
         new RawFunc(
-            "__helios__common__test_map_data",
-            `(data, fn) -> {
+            "__helios__common__unMapData__safe",
+            `(data, callback_ok, callback_nok) -> {
 			__core__chooseData(
 				data,
-				() -> {false},
-				() -> {fn(__core__unMapData(data))},
-				() -> {false},
-				() -> {false},
-				() -> {false}
-			)()	
+				callback_nok,
+				() -> {
+				 	callback_ok(__core__unMapData__safe(data))
+				},
+				callback_nok,
+				callback_nok,
+				callback_nok
+			)()
 		}`
         )
     )
     add(
         new RawFunc(
-            "__helios__common__test_list_data",
-            `(data, fn) -> {
+            "__helios__common__unListData__safe",
+            `(data, callback_ok, callback_nok) -> {
 			__core__chooseData(
 				data,
-				() -> {false},
-				() -> {false},
-				() -> {fn(__core__unListData(data))},
-				() -> {false},
-				() -> {false}
+				callback_nok,
+				callback_nok,
+				() -> {
+				 	callback_ok(__core__unListData__safe(data))
+				},
+				callback_nok,
+				callback_nok
+			)()
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__common__unBoolData__safe",
+            `(data, callback_ok, callback_nok) -> {
+			__helios__common__unConstrData__safe(
+				data,
+				(tag, _) -> {
+					callback_ok(
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							false,
+							true
+						)
+					)
+				},
+				callback_nok
+			)
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__common__unIData__safe",
+            `(data, callback_ok, callback_nok) -> {
+			__core__chooseData(
+				data,
+				callback_nok,
+				callback_nok,
+				callback_nok,
+				() -> {
+					callback_ok(__core__unIData__safe(data))
+				},
+				callback_nok
+			)()
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__common__unBData__safe",
+            `(data, callback_ok, callback_nok) -> {
+			__core__chooseData(
+				data,
+				callback_nok,
+				callback_nok,
+				callback_nok,
+				callback_nok,
+				() -> {
+				 	callback_ok(__core__unBData__safe(data))
+				}
 			)()
 		}`
         )
@@ -2069,20 +2130,15 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__ratio__is_valid_data",
             `(data) -> {
-		__helios__common__test_list_data(
+		__helios__common__unListData__safe(
 			data,
 			__helios__common__test_list_head_data(
 				__helios__int__is_valid_data,
 				__helios__common__test_list_head_data(
 					(bottom_data) -> {
-						__core__chooseData(
+						__helios__common__unIData__safe(
 							bottom_data,
-							() -> {false},
-							() -> {false},
-							() -> {false},
-							() -> {
-								bottom = __core__unIData__safe(bottom_data);
-
+							(bottom) -> {
 								__core__ifThenElse(
 									__core__lessThanInteger(0, bottom),
 									() -> {
@@ -2094,11 +2150,12 @@ export function makeRawFunctions(simplify, isTestnet) {
 								)()
 							},
 							() -> {false}
-						)()
+						)
 					},
 					__helios__common__test_list_empty
 				)
-			)
+			),
+			() -> {false}
 		)
 	}`
         )
@@ -2453,15 +2510,33 @@ export function makeRawFunctions(simplify, isTestnet) {
             "__helios__ratio__show",
             `(self) -> {
 		() -> {
-			t = __helios__ratio__top(self);
-			b = __helios__ratio__bottom(self);
-			__helios__string____add(
-				__helios__int__show(t)(), 
-				__helios__string____add(
-					"/", 
-					__helios__int__show(b)()
-				)
-			)
+			__helios__data__show_list_data(
+				(fields) -> {
+					top_str = __helios__data__show_field(
+						0,
+						__helios__data__show_idata(
+							(t) -> {
+								__helios__int__show(t)()
+							}
+						)
+					)(fields);
+					bottom_str = __helios__data__show_field(
+						1,
+						__helios__data__show_idata(
+							(b) -> {
+								__helios__int__show(b)()
+							}
+						)
+					)(fields);
+					__core__appendString(
+						top_str,
+						__core__appendString(
+							"/",
+							bottom_str
+						)
+					)
+				}
+			)(self)
 		}
 	}`
         )
@@ -2788,7 +2863,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 					)(),
 					__helios__string____add(
 						".",
-						__core__decodeUtf8(
+						__core__decodeUtf8__safe(
 							__helios__int__show_padded(
 								__helios__int____mod(x, __helios__real__ONE),
 								__helios__real__PRECISION
@@ -4674,14 +4749,11 @@ export function makeRawFunctions(simplify, isTestnet) {
 						__core__appendString(
 							__core__ifThenElse(
 								first,
-								() -> {
-									""
-								},
-								() -> {
-									", "
-								}
-							)(),
-							head = ${TTPP}0__from_data_safe(__core__headList__safe(self));
+								"",
+								","
+							),
+							head_data = __core__headList__safe(self);
+							head = ${TTPP}0__from_data_safe(head_data);
 							__core__appendString(
 								head(
 									(valid, value) -> {
@@ -4691,7 +4763,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 												${TTPP}0__show(value)()
 											},
 											() -> {
-												"<n/a>"
+												__helios__data__show(head_data)()
 											}
 										)()
 									}
@@ -5778,12 +5850,14 @@ export function makeRawFunctions(simplify, isTestnet) {
 						__core__appendString(
 							__core__ifThenElse(
 								first,
-								() -> {""},
-								() -> {", "}
-							)(),
+								"",
+								","
+							),
 							head = __core__headList__safe(self);
-							key = ${TTPP}0__from_data_safe(__core__fstPair(head));
-							value = ${TTPP}1__from_data_safe(__core__sndPair(head));
+							key_data = __core__fstPair(head);
+							key = ${TTPP}0__from_data_safe(key_data);
+							value_data = __core__sndPair(head);
+							value = ${TTPP}1__from_data_safe(value_data);
 							__core__appendString(
 								__core__appendString(
 									__core__appendString(
@@ -5795,12 +5869,12 @@ export function makeRawFunctions(simplify, isTestnet) {
 														${TTPP}0__show(key)()
 													},
 													() -> {
-														"<n/a>"
+														__helios__data__show(key_data)()
 													}
 												)()
 											}
 										),
-										": "
+										":"
 									),
 									value(
 										(valid, value) -> {
@@ -5810,9 +5884,9 @@ export function makeRawFunctions(simplify, isTestnet) {
 													${TTPP}1__show(value)()
 												},
 												() -> {
-													"<n/a>"
+												 	__helios__data__show(value_data)()
 												}
-											)
+											)()
 										}
 									)
 								),
@@ -6694,54 +6768,59 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             `__helios__option[${TTPP}0]__show`,
             `(self) -> {
-		__core__chooseData(
-			self,
-			() -> {
-				pair = __core__unConstrData__safe(self);
-				index = __core__fstPair(pair);
-				__core__ifThenElse(
-					__core__equalsInteger(index, 0),
-					() -> {
-						fields = __core__sndPair(pair);
-						__core__chooseList(
-							fields,
-							() -> {
-								"Option::Some{<n/a>}"
-							},
-							() -> {
-								some = ${TTPP}0__from_data_safe(__core__headList__safe(fields));
-								some(
-									(valid, value) -> {
-										__core__ifThenElse(
-											valid,
-											() -> {
-												__core__appendString(
-													"Option::Some{",
+		() -> {
+			__helios__common__unConstrData__safe(
+				self,
+				(index, fields) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(index, 0),
+						() -> {
+							__core__chooseList(
+								fields,
+								() -> {
+									"Some{${MISSING}}"
+								},
+								() -> {
+									some_data = __core__headList__safe(fields);
+									some = ${TTPP}0__from_data_safe(some_data);
+									some(
+										(valid, value) -> {
+											__core__ifThenElse(
+												valid,
+												() -> {
 													__core__appendString(
-														${TTPP}0__show(value)(),
-														"}"
+														"Some{",
+														__core__appendString(
+															${TTPP}0__show(value)(),
+															"}"
+														)
 													)
-												)
-											},
-											() -> {
-												"Option::Some{<n/a>}"
-											}
-										)()
-									}
-								)
-							}
-						)()
-					},
-					() -> {
-						"Option::None"
-					}
-				)()
-			},
-			() -> {"Option{<n/a>}"},
-			() -> {"Option{<n/a>}"},
-			() -> {"Option{<n/a>}"},
-			() -> {"Option{<n/a>}"}
-		)
+												},
+												() -> {
+													__core__appendString(
+														"Some{",
+														__core__appendString(
+															__helios__data__show(some_data)(),
+															"}"
+														)
+													)
+												}
+											)()
+										}
+									)
+								}
+							)()
+						},
+						() -> {
+							"None"
+						}
+					)()
+				},
+				() -> {
+					__helios__data__show(self)()
+				}
+			)
+		}
 	}`
         )
     )
@@ -7257,6 +7336,60 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(
+        new RawFunc(
+            "__helios__stakingpurpose__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 2),
+							() -> {
+							 	cred_str = __helios__data__show_field(
+									0,
+									(cred_data) -> {
+										__helios__stakingcredential__show(cred_data)()
+									}
+								)(fields);
+								__core__appendString(
+									"Rewarding{staking_credential:",
+									__core__appendString(
+										cred_str,
+										"}"
+									)
+								)
+							},
+							() -> {
+							 	__core__ifThenElse(
+									__core__equalsInteger(tag, 3),
+									() -> {
+									 	dcert_str = __helios__data__show_field(
+											0,
+											(dcert_data) -> {
+												__helios__dcert__show(dcert_data)()
+											}
+										)(fields);
+										__core__appendString(
+											"Certifying{dcert:",
+											__core__appendString(
+												dcert_str,
+												"}"
+											)
+										)
+									},
+									() -> {
+									 	__helios__data__show(self)()
+									}
+								)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
+        )
+    )
 
     // StakingPurpose::Rewarding builtins
     addEnumDataFuncs("__helios__stakingpurpose__rewarding", 2)
@@ -7298,6 +7431,102 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__scriptpurpose__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							() -> {
+							 	mph_str = __helios__data__show_field(
+									0,
+									__helios__data__show_bdata(
+										(b) -> {
+											__helios__bytearray__show(b)()
+										}
+									)
+								)(fields);
+								__core__appendString(
+									"Minting{mph:",
+									__core__appendString(
+										mph_str,
+										"}"
+									)
+								)
+							},
+							() -> {
+							 	__core__ifThenElse(
+									__core__equalsInteger(tag, 1),
+									() -> {
+									 	output_id_str = __helios__data__show_field(
+											0,
+											(output_id_data) -> {
+												__helios__txoutputid__show(output_id_data)()
+											}
+										)(fields);
+										__core__appendString(
+											"Spending{id:",
+											__core__appendString(
+												output_id_str,
+												"}"
+											)
+										)
+									},
+									() -> {
+									 	__core__ifThenElse(
+											__core__equalsInteger(tag, 2),
+											() -> {
+											 	cred_str = __helios__data__show_field(
+													0,
+													(cred_data) -> {
+														__helios__stakingcredential__show(cred_data)()
+													}
+												)(fields);
+												__core__appendString(
+													"Rewarding{staking_credential:",
+													__core__appendString(
+														cred_str,
+														"}"
+													)
+												)
+											},
+											() -> {
+											 	__core__ifThenElse(
+													__core__equalsInteger(tag, 3),
+													() -> {
+													 	dcert_str = __helios__data__show_field(
+															0,
+															(dcert_data) -> {
+																__helios__dcert__show(dcert_data)()
+															}
+														)(fields);
+														__core__appendString(
+															"Certifying{dcert:",
+															__core__appendString(
+																dcert_str,
+																"}"
+															)
+														)
+													},
+													() -> {
+													 	__helios__data__show(self)()
+													}
+												)()
+											}
+										)()
+									}
+								)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__scriptpurpose__new_minting",
             `(mph) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__mintingpolicyhash____to_data(mph)))
@@ -7323,8 +7552,8 @@ export function makeRawFunctions(simplify, isTestnet) {
     add(
         new RawFunc(
             "__helios__scriptpurpose__new_certifying",
-            `(action) -> {
-		__core__constrData(3, __helios__common__list_1(action))
+            `(dcert) -> {
+		__core__constrData(3, __helios__common__list_1(dcert))
 	}`
         )
     )
@@ -7385,6 +7614,166 @@ export function makeRawFunctions(simplify, isTestnet) {
 			() -> {false}
 		)()
 	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__dcert__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							() -> {
+								cred_str = __helios__data__show_field(
+									0,
+									(cred_data) -> {
+										__helios__stakingcredential__show(cred_data)()
+									}
+								)(fields);
+								__core__appendString(
+									"Register{staking_credential:",
+									__core__appendString(
+										cred_str,
+										"}"
+									)
+								)
+							},
+							() -> {
+							 	__core__ifThenElse(
+									__core__equalsInteger(tag, 1),
+									() -> {
+										cred_str = __helios__data__show_field(
+											0,
+											(cred_data) -> {
+												__helios__stakingcredential__show(cred_data)()
+											}
+										)(fields);
+										__core__appendString(
+											"Deregister{staking_credential:",
+											__core__appendString(
+												cred_str,
+												"}"
+											)
+										)
+									},
+									() -> {
+									 	__core__ifThenElse(
+											__core__equalsInteger(tag, 2),
+											() -> {
+												cred_str = __helios__data__show_field(
+													0,
+													(cred_data) -> {
+														__helios__stakingcredential__show(cred_data)()
+													}
+												)(fields);
+												pool_id_str = __helios__data__show_field(
+													1,
+													__helios__data__show_bdata(
+														(bytes) -> {
+															__helios__bytearray__show(bytes)()
+														}
+													)
+												)(fields);
+												__core__appendString(
+													"Delegate{staking_credential:",
+													__core__appendString(
+														cred_str,
+														__core__appendString(
+															",pool_id:",
+															__core__appendString(
+																pool_id_str,
+																"}"
+															)
+														)
+													)
+												)
+											},
+											() -> {
+											 	__core__ifThenElse(
+													__core__equalsInteger(tag, 3),
+													() -> {
+													 	pool_id_str = __helios__data__show_field(
+															0,
+															__helios__data__show_bdata(
+																(bytes) -> {
+																	__helios__bytearray__show(bytes)()
+																}
+															)
+														)(fields);
+														vrf_str = __helios__data__show_field(
+															1,
+															__helios__data__show_bdata(
+																(bytes) -> {
+																	__helios__bytearray__show(bytes)()
+																}
+															)
+														)(fields);
+														__core__appendString(
+															"RegisterPool{pool_id:",
+															__core__appendString(
+																pool_id_str,
+																__core__appendString(
+																	",vrf:",
+																	__core__appendString(
+																		vrf_str,
+																		"}"
+																	)
+																)
+															)
+														)
+													},
+													() -> {
+													 	__core__ifThenElse(
+															__core__equalsInteger(tag, 4),
+															() -> {
+																pool_id_str = __helios__data__show_field(
+																	0,
+																	__helios__data__show_bdata(
+																		(bytes) -> {
+																			__helios__bytearray__show(bytes)()
+																		}
+																	)
+																)(fields);
+																epoch_str = __helios__data__show_field(
+																	1,
+																	__helios__data__show_idata(
+																		(epoch) -> {
+																			__helios__int__show(epoch)()
+																		}
+																	)
+																)(fields);
+																__core__appendString(
+																	"DeregisterPool{pool_id:",
+																	__core__appendString(
+																		pool_id_str,
+																		__core__appendString(
+																			",epoch:",
+																			__core__appendString(
+																				epoch_str,
+																				"}"
+																			)
+																		)
+																	)
+																)
+															},
+															() -> {
+															 	__helios__data__show(self)()
+															}
+														)()
+													}
+												)()
+											}
+										)()
+									}
+								)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
         )
     )
     add(
@@ -7927,6 +8316,192 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__tx__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							() -> {
+							 	inputs_str = __helios__data__show_field(
+									0,
+									__helios__data__show_list_data(
+										(list) -> {
+											__helios__list[__helios__txinput]__show(list)()
+										}
+									)
+								)(fields);
+								ref_inputs_str = __helios__data__show_field(
+									1,
+									__helios__data__show_list_data(
+										(list) -> {
+											__helios__list[__helios__txinput]__show(list)()
+										}
+									)
+								)(fields);
+								outputs_str = __helios__data__show_field(
+									2,
+									__helios__data__show_list_data(
+										(list) -> {
+											__helios__list[__helios__txoutput]__show(list)()
+										}
+									)
+								)(fields);
+								fee_str = __helios__data__show_field(
+									3,
+									__helios__data__show_map_data(
+										(map) -> {
+											__helios__value__show(map)()
+										}
+									)
+								)(fields);
+								minted_str =  __helios__data__show_field(
+									4,
+									__helios__data__show_map_data(
+										(map) -> {
+											__helios__value__show(map)()
+										}
+									)
+								)(fields);
+								dcerts_str = __helios__data__show_field(
+									5,
+									__helios__data__show_list_data(
+										(list) -> {
+											__helios__list[__helios__dcert]__show(list)()
+										}
+									)
+								)(fields);
+								withdrawals_str = __helios__data__show_field(
+									6,
+									__helios__data__show_map_data(
+										(map) -> {
+											__helios__map[__helios__stakingcredential@__helios__int]__show(map)()
+										}
+									)
+								)(fields);
+								validity_time_range_str = __helios__data__show_field(
+									7,
+									(tr_data) -> {
+										__helios__timerange__show(tr_data)()
+									}
+								)(fields);
+								signatories_str = __helios__data__show_field(
+									8,
+									__helios__data__show_list_data(
+										(list) -> {
+											__helios__list[__helios__pubkeyhash]__show(list)()
+										}
+									)
+								)(fields);
+								redeemers_str = __helios__data__show_field(
+									9,
+									__helios__data__show_map_data(
+										(map) -> {
+											__helios__map[__helios__scriptpurpose@__helios__data]__show(map)()
+										}
+									)
+								)(fields);
+								datums_str = __helios__data__show_field(
+									10,
+									__helios__data__show_map_data(
+										(map) -> {
+											__helios__map[__helios__datumhash@__helios__data]__show(map)()
+										}
+									)
+								)(fields);
+								id_str = __helios__data__show_field(
+									11,
+									(tx_id_data) -> {
+										__helios__txid__show(tx_id_data)()
+									}
+								)(fields);
+								__core__appendString(
+									"{inputs:",
+									__core__appendString(
+										inputs_str,
+										__core__appendString(
+											",ref_inputs:",
+											__core__appendString(
+												ref_inputs_str,
+												__core__appendString(
+													",outputs:",
+													__core__appendString(
+														outputs_str,
+														__core__appendString(
+															",fee:",
+															__core__appendString(
+																fee_str,
+																__core__appendString(
+																	",minted:",
+																	__core__appendString(
+																		minted_str,
+																		__core__appendString(
+																			",dcerts:",
+																			__core__appendString(
+																				dcerts_str,
+																				__core__appendString(
+																					",withdrawals:",
+																					__core__appendString(
+																						withdrawals_str,
+																						__core__appendString(
+																							",validity_time_range:",
+																							__core__appendString(
+																								validity_time_range_str,
+																								__core__appendString(
+																									",signatories:",
+																									__core__appendString(
+																										signatories_str,
+																										__core__appendString(
+																											",redeemers:",
+																											__core__appendString(
+																												redeemers_str,
+																												__core__appendString(
+																													",datums:",
+																													__core__appendString(
+																														datums_str,
+																														__core__appendString(
+																															",id:",
+																															__core__appendString(
+																																id_str,
+																																"}"
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+										)
+									)
+								)
+							},
+							() -> {
+							 	__helios__data__show(self)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
             `__helios__tx__new[${FTPP}0@${FTPP}1]`,
             `(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums, txId) -> {
 		__core__constrData(0, __helios__common__list_12(
@@ -8459,7 +9034,28 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__txid__show",
             `(self) -> {
-		__helios__bytearray__show(__helios__txid__bytes(self))
+		() -> {
+			__helios__data__show_constr_data(
+				(tag, fields) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(tag, 0),
+						() -> {
+							__helios__data__show_field(
+								0,
+								__helios__data__show_bdata(
+									(bytes) -> {
+										__helios__bytearray__show(bytes)()
+									}
+								)
+							)(fields)
+						},
+						() -> {
+						 	__helios__data__show(self)()
+						}
+					)()
+				}
+			)(self)
+		}
 	}`
         )
     )
@@ -8472,6 +9068,52 @@ export function makeRawFunctions(simplify, isTestnet) {
             `(data) -> {
 		__helios__common__test_constr_data_2(data, 0, __helios__txoutputid__is_valid_data, __helios__txoutput__is_valid_data)
 	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__txinput__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							() -> {
+							 	id_str = __helios__data__show_field(
+									0,
+									(id_data) -> {
+										__helios__txoutputid__show(id_data)()
+									}
+								)(fields);
+								output_str = __helios__data__show_field(
+									1,
+									(output_data) -> {
+										__helios__txoutput__show(output_data)()
+									}
+								)(fields);
+								__core__appendString(
+									"{id:",
+									__core__appendString(
+										id_str,
+										__core__appendString(
+											",output:",
+											__core__appendString(
+												output_str,
+												"}"
+											)
+										)
+									)
+								)
+							},
+							() -> {
+							 	__helios__data__show(self)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
         )
     )
     add(
@@ -8537,6 +9179,78 @@ export function makeRawFunctions(simplify, isTestnet) {
 			() -> {false}
 		)()
 	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__txoutput__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							() -> {
+								address_str = __helios__data__show_field(
+									0,
+									(address_data) -> {
+										__helios__address__show(address_data)()
+									}
+								)(fields);
+								value_str = __helios__data__show_field(
+									1,
+									__helios__data__show_map_data(
+										(m) -> {
+											__helios__value__show(m)()
+										}
+									)
+								)(fields);
+								datum_str = __helios__data__show_field(
+									2,
+									(datum_data) -> {
+										__helios__txoutputdatum__show(datum_data)()
+									}
+								)(fields);
+								ref_script_hash_str = __helios__data__show_field(
+									3,
+									(option_data) -> {
+										__helios__option[__helios__scripthash]__show(option_data)()
+									}
+								)(fields);
+								__core__appendString(
+									"{address:",
+									__core__appendString(
+										address_str,
+										__core__appendString(
+											",value:",
+											__core__appendString(
+												value_str,
+												__core__appendString(
+													",datum:",
+													__core__appendString(
+														datum_str,
+														__core__appendString(
+															",ref_script_hash:",
+															__core__appendString(
+																ref_script_hash_str,
+																"}"
+															)
+														)
+													)
+												)
+											)
+										)
+									)
+								)
+							},
+							() -> {
+							 	__helios__data__show(self)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
         )
     )
     add(
@@ -8702,6 +9416,70 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__txoutputdatum__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							() -> {
+							 	"None"
+							},
+							() -> {
+							 	__core__ifThenElse(
+									__core__equalsInteger(tag, 1),
+									() -> {
+									 	datum_hash_str = __helios__data__show_field(
+											0,
+											__helios__data__show_bdata(
+												(bytes) -> {
+													__helios__bytearray__show(bytes)()
+												}
+											)
+										)(fields);
+										__core__appendString(
+											"Hash{hash:",
+											__core__appendString(
+												datum_hash_str,
+												"}"
+											)
+										)
+									},
+									() -> {
+									 	__core__ifThenElse(
+											__core__equalsInteger(tag, 2),
+											() -> {
+											 	inline_data_str = __helios__data__show_field(
+													0,
+													(data) -> {
+														__helios__data__show(data)()
+													}
+												)(fields);
+												__core__appendString(
+													"Inline{data:",
+													__core__appendString(
+														inline_data_str,
+														"}"
+													)
+												)
+											},
+											() -> {
+											 	__helios__data__show(self)()
+											}
+										)()
+									}
+								)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__txoutputdatum__new_none",
             `() -> {
 		__core__constrData(0, __helios__common__list_0)
@@ -8784,6 +9562,279 @@ export function makeRawFunctions(simplify, isTestnet) {
             `(self) -> {
 		__core__fstPair(__core__unConstrData(self))
 	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__show",
+            `(self) -> {
+			() -> {
+			 	show_data_list = (list, show_item) -> {
+					__helios__common__fold(
+						list,
+						(prev, item) -> {
+							__core__ifThenElse(
+								__helios__string____eq(prev, ""),
+								() -> {
+								 	show_item(item)
+								},
+								() -> {
+								 	__helios__string____add(
+										prev,
+										__helios__string____add(
+											",",
+											show_item(item)
+										)
+									)
+								}
+							)()
+						},
+						""
+					)
+				};
+			 	(recurse, data) -> {
+					recurse(recurse, data)
+				}(
+					(recurse, data) -> {
+						__core__chooseData(
+							data,
+							() -> {
+							 	pair = __core__unConstrData__safe(data);
+								tag = __core__fstPair(pair);
+								fields = __core__sndPair(pair);
+
+								__helios__string____add(
+									__helios__int__show(tag)(),
+									__helios__string____add(
+										"{",
+										__helios__string____add(
+											show_data_list(
+												fields, 
+												(item) -> {
+													recurse(recurse, item)
+												}
+											),
+											"}"
+										)
+									)
+								)
+							},
+							() -> {
+							 	map = __core__unMapData__safe(data);
+
+								__helios__string____add(
+									"{",
+									__helios__string____add(
+										show_data_list(
+											map,
+											(pair) -> {
+												key = recurse(recurse, __core__fstPair(pair));
+												value = recurse(recurse, __core__sndPair(pair));
+												__helios__string____add(
+													key,
+													__helios__string____add(
+														":",
+														value
+													)
+												)
+											}
+										),
+										"}"
+									)
+								)
+							},
+							() -> {
+							 	lst = __core__unListData__safe(data);
+
+								__helios__string____add(
+									"[",
+									__helios__string____add(
+										show_data_list(
+											lst,
+											(item) -> {
+												recurse(recurse, item)
+											}
+										),
+										"]"
+									)
+								)
+							},
+							() -> {
+							 	value = __core__unIData__safe(data);
+
+								__helios__int__show(value)()
+							},
+							() -> {
+							 	bytes = __core__unBData__safe(data);
+
+								__helios__bytearray__show(bytes)()
+							}
+						)()
+					},
+					self
+				)
+			}
+		}`
+        )
+    )
+    // internal function
+    add(
+        new RawFunc(
+            "__helios__data__show_constr_data",
+            `(callback) -> {
+			(data) -> {
+				callback_nok = __helios__data__show(data);
+				__core__chooseData(
+					data,
+					() -> {
+						pair = __core__unConstrData__safe(data);
+						callback(__core__fstPair(pair), __core__sndPair(pair))
+					},
+					callback_nok,
+					callback_nok,
+					callback_nok,
+					callback_nok
+				)()
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__show_bool_data",
+            `(callback) -> {
+			__helios__data__show_constr_data(
+				(tag, fields) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(tag, 0),
+						() -> {
+						 	callback(false)
+						},
+						() -> {
+						 	__core__ifThenElse(
+								__core__equalsInteger(tag, 1),
+								() -> {
+								 	callback(true)
+							 	},
+								() -> {
+								 	__helios__data__show(__core__constrData(tag, fields))()
+								}
+							)()
+						}
+					)()
+				}	
+			)
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__show_map_data",
+            `(callback) -> {
+			(data) -> {
+				callback_nok = __helios__data__show(data);
+				__core__chooseData(
+					data,
+					callback_nok,
+					() -> {
+						callback(__core__unMapData__safe(data))
+					},
+					callback_nok,
+					callback_nok,
+					callback_nok
+				)()
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__show_list_data",
+            `(callback) -> {
+			(data) -> {
+				callback_nok = __helios__data__show(data);
+				__core__chooseData(
+					data,
+					callback_nok,
+					callback_nok,
+					() -> {
+					 	callback(__core__unListData__safe(data))
+					},
+					callback_nok,
+					callback_nok
+				)()
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__show_idata",
+            `(callback) -> {
+			(data) -> {
+				callback_nok = __helios__data__show(data);
+				__core__chooseData(
+					data,
+					callback_nok,
+					callback_nok,
+					callback_nok,
+					() -> {
+						callback(__core__unIData__safe(data))
+					},
+					callback_nok
+				)()
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__show_bdata",
+            `(callback) -> {
+			(data) -> {
+				callback_nok = __helios__data__show(data);
+				__core__chooseData(
+					data,
+					callback_nok,
+					callback_nok,
+					callback_nok,
+					callback_nok,
+					() -> {
+					 	callback(__core__unBData__safe(data))
+					}
+				)()
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__data__show_field",
+            `(index, callback) -> {
+			(list) -> {
+				recurse = (lst, i) -> {
+					__core__chooseList(
+						lst,
+						() -> {
+						 	"${MISSING}"
+						},
+						() -> {
+						 	__core__ifThenElse(
+								__core__equalsInteger(i, 0),
+								() -> {
+								 	head = __core__headList__safe(lst);
+									callback(head)
+								},
+								() -> {
+								 	recurse(__core__tailList__safe(lst), __core__subtractInteger(i, 1))
+								}
+							)()
+						}
+					)()
+				};
+				recurse(list, index)
+			}
+		}`
         )
     )
     add(
@@ -9023,13 +10074,39 @@ export function makeRawFunctions(simplify, isTestnet) {
             "__helios__txoutputid__show",
             `(self) -> {
 		() -> {
-			__helios__string____add(
-				__helios__txid__show(__helios__txoutputid__tx_id(self))(),
-				__helios__string____add(
-					"#",
-					__helios__int__show(__helios__txoutputid__index(self))()
-				)
-			)
+			__helios__data__show_constr_data(
+				(tag, fields) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(tag, 0),
+						() -> {
+						 	tx_id_str = __helios__data__show_field(
+								0,
+								(tx_id_data) -> {
+									__helios__txid__show(tx_id_data)()
+								}
+							)(fields);
+							index_str = __helios__data__show_field(
+								1,
+								__helios__data__show_idata(
+									(i) -> {
+										__helios__int__show(i)()
+									}
+								)
+							)(fields);
+							__core__appendString(
+								tx_id_str,
+								__core__appendString(
+									"#",
+									index_str
+								)
+							)
+						},
+						() -> {
+						 	__helios__data__show(self)()
+						}
+					)()
+				}
+			)(self)
 		}
 	}`
         )
@@ -9045,7 +10122,52 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__address__show", "__helios__address__to_hex"))
+    add(
+        new RawFunc(
+            "__helios__address__show",
+            `(self) -> {
+		() -> {
+		 	__helios__data__show_constr_data(
+				(tag, fields) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(tag, 0),
+						() -> {
+							spending_cred_str = __helios__data__show_field(
+								0,
+								(cred_data) -> {
+									__helios__spendingcredential__show(cred_data)()
+								}
+							)(fields);
+							staking_cred_option_str = __helios__data__show_field(
+								1,
+								(option_data) -> {
+									__helios__option[__helios__stakingcredential]__show(option_data)()
+								}
+							)(fields);
+							__core__appendString(
+								"{spending_credential:",
+								__core__appendString(
+									spending_cred_str,
+									__core__appendString(
+										",staking_credential:",
+										__core__appendString(
+											staking_cred_option_str,
+											"}"
+										)
+									)
+								)
+							)
+						},
+						() -> {
+						 	__helios__data__show(self)()
+						}
+					)()
+				}
+			)(self)
+		}
+	}`
+        )
+    )
     add(
         new RawFunc(
             "__helios__address__header",
@@ -9443,6 +10565,64 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     add(
         new RawFunc(
+            "__helios__spendingcredential__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							() -> {
+							 	pkh_str = __helios__data__show_field(
+									0,
+									__helios__data__show_bdata(
+										(b) -> {
+											__helios__bytearray__show(b)()
+										}
+									)
+								)(fields);
+								__core__appendString(
+									"PubKey{hash:",
+									__core__appendString(
+										pkh_str,
+										"}"
+									)
+								)
+							},
+							() -> {
+							 	__core__ifThenElse(
+									__core__equalsInteger(tag, 1),
+									() -> {
+										vh_str = __helios__data__show_field(
+											0,
+											__helios__data__show_bdata(
+												(b) -> {
+													__helios__bytearray__show(b)()
+												}
+											)
+										)(fields);
+										__core__appendString(
+											"Validator{hash:",
+											__core__appendString(
+												vh_str,
+												"}"
+											)
+										)
+									},
+									() -> {
+										__helios__data__show(__core__constrData(tag, fields))()
+									}
+								)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__spendingcredential__new_pubkey",
             `(hash) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__pubkeyhash____to_data(hash)))
@@ -9522,6 +10702,64 @@ export function makeRawFunctions(simplify, isTestnet) {
     addDataFuncs("__helios__stakinghash")
     add(
         new RawFunc(
+            "__helios__stakinghash__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							() -> {
+							 	pkh_str = __helios__data__show_field(
+									0,
+									__helios__data__show_bdata(
+										(b) -> {
+											__helios__bytearray__show(b)()
+										}
+									)
+								)(fields);
+								__core__appendString(
+									"StakeKey{hash:",
+									__core__appendString(
+										pkh_str,
+										"}"
+									)
+								)
+							},
+							() -> {
+							 	__core__ifThenElse(
+									__core__equalsInteger(tag, 1),
+									() -> {
+										vh_str = __helios__data__show_field(
+											0,
+											__helios__data__show_bdata(
+												(b) -> {
+													__helios__bytearray__show(b)()
+												}
+											)
+										)(fields);
+										__core__appendString(
+											"Validator{hash:",
+											__core__appendString(
+												vh_str,
+												"}"
+											)
+										)
+									},
+									() -> {
+										__helios__data__show(__core__constrData(tag, fields))()
+									}
+								)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
+        )
+    )
+    add(
+        new RawFunc(
             "__helios__stakinghash__is_valid_data",
             "__helios__spendingcredential__is_valid_data"
         )
@@ -9595,7 +10833,6 @@ export function makeRawFunctions(simplify, isTestnet) {
 
     // StakingCredential builtins
     addDataFuncs("__helios__stakingcredential")
-    // TODO: test fields
     add(
         new RawFunc(
             "__helios__stakingcredential__is_valid_data",
@@ -9643,6 +10880,90 @@ export function makeRawFunctions(simplify, isTestnet) {
 			() -> {false}
 		)()
 	}`
+        )
+    )
+    add(
+        new RawFunc(
+            "__helios__stakingcredential__show",
+            `(self) -> {
+			() -> {
+			 	__helios__data__show_constr_data(
+					(tag, fields) -> {
+						__core__ifThenElse(
+							__core__equalsInteger(tag, 0),
+							() -> {
+							 	hash_str = __helios__data__show_field(
+									0,
+									(hash_data) -> {
+										__helios__stakinghash__show(hash_data)()
+									}
+								)(fields);
+								__core__appendString(
+									"Hash{hash:",
+									__core__appendString(
+										hash_str,
+										"}"
+									)
+								)
+							},
+							() -> {
+							 	__core__ifThenElse(
+							 		__core__equalsInteger(tag, 1),
+									() -> {
+									 	i_str = __helios__data__show_field(
+											0,
+											__helios__data__show_idata(
+												(i) -> {
+													__helios__int__show(i)()
+												}
+											)
+										)(fields);
+										j_str = __helios__data__show_field(
+											1,
+											__helios__data__show_idata(
+												(i) -> {
+													__helios__int__show(i)()
+												}
+											)
+										)(fields);
+										k_str = __helios__data__show_field(
+											2,
+											__helios__data__show_idata(
+												(i) -> {
+													__helios__int__show(i)()
+												}
+											)
+										)(fields);
+										__core__appendString(
+											"Ptr{i:",
+											__core__appendString(
+												i_str,
+												__core__appendString(
+													",j:",
+													__core__appendString(
+														j_str,
+														__core__appendString(
+															",k:",
+															__core__appendString(
+																k_str,
+																"}"
+															)
+														)
+													)
+												)
+											)
+										)
+									},
+									() -> {
+									 	__helios__data__show(self)()
+									}
+								)()
+							}
+						)()
+					}
+				)(self)
+			}
+		}`
         )
     )
     add(
@@ -10061,44 +11382,127 @@ export function makeRawFunctions(simplify, isTestnet) {
             "__helios__timerange__show",
             `(self) -> {
 		() -> {
-			show_extended = (extended) -> {
-				extType = __core__fstPair(__core__unConstrData(extended));
-				__core__ifThenElse(
-					__core__equalsInteger(extType, 0),
-					() -> {"-inf"},
-					() -> {
-						__core__ifThenElse(
-							__core__equalsInteger(extType, 2),
-							() -> {"+inf"},
-							() -> {
-								fields = __core__sndPair(__core__unConstrData(extended));
-								__helios__int__show(
-									__helios__int__from_data(__core__headList(fields))
-								)()
-							}
-						)()
-					}
-				)()
-			};
-			__helios__string____add(
-				lower = __helios__common__enum_field_0(self);
-				extended = __helios__common__enum_field_0(lower);
-				closed = __helios__bool__from_data(__helios__common__enum_field_1(lower));
-				__helios__string____add(
-					__core__ifThenElse(closed, "[", "("),
-					show_extended(extended)
-				),
-				__helios__string____add(
-					",",
-					upper = __helios__common__enum_field_1(self);
-					extended = __helios__common__enum_field_0(upper);
-					closed = __helios__bool__from_data(__helios__common__enum_field_1(upper));
-					__helios__string____add(
-						show_extended(extended),
-						__core__ifThenElse(closed, "]", ")")
-					)
-				)
-			)
+			show_extended = __helios__data__show_constr_data(
+				(tag, fields) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(tag, 0),
+						() -> {"-inf"},
+						() -> {
+							__core__ifThenElse(
+								__core__equalsInteger(tag, 1),
+								() -> {
+									__helios__data__show_field(
+										0,
+										__helios__data__show_idata(
+											(i) -> {
+												__helios__int__show(i)()
+											}
+										)
+									)(fields)
+								},
+								() -> {
+									__core__ifThenElse(
+										__core__equalsInteger(tag, 2),
+										() -> {"+inf"},
+										() -> {
+											__helios__data__show(__core__constrData(tag, fields))()
+										}
+									)()
+								}
+							)()
+						}
+					)()
+				}
+			);
+			__helios__data__show_constr_data(
+				(tag, fields) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(tag, 0),
+						() -> {
+						 	lower_str = __helios__data__show_field(
+								0,
+								__helios__data__show_constr_data(
+									(tag, lower_fields) -> {
+										__core__ifThenElse(
+											__core__equalsInteger(tag, 0),
+											() -> {
+											 	open_str = __helios__data__show_field(
+													1,
+													__helios__data__show_bool_data(
+														(closed) -> {
+															__core__ifThenElse(
+																closed,
+																"[",
+																"("
+															)
+														}
+													)
+												)(lower_fields);
+												extended_str = __helios__data__show_field(
+													0,
+													show_extended
+												)(lower_fields);
+												__core__appendString(
+													open_str,
+													extended_str
+												)
+											},
+											() -> {
+											 	__helios__data__show(__core__constrData(tag, lower_fields))()
+											}
+										)()
+									}
+								)
+							)(fields);
+							upper_str = __helios__data__show_field(
+								1,
+								__helios__data__show_constr_data(
+									(tag, upper_fields) -> {
+										__core__ifThenElse(
+											__core__equalsInteger(tag, 0),
+											() -> {
+											 	extended_str = __helios__data__show_field(
+													0,
+													show_extended
+												)(upper_fields);
+												close_str = __helios__data__show_field(
+													1,
+													__helios__data__show_bool_data(
+														(closed) -> {
+															__core__ifThenElse(
+																closed,
+																"]",
+																")"
+															)
+														}
+													)
+												)(upper_fields);
+												__core__appendString(
+													extended_str,
+													close_str
+												)
+											},
+											() -> {
+											 	__helios__data__show(__core__constrData(tag, upper_fields))()
+											}
+										)()
+									}
+								)
+							)(fields);
+							__core__appendString(
+								lower_str,
+								__core__appendString(
+									",",
+									upper_str
+								)
+							)
+						},
+						() -> {
+						 	__helios__data__show(self)()
+						}
+					)()
+				}
+			)(self)
 		}
 	}`
         )
@@ -10167,60 +11571,43 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__assetclass__show",
             `(self) -> {
-		__core__chooseData(
-			self,
-			() -> {
-				fields = __core__sndPair(__core__unConstrData__safe(self));
-				__core__chooseList(
-					fields,
-					() -> {
-						"N/A"
-					},
-					() -> {
-						mph = __core__headList__safe(fields);
-						__core__appendString(
-							__core__chooseData(
-								mph,
-								() -> {"N/A"},
-								() -> {"N/A"},
-								() -> {"N/A"},
-								() -> {"N/A"},
-								() -> {
-									__helios__bytearray__show(__core__unBData__safe(mph))()
-								}
-							)(),
-							__core__appendString(
-								".",
-								fields = __core__tailList__safe(fields);
-								__core__chooseList(
-									fields,
-									() -> {
-										"N/A"
-									},
-									() -> {
-										token_name = __core__headList__safe(fields);
-										__core__chooseData(
-											token_name,
-											() -> {"N/A"},
-											() -> {"N/A"},
-											() -> {"N/A"},
-											() -> {"N/A"},
-											() -> {
-												__helios__bytearray__show(__core__unBData__safe(token_name))()
-											}
-										)()
+		() -> {
+			__helios__data__show_constr_data(
+				(tag, fields) -> {
+					__core__ifThenElse(
+						__core__equalsInteger(tag, 0),
+						() -> {
+							mph_str = __helios__data__show_field(
+								0, 
+								__helios__data__show_bdata(
+									(mph) -> {
+										__helios__bytearray__show(mph)()
 									}
-								)()
+								)
+							)(fields);
+							token_name_str = __helios__data__show_field(
+								1,
+								__helios__data__show_bdata(
+									(token_name) -> {
+										__helios__bytearray__show(token_name)()
+									}
+								)
+							)(fields);
+							__core__appendString(
+								mph_str,
+								__core__appendString(
+									".",
+									token_name_str
+								)
 							)
-						)
-					}
-				)()
-			},
-			() -> {"N/A"},
-			() -> {"N/A"},
-			() -> {"N/A"},
-			() -> {"N/A"}
-		)
+						},
+						() -> {
+							__helios__data__show(self)()
+						}
+					)()
+				}
+			)(self)
+		}
 	}`
         )
     )

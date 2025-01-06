@@ -4,6 +4,7 @@ import { makeIntData } from "@helios-lang/uplc"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     cbor,
     compileForRun,
@@ -882,6 +883,22 @@ describe("Int", () => {
 
         it('-100.show() == "-100"', () => {
             runner([int(-100)], str("-100"))
+        })
+
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `
+            testing int_show_in_print_actual
+
+            func main(a: Int) -> () {
+                print(a.show())
+            }`,
+                `testing int_show_in_print_expected_optimized
+            
+            func main(_: Int) -> () {
+                ()
+            }`
+            )
         })
     })
 

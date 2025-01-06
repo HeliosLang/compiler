@@ -64,7 +64,7 @@ export class GenericEntryPoint extends EntryPointImpl {
             if (argTypeName != "" && !isDataType(argTypes[i])) {
                 throw makeTypeError(
                     main.site,
-                    `illegal argument type in main: '${argTypes[i].toString()}`
+                    `illegal argument type in main: '${argTypes[i].toString()}${!isDataType(argTypes[i]) ? " (not a data type)" : ""}`
                 )
             }
         })

@@ -1,6 +1,7 @@
 import assert, { strictEqual, throws } from "node:assert"
 import { it } from "node:test"
 import { bytesToHex, encodeUtf8 } from "@helios-lang/codec-utils"
+import { $ } from "@helios-lang/ir"
 import { isLeft, isRight, isString } from "@helios-lang/type-utils"
 import {
     makeByteArrayData,
@@ -11,7 +12,6 @@ import {
     makeUplcDataValue
 } from "@helios-lang/uplc"
 import { Program } from "../src/program/Program.js"
-import { $ } from "@helios-lang/ir"
 
 /**
  * @typedef {import("@helios-lang/codec-utils").BytesLike} BytesLike
@@ -165,6 +165,28 @@ export function compileAndRun(test) {
             )
         }
     })
+}
+
+/**
+ * Throws an error if the program isn't optimized to `(<n-args>) -> {()}
+ * @param {string} main
+ * @param {string} expected
+ */
+export function assertOptimizedAs(main, expected) {
+    const actualUplc = new Program(main, {
+        isTestnet: true
+    }).compile(true)
+
+    const expectedUplc = new Program(expected, {
+        isTestnet: true
+    }).compile(true)
+
+    if (bytesToHex(actualUplc.toCbor()) == bytesToHex(expectedUplc.toCbor())) {
+        return
+    } else {
+        // this will fail, but at least print a nice message
+        strictEqual(actualUplc.toString(), expectedUplc.toString())
+    }
 }
 
 /**

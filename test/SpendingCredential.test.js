@@ -2,12 +2,14 @@ import { describe, it } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
     int,
     list,
-    map
+    map,
+    str
 } from "./utils.js"
 
 describe("SpendingCredential", () => {
@@ -82,6 +84,62 @@ describe("SpendingCredential", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("SpendingCredential.show", () => {
+        const runner = compileForRun(`testing spendingcredential_show
+        func main(cred: SpendingCredential) -> String {
+            cred.show()
+        }`)
+
+        it('SpendingCredential::PubKey{#}.show() == "PubKey{hash:}"', () => {
+            runner([constr(0, bytes(""))], str("PubKey{hash:}"))
+        })
+
+        it('SpendingCredential::PubKey{#01020304050607080910111213141516171819202122232425262728}.show() == "PubKey{hash:01020304050607080910111213141516171819202122232425262728}"', () => {
+            runner(
+                [
+                    constr(
+                        0,
+                        bytes(
+                            "01020304050607080910111213141516171819202122232425262728"
+                        )
+                    )
+                ],
+                str(
+                    "PubKey{hash:01020304050607080910111213141516171819202122232425262728}"
+                )
+            )
+        })
+
+        it('SpendingCredential::Validator{#01020304050607080910111213141516171819202122232425262728}.show() == "Validator{hash:01020304050607080910111213141516171819202122232425262728}"', () => {
+            runner(
+                [
+                    constr(
+                        1,
+                        bytes(
+                            "01020304050607080910111213141516171819202122232425262728"
+                        )
+                    )
+                ],
+                str(
+                    "Validator{hash:01020304050607080910111213141516171819202122232425262728}"
+                )
+            )
+        })
+
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing spendingcredential_show_in_print_actual
+                func main(cred: SpendingCredential) -> () {
+                    print(cred.show())
+                }`,
+                `testing spendingcredential_show_in_print_expected_optimized
+                func main(_: SpendingCredential) -> () {
+                    ()
+                }`
+            )
         })
     })
 })

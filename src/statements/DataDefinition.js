@@ -409,79 +409,48 @@ export class DataDefinition {
                 ir = $`__core__appendString(
 					${ir},
 					__core__appendString(
-						${i > 0 ? `", ${f.name}: "` : `"${f.name}: "`},
-						(opt) -> {
-							opt(
-								(valid, value) -> {
-									__core__ifThenElse(
-										valid,
-										() -> {
-											(opt) -> {
-												opt(
-													(valid, value) -> {
-														__core__ifThenElse(
-															valid,
-															() -> {
-																${p}__show(value)()
-															},
-															() -> {
-																"<n/a>"
-															}
-														)()
-													}
-												)
-											}(${p}__from_data_safe(value))
-										},
-										() -> {
-											"<n/a>"
-										}
-									)()
-								}
-							)
-						}(__helios__common__mStruct_field_safe(self, #${bytesToHex(encodeUtf8(f.encodedFieldName))}))
+						"${i > 0 ? "," : ""}${f.name.value}:",
+						option = __helios__common__mStruct_field_safe(self, #${bytesToHex(encodeUtf8(f.encodedFieldName))});
+                        option_pair = __core__unConstrData__safe(option);
+                        option_tag = __core__fstPair(option_pair);
+                        __core__ifThenElse(
+                            __core__equalsInteger(option_tag, 1),
+                            () -> {
+                                "<n/a>"
+                            },
+                            () -> {
+                                option_value = __core__sndPair(option_pair);
+                                inner_option = ${p}__from_data_safe(option_value);
+                                inner_option(
+                                    (valid, value) -> {
+                                        __core__ifThenElse(
+                                            valid,
+                                            () -> {
+                                                ${p}__show(value)()
+                                            },
+                                            () -> {
+                                                "<n/a>"
+                                            }
+                                        )()
+                                    }
+                                )
+                            }
+                        )()
 					)
 				)`
             }
 
-            return $`(data) -> {
-				__core__chooseData(
-					data,
-					() -> {
-						(fields) -> {
-							__core__chooseList(
-								fields,
-								() -> {"${baseName}{<n/a>}"},
-								() -> {
-									(data) -> {
-										__core__chooseData(
-											data,
-											() -> {"${baseName}{<n/a>}"},
-											() -> {
-												(self) -> {
-													__core__appendString(
-														"${baseName}{",
-														__core__appendString(
-															${ir},
-															"}"
-														)
-													)
-												}(__core__unMapData(data))
-											},
-											() -> {"${baseName}{<n/a>}"},
-											() -> {"${baseName}{<n/a>}"},
-											() -> {"${baseName}{<n/a>}"}
-										)()
-									}(__core__headList__safe(fields))
-								}
-							)()
-						}(__core__sndPair(__core__unConstrData__safe(data)))
-					},
-					() -> {"${baseName}{<n/a>}"},
-					() -> {"${baseName}{<n/a>}"},
-					() -> {"${baseName}{<n/a>}"},
-					() -> {"${baseName}{<n/a>}"}
-				)
-			}`
+            return $`(self) -> {
+                () -> {
+                    __core__appendString(
+                        "{",
+                        __core__appendString(
+                            ${ir},
+                            "}"
+                        )
+                    )
+                }
+            }`
         } else if (this.nFields == 1 && !isEnumMember) {
             return $`${this._fields[0].type.path}__show`
         } else {

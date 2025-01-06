@@ -2,6 +2,7 @@ import { describe, it, run } from "node:test"
 import {
     False,
     True,
+    assertOptimizedAs,
     bytes,
     compileForRun,
     constr,
@@ -164,6 +165,24 @@ describe("String", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("String.show", () => {
+        it("is optimized out in print()", () => {
+            assertOptimizedAs(
+                `
+            testing string_show_in_print_actual
+
+            func main(a: String) -> () {
+                print(a.show())
+            }`,
+                `testing string_show_in_print_expected_optimized
+            
+            func main(_: String) -> () {
+                ()
+            }`
+            )
         })
     })
 })
