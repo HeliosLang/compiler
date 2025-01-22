@@ -64,9 +64,7 @@ export class EnumStatement extends Statement {
         this._members = members
         this._impl = impl
 
-        for (let i = 0; i < this._members.length; i++) {
-            this._members[i].registerParent(this, i)
-        }
+        this._members.forEach((member, i) => member.registerParent(this))
     }
 
     /**
@@ -97,50 +95,6 @@ export class EnumStatement extends Statement {
         super.setBasePath(basePath)
 
         this._impl.setBasePath(this.path)
-    }
-
-    /**
-     * Returns index of enum member.
-     * Returns -1 if not found
-     * @param {Word} name
-     * @returns {number}
-     */
-    // returns an index
-    findEnumMember(name) {
-        let found = -1
-        let i = 0
-        for (let member of this._members) {
-            if (member.name.toString() == name.toString()) {
-                found = i
-                break
-            }
-            i++
-        }
-
-        return found
-    }
-
-    /**
-     * @param {number} i
-     * @returns {EnumMember}
-     */
-    getEnumMember(i) {
-        return expectDefined(this._members[i])
-    }
-
-    /**
-     * @param {Word} name
-     * @returns {boolean}
-     */
-    hasEnumMember(name) {
-        return this.findEnumMember(name) != -1
-    }
-
-    /**
-     * @returns {number}
-     */
-    get nEnumMembers() {
-        return this._members.length
     }
 
     /**

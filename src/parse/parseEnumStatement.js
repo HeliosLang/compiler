@@ -1,4 +1,4 @@
-import { makeWord, group } from "@helios-lang/compiler-utils"
+import { makeWord, group, intlit, symbol } from "@helios-lang/compiler-utils"
 import {
     DataField,
     EnumMember,
@@ -11,6 +11,8 @@ import { anyName, parseName } from "./parseName.js"
 import { createSelfTypeExpr } from "./parseStructStatement.js"
 import { parseTypeParameters } from "./parseTypeParameters.js"
 import { parseDataFields } from "./parseDataFields.js"
+
+const MAX_CONSTR_INDEX = 4294967295
 
 /**
  * @param {ParseContext} ctx
@@ -60,16 +62,45 @@ function parseEnumMembers(ctx) {
      * @type {EnumMember[]}
      */
     const members = []
+    let constrIndex = -1
 
     while (!r.isEof()) {
-        let name = makeWord({ value: "Unnamed", site: ctx.currentSite })
-
         let m
 
+        if ((m = r.matches(intlit(), symbol(":")))) {
+            const nextConstrIndexBI = m[0].value
+
+            if (nextConstrIndexBI > BigInt(MAX_CONSTR_INDEX)) {
+                ctx.errors.syntax(
+                    m[0].site,
+                    `custom enum variant constr index ${nextConstrIndexBI.toString()} too large (hint: cant be larger than ${MAX_CONSTR_INDEX})`
+                )
+                constrIndex += 1 // fallback
+            } else if (nextConstrIndexBI < 0n) {
+                ctx.errors.syntax(
+                    m[0].site,
+                    `custom enum variant constr index can't be negative`
+                )
+                constrIndex += 1 // fallback
+            } else if (nextConstrIndexBI <= BigInt(constrIndex)) {
+                ctx.errors.syntax(
+                    m[0].site,
+                    `enum variant constr index not increasing`
+                )
+                constrIndex += 1 // fallback
+            } else {
+                constrIndex = Number(nextConstrIndexBI)
+            }
+        } else {
+            r.endMatch(false)
+            constrIndex += 1
+        }
+
+        let name = makeWord({ value: "Unnamed", site: ctx.currentSite })
         if ((m = r.matches(anyName))) {
             name = m
         } else {
-            r.endMatch(false)
+            r.endMatch(true)
             break
         }
 
@@ -84,7 +115,7 @@ function parseEnumMembers(ctx) {
             r.endMatch(false)
         }
 
-        members.push(new EnumMember(name, fields))
+        members.push(new EnumMember(constrIndex, name, fields))
     }
 
     return members

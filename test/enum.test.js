@@ -106,3 +106,48 @@ describe("Enum with two variants", () => {
         })
     })
 })
+
+describe("Enum with custom constr indices", () => {
+    const ENUM_DEF = `enum E {
+        A
+    42: B {
+            a: Int
+            b: Int
+        }
+        C
+    }`
+
+    describe("is_valid_data", () => {
+        const runner =
+            compileForRun(`testing enum_with_custom_constr_index_is_valid_data
+        ${ENUM_DEF}
+        
+        func main(d: Data) -> Bool {
+            E::is_valid_data(d)
+        }`)
+
+        it("returns true for constrData with tag 0 and no fields", () => {
+            runner([constr(0)], True)
+        })
+
+        it("returns false for constrData with tag 1 and no fields", () => {
+            runner([constr(1)], False)
+        })
+
+        it("returns false for constrData with tag 1 and two int fields", () => {
+            runner([constr(1, int(0), int(0))], False)
+        })
+
+        it("returns true for constrData with tag 42 and two int fields", () => {
+            runner([constr(42, int(0), int(0))], True)
+        })
+
+        it("returns false for constrData with tag 43 and two int fields", () => {
+            runner([constr(43, int(0), int(0))], False)
+        })
+
+        it("returns true for constrData with tag 43 and no fields", () => {
+            runner([constr(43)], True)
+        })
+    })
+})

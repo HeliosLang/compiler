@@ -41,10 +41,10 @@ export class EnumMember {
     _parent
 
     /**
-     * @private
-     * @type {number | undefined}
+     * @readonly
+     * @type {number}
      */
-    _constrIndex
+    constrIndex
 
     /**
      * @private
@@ -54,24 +54,14 @@ export class EnumMember {
     _dataDef
 
     /**
+     * @param {number} constrIndex
      * @param {Word} name
      * @param {DataField[]} fields
      */
-    constructor(name, fields) {
+    constructor(constrIndex, name, fields) {
         this._parent = undefined // registered later
-        this._constrIndex = undefined
+        this.constrIndex = constrIndex
         this._dataDef = new DataDefinition(name.site, name, fields)
-    }
-
-    /**
-     * @returns {number}
-     */
-    get constrIndex() {
-        if (this._constrIndex === undefined) {
-            throw new Error("constrIndex not set")
-        } else {
-            return this._constrIndex
-        }
     }
 
     /**
@@ -83,11 +73,9 @@ export class EnumMember {
 
     /**
      * @param {EnumStatementI} parent
-     * @param {number} i
      */
-    registerParent(parent, i) {
+    registerParent(parent) {
         this._parent = parent
-        this._constrIndex = i
     }
 
     /**
@@ -289,6 +277,13 @@ export class EnumMember {
 			)
 		}`
         })
+    }
+
+    /**
+     * @returns {string}
+     */
+    toString() {
+        return `${this.constrIndex.toString}: ${this._dataDef.toString()}`
     }
 
     /**
