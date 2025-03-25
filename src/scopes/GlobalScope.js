@@ -7,7 +7,6 @@ import {
     BoolType,
     ByteArrayType,
     Cip67Namespace,
-    ContractContextType,
     DatumHashType,
     DCertType,
     DurationType,
@@ -15,7 +14,6 @@ import {
     IntType,
     MintingPolicyHashType,
     MixedArgsType,
-    NetworkType,
     PrintFunc,
     PubKeyType,
     PubKeyHashType,
@@ -35,7 +33,6 @@ import {
     TimeType,
     TimeRangeType,
     TxType,
-    TxBuilderType,
     TxIdType,
     TxInputType,
     TxOutputType,
@@ -44,7 +41,6 @@ import {
     ValidatorHashType,
     ValueType,
     ValuableTypeClass,
-    WalletType,
     NamedNamespace
 } from "../typecheck/index.js"
 
@@ -232,11 +228,6 @@ export class GlobalScope {
         if (info.scriptTypes && Object.keys(info.scriptTypes).length > 0) {
             scope.set("Scripts", new ScriptsType(info.scriptTypes))
         }
-
-        scope.set("ContractContext", new ContractContextType())
-        scope.set("TxBuilder", TxBuilderType)
-        scope.set("Wallet", WalletType)
-        scope.set("Network", NetworkType)
 
         // builtin functions
         scope.set("assert", AssertFunc)

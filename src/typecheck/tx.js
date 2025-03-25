@@ -662,69 +662,6 @@ export class ScriptsType extends MacroType {
 }
 
 /**
- * @implements {DataType}
- */
-export class ContractContextType extends MacroType {
-    constructor() {
-        super()
-    }
-
-    /**
-     * @type {InstanceMembers}
-     */
-    get instanceMembers() {
-        return {
-            now: new FuncType([], TimeType),
-            agent: WalletType,
-            network: NetworkType,
-            new_tx_builder: new FuncType([], TxBuilderType)
-        }
-    }
-
-    /**
-     * @type {string}
-     */
-    get name() {
-        return "ContractContext"
-    }
-
-    /**
-     * @type {string}
-     */
-    get path() {
-        return "__helios__contractcontext"
-    }
-
-    /**
-     * @param {Type} other
-     * @returns {boolean}
-     */
-    isBaseOf(other) {
-        return other instanceof ContractContextType
-    }
-}
-
-export const WalletType = new GenericType({
-    name: "Wallet",
-    genInstanceMembers: (self) => ({
-        address: AddressType,
-        hash: PubKeyHashType,
-        pick: new FuncType([ValueType], ListType$(TxInputType))
-    }),
-    genTypeMembers: (self) => ({})
-})
-
-export const NetworkType = new GenericType({
-    name: "Network",
-    genInstanceMembers: (self) => ({
-        pick: new FuncType([AddressType, ValueType], ListType$(TxInputType)),
-        get: new FuncType([TxOutputIdType], TxInputType),
-        utxos_at: new FuncType([AddressType], IteratorType$([TxInputType]))
-    }),
-    genTypeMembers: (self) => ({})
-})
-
-/**
  * Builtin ScriptPurpose type (Minting| Spending| Rewarding | Certifying)
  * @type {DataType}
  */
@@ -1025,59 +962,6 @@ const StakingPurposeRewardingType = new GenericEnumMemberType({
     }),
     genTypeMembers: (self) => ({
         ...genCommonEnumTypeMembers(self, StakingPurposeType)
-    })
-})
-
-export const TxBuilderType = new GenericType({
-    name: "TxBuilder",
-    path: "__helios__txbuilder",
-    genInstanceMembers: (self) => ({
-        ...genCommonInstanceMembers(self),
-        add_output: new FuncType([TxOutputType], self),
-        add_outputs: new FuncType([ListType$(TxOutputType)], self),
-        add_ref_input: new FuncType([TxInputType], self),
-        add_signer: new FuncType([PubKeyHashType], self),
-        finalize: new FuncType([], TxType),
-        pay: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass())
-            return new ParametricFunc(
-                [a],
-                new FuncType([AddressType, ValueType, a.ref], self)
-            )
-        })(),
-        pay_if_true: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass())
-            return new ParametricFunc(
-                [a],
-                new FuncType([BoolType, AddressType, ValueType, a.ref], self)
-            )
-        })(),
-        mint: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass())
-            return new ParametricFunc(
-                [a],
-                new FuncType([ValueType, a.ref], self)
-            )
-        })(),
-        redeem: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass())
-            return new ParametricFunc(
-                [a],
-                new FuncType([TxInputType, a.ref], self)
-            )
-        })(),
-        redeem_many: (() => {
-            const a = new Parameter("a", `${FTPP}0`, new DefaultTypeClass())
-            return new ParametricFunc(
-                [a],
-                new FuncType([ListType$(TxInputType), a.ref], self)
-            )
-        })(),
-        spend: new FuncType([TxInputType], self),
-        spend_many: new FuncType([ListType$(TxInputType)], self)
-    }),
-    genTypeMembers: (self) => ({
-        ...genCommonTypeMembers(self)
     })
 })
 

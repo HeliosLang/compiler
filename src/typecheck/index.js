@@ -60,25 +60,21 @@ export { DurationType, TimeType, TimeRangeType } from "./time.js"
 export {
     AddressType,
     Cip67Namespace,
-    ContractContextType,
     DCertType,
     SpendingCredentialType,
     TxOutputDatumType,
     MacroType,
     MixedArgsType,
-    NetworkType,
     ScriptsType,
     ScriptContextNamespace,
     ScriptPurposeType,
     StakingCredentialType,
     StakingPurposeType,
-    TxBuilderType,
     TxType,
     TxIdType,
     TxInputType,
     TxOutputType,
-    TxOutputIdType,
-    WalletType
+    TxOutputIdType
 } from "./tx.js"
 
 /**
