@@ -57,7 +57,11 @@ export function makePipedExprParser(parseValueExpr) {
                         })
                     ]
 
-                    const rr = makeTokenReader({ tokens, errors: ctx.errors, ignoreNewlines: true })
+                    const rr = makeTokenReader({
+                        tokens,
+                        errors: ctx.errors,
+                        ignoreNewlines: true
+                    })
 
                     return parseValueExpr(ctx.withReader(rr), precedence + 1)
                 } else {
