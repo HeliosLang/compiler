@@ -66,7 +66,7 @@
     },
     "dependencies": {
         "@helios-lang/codec-utils": "^0.3.4",
-        "@helios-lang/compiler-utils": "^0.5.4",
+        "@helios-lang/compiler-utils": "^0.5.10",
         "@helios-lang/ir": "0.3.5",
         "@helios-lang/type-utils": "^0.2.8",
         "@helios-lang/uplc": "^0.7.12"

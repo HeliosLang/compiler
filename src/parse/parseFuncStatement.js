@@ -8,6 +8,7 @@ import { parseTypeParameters } from "./parseTypeParameters.js"
 import { parseValueExpr } from "./parseValueExpr.js"
 
 const parseFuncLiteralExpr = makeFuncLiteralExprParser(parseValueExpr)
+
 /**
  * @param {ParseContext} ctx
  * @param {Expr | undefined} methodOf

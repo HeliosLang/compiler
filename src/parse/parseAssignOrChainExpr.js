@@ -4,7 +4,8 @@ import { ParseContext } from "./ParseContext.js"
 import { parseDestructExpr } from "./parseDestructExpr.js"
 
 /**
- * @typedef {import("./ValueExprParser.js").ValueExprParser} ValueExprParser
+ * @import {TokenReader} from "@helios-lang/compiler-utils"
+ * @import {ValueExprParser} from "./ValueExprParser.js"
  */
 
 /**
@@ -18,7 +19,8 @@ export function makeAssignOrChainExprParser(parseValueExpr) {
      * @returns {Expr}
      */
     function parseAssignOrChainExpr(ctx, precedence) {
-        const r = ctx.reader
+        const r = insertSemicolons(ctx.reader)
+        ctx = ctx.withReader(r)
 
         let m
 
@@ -73,4 +75,29 @@ export function makeAssignOrChainExprParser(parseValueExpr) {
     }
 
     return parseAssignOrChainExpr
+}
+
+/**
+ * @param {TokenReader} reader
+ * @returns {TokenReader}
+ */
+function insertSemicolons(reader) {
+    return reader.insertSemicolons([
+        "+",
+        "-",
+        "=",
+        ";",
+        "*",
+        "/",
+        ".",
+        ":",
+        "::",
+        "&&",
+        "||",
+        "<",
+        "<=",
+        ">",
+        ">=",
+        "%"
+    ])
 }

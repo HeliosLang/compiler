@@ -505,11 +505,7 @@ export function makeChainedExprParser(parseValueExpr) {
         } else {
             r.endMatch(false)
 
-            const expr = parseValueExpr(ctx, 0)
-
-            r.end()
-
-            return expr
+            return parseValueExpr(ctx, 0)
         }
     }
 
@@ -546,7 +542,8 @@ export function makeChainedExprParser(parseValueExpr) {
             // TODO: this is ugly, find a better approach
             const readerWithItemTypeTokens = makeTokenReader({
                 tokens: itemTypeTokens.concat(itemReader.tokens),
-                errors: ctx.errors
+                errors: ctx.errors,
+                ignoreNewlines: true
             })
 
             return parseValueExpr(ctx.withReader(readerWithItemTypeTokens), 0)

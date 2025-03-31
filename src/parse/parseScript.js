@@ -17,17 +17,6 @@ import { parseStatements } from "./parseStatements.js"
 
 const ENTRY_POINT_NAME = "main"
 
-const AUTOMATIC_METHODS = [
-    "__eq",
-    "__neq",
-    "copy",
-    "show",
-    "from_data",
-    "from_data_safe",
-    "is_valid_data",
-    "serialize"
-]
-
 /**
  * `entryPointIndex` is the index in the `statements` array of the `main` function
  *   `entryPointIndex` is set to -1 for modules
@@ -89,12 +78,17 @@ function tokenizeScript(rawSrc, errorCollector) {
     const src = createSource(rawSrc)
 
     const tokenizer = makeTokenizer(src, {
-        errorCollector: errorCollector
+        errorCollector: errorCollector,
+        preserveNewlines: true
     })
 
     const ts = tokenizer.tokenize()
 
-    return makeTokenReader({ tokens: ts, errors: errorCollector })
+    return makeTokenReader({
+        tokens: ts,
+        errors: errorCollector,
+        ignoreNewlines: true
+    })
 }
 
 /**

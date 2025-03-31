@@ -134,8 +134,8 @@ describe("Switch", () => {
                 F
             }
             func main() -> Bool {
-                a: MyEnum1 = MyEnum1::A;
-                b: MyEnum2 = MyEnum2::D;
+                a: MyEnum1 = MyEnum1::A
+                b: MyEnum2 = MyEnum2::D
                 
                 (a, b).switch{
                     (B, E) => false,
@@ -153,8 +153,8 @@ describe("Switch", () => {
             description: "typecheck fails for unreachable default case",
             main: `testing multi_switch_wildcard_unreachable
             func main() -> Bool {
-                a: Option[Int] = Option[Int]::Some{10};
-                b: Option[ByteArray] = Option[ByteArray]::Some{#};
+                a: Option[Int] = Option[Int]::Some{10}
+                b: Option[ByteArray] = Option[ByteArray]::Some{#}
                 
                 (a, b).switch{
                     (Some, _) => true,
@@ -169,7 +169,7 @@ describe("Switch", () => {
             description: "typecheck fails if control type isn't an enum",
             main: `testing switch_not_enum
             func main() -> Bool {
-                a = 100;
+                a = 100
                 a.switch{
                     Int => true,
                     else => false
@@ -182,8 +182,8 @@ describe("Switch", () => {
                 "typecheck fails if one of control tuple type isn't an enum",
             main: `testing switch_not_enum
             func main() -> Bool {
-                a = 100;
-                b: Option[Int] = Option[Int]::Some{100};
+                a = 100
+                b: Option[Int] = Option[Int]::Some{100}
                 (b, a).switch{
                     (Some, Int) => true,
                     else => false
