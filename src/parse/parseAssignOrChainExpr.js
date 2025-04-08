@@ -98,6 +98,9 @@ function insertSemicolons(reader) {
         "<=",
         ">",
         ">=",
-        "%"
+        "!=",
+        "==",
+        "%",
+        "else"
     ])
 }
