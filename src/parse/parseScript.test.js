@@ -87,4 +87,13 @@ describe(parseScript.name, () => {
             higher_order()(1, 1)
         }`)
     })
+
+    it("is able to parse empty literal list with newline", () => {
+        parseScript(`testing empty_string_list
+        
+        func main() -> []String {
+            []String{
+            }
+        }`)
+    })
 })
