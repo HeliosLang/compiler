@@ -9,7 +9,8 @@ import {
     constr,
     int,
     list,
-    map
+    map,
+    str
 } from "./utils.js"
 
 describe("Value", () => {
@@ -1148,6 +1149,119 @@ describe("Value", () => {
     })
 
     describe("Value.show", () => {
+        const runnerLovelace = compileForRun(`testing value_show
+        func main(v: Value) -> String {
+            v.show()
+        }`)
+
+        const runnerAda = compileForRun(`testing value_show
+            func main(v: Value) -> String {
+                v.show(ada: true)
+            }`)
+
+        it("return 'lovelace 1\n' for a value containing only a single lovelace", () => {
+            runnerLovelace(
+                [map([[bytes([]), map([[bytes([]), int(1)]])]])],
+                str("lovelace 1\n")
+            )
+        })
+
+        it("correctly formats value with a token and some lovelace", () => {
+            runnerLovelace(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(1)]])
+                        ],
+                        [bytes([]), map([[bytes([]), int(100)]])]
+                    ])
+                ],
+                str(
+                    "00000000000000000000000000000000000000000000000000000000\n  . 1\nlovelace 100\n"
+                )
+            )
+        })
+
+        it("correctly formats value with a token and some ada", () => {
+            runnerAda(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(1)]])
+                        ],
+                        [bytes([]), map([[bytes([]), int(100)]])]
+                    ])
+                ],
+                str(
+                    "00000000000000000000000000000000000000000000000000000000\n  . 1\nada 0.000100\n"
+                )
+            )
+        })
+
+        it("correctly formats value with a token and some ada", () => {
+            runnerAda(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), int(1)]])
+                        ],
+                        [bytes([]), map([[bytes([]), int(1_000_000)]])]
+                    ])
+                ],
+                str(
+                    "00000000000000000000000000000000000000000000000000000000\n  . 1\nada 1.000000\n"
+                )
+            )
+        })
+
+        it("returns empty string if mph isn't a bytearray", () => {
+            runnerLovelace(
+                [map([[int(0), map([[bytes([]), int(1)]])]])],
+                str("")
+            )
+        })
+
+        it("returns  empty second row if tokens isn't a map", () => {
+            runnerLovelace(
+                [map([[bytes(new Array(28).fill(0)), list(int(1), int(1))]])],
+                str(
+                    "00000000000000000000000000000000000000000000000000000000\n"
+                )
+            )
+        })
+
+        it("returns empty second row if token name isn't a bytearray", () => {
+            runnerLovelace(
+                [
+                    map([
+                        [bytes(new Array(28).fill(0)), map([[int(1), int(1)]])]
+                    ])
+                ],
+                str(
+                    "00000000000000000000000000000000000000000000000000000000\n"
+                )
+            )
+        })
+
+        it("returns empty second row if token qty isn't an int", () => {
+            runnerLovelace(
+                [
+                    map([
+                        [
+                            bytes(new Array(28).fill(0)),
+                            map([[bytes([]), bytes([])]])
+                        ]
+                    ])
+                ],
+                str(
+                    "00000000000000000000000000000000000000000000000000000000\n"
+                )
+            )
+        })
+
         it("is optimized out in print()", () => {
             assertOptimizedAs(
                 `

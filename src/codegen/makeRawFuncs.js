@@ -3893,6 +3893,24 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
+    add(
+        new RawFunc(
+            "__helios__bytearray__decode_utf8_safe",
+            `(self) -> {
+		() -> {
+			__core__ifThenElse(
+				__helios__string__is_valid_utf8(self),
+				() -> {
+				 	__core__decodeUtf8__safe(self)
+				},
+				() -> {
+				 	__helios__bytearray__show(self)()
+				}
+			)()
+		}
+	}`
+        )
+    )
 
     // Iterator builtins (lazy lists)
     // many iterator methods must be generated for different number of arguments
@@ -7860,7 +7878,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 									3,
 									__helios__data__show_map_data(
 										(map) -> {
-											__helios__value__show(map)()
+											__helios__value__show(map)(false, ())
 										}
 									)
 								)(fields);
@@ -7868,7 +7886,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 									4,
 									__helios__data__show_map_data(
 										(map) -> {
-											__helios__value__show(map)()
+											__helios__value__show(map)(false, ())
 										}
 									)
 								)(fields);
@@ -8709,7 +8727,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 									1,
 									__helios__data__show_map_data(
 										(m) -> {
-											__helios__value__show(m)()
+											__helios__value__show(m)(false, ())
 										}
 									)
 								)(fields);
@@ -12132,52 +12150,100 @@ export function makeRawFunctions(simplify, isTestnet) {
         new RawFunc(
             "__helios__value__show",
             `(self) -> {
-		() -> {
+		(__useopt__ada, ada) -> {
 			__helios__common__fold(
 				self,
 				(prev, pair) -> {
-					mph = __core__unBData__safe(__core__fstPair(pair));
-					tokens = __core__unMapData__safe(__core__sndPair(pair));
-					__helios__common__fold(
-						tokens,
-						(prev, pair) -> {
-							token_name = __core__unBData__safe(__core__fstPair(pair));
-							qty = __core__unIData__safe(__core__sndPair(pair));
-							__helios__string____add(
-								prev,
-								__core__ifThenElse(
-									__helios__mintingpolicyhash____eq(mph, #),
-									() -> {
-										__helios__string____add(
-											"lovelace: ",
-											__helios__string____add(
-												__helios__int__show(qty)(),
+					mph_data = __core__fstPair(pair);
+					tokens_data = __core__sndPair(pair);
+					__helios__string____add(
+						prev,
+						__helios__common__unBData__safe(
+							mph_data,
+							(mph) -> {
+								__helios__string____add(
+									__core__ifThenElse(
+										__helios__mintingpolicyhash____eq(mph, #),
+										() -> {""},
+										() -> {
+										 	__helios__string____add(
+												__helios__mintingpolicyhash__show(mph)(),
 												"\\n"
 											)
-										)
-									},
-									() -> {
-										__helios__string____add(
-											__helios__mintingpolicyhash__show(mph)(),
-											__helios__string____add(
-												".",
-												__helios__string____add(
-													__helios__bytearray__show(token_name)(),
-													__helios__string____add(
-														": ",
-														__helios__string____add(
-															__helios__int__show(qty)(),
-															"\\n"
-														)
+										}
+									)(),
+									__helios__common__unMapData__safe(
+										tokens_data,
+										(tokens) -> {
+											__helios__common__fold(
+												tokens,
+												(prev, pair) -> {
+													token_name_data = __core__fstPair(pair);
+													qty_data = __core__sndPair(pair);
+													__helios__common__unBData__safe(
+														token_name_data,
+														(token_name) -> {
+															__helios__common__unIData__safe(
+																qty_data,
+																(qty) -> {
+																	__core__ifThenElse(
+																		__helios__mintingpolicyhash____eq(mph, #),
+																		() -> {
+																			__core__ifThenElse(
+																				__helios__bool__and(() -> {__useopt__ada}, () -> {ada}),
+																				() -> {
+																				 	__helios__string____add(
+																						"ada ",
+																						__helios__string____add(
+																							__helios__real__show(qty)(),
+																							"\\n"
+																						)
+																					)
+																				},
+																				() -> {
+																					__helios__string____add(
+																						"lovelace ",
+																						__helios__string____add(
+																							__helios__int__show(qty)(),
+																							"\\n"
+																						)
+																					)
+																				}
+																			)()
+																		},
+																		() -> {
+																			__helios__string____add(
+																				"  .",
+																				__helios__string____add(
+																					__helios__bytearray__decode_utf8_safe(token_name)(),
+																					__helios__string____add(
+																						" ",
+																						__helios__string____add(
+																							__helios__int__show(qty)(),
+																							"\\n"
+																						)
+																					)
+																				)
+																			)
+																		}
+																	)()
+																},
+																() -> {""}
+															)
+														},
+														() -> {""}
 													)
-												)
+														
+												},
+												prev
 											)
-										)
-									}
-								)()
-							)
-						},
-						prev
+										},
+										() -> {""}
+									)
+								)
+							},
+							() -> {""}
+						)
 					)
 				},
 				""

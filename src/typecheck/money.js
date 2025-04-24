@@ -1,5 +1,6 @@
+import { makeWord } from "@helios-lang/compiler-utils"
 import { expectDefined } from "@helios-lang/type-utils"
-import { DataEntity, FuncType, GenericType } from "./common.js"
+import { ArgType, DataEntity, FuncType, GenericType } from "./common.js"
 import { ListType$, MapType$ } from "./containers.js"
 import { MintingPolicyHashType } from "./hashes.js"
 import { Parameter } from "./Parameter.js"
@@ -10,6 +11,7 @@ import {
     BoolType,
     ByteArrayType,
     IntType,
+    StringType,
     genCommonInstanceMembers,
     genCommonTypeMembers
 } from "./primitives.js"
@@ -63,7 +65,6 @@ export const ValueType = new GenericType({
         name: "Value"
     }),
     genInstanceMembers: (self) => ({
-        ...genCommonInstanceMembers(self),
         contains: new FuncType([self], BoolType),
         contains_policy: new FuncType([MintingPolicyHashType], BoolType),
         delete_lovelace: new FuncType([], self),
@@ -84,6 +85,11 @@ export const ValueType = new GenericType({
         ),
         get_safe: new FuncType([AssetClassType], IntType),
         is_zero: new FuncType([], BoolType),
+        serialize: new FuncType([], ByteArrayType),
+        show: new FuncType(
+            [new ArgType(makeWord({ value: "ada" }), BoolType, true)],
+            StringType
+        ),
         sort: new FuncType([], self),
         to_map: new FuncType(
             [],

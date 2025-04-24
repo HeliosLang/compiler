@@ -8,7 +8,8 @@ import {
     constr,
     int,
     list,
-    map
+    map,
+    str
 } from "./utils.js"
 import { encodeUtf8 } from "@helios-lang/codec-utils"
 
@@ -57,6 +58,36 @@ describe("ByteArray", () => {
                     print(bytes.show())
                 }`,
                 `testing bytearray_show_in_print_expected_optimized
+                func main(_: ByteArray) -> () {
+                    ()
+                }`
+            )
+        })
+    })
+
+    describe("ByteArray.decode_utf8_safe", () => {
+        const runner = compileForRun(`
+            testing bytearray_decode_utf8_safe
+            
+            func main(bytes: ByteArray) -> String {
+                bytes.decode_utf8_safe()
+            }`)
+
+        it("returns 'ffff' for #ffff", () => {
+            runner([bytes("ffff")], str("ffff"))
+        })
+
+        it("returns 'Hello World' for #48656c6c6f20576f726c64", () => {
+            runner([bytes("48656c6c6f20576f726c64")], str("Hello World"))
+        })
+
+        it("is optimized out in print", () => {
+            assertOptimizedAs(
+                `testing bytearray_decode_utf8_safe_in_print_actual
+                func main(bytes: ByteArray) -> () {
+                    print(bytes.decode_utf8_safe())
+                }`,
+                `testing bytearray_decode_utf8_safe_in_print_expected_optimized
                 func main(_: ByteArray) -> () {
                     ()
                 }`

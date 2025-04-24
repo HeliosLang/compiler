@@ -1,4 +1,5 @@
-import { describe, it, run } from "node:test"
+import { describe, it } from "node:test"
+import { encodeUtf8 } from "@helios-lang/codec-utils"
 import {
     False,
     True,
@@ -11,7 +12,6 @@ import {
     map,
     str
 } from "./utils.js"
-import { encodeUtf8 } from "@helios-lang/codec-utils"
 
 describe("String", () => {
     describe("String == String", () => {
@@ -165,6 +165,21 @@ describe("String", () => {
 
         it("returns false for listData", () => {
             runner([list()], False)
+        })
+    })
+
+    describe("String::is_valid_utf8", () => {
+        const runner = compileForRun(`testing string_is_valid_utf8
+        func main(bytes: ByteArray) -> Bool {
+            String::is_valid_utf8(bytes)
+        }`)
+
+        it("#2020 is valid utf8", () => {
+            runner([bytes("2020")], True)
+        })
+
+        it("#ffff isn't valid utf8", () => {
+            runner([bytes("ffff")], False)
         })
     })
 

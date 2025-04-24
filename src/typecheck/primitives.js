@@ -105,6 +105,7 @@ export const ByteArrayType = new GenericType({
         ...genCommonInstanceMembers(self),
         blake2b: new FuncType([], self),
         decode_utf8: new FuncType([], StringType),
+        decode_utf8_safe: new FuncType([], StringType),
         ends_with: new FuncType([self], BoolType),
         length: IntType,
         prepend: new FuncType([IntType], self),
