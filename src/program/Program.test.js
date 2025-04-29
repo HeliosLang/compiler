@@ -437,4 +437,67 @@ describe(Program.name, () => {
             }
         }
     })
+
+    const trailingSemicolon = `testing final_semicolon
+    func main() -> Int {
+        0;
+    }`
+
+    it("typechecks with trailingSemicolon", () => {
+        new Program(trailingSemicolon)
+    })
+
+    const trailingAssignment = `testing final_assignment
+    func main() -> Int {
+        a = 0;
+    }`
+
+    it("throws during parsing of program with trailing assignment", () => {
+        throws(() => {
+            new Program(trailingAssignment)
+        }, /expected expression after assignment/)
+    })
+
+    const trailingDoubleSemicolon = `testing final_double_semicolon
+    func main() -> Int {
+        0;;
+    }`
+
+    it("throws during parsing of program with two trailing semicolons", () => {
+        throws(() => {
+            new Program(trailingDoubleSemicolon)
+        }, /expected expression before ';'/)
+    })
+
+    const onlySemicolon = `testing only_semicolon
+    func main() -> Int {
+        ;
+    }`
+
+    it("throws during parsing of program with only one semicolon", () => {
+        throws(() => {
+            new Program(onlySemicolon)
+        }, /expected expression before ';'/)
+    })
+
+    const leadingSemicolon = `testing leading_semicolon
+    func main() -> Int {
+        ;0
+    }`
+
+    it("throws during parsing of program with leading semicolon", () => {
+        throws(() => {
+            new Program(leadingSemicolon)
+        }, /expected expression before ';'/)
+    })
+
+    const emptyProgram = `testing only_semicolon
+    func main() -> Int {
+    }`
+
+    it("throws during parsing of empty program", () => {
+        throws(() => {
+            new Program(emptyProgram)
+        })
+    })
 })

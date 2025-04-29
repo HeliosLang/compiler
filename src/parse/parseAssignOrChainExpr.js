@@ -1,5 +1,10 @@
 import { symbol } from "@helios-lang/compiler-utils"
-import { AssignExpr, ChainExpr, Expr } from "../expressions/index.js"
+import {
+    AnyValueExpr,
+    AssignExpr,
+    ChainExpr,
+    Expr
+} from "../expressions/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { parseDestructExpr } from "./parseDestructExpr.js"
 
@@ -27,10 +32,9 @@ export function makeAssignOrChainExprParser(parseValueExpr) {
         if ((m = r.findNextMatch(symbol(";")))) {
             const [upstreamReader, scolon] = m
 
-            const downstreamExpr = parseValueExpr(
-                ctx.atSite(scolon.site),
-                precedence
-            )
+            const downstreamExpr = ctx.reader.isEof()
+                ? undefined
+                : parseValueExpr(ctx.atSite(scolon.site), precedence)
 
             if ((m = upstreamReader.findNextMatch(symbol("=")))) {
                 const [lhsReader, equals] = m
@@ -43,24 +47,56 @@ export function makeAssignOrChainExprParser(parseValueExpr) {
                     precedence + 1
                 )
 
+                if (!downstreamExpr) {
+                    ctx.errors.syntax(
+                        equals.site,
+                        "expected expression after assignment"
+                    )
+                }
+
                 return new AssignExpr(
                     equals.site,
                     scolon.site,
                     lhs,
                     upstreamExpr,
-                    downstreamExpr
+                    downstreamExpr ?? new AnyValueExpr(scolon.site)
                 )
             } else {
                 upstreamReader.endMatch(false)
 
-                const upstreamExpr = parseValueExpr(
-                    ctx.withReader(upstreamReader),
-                    precedence + 1
-                )
+                if (upstreamReader.isEof()) {
+                    ctx.errors.syntax(
+                        scolon.site,
+                        "expected expression before ';'"
+                    )
 
-                upstreamReader.end()
+                    if (!downstreamExpr) {
+                        return new AnyValueExpr(scolon.site)
+                    } else {
+                        return new ChainExpr(
+                            scolon.site,
+                            new AnyValueExpr(scolon.site),
+                            downstreamExpr
+                        )
+                    }
+                } else {
+                    const upstreamExpr = parseValueExpr(
+                        ctx.withReader(upstreamReader),
+                        precedence + 1
+                    )
 
-                return new ChainExpr(scolon.site, upstreamExpr, downstreamExpr)
+                    upstreamReader.end()
+
+                    if (!downstreamExpr) {
+                        return upstreamExpr
+                    } else {
+                        return new ChainExpr(
+                            scolon.site,
+                            upstreamExpr,
+                            downstreamExpr
+                        )
+                    }
+                }
             }
         } else {
             if ((m = r.findNextMatch(symbol("=")))) {
@@ -82,6 +118,10 @@ export function makeAssignOrChainExprParser(parseValueExpr) {
  * @returns {TokenReader}
  */
 function insertSemicolons(reader) {
+    if (reader.pos != 0) {
+        return reader
+    }
+
     return reader.insertSemicolons([
         "+",
         "-",
