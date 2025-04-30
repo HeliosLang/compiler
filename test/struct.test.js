@@ -171,7 +171,7 @@ describe("mStruct Pair[Int, Int]", () => {
             runner([map([[$a, int(0)]])], False)
         })
 
-        it("issues warnings from unoptimized version (missing field and invalid ‹struct-name›)", () => {
+        it("issues warnings from unoptimized version (missing field by-name, and invalid ‹struct-name›)", () => {
             const [result] = runner([map([[$a, int(0)]])], False)
             const logs = result.logs.map((l) => l.message)
             if (!logs.some((x) => x.match(/field not found: b/))) {
@@ -181,7 +181,7 @@ describe("mStruct Pair[Int, Int]", () => {
                         logs.map((l) => `unoptimized> ${l}`).join("\n")
                 )
             }
-            if (!logs.some((x) => x.match(/invalid Pair data/))) {
+            if (!logs.some((x) => x.match(/invalid data in Pair.b/))) {
                 throw new Error(
                     "Expected warning about invalid Pair, got logs:\n" +
                         logs.map((l) => `unoptimized> ${l}`).join("\n")
