@@ -527,7 +527,7 @@ export class DataDefinition {
 							${ir}
 						},
 						() -> {
-                            __core__trace("Warning: invalid ${mStructName} data", 
+                            __core__trace("Warning: invalid data in ${mStructName}.${f.encodedFieldName}", 
                                 () -> { 
                                     false 
                                 }
