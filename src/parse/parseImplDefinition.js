@@ -35,6 +35,7 @@ export function parseImplDefinition(ctx, selfTypeExpr) {
             )
         } else {
             r.endMatch()
+            r.end()
         }
     }
 

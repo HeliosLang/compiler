@@ -96,4 +96,36 @@ describe(parseScript.name, () => {
             }
         }`)
     })
+
+    it("no nodejs stack overflow if func keyword is missing", () => {
+        throws(() => {
+            parseScript(`module VestingData
+
+                enum VestingState {
+                    Initializing
+                    VerifyingBeneficiary
+                    Active
+                    Paused {
+                        reason: String
+                        infoRef: Option[AssetClass]
+                    }
+                
+                    func validate(self) -> Bool {
+                        self.switch {
+                            Paused{reason, infoRef} => {
+                                self.validateReason(reason, infoRef)
+                            },
+                            _ => true
+                        }
+                    }
+                
+                    validateReason(self, reason: String, infoRef: Option[AssetClass]) -> Bool {
+                        REQT("the reason must be at least 12 characters");
+                        assert(reason.encode_utf8().length >= 12, "reason < 12 - too short");
+                
+                        false
+                    }
+                }`)
+        }, /SyntaxError/)
+    })
 })

@@ -28,7 +28,7 @@
 //     > console.log(new helios.Program("spending my_validator ...").compile().toString());
 //
 //
-// Documentation: https://www.hyperion-bt.org/helios-book
+// Documentation: https://helios-lang.io/docs/lang/intro
 //
 //
 // License text:
