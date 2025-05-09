@@ -13,8 +13,9 @@ import { BoolType, ByteArrayType, RawDataType } from "./primitives.js"
 
 /**
  * @import { Site } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/uplc").UplcData} UplcData
+ */
+
+/**
  * @typedef {import("./common.js").TypeSchema} TypeSchema
  * @typedef {import("./common.js").GenericTypeProps} GenericTypeProps
  * @typedef {import("./common.js").GenericEnumMemberTypeProps} GenericEnumMemberTypeProps
