@@ -115,6 +115,10 @@ export const PubKeyType = new GenericType({
     genTypeMembers: (self) => ({
         ...genCommonTypeMembers(self),
         new: new FuncType([ByteArrayType], self)
+    }),
+    genTypeSchema: (self) => ({
+        kind: /** @type {const} */ ("internal"),
+        name: "PubKey"
     })
 })
 
