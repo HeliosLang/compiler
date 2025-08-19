@@ -9,9 +9,10 @@ import { MainModule } from "./MainModule.js"
 import { GenericEntryPoint } from "./GenericEntryPoint.js"
 import { MixedEntryPoint } from "./MixedEntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
+import { ModuleEntryPoint } from "./ModuleEntryPoint.js"
 
 /**
- * @import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
+ * @import { ErrorCollector, Site, Source } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
  * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint
@@ -21,18 +22,26 @@ import { ModuleCollection } from "./ModuleCollection.js"
  * Creates a new entry point
  * This function can't be placed inside EntryPoint.js because that would create a circular import dependency
  * @param {string | Source} mainSrc
- * @param {(string | Source)[]} moduleSrcs - optional sources of modules, which can be used for imports
- * @param {ScriptTypes} validatorTypes
- * @param {ErrorCollector} errorCollector
+ * @param {object} options
+ * @param {(string | Source)[]} options.moduleSrcs - optional sources of modules, which can be used for imports
+ * @param {ScriptTypes} options.validatorTypes
+ * @param {ErrorCollector} options.errorCollector
+ * @param {boolean} [options.allowModuleEntryPoint]
  * @returns {EntryPoint}
  */
 export function newEntryPoint(
     mainSrc,
-    moduleSrcs,
-    validatorTypes,
-    errorCollector
+    { moduleSrcs, validatorTypes, errorCollector, ...options }
 ) {
-    const [purpose, modules] = parseMain(mainSrc, moduleSrcs, errorCollector)
+    const [purpose, modules, mainHeaderSite] = parseMain(
+        mainSrc,
+        moduleSrcs,
+        errorCollector
+    )
+
+    if (!(options.allowModuleEntryPoint ?? false) && purpose == "module") {
+        errorCollector.syntax(mainHeaderSite, "can't use module for main")
+    }
 
     const moduleCol = new ModuleCollection(modules)
 
@@ -57,6 +66,10 @@ export function newEntryPoint(
         case "staking":
             entryPoint = new StakingEntryPoint(moduleCol)
             break
+        case "module":
+            // not a real entryPoint, but used by the debugger
+            entryPoint = new ModuleEntryPoint(moduleCol)
+            break
         default:
             entryPoint = new GenericEntryPoint(purpose ?? "unknown", moduleCol)
     }
@@ -79,7 +92,7 @@ export function newEntryPoint(
  * @param {string | Source} mainSrc
  * @param {(string | Source)[]} moduleSrcs
  * @param {ErrorCollector} errorCollector
- * @returns {[string | undefined, Module[]]}
+ * @returns {[string, Module[], Site]}
  */
 function parseMain(mainSrc, moduleSrcs, errorCollector) {
     let [purpose, modules] = parseMainInternal(mainSrc, errorCollector)
@@ -91,7 +104,6 @@ function parseMain(mainSrc, moduleSrcs, errorCollector) {
         moduleSrcs,
         errorCollector
     )
-    errorCollector.throw()
 
     const mainImports = modules[0].filterDependencies(imports)
 
@@ -114,11 +126,7 @@ function parseMain(mainSrc, moduleSrcs, errorCollector) {
         .concat(postImports)
         .concat(modules.slice(1))
 
-    if (purpose.value == "module") {
-        throw makeSyntaxError(site, "can't use module for main")
-    }
-
-    return [purpose.value, modules]
+    return [purpose.value, modules, site]
 }
 
 /**
@@ -135,20 +143,28 @@ function parseMainInternal(rawSrc, errorCollector) {
     )
 
     if (purpose && name) {
-        /**
-         * @type {Module[]}
-         */
-        const modules = [
-            new MainModule(name, statements.slice(0, entryPointIndex + 1), src)
-        ]
+        if (purpose.value == "module") {
+            return [purpose, [new Module(name, statements, src)]]
+        } else {
+            /**
+             * @type {Module[]}
+             */
+            const modules = [
+                new MainModule(
+                    name,
+                    statements.slice(0, entryPointIndex + 1),
+                    src
+                )
+            ]
 
-        if (entryPointIndex < statements.length - 1) {
-            modules.push(
-                new Module(name, statements.slice(entryPointIndex + 1), src)
-            )
+            if (entryPointIndex < statements.length - 1) {
+                modules.push(
+                    new Module(name, statements.slice(entryPointIndex + 1), src)
+                )
+            }
+
+            return [purpose, modules]
         }
-
-        return [purpose, modules]
     } else {
         throw new Error("unexpected") // should've been caught by calling src.throwErrors() above
     }

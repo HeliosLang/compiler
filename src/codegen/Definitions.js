@@ -2,22 +2,12 @@ import { $ } from "@helios-lang/ir"
 import { expectDefined } from "@helios-lang/type-utils"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { Definitions } from "../index.js"
+ */
+
+/**
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
- */
-
-/**
- * `keySite` is an optional way to give the key a proper name
- * @typedef {{
- *   content: SourceMappedStringI
- *   keySite?: Site
- * }} Definition
- */
-
-/**
- * TODO: this should be wrapped by a class
- * @typedef {Map<string, Definition>} Definitions
  */
 
 export const TAB = "    "

@@ -7,8 +7,8 @@ import { TypeParameters } from "./TypeParameters.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { Definitions } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */

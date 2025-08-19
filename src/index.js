@@ -61,3 +61,169 @@
 //
 
 export * from "./program/index.js"
+
+/**
+ * @import { Site, Source, Word } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { UplcData } from "@helios-lang/uplc"
+ */
+
+/**
+ * @typedef {object} ScopeI
+ * @prop {boolean} allowShadowing
+ * @prop {[Word, (import("./typecheck/common.js").EvalEntity | ScopeI), boolean]} values
+ * Used by top-scope to loop over all the statements
+ *
+ * @prop {(name: Word) => boolean} has
+ * Checks if scope contains a name
+ *
+ * @prop {(name: Word, value: import("./typecheck/common.js").EvalEntity | ScopeI) => void} set
+ * Sets a named value. Throws an error if not unique
+ *
+ * @prop {(name: Word) => void} remove
+ *
+ * @prop {(name: Word) => (null | ScopeI)} getScope
+ *
+ * @prop {(name: Word) => ((import("./typecheck/common.js").Named & import("./typecheck/common.js").Namespace) | undefined)} getBuiltinNamespace
+ *
+ * @prop {(name: Word | string, dryRun?: boolean) => (import("./typecheck/common.js").EvalEntity | ScopeI)} get
+ *
+ * @prop {boolean} isStrict
+ *
+ * @prop {(onlyIfStrict?: boolean) => void} assertAllUsed
+ * Asserts that all named values are used.
+ * Throws an error if some are unused, unless they start with "_"
+ * Check is only run if we are in strict mode
+ *
+ * @prop {(name: Word) => boolean} isUsed
+ *
+ * @prop {(callback: (name: string, type: import("./typecheck/common.js").Type) => void) => void} loopTypes
+ */
+
+/**
+ * @typedef {ScopeI & {
+ *   kind: "ModuleScope"
+ * }} ModuleScopeI
+ */
+
+/**
+ * @typedef {object} RawFuncI
+ * @prop {string} name
+ * @prop {(ttp?: string[], ftp?: string[]) => SourceMappedStringI} toIR
+ * @prop {(db: Map<string, RawFuncI>, dst: Definitions, ttp?: string[], ftp?: string[]) => void} load
+ */
+
+/**
+ * `keySite` is an optional way to give the key a proper name
+ * @typedef {{
+ *   content: SourceMappedStringI
+ *   keySite?: Site
+ * }} Definition
+ */
+
+/**
+ * TODO: this should be wrapped by a class
+ * @typedef {Map<string, Definition>} Definitions
+ */
+
+/**
+ * @typedef {{
+ *   optimize: boolean
+ *   isTestnet: boolean
+ *   makeParamsSubstitutable?: boolean
+ *   aliasNamespace?: string
+ * }} ToIRContextProps
+ */
+
+/**
+ * @typedef {object} ToIRContextI
+ * @prop {ToIRContextProps} props
+ * @prop {string} indent
+ * @prop {string | undefined} aliasNamespace
+ * @prop {Map<string, RawFuncI>} db
+ * @prop {boolean} isTestnet
+ * @prop {boolean} optimize
+ * @prop {boolean} paramsSubsitutable
+ * @prop {() => ToIRContextI} tab
+ *
+ * @prop {() => Map<string, ((ttp: string[], ftp: string[]) => SourceMappedStringI)>} fetchRawGenerics
+ * Load all raw generics so all possible implementations can be generated correctly during type parameter injection phase
+ *
+ * @prop {(ir: SourceMappedStringI, userDefs?: Definitions | undefined) => Definitions} fetchRawFunctions
+ * Doesn't add templates
+ *
+ * @prop {(alias: string) => ToIRContextI} appendAliasNamespace
+ * Appends parent debugging information which should be passed into IR via site.alias
+ *
+ * @prop {(alias: string) => ToIRContextI} withAliasNamespace
+ * Adds parent debugging information which should be passed into IR via site.alias
+ *
+ * @prop {(ir: SourceMappedStringI) => SourceMappedStringI} wrapWithRawFunctions
+ */
+
+/**
+ * @typedef {object} ConstStatementI
+ * @prop {"ConstStatement"} kind
+ * @prop {import("./typecheck/common.js").DataType} type
+ * @prop {() => boolean} isSet
+ * @prop {(data: UplcData) => void} changeValueSafe
+ * @prop {() => string} toString
+ * @prop {(scope: ScopeI) => import("./typecheck/common.js").DataType} evalType
+ * @prop {(scope: ScopeI) => void} eval
+ * @prop {(ctx: ToIRContextI, map: Definitions) => void} toIR
+ */
+
+/**
+ * @typedef {object} EnumStatementI
+ * @prop {"EnumStatement"} kind
+ * @prop {string} path
+ */
+
+/**
+ * @typedef {object} FuncStatementI
+ */
+
+/**
+ * @typedef {object} ImportFromStatementI
+ */
+
+/**
+ * @typedef {object} ImportModuleStatementI
+ */
+
+/**
+ * @typedef {object} StructStatementI
+ */
+
+/**
+ * @typedef {ConstStatementI
+ *   | EnumStatementI
+ *   | FuncStatementI
+ *   | ImportFromStatementI
+ *   | ImportModuleStatementI
+ *   | StructStatementI
+ * } StatementI
+ */
+
+/**
+ * @typedef {object} ModuleI
+ * @prop {Word} name
+ * @prop {Source} sourceCode
+ * @prop {StatementI[]} statements
+ * @prop {() => string} toString
+ * @prop {(scope: ModuleScopeI) => void} evalTypes
+ * @prop {(modules: ModuleI[], stack: ModuleI[]) => ModuleI[]} filterDependencies
+ * @prop {(callback: (name: string, statement: ConstStatementI) => void) => void} loopConstStatements
+ */
+
+/**
+ * @typedef {object} MainModuleI
+ * @prop {Word} name
+ * @prop {Source} sourceCode
+ * @prop {StatementI[]} statements
+ * @prop {FuncStatementI} mainFunc
+ * @prop {() => string} toString
+ * @prop {(scope: ModuleScopeI) => void} evalTypes
+ * @prop {(modules: ModuleI[], stack: ModuleI[]) => ModuleI[]} filterDependencies
+ * @prop {(callback: (name: string, statement: ConstStatementI) => void) => void} loopConstStatements
+ */

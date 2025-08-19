@@ -5,8 +5,8 @@ import { ConstStatement } from "./ConstStatement.js"
 import { FuncStatement } from "./FuncStatement.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { Definitions } from "../index.js"
  * @typedef {import("../typecheck/index.js").InstanceMembers} InstanceMembers
  * @typedef {import("../typecheck/index.js").TypeMembers} TypeMembers
  */

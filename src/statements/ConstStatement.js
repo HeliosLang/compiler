@@ -9,9 +9,9 @@ import { Statement } from "./Statement.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("@helios-lang/uplc").UplcData} UplcData
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { UplcData } from "@helios-lang/uplc"
+ * @import { Definitions } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -43,6 +43,13 @@ export class ConstStatement extends Statement {
         super(site, name)
         this._typeExpr = typeExpr
         this._valueExpr = valueExpr
+    }
+
+    /**
+     * @type {"ConstStatement"}
+     */
+    get kind() {
+        return "ConstStatement"
     }
 
     /**

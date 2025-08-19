@@ -2,8 +2,8 @@ import { $ } from "@helios-lang/ir"
 import { expectDefined } from "@helios-lang/type-utils"
 
 /**
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("./Definitions.js").Definitions} Definitions
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { Definitions } from "../index.js"
  */
 
 /**

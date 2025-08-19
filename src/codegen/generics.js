@@ -2,8 +2,8 @@ import { ParametricName, RE_IR_PARAMETRIC_NAME } from "./ParametricName.js"
 import { ToIRContext } from "./ToIRContext.js"
 
 /**
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("./Definitions.js").Definitions} Definitions
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { Definitions } from "../index.js"
  */
 
 /**

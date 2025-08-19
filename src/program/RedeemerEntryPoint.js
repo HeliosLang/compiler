@@ -7,8 +7,8 @@ import { EntryPointImpl } from "./EntryPoint.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { Definitions } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type

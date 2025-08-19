@@ -1,22 +1,20 @@
 import { ParametricName } from "./ParametricName.js"
-import { RawFunc, matchBuiltins } from "./RawFunc.js"
+import { matchBuiltins } from "./RawFunc.js"
 import { makeRawFunctions } from "./makeRawFuncs.js"
 import { wrapWithDefs, TAB } from "./Definitions.js"
 
 /**
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("./Definitions.js").Definitions} Definitions
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { Definitions, RawFuncI, ToIRContextProps } from "../index.js"
  */
 
 /**
- * @typedef {{
- *   optimize: boolean
- *   isTestnet: boolean
- *   makeParamsSubstitutable?: boolean
- *   aliasNamespace?: string
- * }} ToIRContextProps
+ * @typedef {import("../index.js").ToIRContextI} ToIRContextI
  */
 
+/**
+ * @implements {ToIRContextI}
+ */
 export class ToIRContext {
     /**
      * @readonly
@@ -31,14 +29,14 @@ export class ToIRContext {
     indent
 
     /**
-     * @type {Map<string, RawFunc>}
+     * @type {Map<string, RawFuncI>}
      */
     _db
 
     /**
      * @param {ToIRContextProps} props
      * @param {string} indent
-     * @param {Map<string, RawFunc>} db
+     * @param {Map<string, RawFuncI>} db
      */
     constructor(props, indent = "", db = new Map()) {
         this.props = props
@@ -54,7 +52,7 @@ export class ToIRContext {
     }
 
     /**
-     * @type {Map<string, RawFunc>}
+     * @type {Map<string, RawFuncI>}
      */
     get db() {
         if (this._db.size == 0) {
@@ -123,7 +121,7 @@ export class ToIRContext {
     /**
      * Doesn't add templates
      * @param {SourceMappedStringI} ir
-     * @param {Definitions | undefined} userDefs - some userDefs might have the __helios prefix
+     * @param {Definitions | undefined} [userDefs] - some userDefs might have the __helios prefix
      * @returns {Definitions}
      */
     fetchRawFunctions(ir, userDefs = undefined) {

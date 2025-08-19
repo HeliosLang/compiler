@@ -61,6 +61,7 @@ export class Scope extends Common {
 
     /**
      * Used by top-scope to loop over all the statements
+     * @type {[Word, (EvalEntity | Scope), boolean][]}
      */
     get values() {
         return this._values.slice()
@@ -190,7 +191,7 @@ export class Scope extends Common {
     /**
      * Gets a named value from the scope. Throws an error if not found
      * @param {Word | string} name
-     * @param {boolean} dryRun - if false -> don't set used flag
+     * @param {boolean} [dryRun] - if false -> don't set used flag
      * @returns {EvalEntity | Scope}
      */
     get(name, dryRun = false) {

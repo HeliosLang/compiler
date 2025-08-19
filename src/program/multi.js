@@ -23,8 +23,7 @@ import { VERSION } from "./version.js"
 import { UserFunc } from "./UserFunc.js"
 
 /**
- * @typedef {import("@helios-lang/type-utils").EnumTypeSchema} EnumTypeSchema
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { EnumTypeSchema } from "@helios-lang/type-utils"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
  * @typedef {import("./EntryPoint.js").EntryPoint} EntryPoint

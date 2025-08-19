@@ -12,7 +12,7 @@ import { DataDefinition } from "./DataDefinition.js"
 
 /**
  * @import { Word } from "@helios-lang/compiler-utils"
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { Definitions } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/common.js").GenericEnumMemberTypeProps} GenericEnumMemberTypeProps

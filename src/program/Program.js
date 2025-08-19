@@ -18,14 +18,10 @@ import { ModuleCollection } from "./ModuleCollection.js"
 import { UserFunc } from "./UserFunc.js"
 
 /**
- * @import { ErrorCollector, Site, Source } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").OptimizeOptions} OptimizeOptions
- * @typedef {import("@helios-lang/ir").ParseOptions} ParseOptions
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("@helios-lang/uplc").UplcData} UplcData
- * @typedef {import("@helios-lang/uplc").UplcValue} UplcValue
- * @typedef {import("@helios-lang/uplc").UplcProgramV2} UplcProgramV2
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
+ * @import { OptimizeOptions, ParseOptions, SourceMappedStringI } from "@helios-lang/ir"
+ * @import { UplcData, UplcValue, UplcProgramV2 } from "@helios-lang/uplc"
+ * @import { Definitions } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -40,6 +36,7 @@ import { UserFunc } from "./UserFunc.js"
  *   moduleSources?: (string | Source)[]
  *   validatorTypes?: ScriptTypes
  *   throwCompilerErrors?: boolean
+ *   allowModuleEntryPoint?: boolean
  * }} ProgramProps
  */
 
@@ -95,12 +92,12 @@ export class Program {
 
         this.errors = makeErrorCollector()
 
-        this.entryPoint = newEntryPoint(
-            mainSource,
-            props.moduleSources ?? [],
-            props.validatorTypes ?? {},
-            this.errors
-        )
+        this.entryPoint = newEntryPoint(mainSource, {
+            moduleSrcs: props.moduleSources ?? [],
+            validatorTypes: props.validatorTypes ?? {},
+            errorCollector: this.errors,
+            allowModuleEntryPoint: props.allowModuleEntryPoint
+        })
 
         if (props.throwCompilerErrors ?? true) {
             this.errors.throw()
@@ -142,95 +139,9 @@ export class Program {
         const importedModules = this.entryPoint.mainImportedModules.slice()
         const allModules = importedModules.concat([this.entryPoint.mainModule])
 
-        /**
-         * @type {Record<string, Record<string, UserFunc>>}
-         */
-        const res = {}
+        const moduleCollection = new ModuleCollection(allModules)
 
-        /**
-         * @param {Module} m
-         * @param {FuncStatement} fn
-         * @param {string} prefix
-         */
-        const addFunc = (m, fn, prefix) => {
-            // Don't add main function, handled elsewhere
-            if (m instanceof MainModule && fn.name.value == "main") {
-                return
-            }
-
-            const moduleName = m.name.value
-            const prev = res[moduleName] ?? {}
-            const fullName = `${prefix}${fn.name.value}`
-
-            // make sure all arg types and return type are compatible and that the function doesn't have any typeparameters
-            if (
-                fn.argTypes.every((a) => isDataType(a)) &&
-                (isDataType(fn.retType) ||
-                    new VoidType().isBaseOf(fn.retType)) &&
-                !fn.typeParameters.hasParameters()
-            ) {
-                const filteredImportedModules =
-                    m.filterDependencies(importedModules)
-                const newEntryPoint = new UserFunc(
-                    new ModuleCollection(filteredImportedModules.concat([m])),
-                    fullName
-                )
-                prev[fullName] = newEntryPoint
-            }
-
-            res[moduleName] = prev
-        }
-
-        /**
-         * @param {Module} m
-         * @param {ConstStatement} cn
-         * @param {string} prefix
-         */
-        const addConst = (m, cn, prefix) => {
-            const moduleName = m.name.value
-            const prev = res[moduleName] ?? {}
-            const fullName = `${prefix}${cn.name.value}`
-
-            if (isDataType(cn.type)) {
-                const filteredImportedModules =
-                    m.filterDependencies(importedModules)
-
-                const newEntryPoint = new UserFunc(
-                    new ModuleCollection(filteredImportedModules.concat([m])),
-                    fullName
-                )
-                prev[fullName] = newEntryPoint
-            }
-
-            res[moduleName] = prev
-        }
-
-        allModules.forEach((m) => {
-            const statements = m.statements
-
-            statements.forEach((s, i) => {
-                if (s instanceof FuncStatement) {
-                    addFunc(m, s, "")
-                } else if (s instanceof ConstStatement) {
-                    addConst(m, s, "")
-                } else if (
-                    s instanceof EnumStatement ||
-                    s instanceof StructStatement
-                ) {
-                    const prefix = `${s.name.value}::`
-
-                    s.statements.forEach((ss) => {
-                        if (ss instanceof FuncStatement) {
-                            addFunc(m, ss, prefix)
-                        } else if (ss instanceof ConstStatement) {
-                            addConst(m, ss, prefix)
-                        }
-                    })
-                }
-            })
-        })
-
-        return res
+        return moduleCollection.userFunctions
     }
 
     /**

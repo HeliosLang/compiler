@@ -15,7 +15,3 @@ export {
 } from "./ParametricName.js"
 export { injectMutualRecursions } from "./recursion.js"
 export { ToIRContext } from "./ToIRContext.js"
-
-/**
- * @typedef {import("./Definitions.js").Definitions} Definitions
- */

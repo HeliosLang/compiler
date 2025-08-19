@@ -5,7 +5,7 @@ import { Statement } from "./Statement.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { Definitions } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").NamespaceMembers} NamespaceMembers
  */

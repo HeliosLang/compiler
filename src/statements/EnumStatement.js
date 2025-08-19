@@ -16,8 +16,8 @@ import { TypeParameters } from "./TypeParameters.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { Definitions } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/common.js").GenericTypeProps} GenericTypeProps
@@ -65,6 +65,13 @@ export class EnumStatement extends Statement {
         this._impl = impl
 
         this._members.forEach((member, i) => member.registerParent(this))
+    }
+
+    /**
+     * @type {"EnumStatement"}
+     */
+    get kind() {
+        return "EnumStatement"
     }
 
     /**

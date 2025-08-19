@@ -2,8 +2,8 @@ import { ToIRContext } from "../codegen/index.js"
 import { ModuleScope } from "../scopes/index.js"
 
 /**
- * @import { Site, Token, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { Site, Word } from "@helios-lang/compiler-utils"
+ * @import { Definitions } from "../index.js"
  */
 
 /**

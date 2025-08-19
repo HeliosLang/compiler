@@ -7,13 +7,21 @@ import {
     wrapWithDefs
 } from "../codegen/index.js"
 import { ModuleScope, TopScope } from "../scopes/index.js"
-import { ConstStatement, Statement } from "../statements/index.js"
+import {
+    ConstStatement,
+    EnumStatement,
+    FuncStatement,
+    Statement,
+    StructStatement
+} from "../statements/index.js"
+import { isDataType, VoidType } from "../typecheck/index.js"
 import { MainModule } from "./MainModule.js"
 import { Module } from "./Module.js"
+import { UserFunc } from "./UserFunc.js"
 
 /**
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { Definitions } from "../index.js"
  */
 
 export class ModuleCollection {
@@ -232,5 +240,102 @@ export class ModuleCollection {
         ir = wrapWithDefs(ir, builtins)
 
         return ir
+    }
+
+    /**
+     * @type {Record<string, Record<string, UserFunc>>}
+     */
+    get userFunctions() {
+        /**
+         * @type {Record<string, Record<string, UserFunc>>}
+         */
+        const res = {}
+
+        /**
+         * @param {Module} m
+         * @param {FuncStatement} fn
+         * @param {string} prefix
+         */
+        const addFunc = (m, fn, prefix) => {
+            // Don't add main function, handled elsewhere
+            if (m instanceof MainModule && fn.name.value == "main") {
+                return
+            }
+
+            const moduleName = m.name.value
+            const prev = res[moduleName] ?? {}
+            const fullName = `${prefix}${fn.name.value}`
+
+            // make sure all arg types and return type are compatible and that the function doesn't have any typeparameters
+            if (
+                fn.argTypes.every((a) => isDataType(a)) &&
+                (isDataType(fn.retType) ||
+                    new VoidType().isBaseOf(fn.retType)) &&
+                !fn.typeParameters.hasParameters()
+            ) {
+                const filteredImportedModules = m.filterDependencies(
+                    this.nonMainModules
+                )
+                const newEntryPoint = new UserFunc(
+                    new ModuleCollection(filteredImportedModules.concat([m])),
+                    fullName
+                )
+                prev[fullName] = newEntryPoint
+            }
+
+            res[moduleName] = prev
+        }
+
+        /**
+         * @param {Module} m
+         * @param {ConstStatement} cn
+         * @param {string} prefix
+         */
+        const addConst = (m, cn, prefix) => {
+            const moduleName = m.name.value
+            const prev = res[moduleName] ?? {}
+            const fullName = `${prefix}${cn.name.value}`
+
+            if (isDataType(cn.type)) {
+                const filteredImportedModules = m.filterDependencies(
+                    this.nonMainModules
+                )
+
+                const newEntryPoint = new UserFunc(
+                    new ModuleCollection(filteredImportedModules.concat([m])),
+                    fullName
+                )
+                prev[fullName] = newEntryPoint
+            }
+
+            res[moduleName] = prev
+        }
+
+        this.modules.forEach((m) => {
+            const statements = m.statements
+
+            statements.forEach((s, i) => {
+                if (s instanceof FuncStatement) {
+                    addFunc(m, s, "")
+                } else if (s instanceof ConstStatement) {
+                    addConst(m, s, "")
+                } else if (
+                    s instanceof EnumStatement ||
+                    s instanceof StructStatement
+                ) {
+                    const prefix = `${s.name.value}::`
+
+                    s.statements.forEach((ss) => {
+                        if (ss instanceof FuncStatement) {
+                            addFunc(m, ss, prefix)
+                        } else if (ss instanceof ConstStatement) {
+                            addConst(m, ss, prefix)
+                        }
+                    })
+                }
+            })
+        })
+
+        return res
     }
 }

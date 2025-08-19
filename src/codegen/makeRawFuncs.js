@@ -1,25 +1,29 @@
 import { REAL_PRECISION } from "@helios-lang/compiler-utils"
 import { expectDefined } from "@helios-lang/type-utils"
 import { FTPP, TTPP } from "./ParametricName.js"
-import { RawFunc } from "./RawFunc.js"
+import { makeRawFunc } from "./RawFunc.js"
 
 const MISSING = "<missing>"
+
+/**
+ * @import { RawFuncI } from "../index.js"
+ */
 
 /**
  * Initializes the db containing all the builtin functions
  * @param {boolean} simplify
  * @param {boolean} isTestnet // needed for Address.to_bytes() and Address.to_hex()
- * @returns {Map<string, RawFunc>}
+ * @returns {Map<string, RawFuncI>}
  */
 // only need to wrap these source in IR right at the very end
 export function makeRawFunctions(simplify, isTestnet) {
-    /** @type {Map<string, RawFunc>} */
+    /** @type {Map<string, RawFuncI>} */
     let db = new Map()
 
     // local utility functions
 
     /**
-     * @param {RawFunc} fn
+     * @param {RawFuncI} fn
      */
     function add(fn) {
         if (db.has(fn.name)) {
@@ -33,7 +37,7 @@ export function makeRawFunctions(simplify, isTestnet) {
      */
     function addNeqFunc(ns) {
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}____neq`,
                 `(self, other) -> {
 			__helios__bool____not(${ns}____eq(self, other))
@@ -47,7 +51,7 @@ export function makeRawFunctions(simplify, isTestnet) {
      */
     function addDataLikeEqFunc(ns) {
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}____eq`,
                 `(self, other) -> {
 			__core__equalsData(${ns}____to_data(self), ${ns}____to_data(other))
@@ -61,7 +65,7 @@ export function makeRawFunctions(simplify, isTestnet) {
      */
     function addSerializeFunc(ns) {
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}__serialize`,
                 `(self) -> {
 			() -> {
@@ -76,41 +80,41 @@ export function makeRawFunctions(simplify, isTestnet) {
      * @param {string} ns
      */
     function addIntLikeFuncs(ns) {
-        add(new RawFunc(`${ns}____eq`, "__helios__int____eq"))
-        add(new RawFunc(`${ns}____neq`, "__helios__int____neq"))
-        add(new RawFunc(`${ns}__serialize`, "__helios__int__serialize"))
-        add(new RawFunc(`${ns}__from_data`, "__helios__int__from_data"))
+        add(makeRawFunc(`${ns}____eq`, "__helios__int____eq"))
+        add(makeRawFunc(`${ns}____neq`, "__helios__int____neq"))
+        add(makeRawFunc(`${ns}__serialize`, "__helios__int__serialize"))
+        add(makeRawFunc(`${ns}__from_data`, "__helios__int__from_data"))
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}__from_data_safe`,
                 "__helios__int__from_data_safe"
             )
         )
-        add(new RawFunc(`${ns}____to_data`, "__helios__int____to_data"))
+        add(makeRawFunc(`${ns}____to_data`, "__helios__int____to_data"))
     }
 
     /**
      * @param {string} ns
      */
     function addByteArrayLikeFuncs(ns) {
-        add(new RawFunc(`${ns}____eq`, "__helios__bytearray____eq"))
-        add(new RawFunc(`${ns}____neq`, "__helios__bytearray____neq"))
-        add(new RawFunc(`${ns}__serialize`, "__helios__bytearray__serialize"))
-        add(new RawFunc(`${ns}__from_data`, "__helios__bytearray__from_data"))
+        add(makeRawFunc(`${ns}____eq`, "__helios__bytearray____eq"))
+        add(makeRawFunc(`${ns}____neq`, "__helios__bytearray____neq"))
+        add(makeRawFunc(`${ns}__serialize`, "__helios__bytearray__serialize"))
+        add(makeRawFunc(`${ns}__from_data`, "__helios__bytearray__from_data"))
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}__from_data_safe`,
                 "__helios__bytearray__from_data_safe"
             )
         )
-        add(new RawFunc(`${ns}____to_data`, "__helios__bytearray____to_data"))
-        add(new RawFunc(`${ns}____lt`, "__helios__bytearray____lt"))
-        add(new RawFunc(`${ns}____leq`, "__helios__bytearray____leq"))
-        add(new RawFunc(`${ns}____gt`, "__helios__bytearray____gt"))
-        add(new RawFunc(`${ns}____geq`, "__helios__bytearray____geq"))
-        add(new RawFunc(`${ns}__new`, `__helios__common__identity`))
-        add(new RawFunc(`${ns}__bytes`, "__helios__common__identity"))
-        add(new RawFunc(`${ns}__show`, "__helios__bytearray__show"))
+        add(makeRawFunc(`${ns}____to_data`, "__helios__bytearray____to_data"))
+        add(makeRawFunc(`${ns}____lt`, "__helios__bytearray____lt"))
+        add(makeRawFunc(`${ns}____leq`, "__helios__bytearray____leq"))
+        add(makeRawFunc(`${ns}____gt`, "__helios__bytearray____gt"))
+        add(makeRawFunc(`${ns}____geq`, "__helios__bytearray____geq"))
+        add(makeRawFunc(`${ns}__new`, `__helios__common__identity`))
+        add(makeRawFunc(`${ns}__bytes`, "__helios__common__identity"))
+        add(makeRawFunc(`${ns}__show`, "__helios__bytearray__show"))
     }
 
     /**
@@ -127,34 +131,34 @@ export function makeRawFunctions(simplify, isTestnet) {
      * }} custom
      */
     function addDataFuncs(ns, custom = {}) {
-        add(new RawFunc(`${ns}____eq`, custom?.eq ?? "__helios__common____eq"))
+        add(makeRawFunc(`${ns}____eq`, custom?.eq ?? "__helios__common____eq"))
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}____neq`,
                 custom?.neq ?? "__helios__common____neq"
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}__serialize`,
                 custom?.serialize ?? "__helios__common__serialize"
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}__from_data`,
                 custom?.from_data ?? "__helios__common__identity"
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}__from_data_safe`,
                 custom?.from_data_safe ??
                     `(data) -> {__helios__option__SOME_FUNC(data)}`
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}____to_data`,
                 custom?.to_data ?? "__helios__common__identity"
             )
@@ -167,12 +171,12 @@ export function makeRawFunctions(simplify, isTestnet) {
      * @param {number} constrIndex
      */
     function addEnumDataFuncs(ns, constrIndex) {
-        add(new RawFunc(`${ns}____eq`, "__helios__common____eq"))
-        add(new RawFunc(`${ns}____neq`, "__helios__common____neq"))
-        add(new RawFunc(`${ns}__serialize`, "__helios__common__serialize"))
-        add(new RawFunc(`${ns}____to_data`, "__helios__common__identity"))
+        add(makeRawFunc(`${ns}____eq`, "__helios__common____eq"))
+        add(makeRawFunc(`${ns}____neq`, "__helios__common____neq"))
+        add(makeRawFunc(`${ns}__serialize`, "__helios__common__serialize"))
+        add(makeRawFunc(`${ns}____to_data`, "__helios__common__identity"))
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}____is`,
                 `(data) -> {
 			__helios__common__enum_tag_equals(data, ${constrIndex})
@@ -180,7 +184,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}__from_data`,
                 `(data) -> {
 			__helios__common__assert_constr_index(data, ${constrIndex})
@@ -188,7 +192,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${ns}__from_data_safe`,
                 `(data) -> {
 			__core__chooseData(
@@ -261,7 +265,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 
     // Common builtins
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__assert_constr_index",
             `(data, i) -> {
 		__core__ifThenElse(
@@ -272,10 +276,10 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__common__identity", `(self) -> {self}`))
-    add(new RawFunc("__helios__common____eq", "__core__equalsData"))
+    add(makeRawFunc("__helios__common__identity", `(self) -> {self}`))
+    add(makeRawFunc("__helios__common____eq", "__core__equalsData"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common____neq",
             `(a, b) -> {
 		__helios__bool____not(__core__equalsData(a, b))
@@ -283,7 +287,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__serialize",
             `(self) -> {
 		() -> {
@@ -293,7 +297,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__any",
             `(self, fn) -> {
 		(recurse) -> {
@@ -317,7 +321,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__all",
             `(self, fn) -> {
 		(recurse) -> {
@@ -341,7 +345,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__map",
             `(self, fn, init) -> {
 		(recurse) -> {
@@ -364,7 +368,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__filter",
             `(self, fn, nil) -> {
 		(recurse) -> {
@@ -390,7 +394,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__filter_list",
             `(self, fn) -> {
 		__helios__common__filter(self, fn, __helios__common__list_0)
@@ -398,7 +402,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__filter_map",
             `(self, fn) -> {
 		__helios__common__filter(self, fn, __core__mkNilPairData(()))
@@ -406,7 +410,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__find",
             `(self, fn) -> {
 		(recurse) -> {
@@ -432,7 +436,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__find_safe",
             `(self, fn, callback) -> {
 		(recurse) -> {
@@ -458,7 +462,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__fold",
             `(self, fn, z) -> {
 		(recurse) -> {
@@ -476,7 +480,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__fold_lazy",
             `(self, fn, z) -> {
 		(recurse) -> {
@@ -494,7 +498,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__insert_in_sorted",
             `(x, lst, comp) -> {
 		(recurse) -> {
@@ -520,7 +524,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__sort",
             `(lst, comp) -> {
 		(recurse) -> {
@@ -542,7 +546,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__map_get",
             `(self, key, fnFound, fnNotFound) -> {
 		(recurse) -> {
@@ -568,7 +572,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__is_in_bytearray_list",
             `(lst, key) -> {
 		__helios__common__any(lst, (item) -> {__core__equalsData(item, key)})
@@ -576,7 +580,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__length",
             `(lst) -> {
 		(recurse) -> {
@@ -594,7 +598,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__concat",
             `(a, b) -> {
 		(recurse) -> {
@@ -612,7 +616,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__slice_bytearray",
             `(self, selfLengthFn) -> {
 		(start, end) -> {
@@ -648,7 +652,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__starts_with",
             `(self, selfLengthFn) -> {
 		(prefix) -> {
@@ -666,7 +670,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__ends_with",
             `(self, selfLengthFn) -> {
 		(suffix) -> {
@@ -686,7 +690,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__mStruct_field",
             `(self, name) -> {
 		__helios__common__mStruct_field_internal(
@@ -701,7 +705,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // EXPECTS the indicated field to be present, or throws an error about that field
     add(
         /** name: bytes expression, ex: #616263 */
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__mStruct_field_internal",
             `(map, name) -> {
 		name_data = __core__bData(name);
@@ -741,7 +745,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // map is expected to already have been extracted
     // uses data-option instead of callback-option because the optimizer isn't able to optimize out the callback in recursions (calling Any results in MaybeError being added during Analysis)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__mStruct_field_safe",
             `(map, name) -> {
 		name = __core__bData(name);
@@ -773,7 +777,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     //checks for the presence of a field in an mStruct (not its inner list)
     add(
         /** name: Data::ByteArray */
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__test_mStruct_field",
             `(self, name, inner_test) -> {
 		__core__chooseData(
@@ -818,7 +822,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__enum_fields",
             `(self) -> {
 		__core__sndPair(__core__unConstrData(self))
@@ -826,7 +830,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__enum_field_0",
             `(self) -> {
 		__core__headList(__helios__common__enum_fields(self))
@@ -834,7 +838,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__enum_fields_after_0",
             `(self) -> {
 		__core__tailList(__helios__common__enum_fields(self))
@@ -843,7 +847,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     for (let i = 1; i < 20; i++) {
         add(
-            new RawFunc(
+            makeRawFunc(
                 `__helios__common__enum_field_${i.toString()}`,
                 `(self) -> {
 		__core__headList(__helios__common__enum_fields_after_${(i - 1).toString()}(self))
@@ -851,7 +855,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `__helios__common__enum_fields_after_${i.toString()}`,
                 `(self) -> {
 		__core__tailList(__helios__common__enum_fields_after_${(i - 1).toString()}(self))
@@ -859,16 +863,16 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
     }
-    add(new RawFunc("__helios__common__struct_field_0", "__core__headList"))
+    add(makeRawFunc("__helios__common__struct_field_0", "__core__headList"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__struct_fields_after_0",
             "__core__tailList"
         )
     )
     for (let i = 1; i < 20; i++) {
         add(
-            new RawFunc(
+            makeRawFunc(
                 `__helios__common__struct_field_${i.toString()}`,
                 `(self) -> {
 		__core__headList(__helios__common__struct_fields_after_${(i - 1).toString()}(self))
@@ -876,7 +880,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `__helios__common__struct_fields_after_${i.toString()}`,
                 `(self) -> {
 		__core__tailList(__helios__common__struct_fields_after_${(i - 1).toString()}(self))
@@ -884,9 +888,9 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
     }
-    add(new RawFunc("__helios__common__list_0", "__core__mkNilData(())"))
+    add(makeRawFunc("__helios__common__list_0", "__core__mkNilData(())"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__list_1",
             `(a) -> {
 		__core__mkCons(a, __helios__common__list_0)
@@ -907,7 +911,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         let first = expectDefined(woFirst.shift())
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `__helios__common__list_${i.toString()}`,
                 `(${args.join(", ")}) -> {
 		__core__mkCons(${first}, __helios__common__list_${(i - 1).toString()}(${woFirst.join(", ")}))
@@ -916,7 +920,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     }
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__common__hash_datum_data[${FTPP}0]`,
             `(data) -> {
 		__core__blake2b_256(${FTPP}0__serialize(data)())
@@ -924,7 +928,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__common__test_constr_data_2`,
             `(data, index, test_a, test_b) -> {
 		__core__chooseData(
@@ -992,7 +996,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__unConstrData__safe",
             `(data, callback_ok, callback_nok) -> {
 			__core__chooseData(
@@ -1010,7 +1014,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__unMapData__safe",
             `(data, callback_ok, callback_nok) -> {
 			__core__chooseData(
@@ -1027,7 +1031,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__unListData__safe",
             `(data, callback_ok, callback_nok) -> {
 			__core__chooseData(
@@ -1044,7 +1048,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__unBoolData__safe",
             `(data, callback_ok, callback_nok) -> {
 			__helios__common__unConstrData__safe(
@@ -1064,7 +1068,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__unIData__safe",
             `(data, callback_ok, callback_nok) -> {
 			__core__chooseData(
@@ -1081,7 +1085,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__unBData__safe",
             `(data, callback_ok, callback_nok) -> {
 			__core__chooseData(
@@ -1098,7 +1102,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__test_list_head_data",
             `(test_head, test_tail) -> {
 			(list) -> {
@@ -1124,16 +1128,16 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__test_list_empty",
             `(list) -> {
 			__core__chooseList(list, true, false)
 		}`
         )
     )
-    add(new RawFunc("__helios__common__test_list_any", `(list) -> {true}`))
+    add(makeRawFunc("__helios__common__test_list_any", `(list) -> {true}`))
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__common__enum_tag_equals`,
             `(data, i) -> {
 			__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), i)
@@ -1143,7 +1147,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 
     // Global builtin functions
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__print",
             `(msg) -> {
 		__core__trace(msg, ())
@@ -1151,7 +1155,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__error",
             `(msg) -> {
 		__core__trace(
@@ -1164,7 +1168,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assert",
             `(cond, msg) -> {
 		__core__ifThenElse(
@@ -1186,10 +1190,10 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // Int builtins
-    add(new RawFunc("__helios__int____eq", "__core__equalsInteger"))
-    add(new RawFunc("__helios__int__from_data", "__core__unIData"))
+    add(makeRawFunc("__helios__int____eq", "__core__equalsInteger"))
+    add(makeRawFunc("__helios__int__from_data", "__core__unIData"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__from_data_safe",
             `(data) -> {
 		__core__chooseData(
@@ -1206,32 +1210,32 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__is_valid_data",
             `(data) -> {
 		__core__chooseData(data, false, false, false, true, false)
 	}`
         )
     )
-    add(new RawFunc("__helios__int____to_data", "__core__iData"))
+    add(makeRawFunc("__helios__int____to_data", "__core__iData"))
     addNeqFunc("__helios__int")
     addSerializeFunc("__helios__int")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____neg",
             `(self) -> {
 		__core__multiplyInteger(self, -1)
 	}`
         )
     )
-    add(new RawFunc("__helios__int____pos", "__helios__common__identity"))
-    add(new RawFunc("__helios__int____add", "__core__addInteger"))
-    add(new RawFunc("__helios__int____sub", "__core__subtractInteger"))
-    add(new RawFunc("__helios__int____mul", "__core__multiplyInteger"))
-    add(new RawFunc("__helios__int____div", "__core__quotientInteger"))
-    add(new RawFunc("__helios__int____mod", "__core__modInteger"))
+    add(makeRawFunc("__helios__int____pos", "__helios__common__identity"))
+    add(makeRawFunc("__helios__int____add", "__core__addInteger"))
+    add(makeRawFunc("__helios__int____sub", "__core__subtractInteger"))
+    add(makeRawFunc("__helios__int____mul", "__core__multiplyInteger"))
+    add(makeRawFunc("__helios__int____div", "__core__quotientInteger"))
+    add(makeRawFunc("__helios__int____mod", "__core__modInteger"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____add1",
             `(a, b) -> {
 		__core__addInteger(
@@ -1242,7 +1246,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____sub1",
             `(a, b) -> {
 		__core__subtractInteger(
@@ -1253,7 +1257,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____sub2",
             `(a, b) -> {
 		bt = __helios__ratio__top(b);
@@ -1268,9 +1272,9 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__int____mul1", "__helios__int____mul"))
+    add(makeRawFunc("__helios__int____mul1", "__helios__int____mul"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____div1",
             `(a, b) -> {
 		__helios__real__round_calc_result(
@@ -1283,7 +1287,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____div2",
             `(a, b) -> {
 		bt = __helios__ratio__top(b);
@@ -1297,7 +1301,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____geq",
             `(a, b) -> {
 		__helios__bool____not(__core__lessThanInteger(a, b))
@@ -1305,17 +1309,17 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____gt",
             `(a, b) -> {
 		__helios__bool____not(__core__lessThanEqualsInteger(a, b))
 	}`
         )
     )
-    add(new RawFunc("__helios__int____leq", "__core__lessThanEqualsInteger"))
-    add(new RawFunc("__helios__int____lt", "__core__lessThanInteger"))
+    add(makeRawFunc("__helios__int____leq", "__core__lessThanEqualsInteger"))
+    add(makeRawFunc("__helios__int____lt", "__core__lessThanInteger"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____geq1",
             `(a, b) -> {
 		__helios__bool____not(
@@ -1328,7 +1332,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____geq2",
             `(a, b) -> {
 				bt = __helios__ratio__top(b);
@@ -1341,7 +1345,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____gt1",
             `(a, b) -> {
 		__helios__bool____not(
@@ -1354,7 +1358,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____gt2",
             `(a, b) -> {
 				bt = __helios__ratio__top(b);
@@ -1367,7 +1371,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____leq1",
             `(a, b) -> {
 		__core__lessThanEqualsInteger(
@@ -1378,7 +1382,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____leq2",
             `(a, b) -> {
 				bt = __helios__ratio__top(b);
@@ -1391,7 +1395,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____lt1",
             `(a, b) -> {
 		__core__lessThanInteger(
@@ -1402,7 +1406,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int____lt2",
             `(a, b) -> {
 				bt = __helios__ratio__top(b);
@@ -1415,7 +1419,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__min",
             `(a, b) -> {
 		__core__ifThenElse(
@@ -1427,7 +1431,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__max",
             `(a, b) -> {
 		__core__ifThenElse(
@@ -1439,7 +1443,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__bound_min",
             `(self) -> {
 		(other) -> {
@@ -1449,7 +1453,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__bound_max",
             `(self) -> {
 		(other) -> {
@@ -1459,7 +1463,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__bound",
             `(self) -> {
 		(min, max) -> {
@@ -1469,7 +1473,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__abs",
             `(self) -> {
 		() -> {
@@ -1487,7 +1491,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__encode_zigzag",
             `(self) -> {
 		() -> {
@@ -1505,7 +1509,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__decode_zigzag",
             `(self) -> {
 		() -> {
@@ -1531,7 +1535,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__to_bool",
             `(self) -> {
 		() -> {
@@ -1541,7 +1545,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__to_ratio",
             `(self) -> {
 		() -> {
@@ -1554,7 +1558,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__to_real",
             `(self) -> {
 		() -> {
@@ -1564,7 +1568,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__to_hex",
             `(self) -> {
 		() -> {
@@ -1605,13 +1609,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__common__BASE58_ALPHABET",
             "#31323334353637383941424344454647484a4b4c4d4e505152535455565758595a6162636465666768696a6b6d6e6f707172737475767778797a"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__to_base58",
             `(self) -> {
 		() -> {
@@ -1647,19 +1651,19 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__BASE58_INVERSE_ALPHABET_1",
             "#ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000102030405060708ffffffffffff"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__BASE58_INVERSE_ALPHABET_2",
             "#ff090a0b0c0d0e0f10ff1112131415ff161718191a1b1c1d1e1f20ffffffffffff2122232425262728292a2bff2c2d2e2f30313233343536373839ffffffffff"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__invert_base58_char",
             `(char) -> {
 		digit = __core__ifThenElse(
@@ -1695,7 +1699,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__from_base58",
             `(str) -> {
 		bytes = __core__encodeUtf8(str);
@@ -1725,7 +1729,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__show_digit",
             `(x) -> {
 		__core__addInteger(__core__modInteger(x, 10), 48)
@@ -1733,7 +1737,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__show",
             `(self) -> {
 		() -> {
@@ -1763,7 +1767,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     // not exposed, assumes positive number
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__show_padded",
             `(self, n) -> {
 		recurse = (recurse, x, pos, bytes) -> {
@@ -1801,7 +1805,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__parse_digit",
             `(digit) -> {
 		__core__ifThenElse(
@@ -1825,7 +1829,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__parse_hex_digit",
             `(hex) -> {
 		__core__ifThenElse(
@@ -1881,7 +1885,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__parse",
             `(string) -> {
 		bytes = __core__encodeUtf8(string);
@@ -1942,7 +1946,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__from_big_endian",
             `(bytes) -> {
 		n = __core__lengthOfByteString(bytes);
@@ -1966,7 +1970,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__from_little_endian",
             `(bytes) -> {
 		n = __core__lengthOfByteString(bytes);
@@ -1990,7 +1994,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__to_big_endian",
             `(self) -> {
 		() -> {
@@ -2024,7 +2028,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__to_little_endian",
             `(self) -> {
 		() -> {
@@ -2056,7 +2060,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__int__sqrt",
             `(x) -> {
 		__core__ifThenElse(
@@ -2109,7 +2113,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // Ratio builtins
     addDataFuncs("__helios__ratio")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__equals",
             `(self) -> {
 		(other) -> {
@@ -2127,7 +2131,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__is_valid_data",
             `(data) -> {
 		__helios__common__unListData__safe(
@@ -2161,7 +2165,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__new_internal",
             `(top, bottom) -> {
 		__core__listData(
@@ -2177,7 +2181,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__new",
             `(top, bottom) -> {
 		__core__ifThenElse(
@@ -2193,7 +2197,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__top",
             `(self) -> {
 		__core__unIData(__core__headList(__core__unListData(self)))
@@ -2201,7 +2205,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__bottom",
             `(self) -> {
 		__core__unIData(__core__headList(__core__tailList(__core__unListData(self))))
@@ -2209,7 +2213,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____add",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2226,7 +2230,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____add1",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2240,7 +2244,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____sub",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2257,7 +2261,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____sub1",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2271,7 +2275,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____mul",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2285,7 +2289,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____mul1",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2296,7 +2300,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____div",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2310,7 +2314,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____div1",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2321,7 +2325,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____lt",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2336,7 +2340,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____lt1",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2349,7 +2353,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____leq",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2364,7 +2368,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____leq1",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2377,7 +2381,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____gt",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2392,7 +2396,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____gt1",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2405,7 +2409,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____geq",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2420,7 +2424,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio____geq1",
             `(a, b) -> {
 		at = __helios__ratio__top(a);
@@ -2433,7 +2437,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__ceil",
             `(self) -> {
 		() -> {
@@ -2457,7 +2461,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__floor",
             `(self) -> {
 		() -> {
@@ -2469,7 +2473,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__trunc",
             `(self) -> {
 			() -> {
@@ -2481,7 +2485,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__round",
             `(self) -> {
 		() -> {
@@ -2506,7 +2510,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__show",
             `(self) -> {
 		() -> {
@@ -2542,7 +2546,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__ratio__to_real",
             `(self) -> {
 		() -> {
@@ -2570,47 +2574,47 @@ export function makeRawFunctions(simplify, isTestnet) {
     // Real builtins
     addIntLikeFuncs("__helios__real")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__is_valid_data",
             "__helios__int__is_valid_data"
         )
     )
-    add(new RawFunc("__helios__real__PRECISION", REAL_PRECISION.toString()))
+    add(makeRawFunc("__helios__real__PRECISION", REAL_PRECISION.toString()))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__ONE",
             "1" + new Array(REAL_PRECISION).fill("0").join("")
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__HALF",
             "5" + new Array(REAL_PRECISION - 1).fill("0").join("")
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__MINUS_HALF",
             "-5" + new Array(REAL_PRECISION - 1).fill("0").join("")
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__NEARLY_ONE",
             new Array(REAL_PRECISION).fill("9").join("")
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__ONESQ",
             "1" + new Array(REAL_PRECISION * 2).fill("0").join("")
         )
     )
-    add(new RawFunc("__helios__real____neg", "__helios__int____neg"))
-    add(new RawFunc("__helios__real____pos", "__helios__int____pos"))
-    add(new RawFunc("__helios__real____add", "__helios__int____add"))
+    add(makeRawFunc("__helios__real____neg", "__helios__int____neg"))
+    add(makeRawFunc("__helios__real____pos", "__helios__int____pos"))
+    add(makeRawFunc("__helios__real____add", "__helios__int____add"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____add1",
             `(a, b) -> {
 		__core__addInteger(
@@ -2620,9 +2624,9 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__real____sub", "__helios__int____sub"))
+    add(makeRawFunc("__helios__real____sub", "__helios__int____sub"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____sub1",
             `(a, b) -> {
 		__core__subtractInteger(
@@ -2633,7 +2637,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__mulf",
             `(a, b) -> {
 		__core__quotientInteger(
@@ -2644,7 +2648,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____mul",
             `(a, b) -> {
 		__helios__real__round_calc_result(
@@ -2656,9 +2660,9 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__real____mul1", "__helios__int____mul"))
+    add(makeRawFunc("__helios__real____mul1", "__helios__int____mul"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__divf",
             `(a, b) -> {
 		__core__quotientInteger(
@@ -2669,7 +2673,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__round_calc_result",
             `(res) -> {
 			__core__addInteger(__core__quotientInteger(res, 10), __core__quotientInteger(__core__remainderInteger(res, 10), 5))
@@ -2677,7 +2681,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____div",
             `(a, b) -> {
 		__helios__real__round_calc_result(
@@ -2690,7 +2694,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____div1",
             `(a, b) -> {
 		__helios__real__round_calc_result(
@@ -2702,12 +2706,12 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__real____geq", "__helios__int____geq"))
-    add(new RawFunc("__helios__real____gt", "__helios__int____gt"))
-    add(new RawFunc("__helios__real____leq", "__helios__int____leq"))
-    add(new RawFunc("__helios__real____lt", "__helios__int____lt"))
+    add(makeRawFunc("__helios__real____geq", "__helios__int____geq"))
+    add(makeRawFunc("__helios__real____gt", "__helios__int____gt"))
+    add(makeRawFunc("__helios__real____leq", "__helios__int____leq"))
+    add(makeRawFunc("__helios__real____lt", "__helios__int____lt"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____eq1",
             `(a, b) -> {
 		__core__equalsInteger(a,
@@ -2720,7 +2724,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____neq1",
             `(a, b) -> {
 		__helios__bool____not(
@@ -2733,7 +2737,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____geq1",
             `(a, b) -> {
 		__helios__bool____not(
@@ -2746,7 +2750,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____gt1",
             `(a, b) -> {
 		__helios__bool____not(
@@ -2759,7 +2763,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____leq1",
             `(a, b) -> {
 		__core__lessThanEqualsInteger(
@@ -2770,7 +2774,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real____lt1",
             `(a, b) -> {
 		__core__lessThanInteger(
@@ -2780,9 +2784,9 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__real__abs", "__helios__int__abs"))
+    add(makeRawFunc("__helios__real__abs", "__helios__int__abs"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__sqrt",
             `(self) -> {
 		__helios__real__round_calc_result(
@@ -2794,7 +2798,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__sqrtf",
             `(self) -> {
 		__helios__int__sqrt(
@@ -2804,7 +2808,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__floor",
             `(self) -> {
 		() -> {
@@ -2814,7 +2818,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__trunc",
             `(self) -> {
 		() -> {
@@ -2824,7 +2828,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__ceil",
             `(self) -> {
 		() -> {
@@ -2837,7 +2841,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__round",
             `(self) -> {
 		() -> {
@@ -2850,7 +2854,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__show",
             `(self) -> {
 		() -> {
@@ -2889,7 +2893,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__to_ratio",
             `(self) -> {
 		() -> {
@@ -2901,10 +2905,10 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__real__min", "__helios__int__min"))
-    add(new RawFunc("__helios__real__max", "__helios__int__max"))
+    add(makeRawFunc("__helios__real__min", "__helios__int__min"))
+    add(makeRawFunc("__helios__real__max", "__helios__int__max"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__log",
             `(self) -> {
 		__core__ifThenElse(
@@ -2979,7 +2983,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__real__logf",
             `(self) -> {
 		__core__ifThenElse(
@@ -3048,7 +3052,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // Bool builtins
     addSerializeFunc("__helios__bool")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -3092,7 +3096,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool____eq",
             `(a, b) -> {
 		__core__ifThenElse(a, b, __helios__bool____not(b))
@@ -3100,7 +3104,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool____neq",
             `(a, b) -> {
 		__core__ifThenElse(a, __helios__bool____not(b), b)
@@ -3109,7 +3113,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     // TODO: optimize this drastically by simply returning the comparison to 1
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__from_data",
             `(d) -> {
 		__core__ifThenElse(
@@ -3121,7 +3125,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__from_data_safe",
             `(data) -> {
 		__core__chooseData(
@@ -3145,7 +3149,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool____to_data",
             `(b) -> {
 		__core__constrData(__core__ifThenElse(b, 1, 0), __helios__common__list_0)
@@ -3153,7 +3157,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__and",
             `(a, b) -> {
 		__core__ifThenElse(
@@ -3166,7 +3170,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__bool__and2`,
             `(a, b) -> {
 				__core__ifThenElse(a, b, false)
@@ -3175,7 +3179,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__bool__and3`,
             `(a, b, c) -> {
 			__core__ifThenElse(a, __core__ifThenElse(b, c, false), false)
@@ -3184,7 +3188,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__bool__and4`,
             `(a, b, c, d) -> {
 			__core__ifThenElse(a, __core__ifThenElse(b, __core__ifThenElse(c, d, false), false), false)
@@ -3193,7 +3197,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__bool__and5`,
             `(a, b, c, d, e) -> {
 			__core__ifThenElse(a, __core__ifThenElse(b, __core__ifThenElse(c, __core__ifThenElse(d, e, false), false), false), false)
@@ -3202,7 +3206,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__or",
             `(a, b) -> {
 		__core__ifThenElse(
@@ -3214,7 +3218,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool____not",
             `(b) -> {
 		__core__ifThenElse(b, false, true)
@@ -3222,7 +3226,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__to_int",
             `(self) -> {
 		() -> {
@@ -3232,7 +3236,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__show",
             `(self) -> {
 		() -> {
@@ -3242,7 +3246,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__trace",
             `(self) -> {
 		(prefix) -> {
@@ -3258,7 +3262,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__trace_if_false",
             `(self) -> {
 		(msg) -> {
@@ -3276,7 +3280,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bool__trace_if_true",
             `(self) -> {
 		(msg) -> {
@@ -3297,9 +3301,9 @@ export function makeRawFunctions(simplify, isTestnet) {
     // String builtins
     addSerializeFunc("__helios__string")
     addNeqFunc("__helios__string")
-    add(new RawFunc("__helios__string____eq", "__core__equalsString"))
+    add(makeRawFunc("__helios__string____eq", "__core__equalsString"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string__from_data",
             `(d) -> {
 		__core__decodeUtf8(__core__unBData(d))
@@ -3307,7 +3311,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string__from_data_safe",
             `(data) -> {
 		__core__chooseData(
@@ -3333,7 +3337,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string__show",
             `(self) -> {
 		() -> {
@@ -3349,7 +3353,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string__parse_utf8_cont_byte",
             `(byte, callback) -> {
 		__core__ifThenElse(
@@ -3365,7 +3369,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string__is_valid_utf8",
             `(bytes) -> {
 		n = __core__lengthOfByteString(bytes);
@@ -3577,7 +3581,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -3594,16 +3598,16 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string____to_data",
             `(s) -> {
 		__core__bData(__core__encodeUtf8(s))
 	}`
         )
     )
-    add(new RawFunc("__helios__string____add", "__core__appendString"))
+    add(makeRawFunc("__helios__string____add", "__core__appendString"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string__starts_with",
             `(self) -> {
 		(prefix) -> {
@@ -3615,7 +3619,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string__ends_with",
             `(self) -> {
 		(suffix) -> {
@@ -3627,7 +3631,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__string__encode_utf8",
             `(self) -> {
 		() -> {
@@ -3641,7 +3645,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     addSerializeFunc("__helios__bytearray")
     addNeqFunc("__helios__bytearray")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__parse",
             `(string) -> {
 		hex = __core__encodeUtf8(string);
@@ -3672,10 +3676,10 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__bytearray____eq", "__core__equalsByteString"))
-    add(new RawFunc("__helios__bytearray__from_data", "__core__unBData"))
+    add(makeRawFunc("__helios__bytearray____eq", "__core__equalsByteString"))
+    add(makeRawFunc("__helios__bytearray__from_data", "__core__unBData"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__from_data_safe",
             `(data) -> {
 		__core__chooseData(
@@ -3690,7 +3694,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__is_valid_data",
             `(data) -> {
 		__core__chooseData(data, false, false, false, false, true)
@@ -3698,7 +3702,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__is_valid_data_fixed_length",
             `(n) -> {
 		(data) -> {
@@ -3726,7 +3730,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__is_valid_data_max_length",
             `(n) -> {
 		(data) -> {
@@ -3753,10 +3757,10 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__bytearray____to_data", "__core__bData"))
-    add(new RawFunc("__helios__bytearray____add", "__core__appendByteString"))
+    add(makeRawFunc("__helios__bytearray____to_data", "__core__bData"))
+    add(makeRawFunc("__helios__bytearray____add", "__core__appendByteString"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray____geq",
             `(a, b) -> {
 		__helios__bool____not(__core__lessThanByteString(a, b))
@@ -3764,7 +3768,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray____gt",
             `(a, b) -> {
 		__helios__bool____not(__core__lessThanEqualsByteString(a, b))
@@ -3772,17 +3776,17 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray____leq",
             "__core__lessThanEqualsByteString"
         )
     )
-    add(new RawFunc("__helios__bytearray____lt", "__core__lessThanByteString"))
+    add(makeRawFunc("__helios__bytearray____lt", "__core__lessThanByteString"))
     add(
-        new RawFunc("__helios__bytearray__length", "__core__lengthOfByteString")
+        makeRawFunc("__helios__bytearray__length", "__core__lengthOfByteString")
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__slice",
             `(self) -> {
 		__helios__common__slice_bytearray(self, __core__lengthOfByteString)
@@ -3790,7 +3794,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__starts_with",
             `(self) -> {
 		__helios__common__starts_with(self, __core__lengthOfByteString)
@@ -3798,7 +3802,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__ends_with",
             `(self) -> {
 		__helios__common__ends_with(self, __core__lengthOfByteString)
@@ -3806,7 +3810,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__prepend",
             `(self) -> {
 		(byte) -> {
@@ -3816,7 +3820,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__sha2",
             `(self) -> {
 		() -> {
@@ -3826,7 +3830,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__sha3",
             `(self) -> {
 		() -> {
@@ -3836,7 +3840,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__blake2b",
             `(self) -> {
 		() -> {
@@ -3846,7 +3850,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__decode_utf8",
             `(self) -> {
 		() -> {
@@ -3856,7 +3860,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__show",
             `(self) -> {
 		() -> {
@@ -3894,7 +3898,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__bytearray__decode_utf8_safe",
             `(self) -> {
 		() -> {
@@ -3928,7 +3932,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             n == 1 ? `${head}` : `(callback) -> {callback(${head})}`
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__drop`,
                 `(self) -> {
 		(n) -> {
@@ -3962,7 +3966,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__is_empty`,
                 `(self) -> {
 		() -> {
@@ -3977,7 +3981,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__head`,
                 `(self) -> {
 		self(
@@ -3990,7 +3994,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__tail`,
                 `(self) -> {
 		self(
@@ -4003,7 +4007,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__get`,
                 `(self) -> {
 		(i) -> {
@@ -4046,7 +4050,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__get_singleton`,
                 `(self) -> {
 		() -> {
@@ -4077,7 +4081,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__take`,
                 `(self) -> {
 		(n) -> {
@@ -4116,7 +4120,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__for_each`,
                 `(self) -> {
 		(fn) -> {
@@ -4145,7 +4149,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__fold[${FTPP}0]`,
                 `(self) -> {
 		(fn, z0) -> {
@@ -4171,7 +4175,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__find`,
                 `(self) -> {
 		(fn) -> {
@@ -4205,7 +4209,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__any`,
                 `(self) -> {
 		(fn) -> {
@@ -4239,7 +4243,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__all`,
                 `(self) -> {
 		(fn) -> {
@@ -4273,7 +4277,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__prepend`,
                 `(self) -> {
 		(${head}) -> {
@@ -4286,7 +4290,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
 
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__filter`,
                 `(self) -> {
 		(fn) -> {
@@ -4321,7 +4325,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__map[${FTPP}0]`,
                 `(self) -> {
 		(fn) -> {
@@ -4348,7 +4352,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__map2[${FTPP}0@${FTPP}1]`,
                 `(self) -> {
 		(fn) -> {
@@ -4379,7 +4383,7 @@ export function makeRawFunctions(simplify, isTestnet) {
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `${basePath}__zip[${FTPP}0]`,
                 `(self) -> {
 		(lst) -> {
@@ -4422,18 +4426,18 @@ export function makeRawFunctions(simplify, isTestnet) {
     addSerializeFunc("__helios__struct")
     addNeqFunc("__helios__struct")
     addDataLikeEqFunc("__helios__struct")
-    add(new RawFunc("__helios__struct__from_data", "__core__unListData"))
-    add(new RawFunc("__helios__struct____to_data", "__core__listData"))
+    add(makeRawFunc("__helios__struct__from_data", "__core__unListData"))
+    add(makeRawFunc("__helios__struct____to_data", "__core__listData"))
 
     // Tuple builtins
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tuple[]____to_func",
             (ttp) => `__helios__common__identity`
         )
     )
     add(
-        new RawFunc("__helios__tuple[]__from_data", (ttp) => {
+        makeRawFunc("__helios__tuple[]__from_data", (ttp) => {
             if (ttp.length < 2) {
                 throw new Error("unexpected")
             }
@@ -4457,7 +4461,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         })
     )
     add(
-        new RawFunc("__helios__tuple[]__from_data_safe", (ttp) => {
+        makeRawFunc("__helios__tuple[]__from_data_safe", (ttp) => {
             if (ttp.length < 2) {
                 throw new Error("unexpected")
             }
@@ -4515,7 +4519,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         })
     )
     add(
-        new RawFunc("__helios__tuple[]__show", (ttp) => {
+        makeRawFunc("__helios__tuple[]__show", (ttp) => {
             let inner = `${ttp[ttp.length - 1]}__show(x${ttp.length - 1})()`
 
             for (let i = ttp.length - 2; i >= 0; i--) {
@@ -4546,7 +4550,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         })
     )
     add(
-        new RawFunc("__helios__tuple[]____to_data", (ttp) => {
+        makeRawFunc("__helios__tuple[]____to_data", (ttp) => {
             if (ttp.length < 2) {
                 throw new Error("unexpected")
             }
@@ -4567,7 +4571,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         })
     )
     add(
-        new RawFunc("__helios__tuple[]__is_valid_data", (ttp) => {
+        makeRawFunc("__helios__tuple[]__is_valid_data", (ttp) => {
             if (ttp.length < 2) {
                 throw new Error("unexpected")
             }
@@ -4612,7 +4616,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         })
     )
     add(
-        new RawFunc("__helios__tuple[]__serialize", (ttp) => {
+        makeRawFunc("__helios__tuple[]__serialize", (ttp) => {
             if (ttp.length < 2) {
                 throw new Error("unexpected")
             }
@@ -4623,7 +4627,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         })
     )
     add(
-        new RawFunc("__helios__tuple[]____eq", (ttp) => {
+        makeRawFunc("__helios__tuple[]____eq", (ttp) => {
             if (ttp.length < 2) {
                 throw new Error("unexpected")
             }
@@ -4637,7 +4641,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         })
     )
     add(
-        new RawFunc("__helios__tuple[]____neq", (ttp) => {
+        makeRawFunc("__helios__tuple[]____neq", (ttp) => {
             if (ttp.length < 2) {
                 throw new Error("unexpected")
             }
@@ -4652,7 +4656,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     ;["first", "second", "third", "fourth", "fifth"].forEach((getter, i) => {
         add(
-            new RawFunc(`__helios__tuple[]__${getter}`, (ttp) => {
+            makeRawFunc(`__helios__tuple[]__${getter}`, (ttp) => {
                 if (ttp.length < 2) {
                     throw new Error("unexpected")
                 }
@@ -4673,7 +4677,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     addNeqFunc(`__helios__list[${TTPP}0]`)
     addDataLikeEqFunc(`__helios__list[${TTPP}0]`)
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__is_valid_data_internal`,
             `(lst) -> {
 		recurse = (recurse, lst) -> {
@@ -4700,7 +4704,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__from_data`,
             `(data) -> {
 		lst = __core__unListData(data);
@@ -4718,7 +4722,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__from_data_safe`,
             `(data) -> {
 		__core__chooseData(
@@ -4735,7 +4739,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__is_valid_data`,
             `(data) -> {
 		__core__chooseData(
@@ -4751,9 +4755,9 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc(`__helios__list[${TTPP}0]____to_data`, "__core__listData"))
+    add(makeRawFunc(`__helios__list[${TTPP}0]____to_data`, "__core__listData"))
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__show`,
             `(self) -> {
 		() -> {
@@ -4804,7 +4808,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__new`,
             `(n, fn) -> {
 		recurse = (recurse, i) -> {
@@ -4819,7 +4823,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__new_const`,
             `(n, item) -> {
 		__helios__list[${TTPP}0]__new(n, (i) -> {item})
@@ -4827,28 +4831,28 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]____add`,
             "__helios__common__concat"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__length`,
             "__helios__common__length"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__head`,
             `(self) -> {
 		${TTPP}0__from_data(__core__headList(self))
 	}`
         )
     )
-    add(new RawFunc(`__helios__list[${TTPP}0]__tail`, "__core__tailList"))
+    add(makeRawFunc(`__helios__list[${TTPP}0]__tail`, "__core__tailList"))
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__is_empty`,
             `(self) -> {
 		() -> {
@@ -4858,7 +4862,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[__helios__data]__to_iterator`,
             `(self) -> {
 		() -> {
@@ -4885,7 +4889,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__to_iterator`,
             `(self) -> {
 		() -> {
@@ -4912,7 +4916,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__from_iterator`,
             `(iterator) -> {
 		recurse = (recurse, iterator) -> {
@@ -4938,7 +4942,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__zip[${FTPP}0]`,
             `(self) -> {
 		(other) -> {
@@ -4972,7 +4976,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__get`,
             `(self) -> {
 		(index) -> {
@@ -4982,7 +4986,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__list[__helios__data]__get",
             `(self) -> {
 		(index) -> {
@@ -5011,7 +5015,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__get_singleton`,
             `(self) -> {
 		() -> {
@@ -5023,7 +5027,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__list[__helios__data]__get_singleton",
             `(self) -> {
 		() -> {
@@ -5039,7 +5043,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__set`,
             `(self) -> {
 		(index, item) -> {
@@ -5049,7 +5053,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[__helios__data]__set`,
             `(self) -> {
 		(index, item) -> {
@@ -5081,13 +5085,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__split_at`,
             "__helios__list[__helios__data]__split_at"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[__helios__data]__split_at`,
             `(self) -> {
 		(index) -> {
@@ -5120,13 +5124,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__drop`,
             "__helios__list[__helios__data]__drop"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__list[__helios__data]__drop",
             `(self) -> {
 		(n) -> {
@@ -5159,13 +5163,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__drop_end`,
             "__helios__list[__helios__data]__drop_end"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__list[__helios__data]__drop_end",
             `(self) -> {
 		(n) -> {
@@ -5231,13 +5235,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__take`,
             "__helios__list[__helios__data]__take"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__list[__helios__data]__take",
             `(self) -> {
 		(n) -> {
@@ -5273,13 +5277,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__take_end`,
             "__helios__list[__helios__data]__take_end"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[__helios__data]__take_end`,
             `(self) -> {
 		(n) -> {
@@ -5337,7 +5341,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__any`,
             `(self) -> {
 		(fn) -> {
@@ -5352,7 +5356,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__all`,
             `(self) -> {
 		(fn) -> {
@@ -5367,7 +5371,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[__helios__data]__append`,
             `(self) -> {
 		(item) -> {
@@ -5388,7 +5392,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__append`,
             `(self) -> {
 		(item) -> {
@@ -5398,7 +5402,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__prepend`,
             `(self) -> {
 		(item) -> {
@@ -5408,7 +5412,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__find`,
             `(self) -> {
 		(fn) -> {
@@ -5432,7 +5436,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__find_index`,
             `(self) -> {
 		(fn) -> {
@@ -5456,7 +5460,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__find_safe`,
             `(self) -> {
 		(fn) -> {
@@ -5472,7 +5476,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__filter`,
             `(self) -> {
 		(fn) -> {
@@ -5487,7 +5491,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__for_each`,
             `(self) -> {
 		(fn) -> {
@@ -5511,7 +5515,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__fold[${FTPP}0]`,
             `(self) -> {
 		(fn, a0) -> {
@@ -5527,7 +5531,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__fold2[${FTPP}0@${FTPP}1]`,
             `(self) -> {
 		(fn, a0, b0) -> {
@@ -5549,7 +5553,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__fold3[${FTPP}0@${FTPP}1@${FTPP}2]`,
             `(self) -> {
 		(fn, a0, b0, c0) -> {
@@ -5571,7 +5575,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__fold_lazy[${FTPP}0]`,
             `(self) -> {
 		(fn, a0) -> {
@@ -5587,7 +5591,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__fold2_lazy[${FTPP}0@${FTPP}1]`,
             `(self) -> {
 		(fn, a0, b0) -> {
@@ -5605,7 +5609,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__map[${FTPP}0]`,
             `(self) -> {
 		(fn) -> {
@@ -5621,7 +5625,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__map_option[${FTPP}0]`,
             `(self) -> {
 		(fn) -> {
@@ -5657,7 +5661,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__sort`,
             `(self) -> {
 		(comp) -> {
@@ -5674,7 +5678,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 
     // List specials
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__sum`,
             `(self) -> {
 		() -> {
@@ -5698,7 +5702,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__list[__helios__string]__join",
             `(self) -> {
 		(__useopt__separator, separator) -> {
@@ -5726,7 +5730,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__list[__helios__bytearray]__join",
             `(self) -> {
 		(__useopt__separator, separator) -> {
@@ -5754,7 +5758,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__list[${TTPP}0]__flatten`,
             `(self) -> {
 		() -> {
@@ -5783,7 +5787,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     addNeqFunc(`__helios__map[${TTPP}0@${TTPP}1]`)
     addDataLikeEqFunc(`__helios__map[${TTPP}0@${TTPP}1]`)
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__is_valid_data_internal`,
             `(map) -> {
 		recurse = (recurse, map) -> {
@@ -5819,7 +5823,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__from_data`,
             `(data) -> {
 		map = __core__unMapData(data);
@@ -5837,7 +5841,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__from_data_safe`,
             `(data) -> {
 		__core__chooseData(
@@ -5854,7 +5858,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__show`,
             `(self) -> {
 		() -> {
@@ -5926,7 +5930,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__is_valid_data`,
             `(data) -> {
 		__core__chooseData(
@@ -5943,19 +5947,19 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]____to_data`,
             "__core__mapData"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]____add`,
             "__helios__common__concat"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__prepend`,
             `(self) -> {
 		(key, value) -> {
@@ -5965,7 +5969,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[__helios__data@__helios__data]__append`,
             `(self) -> {
 		(key, value) -> {
@@ -5975,7 +5979,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__append`,
             `(self) -> {
 		(key, value) -> {
@@ -5985,7 +5989,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__head`,
             `(self) -> {
 		head = __core__headList(self);
@@ -5996,7 +6000,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__head_key`,
             `(self) -> {
 		${TTPP}0__from_data(__core__fstPair(__core__headList(self)))
@@ -6004,7 +6008,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__head_value`,
             `(self) -> {
 		${TTPP}1__from_data(__core__sndPair(__core__headList(self)))
@@ -6012,7 +6016,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__length`,
             `(self) -> {
 		__helios__common__length(self)
@@ -6020,13 +6024,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__tail`,
             "__core__tailList"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__is_empty`,
             `(self) -> {
 		() -> {
@@ -6036,7 +6040,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__get`,
             `(self) -> {
 		(key) -> {
@@ -6051,7 +6055,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__get_safe`,
             `(self) -> {
 		(key) -> {
@@ -6070,7 +6074,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__all`,
             `(self) -> {
 		(fn) -> {
@@ -6083,7 +6087,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__all_keys`,
             `(self) -> {
 		(fn) -> {
@@ -6098,7 +6102,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__all_values`,
             `(self) -> {
 		(fn) -> {
@@ -6113,7 +6117,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__any`,
             `(self) -> {
 		(fn) -> {
@@ -6126,7 +6130,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__any_key`,
             `(self) -> {
 		(fn) -> {
@@ -6139,7 +6143,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__any_value`,
             `(self) -> {
 		(fn) -> {
@@ -6152,7 +6156,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__delete`,
             `(self) -> {
 		(key) -> {
@@ -6178,7 +6182,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__filter`,
             `(self) -> {
 		(fn) -> {
@@ -6193,7 +6197,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__find`,
             `(self) -> {
 		(fn) -> {
@@ -6225,7 +6229,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__find_safe`,
             `(self) -> {
 		(fn) -> {
@@ -6268,7 +6272,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__find_key`,
             `(self) -> {
 		(fn) -> {
@@ -6292,7 +6296,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__find_key_safe`,
             `(self) -> {
 		(fn) -> {
@@ -6308,7 +6312,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__find_value`,
             `(self) -> {
 		(fn) -> {
@@ -6332,7 +6336,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__find_value_safe`,
             `(self) -> {
 		(fn) -> {
@@ -6348,7 +6352,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__map[${FTPP}0@${FTPP}1]`,
             `(self) -> {
 		(fn) -> {
@@ -6369,7 +6373,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__to_list[${FTPP}0]`,
             `(self) -> {
 		(fn) -> {
@@ -6385,7 +6389,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__fold[${FTPP}0]`,
             `(self) -> {
 		(fn, z) -> {
@@ -6400,7 +6404,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__fold_lazy[${FTPP}0]`,
             `(self) -> {
 		(fn, z) -> {
@@ -6415,7 +6419,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__fold_with_list[${FTPP}0@${FTPP}1]`,
             `(self) -> {
 		(fn, z0, list) -> {
@@ -6442,7 +6446,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__fold2[${FTPP}0@${FTPP}1]`,
             `(self) -> {
 		(fn, a0, b0) -> {
@@ -6466,7 +6470,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__for_each`,
             `(self) -> {
 		(fn) -> {
@@ -6491,7 +6495,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__set`,
             `(self) -> {
 		(key, value) -> {
@@ -6524,7 +6528,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__to_iterator`,
             `(self) -> {
 		() -> {
@@ -6553,7 +6557,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__from_iterator`,
             `(iterator) -> {
 		recurse = (recurse, iterator) -> {
@@ -6579,7 +6583,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__update`,
             `(self) -> {
 		(key, fn) -> {
@@ -6616,7 +6620,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__update_safe`,
             `(self) -> {
 		(key, fn) -> {
@@ -6644,7 +6648,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__map[${TTPP}0@${TTPP}1]__sort`,
             `(self) -> {
 		(comp) -> {
@@ -6666,7 +6670,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 
     // Option[T] builtins
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__is_valid_data`,
             `(data) -> {
 		__core__chooseData(
@@ -6748,7 +6752,7 @@ export function makeRawFunctions(simplify, isTestnet) {
 		}`
     })
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__map[${FTPP}0]`,
             `(self) -> {
 		(fn) -> {
@@ -6773,7 +6777,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__unwrap`,
             `(self) -> {
 		() -> {
@@ -6783,7 +6787,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__show`,
             `(self) -> {
 		() -> {
@@ -6846,7 +6850,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // Option[T]::Some
     addEnumDataFuncs(`__helios__option[${TTPP}0]__some`, 0)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__option__SOME_FUNC",
             `(some) -> {
 		(callback) -> {callback(true, some)}
@@ -6854,7 +6858,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__some____new`,
             `(some) -> {
 		__core__constrData(0, __helios__common__list_1(${TTPP}0____to_data(some)))
@@ -6862,13 +6866,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__some__new`,
             `__helios__option[${TTPP}0]__some____new`
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__some__cast`,
             `(data) -> {
 		__helios__common__assert_constr_index(data, 0)
@@ -6876,7 +6880,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__some__some`,
             `(self) -> {
 		${TTPP}0__from_data(__helios__common__enum_field_0(self))
@@ -6884,7 +6888,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option__is_some`,
             `(data) -> {
 		__core__equalsInteger(__core__fstPair(__core__unConstrData(data)), 0)
@@ -6895,19 +6899,19 @@ export function makeRawFunctions(simplify, isTestnet) {
     // Option[T]::None
     addEnumDataFuncs(`__helios__option[${TTPP}0]__none`, 1)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__option__NONE",
             "__core__constrData(1, __helios__common__list_0)"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__option__NONE_FUNC",
             `(callback) -> {callback(false, ())}`
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__none____new`,
             `() -> {
 		__helios__option__NONE
@@ -6915,13 +6919,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__none__new`,
             `__helios__option[${TTPP}0]__none____new`
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__option[${TTPP}0]__none__cast`,
             `(data) -> {
 		__helios__common__assert_constr_index(data, 1)
@@ -6932,7 +6936,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // ScriptHash builtin
     addByteArrayLikeFuncs("__helios__scripthash")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scripthash__is_valid_data",
             `__helios__bytearray__is_valid_data_fixed_length(28)`
         )
@@ -6948,13 +6952,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         // Hash builtins
         addByteArrayLikeFuncs(`__helios__${hash}`)
         add(
-            new RawFunc(
+            makeRawFunc(
                 `__helios__${hash}__from_script_hash`,
                 "__helios__common__identity"
             )
         )
         add(
-            new RawFunc(
+            makeRawFunc(
                 `__helios__${hash}__to_script_hash`,
                 `(self) -> {
 					() -> {
@@ -6966,32 +6970,32 @@ export function makeRawFunctions(simplify, isTestnet) {
     }
     // is_valid_data is different for each hash
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__pubkeyhash__is_valid_data",
             "__helios__bytearray__is_valid_data_fixed_length(28)"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__validatorhash__is_valid_data",
             "__helios__bytearray__is_valid_data_fixed_length(28)"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingvalidatorhash__is_valid_data",
             "__helios__bytearray__is_valid_data_fixed_length(28)"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__datumhash__is_valid_data",
             "__helios__bytearray__is_valid_data_fixed_length(32)"
         )
     )
 
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__mintingpolicyhash__is_valid_data",
             `(data) -> {
 				__core__chooseData(
@@ -7025,13 +7029,13 @@ export function makeRawFunctions(simplify, isTestnet) {
     // PubKey builtin
     addByteArrayLikeFuncs("__helios__pubkey")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__pubkey__is_valid_data",
             `__helios__bytearray__is_valid_data_fixed_length(32)`
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__pubkey__verify",
             `(self) -> {
 		(message, signature) -> {
@@ -7042,9 +7046,9 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // ScriptContext builtins
-    add(new RawFunc("__helios__scriptcontext__data", "__CONTEXT"))
+    add(makeRawFunc("__helios__scriptcontext__data", "__CONTEXT"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__new_spending",
             `(tx, output_id) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -7055,7 +7059,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__new_minting",
             `(tx, mph) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -7071,7 +7075,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__new_rewarding",
             `(tx, cred) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -7082,7 +7086,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__new_certifying",
             `(tx, dcert) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -7093,19 +7097,19 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__tx",
             "__helios__common__enum_field_0(__helios__scriptcontext__data)"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__purpose",
             "__helios__common__enum_field_1(__helios__scriptcontext__data)"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__get_current_input",
             `() -> {
 		id = __helios__scriptcontext__get_spending_purpose_output_id();
@@ -7128,7 +7132,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__get_cont_outputs",
             `() -> {
 		vh = __helios__scriptcontext__get_current_validator_hash();
@@ -7153,7 +7157,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__get_spending_purpose_output_id",
             `() -> {
 		__helios__common__enum_field_0(__helios__scriptcontext__purpose)
@@ -7161,7 +7165,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__get_current_validator_hash",
             `() -> {
 		__helios__spendingcredential__validator__hash(
@@ -7179,7 +7183,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__get_current_minting_policy_hash",
             `() -> {
 		__helios__mintingpolicyhash__from_data(__helios__scriptcontext__get_spending_purpose_output_id())
@@ -7187,7 +7191,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__get_current_staking_validator_hash",
             `() -> {
 		pair = __core__unConstrData(__helios__scriptcontext__purpose);
@@ -7211,7 +7215,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__get_current_script_hash",
             `() -> {
 				tag = __helios__data__tag(__helios__scriptcontext__purpose);
@@ -7231,7 +7235,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__get_staking_purpose",
             `() -> {
 		__helios__scriptcontext__purpose
@@ -7239,7 +7243,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptcontext__get_script_purpose",
             `() -> {
 		__helios__scriptcontext__purpose
@@ -7250,7 +7254,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // StakingPurpose builtins
     addDataFuncs("__helios__stakingpurpose")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingpurpose__testdata",
             `(data) -> {
 		__core__chooseData(
@@ -7267,7 +7271,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingpurpose__show",
             `(self) -> {
 			() -> {
@@ -7324,7 +7328,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // StakingPurpose::Rewarding builtins
     addEnumDataFuncs("__helios__stakingpurpose__rewarding", 2)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingpurpose__rewarding__credential",
             "__helios__common__enum_field_0"
         )
@@ -7333,7 +7337,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // StakingPurpose::Certifying builtins
     addEnumDataFuncs("__helios__stakingpurpose__certifying", 3)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingpurpose__certifying__dcert",
             "__helios__common__enum_field_0"
         )
@@ -7343,7 +7347,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     addDataFuncs("__helios__scriptpurpose")
     // TODO: test fields
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -7360,7 +7364,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__show",
             `(self) -> {
 			() -> {
@@ -7456,7 +7460,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__new_minting",
             `(mph) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__mintingpolicyhash____to_data(mph)))
@@ -7464,7 +7468,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__new_spending",
             `(output_id) -> {
 		__core__constrData(1, __helios__common__list_1(output_id))
@@ -7472,7 +7476,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__new_rewarding",
             `(cred) -> {
 		__core__constrData(2, __helios__common__list_1(cred))
@@ -7480,7 +7484,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__new_certifying",
             `(dcert) -> {
 		__core__constrData(3, __helios__common__list_1(dcert))
@@ -7491,7 +7495,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // ScriptPurpose::Minting builtins
     addEnumDataFuncs("__helios__scriptpurpose__minting", 0)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__minting__policy_hash",
             `(self) -> {
 		__helios__mintingpolicyhash__from_data(__helios__common__enum_field_0(self))
@@ -7502,7 +7506,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // ScriptPurpose::Spending builtins
     addEnumDataFuncs("__helios__scriptpurpose__spending", 1)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__spending__output_id",
             "__helios__common__enum_field_0"
         )
@@ -7511,7 +7515,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // ScriptPurpose::Rewarding builtins
     addEnumDataFuncs("__helios__scriptpurpose__rewarding", 2)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__rewarding__credential",
             "__helios__common__enum_field_0"
         )
@@ -7520,7 +7524,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // ScriptPurpose::Certifying builtins
     addEnumDataFuncs("__helios__scriptpurpose__certifying", 3)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__scriptpurpose__certifying__dcert",
             "__helios__common__enum_field_0"
         )
@@ -7530,7 +7534,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     addDataFuncs("__helios__dcert")
     // TODO: test each enum variant
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -7547,7 +7551,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__show",
             `(self) -> {
 			() -> {
@@ -7707,7 +7711,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__new_register",
             `(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
@@ -7715,7 +7719,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__new_deregister",
             `(cred) -> {
 		__core__constrData(1, __helios__common__list_1(cred))
@@ -7723,7 +7727,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__new_delegate",
             `(cred, pool_id) -> {
 		__core__constrData(2, __helios__common__list_2(cred, __helios__pubkeyhash____to_data(pool_id)))
@@ -7731,7 +7735,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__new_register_pool",
             `(id, vrf) -> {
 		__core__constrData(3, __helios__common__list_2(__helios__pubkeyhash____to_data(id), __helios__pubkeyhash____to_data(vrf)))
@@ -7739,7 +7743,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__new_retire_pool",
             `(id, epoch) -> {
 		__core__constrData(4, __helios__common__list_2(__helios__pubkeyhash____to_data(id), __helios__int____to_data(epoch)))
@@ -7750,7 +7754,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // DCert::Register builtins
     addEnumDataFuncs("__helios__dcert__register", 0)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__register__credential",
             "__helios__common__enum_field_0"
         )
@@ -7759,7 +7763,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // DCert::Deregister builtins
     addEnumDataFuncs("__helios__dcert__deregister", 1)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__deregister__credential",
             "__helios__common__enum_field_0"
         )
@@ -7768,13 +7772,13 @@ export function makeRawFunctions(simplify, isTestnet) {
     // DCert::Delegate builtins
     addEnumDataFuncs("__helios__dcert__delegate", 2)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__delegate__delegator",
             "__helios__common__enum_field_0"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__delegate__pool_id",
             `(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__enum_field_1(self))
@@ -7785,7 +7789,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // DCert::RegisterPool builtins
     addEnumDataFuncs("__helios__dcert__registerpool", 3)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__registerpool__pool_id",
             `(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__enum_field_0(self))
@@ -7793,7 +7797,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__registerpool__pool_vrf",
             `(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__enum_field_1(self))
@@ -7804,7 +7808,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // DCert::RetirePool builtins
     addEnumDataFuncs("__helios__dcert__retirepool", 4)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__retirepool__pool_id",
             `(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__enum_field_0(self))
@@ -7812,7 +7816,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__dcert__retirepool__epoch",
             `(self) -> {
 		__helios__int__from_data(__helios__common__enum_field_1(self))
@@ -7824,7 +7828,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     addDataFuncs("__helios__tx")
     // TODO: test fields
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -7841,7 +7845,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__show",
             `(self) -> {
 			() -> {
@@ -8027,7 +8031,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__new[${FTPP}0@${FTPP}1]`,
             `(inputs, ref_inputs, outputs, fee, minted, dcerts, withdrawals, validity, signatories, redeemers, datums, txId) -> {
 		__core__constrData(0, __helios__common__list_12(
@@ -8048,7 +8052,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__inputs",
             `(self) -> {
 		__core__unListData(__helios__common__enum_field_0(self))
@@ -8056,7 +8060,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__ref_inputs",
             `(self) -> {
 		__core__unListData(__helios__common__enum_field_1(self))
@@ -8064,7 +8068,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__outputs",
             `(self) -> {
 		__core__unListData(__helios__common__enum_field_2(self))
@@ -8072,7 +8076,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__fee",
             `(self) -> {
 		__core__unMapData(__helios__common__enum_field_3(self))
@@ -8080,7 +8084,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__minted",
             `(self) -> {
 		__core__unMapData(__helios__common__enum_field_4(self))
@@ -8088,7 +8092,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__dcerts",
             `(self) -> {
 		__core__unListData(__helios__common__enum_field_5(self))
@@ -8096,7 +8100,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__withdrawals",
             `(self) -> {
 		__core__unMapData(__helios__common__enum_field_6(self))
@@ -8104,13 +8108,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__time_range",
             "__helios__common__enum_field_7"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__signatories",
             `(self) -> {
 		__core__unListData(__helios__common__enum_field_8(self))
@@ -8118,7 +8122,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__redeemers",
             `(self) -> {
 		__core__unMapData(__helios__common__enum_field_9(self))
@@ -8126,16 +8130,16 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__datums",
             `(self) -> {
 		__core__unMapData(__helios__common__enum_field_10(self))
 	}`
         )
     )
-    add(new RawFunc("__helios__tx__id", "__helios__common__enum_field_11"))
+    add(makeRawFunc("__helios__tx__id", "__helios__common__enum_field_11"))
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__find_datum_hash[${FTPP}0]`,
             `(self) -> {
 		(datum) -> {
@@ -8154,7 +8158,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__get_datum_data",
             `(self) -> {
 		(output) -> {
@@ -8185,7 +8189,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__filter_outputs",
             `(self, fn) -> {
 		__helios__common__filter_list(
@@ -8196,7 +8200,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__outputs_sent_to",
             `(self) -> {
 		(pkh) -> {
@@ -8208,7 +8212,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__outputs_sent_to_datum[${FTPP}0]`,
             `(self) -> {
 		(pkh, datum, isInline) -> {
@@ -8226,7 +8230,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__outputs_sent_to_datum_hash[${FTPP}0]`,
             `(self, pkh, datum) -> {
 		datumHash = __helios__common__hash_datum_data[${FTPP}0](datum);
@@ -8247,7 +8251,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__outputs_sent_to_inline_datum[${FTPP}0]`,
             `(self, pkh, datum) -> {
 		__helios__tx__filter_outputs(
@@ -8267,7 +8271,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__outputs_locked_by",
             `(self) -> {
 		(vh) -> {
@@ -8279,7 +8283,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__outputs_locked_by_datum[${FTPP}0]`,
             `(self) -> {
 		(vh, datum, isInline) -> {
@@ -8297,7 +8301,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__outputs_locked_by_datum_hash[${FTPP}0]`,
             `(self, vh, datum) -> {
 		datumHash = __helios__common__hash_datum_data[${FTPP}0](datum);
@@ -8318,7 +8322,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__outputs_locked_by_inline_datum[${FTPP}0]`,
             `(self, vh, datum) -> {
 		__helios__tx__filter_outputs(
@@ -8338,7 +8342,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__outputs_paid_to[${FTPP}0]`,
             `(self) -> {
 		(addr, datum) -> {
@@ -8360,7 +8364,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__value_sent_to",
             `(self) -> {
 		(pkh) -> {
@@ -8370,7 +8374,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__value_sent_to_datum[${FTPP}0]`,
             `(self) -> {
 		(pkh, datum, isInline) -> {
@@ -8380,7 +8384,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__value_locked_by",
             `(self) -> {
 		(vh) -> {
@@ -8390,7 +8394,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__value_locked_by_datum[${FTPP}0]`,
             `(self) -> {
 		(vh, datum, isInline) -> {
@@ -8400,7 +8404,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__tx__value_paid_to[${FTPP}0]`,
             `(self) -> {
 		(addr, datum) -> {
@@ -8410,7 +8414,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__is_approved_by",
             `(self) -> {
 		(cred) -> {
@@ -8446,7 +8450,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__tx__is_signed_by",
             `(self) -> {
 		(hash) -> {
@@ -8465,7 +8469,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // TxId builtins
     addDataFuncs("__helios__txid")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txid__bytes",
             `(self) -> {
 		__core__unBData(__core__headList(__core__sndPair(__core__unConstrData(self))))
@@ -8473,7 +8477,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txid____lt",
             `(a, b) -> {
 		__helios__bytearray____lt(__helios__txid__bytes(a), __helios__txid__bytes(b))
@@ -8481,7 +8485,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txid____leq",
             `(a, b) -> {
 		__helios__bytearray____leq(__helios__txid__bytes(a), __helios__txid__bytes(b))
@@ -8489,7 +8493,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txid____gt",
             `(a, b) -> {
 		__helios__bytearray____gt(__helios__txid__bytes(a), __helios__txid__bytes(b))
@@ -8497,7 +8501,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txid____geq",
             `(a, b) -> {
 		__helios__bytearray____geq(__helios__txid__bytes(a), __helios__txid__bytes(b))
@@ -8505,7 +8509,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txid__new",
             `(bytes) -> {
 		__core__constrData(0, __helios__common__list_1(__core__bData(bytes))) 
@@ -8513,7 +8517,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txid__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -8557,7 +8561,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txid__show",
             `(self) -> {
 		() -> {
@@ -8589,7 +8593,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // TxInput builtins
     addDataFuncs("__helios__txinput")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txinput__is_valid_data",
             `(data) -> {
 		__helios__common__test_constr_data_2(data, 0, __helios__txoutputid__is_valid_data, __helios__txoutput__is_valid_data)
@@ -8597,7 +8601,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txinput__show",
             `(self) -> {
 			() -> {
@@ -8643,7 +8647,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txinput__new",
             `(output_id, output) -> {
 		__core__constrData(0, __helios__common__list_2(output_id, output))
@@ -8651,19 +8655,19 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txinput__output_id",
             "__helios__common__enum_field_0"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txinput__output",
             "__helios__common__enum_field_1"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txinput__address",
             `(self) -> {
 		__helios__txoutput__address(__helios__txinput__output(self))
@@ -8671,7 +8675,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txinput__value",
             `(self) -> {
 		__helios__txoutput__value(__helios__txinput__output(self))
@@ -8679,7 +8683,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txinput__datum",
             `(self) -> {
 		__helios__txoutput__datum(__helios__txinput__output(self))
@@ -8691,7 +8695,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     addDataFuncs("__helios__txoutput")
     // TODO: test fields
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -8708,7 +8712,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__show",
             `(self) -> {
 			() -> {
@@ -8780,7 +8784,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__new",
             `(address, value, datum) -> {
 		__core__constrData(0, __helios__common__list_4(address, __core__mapData(value), datum, __helios__option__NONE))
@@ -8788,13 +8792,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__address",
             "__helios__common__enum_field_0"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__value",
             `(self) -> {
 		__core__unMapData(__helios__common__enum_field_1(self))
@@ -8802,19 +8806,19 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__datum",
             "__helios__common__enum_field_2"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__ref_script_hash",
             "__helios__common__enum_field_3"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__get_datum_hash",
             `(self) -> {
 		() -> {
@@ -8833,7 +8837,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__has_datum_hash",
             `(self, datumHash) -> {
 		__helios__datumhash____eq(__helios__txoutput__get_datum_hash(self)(), datumHash)
@@ -8841,7 +8845,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__txoutput__has_inline_datum[${FTPP}0]`,
             `(self, datum) -> {
 		pair = __core__unConstrData(__helios__txoutput__datum(self));
@@ -8859,7 +8863,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__is_locked_by",
             `(self) -> {
 		(hash) -> {
@@ -8881,7 +8885,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__is_sent_to",
             `(self) -> {
 		(pkh) -> {
@@ -8903,7 +8907,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutput__sum_values",
             `(outputs) -> {
 		__helios__common__fold(
@@ -8924,7 +8928,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     addDataFuncs("__helios__txoutputdatum")
     // TODO: test each enum variant
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputdatum__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -8941,7 +8945,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputdatum__show",
             `(self) -> {
 			() -> {
@@ -9005,7 +9009,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputdatum__new_none",
             `() -> {
 		__core__constrData(0, __helios__common__list_0)
@@ -9013,7 +9017,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputdatum__new_hash",
             `(hash) -> {
 		__core__constrData(1, __helios__common__list_1(__helios__datumhash____to_data(hash)))
@@ -9021,7 +9025,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__txoutputdatum__new_inline[__helios__data]`,
             `(data) -> {
 		__core__constrData(2, __helios__common__list_1(data))
@@ -9029,7 +9033,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__txoutputdatum__new_inline[${FTPP}0]`,
             `(data) -> {
 		__helios__txoutputdatum__new_inline[__helios__data](${FTPP}0____to_data(data))
@@ -9037,7 +9041,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputdatum__inline",
             `(self) -> {
 		pair = __core__unConstrData(self);
@@ -9062,7 +9066,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // OutputDatum::Hash
     addEnumDataFuncs("__helios__txoutputdatum__hash", 1)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputdatum__hash__hash",
             `(self) -> {
 		__helios__datumhash__from_data(__helios__common__enum_field_0(self))
@@ -9073,7 +9077,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // OutputDatum::Inline
     addEnumDataFuncs("__helios__txoutputdatum__inline", 2)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputdatum__inline__data",
             "__helios__common__enum_field_0"
         )
@@ -9081,9 +9085,9 @@ export function makeRawFunctions(simplify, isTestnet) {
 
     // RawData
     addDataFuncs("__helios__data")
-    add(new RawFunc("__helios__data__is_valid_data", `(data) -> {true}`))
+    add(makeRawFunc("__helios__data__is_valid_data", `(data) -> {true}`))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__tag",
             `(self) -> {
 		__core__fstPair(__core__unConstrData(self))
@@ -9091,7 +9095,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__show",
             `(self) -> {
 			() -> {
@@ -9205,7 +9209,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     // internal function
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__show_constr_data",
             `(callback) -> {
 			(data) -> {
@@ -9226,7 +9230,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__show_bool_data",
             `(callback) -> {
 			__helios__data__show_constr_data(
@@ -9254,7 +9258,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__show_map_data",
             `(callback) -> {
 			(data) -> {
@@ -9274,7 +9278,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__show_list_data",
             `(callback) -> {
 			(data) -> {
@@ -9294,7 +9298,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__show_idata",
             `(callback) -> {
 			(data) -> {
@@ -9314,7 +9318,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__show_bdata",
             `(callback) -> {
 			(data) -> {
@@ -9334,7 +9338,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__show_field",
             `(index, callback) -> {
 			(list) -> {
@@ -9364,7 +9368,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__data__as[${FTPP}0]`,
             `(data) -> {
 		${FTPP}0__from_data(data)
@@ -9372,7 +9376,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__data__as_strictly[${FTPP}0]`,
             `(data) -> {
 		__core__ifThenElse(
@@ -9388,7 +9392,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__constrdata____is",
             `(data) -> {
 		__core__chooseData(
@@ -9403,7 +9407,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__constrdata__tag",
             `(data) -> {
 		__core__fstPair(__core__unConstrData(data))
@@ -9411,7 +9415,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__constrdata__fields",
             `(data) -> {
 		__core__sndPair(__core__unConstrData(data))
@@ -9419,7 +9423,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__mapdata____is",
             `(data) -> {
 		__core__chooseData(
@@ -9434,7 +9438,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__mapdata__entries",
             `(data) -> {
 		__core__unMapData(data)
@@ -9442,7 +9446,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__listdata____is",
             `(data) -> {
 		__core__chooseData(
@@ -9457,7 +9461,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__listdata__items",
             `(data) -> {
 		__core__unListData(data)
@@ -9465,7 +9469,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__intdata____is",
             `(data) -> {
 		__core__chooseData(
@@ -9480,7 +9484,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__intdata__value",
             `(data) -> {
 		__core__unIData(data)
@@ -9488,7 +9492,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__bytearraydata____is",
             `(data) -> {
 		__core__chooseData(
@@ -9503,7 +9507,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__data__bytearraydata__value",
             `(data) -> {
 		__core__unBData(data)
@@ -9514,7 +9518,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // TxOutputId
     addDataFuncs("__helios__txoutputid")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid__is_valid_data",
             `(data) -> {
 		__helios__common__test_constr_data_2(data, 0, __helios__txid__is_valid_data, __helios__int__is_valid_data)
@@ -9522,13 +9526,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid__tx_id",
             "__helios__common__enum_field_0"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid__index",
             `(self) -> {
 		__helios__int__from_data(__helios__common__enum_field_1(self))
@@ -9536,7 +9540,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid__comp",
             `(a, b, comp_txid, comp_index) -> {
 		a_txid = __helios__txoutputid__tx_id(a);
@@ -9556,7 +9560,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid____lt",
             `(a, b) -> {
 		__helios__txoutputid__comp(a, b, __helios__txid____lt, __helios__int____lt)
@@ -9564,7 +9568,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid____leq",
             `(a, b) -> {
 		__helios__txoutputid__comp(a, b, __helios__txid____leq, __helios__int____leq)
@@ -9572,7 +9576,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid____gt",
             `(a, b) -> {
 		__helios__txoutputid__comp(a, b, __helios__txid____gt, __helios__int____gt)
@@ -9580,7 +9584,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid____geq",
             `(a, b) -> {
 		__helios__txoutputid__comp(a, b, __helios__txid____geq, __helios__int____geq)
@@ -9588,7 +9592,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid__new",
             `(tx_id, idx) -> {
 		__core__constrData(0, __helios__common__list_2(tx_id, __helios__int____to_data(idx)))
@@ -9596,7 +9600,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__txoutputid__show",
             `(self) -> {
 		() -> {
@@ -9641,7 +9645,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // Address
     addDataFuncs("__helios__address")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__to_hex",
             `(self) -> {
 		__helios__bytearray__show(__helios__address__to_bytes(self)())
@@ -9649,7 +9653,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__show",
             `(self) -> {
 		() -> {
@@ -9695,7 +9699,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__header",
             `(self) -> {
 		() -> {
@@ -9751,7 +9755,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__to_bytes",
             `(self) -> {
 		() -> {
@@ -9837,7 +9841,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__from_bytes",
             `(bytes) -> {
 		header = __core__indexByteString(bytes, 0);
@@ -9954,7 +9958,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__from_hex",
             `(hex) -> {
 		__helios__address__from_bytes(__helios__bytearray__parse(hex))
@@ -9962,7 +9966,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__is_valid_data",
             `(data) -> {
 		__helios__common__test_constr_data_2(data, 0, __helios__spendingcredential__is_valid_data, __helios__option[__helios__stakingcredential]__is_valid_data)
@@ -9970,7 +9974,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__new",
             `(cred, staking_cred) -> {
 		__core__constrData(0, __helios__common__list_2(cred, staking_cred))
@@ -9978,7 +9982,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__new_empty",
             `() -> {
 		__core__constrData(0, __helios__common__list_2(__helios__spendingcredential__new_pubkey(#), __helios__option__NONE))
@@ -9986,19 +9990,19 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__credential",
             "__helios__common__enum_field_0"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__staking_credential",
             "__helios__common__enum_field_1"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__is_staked",
             `(self) -> {
 		() -> {
@@ -10008,7 +10012,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__address__from_validator",
             `(vh) -> {
 			__helios__address__new(
@@ -10022,7 +10026,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // SpendingCredential builtins
     addDataFuncs("__helios__spendingcredential")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -10090,7 +10094,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__show",
             `(self) -> {
 			() -> {
@@ -10148,7 +10152,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__new_pubkey",
             `(hash) -> {
 		__core__constrData(0, __helios__common__list_1(__helios__pubkeyhash____to_data(hash)))
@@ -10156,7 +10160,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__new_validator",
             `(hash) -> {
 		__core__constrData(1, __helios__common__list_1(__helios__validatorhash____to_data(hash)))
@@ -10164,7 +10168,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__is_pubkey",
             `(self) -> {
 		__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 0)
@@ -10172,7 +10176,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__is_validator",
             `(self) -> {
 		__core__equalsInteger(__core__fstPair(__core__unConstrData(self)), 1)
@@ -10183,7 +10187,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // Credential::PubKey builtins
     addEnumDataFuncs("__helios__spendingcredential__pubkey", 0)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__pubkey__cast",
             `(data) -> {
 		__helios__common__assert_constr_index(data, 0)
@@ -10191,7 +10195,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__pubkey__hash",
             `(self) -> {
 		__helios__pubkeyhash__from_data(__helios__common__enum_field_0(self))
@@ -10202,13 +10206,13 @@ export function makeRawFunctions(simplify, isTestnet) {
     // Credential::Validator builtins
     addEnumDataFuncs("__helios__spendingcredential__validator", 1)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__validator____new",
             "__helios__spendingcredential__new_validator"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__validator__cast",
             `(data) -> {
 		__helios__common__assert_constr_index(data, 1)
@@ -10216,7 +10220,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__spendingcredential__validator__hash",
             `(self) -> {
 		__helios__validatorhash__from_data(__helios__common__enum_field_0(self))
@@ -10227,7 +10231,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // StakingHash builtins
     addDataFuncs("__helios__stakinghash")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__show",
             `(self) -> {
 			() -> {
@@ -10285,31 +10289,31 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__is_valid_data",
             "__helios__spendingcredential__is_valid_data"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__new_stakekey",
             "__helios__spendingcredential__new_pubkey"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__new_validator",
             "__helios__spendingcredential__new_validator"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__is_stakekey",
             "__helios__spendingcredential__is_pubkey"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__is_validator",
             "__helios__spendingcredential__is_validator"
         )
@@ -10318,19 +10322,19 @@ export function makeRawFunctions(simplify, isTestnet) {
     // StakingHash::StakeKey builtins
     addEnumDataFuncs("__helios__stakinghash__stakekey", 0)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__stakekey__is_valid_data",
             "__helios__spendingcredential__pubkey__is_valid_data"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__stakekey__cast",
             "__helios__spendingcredential__pubkey__cast"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__stakekey__hash",
             "__helios__spendingcredential__pubkey__hash"
         )
@@ -10339,19 +10343,19 @@ export function makeRawFunctions(simplify, isTestnet) {
     // StakingHash::Validator builtins
     addEnumDataFuncs("__helios__stakinghash__validator", 1)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__validator__is_valid_data",
             "__helios__spendingcredential__validator__is_valid_data"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__validator__cast",
             "__helios__spendingcredential__validator__cast"
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakinghash__validator__hash",
             "__helios__spendingcredential__validator__hash"
         )
@@ -10360,7 +10364,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // StakingCredential builtins
     addDataFuncs("__helios__stakingcredential")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingcredential__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -10409,7 +10413,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingcredential__show",
             `(self) -> {
 			() -> {
@@ -10493,7 +10497,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingcredential__new_hash",
             `(cred) -> {
 		__core__constrData(0, __helios__common__list_1(cred))
@@ -10501,7 +10505,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingcredential__hash__cast",
             `(data) -> {
 		__helios__common__assert_constr_index(data, 0)
@@ -10509,7 +10513,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingcredential__new_ptr",
             `(i, j, k) -> {
 		__core__constrData(1, __helios__common__list_3(
@@ -10521,7 +10525,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingcredential__ptr__cast",
             `(data) -> {
 		__helios__common__assert_constr_index(data, 1)
@@ -10532,7 +10536,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // StakingCredential::Hash builtins
     addEnumDataFuncs("__helios__stakingcredential__hash", 0)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__stakingcredential__hash__hash",
             "__helios__common__enum_field_0"
         )
@@ -10544,52 +10548,52 @@ export function makeRawFunctions(simplify, isTestnet) {
     // Time builtins
     addIntLikeFuncs("__helios__time")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__time__is_valid_data",
             `__helios__int__is_valid_data`
         )
     )
-    add(new RawFunc("__helios__time__new", `__helios__common__identity`))
-    add(new RawFunc("__helios__time____add", `__helios__int____add`))
-    add(new RawFunc("__helios__time____sub", `__helios__int____sub`))
-    add(new RawFunc("__helios__time____sub1", `__helios__int____sub`))
-    add(new RawFunc("__helios__time____geq", `__helios__int____geq`))
-    add(new RawFunc("__helios__time____gt", `__helios__int____gt`))
-    add(new RawFunc("__helios__time____leq", `__helios__int____leq`))
-    add(new RawFunc("__helios__time____lt", `__helios__int____lt`))
-    add(new RawFunc("__helios__time__show", `__helios__int__show`))
+    add(makeRawFunc("__helios__time__new", `__helios__common__identity`))
+    add(makeRawFunc("__helios__time____add", `__helios__int____add`))
+    add(makeRawFunc("__helios__time____sub", `__helios__int____sub`))
+    add(makeRawFunc("__helios__time____sub1", `__helios__int____sub`))
+    add(makeRawFunc("__helios__time____geq", `__helios__int____geq`))
+    add(makeRawFunc("__helios__time____gt", `__helios__int____gt`))
+    add(makeRawFunc("__helios__time____leq", `__helios__int____leq`))
+    add(makeRawFunc("__helios__time____lt", `__helios__int____lt`))
+    add(makeRawFunc("__helios__time__show", `__helios__int__show`))
 
     // Duratin builtins
     addIntLikeFuncs("__helios__duration")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__duration__is_valid_data",
             `__helios__int__is_valid_data`
         )
     )
-    add(new RawFunc("__helios__duration__new", `__helios__common__identity`))
-    add(new RawFunc("__helios__duration__show", `__helios__int__show`))
-    add(new RawFunc("__helios__duration____add", `__helios__int____add`))
-    add(new RawFunc("__helios__duration____sub", `__helios__int____sub`))
-    add(new RawFunc("__helios__duration____mul", `__helios__int____mul`))
-    add(new RawFunc("__helios__duration____div", `__helios__int____div`))
-    add(new RawFunc("__helios__duration____div1", `__helios__int____div`))
-    add(new RawFunc("__helios__duration____mod", `__helios__int____mod`))
-    add(new RawFunc("__helios__duration____geq", `__helios__int____geq`))
-    add(new RawFunc("__helios__duration____gt", `__helios__int____gt`))
-    add(new RawFunc("__helios__duration____leq", `__helios__int____leq`))
-    add(new RawFunc("__helios__duration____lt", `__helios__int____lt`))
-    add(new RawFunc("__helios__duration__SECOND", "1000"))
-    add(new RawFunc("__helios__duration__MINUTE", "60000"))
-    add(new RawFunc("__helios__duration__HOUR", "3600000"))
-    add(new RawFunc("__helios__duration__DAY", "86400000"))
-    add(new RawFunc("__helios__duration__WEEK", "604800000"))
+    add(makeRawFunc("__helios__duration__new", `__helios__common__identity`))
+    add(makeRawFunc("__helios__duration__show", `__helios__int__show`))
+    add(makeRawFunc("__helios__duration____add", `__helios__int____add`))
+    add(makeRawFunc("__helios__duration____sub", `__helios__int____sub`))
+    add(makeRawFunc("__helios__duration____mul", `__helios__int____mul`))
+    add(makeRawFunc("__helios__duration____div", `__helios__int____div`))
+    add(makeRawFunc("__helios__duration____div1", `__helios__int____div`))
+    add(makeRawFunc("__helios__duration____mod", `__helios__int____mod`))
+    add(makeRawFunc("__helios__duration____geq", `__helios__int____geq`))
+    add(makeRawFunc("__helios__duration____gt", `__helios__int____gt`))
+    add(makeRawFunc("__helios__duration____leq", `__helios__int____leq`))
+    add(makeRawFunc("__helios__duration____lt", `__helios__int____lt`))
+    add(makeRawFunc("__helios__duration__SECOND", "1000"))
+    add(makeRawFunc("__helios__duration__MINUTE", "60000"))
+    add(makeRawFunc("__helios__duration__HOUR", "3600000"))
+    add(makeRawFunc("__helios__duration__DAY", "86400000"))
+    add(makeRawFunc("__helios__duration__WEEK", "604800000"))
 
     // TimeRange builtins
     addDataFuncs("__helios__timerange")
     // TODO: test fields
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__is_valid_data",
             `(data) -> {
 		test_inner = (data) -> {
@@ -10677,7 +10681,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__new",
             `
 	(a, b) -> {
@@ -10697,7 +10701,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__ALWAYS",
             `
 	__core__constrData(0, __helios__common__list_2(
@@ -10713,7 +10717,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__NEVER",
             `
 	__core__constrData(0, __helios__common__list_2(
@@ -10729,7 +10733,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__from",
             `
 	(a) -> {
@@ -10748,7 +10752,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__to",
             `
 	(b) -> {
@@ -10767,7 +10771,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__is_before",
             `(self) -> {
 		(t) -> {
@@ -10797,7 +10801,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__is_after",
             `(self) -> {
 		(t) -> {
@@ -10827,7 +10831,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__contains",
             `(self) -> {
 		(t) -> {
@@ -10888,7 +10892,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__start",
             `(self) -> {
 		__helios__time__from_data(__helios__common__enum_field_0(__helios__common__enum_field_0(__helios__common__enum_field_0(self))))
@@ -10896,7 +10900,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__end",
             `(self) -> {
 		__helios__time__from_data(__helios__common__enum_field_0(__helios__common__enum_field_0(__helios__common__enum_field_1(self))))
@@ -10904,7 +10908,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__timerange__show",
             `(self) -> {
 		() -> {
@@ -11037,7 +11041,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     // AssetClass builtins
     addDataFuncs("__helios__assetclass")
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass__is_valid_data",
             `(data) -> {
 		__helios__common__test_constr_data_2(data, 0, __helios__mintingpolicyhash__is_valid_data, __helios__bytearray__is_valid_data_max_length(32))
@@ -11045,13 +11049,13 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass__ADA",
             `__helios__assetclass__new(#, #)`
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass__new",
             `(mph, token_name) -> {
 		__core__constrData(0, __helios__common__list_2(
@@ -11062,7 +11066,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass__mph",
             `(self) -> {
 		__helios__mintingpolicyhash__from_data(__helios__common__enum_field_0(self))
@@ -11070,7 +11074,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass__mph_data",
             `(self) -> {
 		__helios__common__enum_field_0(self)
@@ -11078,7 +11082,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass__token_name",
             `(self) -> {
 		__helios__bytearray__from_data(__helios__common__enum_field_1(self))
@@ -11086,7 +11090,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass__token_name_data",
             `(self) -> {
 		__helios__common__enum_field_1(self)			
@@ -11094,7 +11098,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass__show",
             `(self) -> {
 		() -> {
@@ -11138,7 +11142,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass____lt",
             `(a, b) -> {
 		mpha = __helios__assetclass__mph(a);
@@ -11159,7 +11163,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass____leq",
             `(a, b) -> {
 		mpha = __helios__assetclass__mph(a);
@@ -11180,7 +11184,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass____gt",
             `(a, b) -> {
 		mpha = __helios__assetclass__mph(a);
@@ -11201,7 +11205,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__assetclass____geq",
             `(a, b) -> {
 		mpha = __helios__assetclass__mph(a);
@@ -11226,7 +11230,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     addSerializeFunc("__helios__value")
     // TODO: test each entry in the map
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__is_valid_data",
             `(data) -> {
 		__core__chooseData(
@@ -11314,9 +11318,9 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__value__from_data", "__core__unMapData"))
+    add(makeRawFunc("__helios__value__from_data", "__core__unMapData"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__from_data_safe",
             `(data) -> {
 		__core__chooseData(
@@ -11332,11 +11336,11 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__value____to_data", "__core__mapData"))
-    add(new RawFunc("__helios__value__value", "__helios__common__identity"))
-    add(new RawFunc("__helios__value__ZERO", "__core__mkNilPairData(())"))
+    add(makeRawFunc("__helios__value____to_data", "__core__mapData"))
+    add(makeRawFunc("__helios__value__value", "__helios__common__identity"))
+    add(makeRawFunc("__helios__value__ZERO", "__core__mkNilPairData(())"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__lovelace",
             `(i) -> {
 		__helios__value__new(__helios__assetclass__ADA, i)
@@ -11344,7 +11348,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__new",
             `(assetClass, i) -> {
 		__core__ifThenElse(
@@ -11372,9 +11376,9 @@ export function makeRawFunctions(simplify, isTestnet) {
 	}`
         )
     )
-    add(new RawFunc("__helios__value__from_map", "__helios__common__identity"))
+    add(makeRawFunc("__helios__value__from_map", "__helios__common__identity"))
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__to_map",
             `(self) -> {
 		() -> {
@@ -11384,7 +11388,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_map_keys",
             `(map) -> {
 		recurse = (recurse, map) -> {
@@ -11399,7 +11403,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__merge_map_keys",
             `(a, b) -> {
 		aKeys = __helios__value__get_map_keys(a);
@@ -11424,7 +11428,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_inner_map",
             `(map, mph) -> {
 		recurse = (recurse, map) -> {
@@ -11445,7 +11449,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_inner_map_int",
             `(map, key) -> {
 		recurse = (recurse, map, key) -> {
@@ -11466,7 +11470,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__add_or_subtract_inner",
             `(op) -> {
 		(a, b) -> {
@@ -11492,7 +11496,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__add_or_subtract",
             `(a, b, op) -> {
 		recurse = (recurse, keys, result) -> {
@@ -11516,7 +11520,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__map_quantities",
             `(self, op) -> {
 		recurseInner = (recurseInner, inner) -> {
@@ -11556,7 +11560,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__compare_inner",
             `(comp, a, b) -> {
 		recurse = (recurse, keys) -> {
@@ -11583,7 +11587,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__compare",
             `(a, b, comp) -> {
 		recurse = (recurse, keys) -> {
@@ -11611,7 +11615,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____eq",
             `(a, b) -> {
 		__helios__value__compare(a, b, __core__equalsInteger)
@@ -11619,7 +11623,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____neq",
             `(a, b) -> {
 		__helios__bool____not(__helios__value____eq(a, b))
@@ -11627,7 +11631,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____add",
             `(a, b) -> {
 		__helios__value__add_or_subtract(a, b, __core__addInteger)
@@ -11635,7 +11639,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____sub",
             `(a, b) -> {
 		__helios__value__add_or_subtract(a, b, __core__subtractInteger)
@@ -11643,7 +11647,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____mul",
             `(a, scale) -> {
 		__helios__value__map_quantities(a, (qty) -> {__core__multiplyInteger(qty, scale)})
@@ -11651,7 +11655,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____div",
             `(a, den) -> {
 		__helios__value__map_quantities(a, (qty) -> {__core__quotientInteger(qty, den)})
@@ -11659,7 +11663,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____geq",
             `(a, b) -> {
 		__helios__value__compare(
@@ -11675,7 +11679,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__contains",
             `
 	(self) -> {
@@ -11686,7 +11690,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____gt",
             `(a, b) -> {
 		__helios__bool__and(
@@ -11712,7 +11716,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____leq",
             `(a, b) -> {
 		__helios__value__compare(a, b, __core__lessThanEqualsInteger)
@@ -11720,7 +11724,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value____lt",
             `(a, b) -> {
 		__helios__bool__and(
@@ -11746,7 +11750,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__is_zero_inner",
             `(tokens) -> {
 		recurse = (recurse, tokens) -> {
@@ -11772,7 +11776,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__is_zero",
             `(self) -> {
 		() -> {
@@ -11801,7 +11805,7 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
     // TODO: core__unBData__safe(mph)
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get",
             `(self) -> {
 		(assetClass) -> {
@@ -11853,7 +11857,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_safe",
             `(self) -> {
 		(assetClass) -> {
@@ -11895,7 +11899,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_lovelace",
             `(self) -> {
 		() -> {
@@ -11905,7 +11909,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_assets",
             `(self) -> {
 		() -> {
@@ -11920,7 +11924,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_singleton_asset_class",
             `(self) -> {
 			() -> {
@@ -11995,7 +11999,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_singleton_policy",
             `(self) -> {
 			() -> {
@@ -12067,7 +12071,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_policy",
             `(self) -> {
 		(mph) -> {
@@ -12095,7 +12099,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__get_policy_safe",
             `(self) -> {
 		(mph_) -> {
@@ -12123,7 +12127,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__contains_policy",
             `(self) -> {
 		(mph) -> {
@@ -12147,7 +12151,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             "__helios__value__show",
             `(self) -> {
 		(__useopt__ada, ada) -> {
@@ -12253,7 +12257,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__value__sum[${FTPP}0]`,
             `(self) -> {
 		recurse = (recurse, lst) -> {
@@ -12275,7 +12279,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__value__flatten`,
             `(self) -> {
 		() -> {
@@ -12341,7 +12345,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__value__delete_policy`,
             `(self) -> {
 		(mph) -> {
@@ -12374,7 +12378,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__value__delete_lovelace`,
             `(self) -> {
 				() -> {
@@ -12384,7 +12388,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__value__prepend_inner`,
             `(inner_tail, token_name_data, qty_data) -> {
 			__core__ifThenElse(
@@ -12406,7 +12410,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__value__prepend_outer`,
             `(outer_tail, mph_data, tokens) -> {
 			__core__chooseList(
@@ -12461,7 +12465,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         }
     ].forEach(({ suffix, handleInnerDuplicate, handleOuterDuplicate }) => {
         add(
-            new RawFunc(
+            makeRawFunc(
                 `__helios__value__from_flat${suffix}`,
                 `(flat_map) -> {
 				__core__chooseList(
@@ -12646,7 +12650,7 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     })
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__value__sort`,
             `(self) -> {
 			() -> {
@@ -12657,19 +12661,19 @@ export function makeRawFunctions(simplify, isTestnet) {
     )
 
     // Cip67 namespace
-    add(new RawFunc(`__helios__cip67__fungible_token_label`, "#0014df10"))
-    add(new RawFunc(`__helios__cip67__reference_token_label`, "#000643b0"))
-    add(new RawFunc(`__helios__cip67__user_token_label`, "#000de140"))
+    add(makeRawFunc(`__helios__cip67__fungible_token_label`, "#0014df10"))
+    add(makeRawFunc(`__helios__cip67__reference_token_label`, "#000643b0"))
+    add(makeRawFunc(`__helios__cip67__user_token_label`, "#000de140"))
 
     // MixedArgs
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__mixedargs__other__redeemer`,
             `__helios__common__enum_field_0`
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__mixedargs__other____is`,
             `(data) -> {
 			__helios__common__enum_tag_equals(data, 0)
@@ -12677,19 +12681,19 @@ export function makeRawFunctions(simplify, isTestnet) {
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__mixedargs__spending__datum`,
             `__helios__common__enum_field_0`
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__mixedargs__spending__redeemer`,
             `__helios__common__enum_field_1`
         )
     )
     add(
-        new RawFunc(
+        makeRawFunc(
             `__helios__mixedargs__spending____is`,
             `(data) -> {
 				__helios__common__enum_tag_equals(data, 1)

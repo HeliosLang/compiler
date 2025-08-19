@@ -4,8 +4,8 @@ import { expectDefined } from "@helios-lang/type-utils"
 import { ParametricName } from "./ParametricName.js"
 
 /**
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("./Definitions.js").Definitions} Definitions
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { Definitions, RawFuncI } from "../index.js"
  */
 
 /**
@@ -22,16 +22,24 @@ export function matchBuiltins(s, callback) {
 }
 
 /**
- * Wrapper for a builtin function (written in IR)
- * @internal
+ * @param {string} name
+ * @param {string | ((ttp: string[], ftp: string[]) => string)} definition
+ * @returns {RawFuncI}
  */
-export class RawFunc {
+export function makeRawFunc(name, definition) {
+    return new RawFuncImpl(name, definition)
+}
+
+/**
+ * Wrapper for a builtin function (written in IR)
+ * @implements {RawFuncI}
+ */
+class RawFuncImpl {
     /**
-     * @private
      * @readonly
      * @type {string}
      */
-    _name
+    name
 
     /**
      * @private
@@ -46,7 +54,7 @@ export class RawFunc {
      * @param {string | ((ttp: string[], ftp: string[]) => string)} definition
      */
     constructor(name, definition) {
-        this._name = name
+        this.name = name
         if (!definition) {
             throw new Error("unexpected")
         }
@@ -54,9 +62,9 @@ export class RawFunc {
         this._definition =
             typeof definition == "string"
                 ? (ttp, ftp) => {
-                      if (ParametricName.matches(this._name)) {
+                      if (ParametricName.matches(this.name)) {
                           // TODO: make sure definition is always a function for parametric names
-                          let pName = ParametricName.parse(this._name)
+                          let pName = ParametricName.parse(this.name)
                           pName = new ParametricName(
                               pName.base,
                               ttp,
@@ -75,13 +83,6 @@ export class RawFunc {
     }
 
     /**
-     * @type {string}
-     */
-    get name() {
-        return this._name
-    }
-
-    /**
      * @param {string[]} ttp
      * @param {string[]} ftp
      * @returns {SourceMappedStringI}
@@ -92,14 +93,14 @@ export class RawFunc {
 
     /**
      * Loads dependecies (if not already loaded), then load 'this'
-     * @param {Map<string, RawFunc>} db
+     * @param {Map<string, RawFuncI>} db
      * @param {Definitions} dst
      * @param {string[]} ttp
      * @param {string[]} ftp
      * @returns {void}
      */
     load(db, dst, ttp = [], ftp = []) {
-        let name = this._name
+        let name = this.name
         if (ttp.length > 0 || ftp.length > 0) {
             let pName = ParametricName.parse(name)
             pName = new ParametricName(pName.base, ttp, pName.fn, ftp)
@@ -132,7 +133,7 @@ export class RawFunc {
 
                             if (fn) {
                                 const ir = pName.replaceTemplateNames(fn.toIR())
-                                fn = new RawFunc(dep, ir.toString())
+                                fn = makeRawFunc(dep, ir.toString())
                                 fn.load(db, dst)
                             } else {
                                 throw new Error(

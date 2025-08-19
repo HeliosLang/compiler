@@ -12,10 +12,10 @@ import { Module } from "./Module.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("@helios-lang/uplc").UplcData} UplcData
- * @typedef {import("../codegen/index.js").Definitions} Definitions
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { UplcData } from "@helios-lang/uplc"
+ * @import { Definitions } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
