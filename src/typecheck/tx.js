@@ -1306,11 +1306,7 @@ export function ScriptContextNamespace(info) {
      */
     let scriptEnum = undefined
 
-    if (
-        info.currentScript &&
-        info.scriptTypes &&
-        info.currentScript in info.scriptTypes
-    ) {
+    if (info.scriptTypes) {
         scriptEnum = createScriptType(info.scriptTypes)
     }
 
