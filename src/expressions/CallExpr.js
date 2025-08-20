@@ -205,7 +205,10 @@ export class CallExpr extends Expr {
                 viableCasts
             )
         } else {
-            if (!(fnVal.asType instanceof AllType)) {
+            if (
+                !(fnVal.asType instanceof AllType) &&
+                !(fnVal instanceof AllType)
+            ) {
                 ctx.errors.type(
                     this._fnExpr.site,
                     `unable to call ${fnVal.toString()} (returned by ${this._fnExpr.toString()})`

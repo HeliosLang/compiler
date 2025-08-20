@@ -498,7 +498,7 @@ export class AllType extends Common {
      * @returns {Typed}
      */
     toTyped() {
-        throw new Error("can't be turned into a type")
+        return new DataEntity(this)
     }
 
     /**
