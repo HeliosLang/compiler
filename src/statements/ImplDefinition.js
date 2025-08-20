@@ -1,3 +1,4 @@
+import { makeErrorCollector } from "@helios-lang/compiler-utils"
 import { ToIRContext } from "../codegen/ToIRContext.js"
 import { Expr } from "../expressions/index.js"
 import { Scope } from "../scopes/index.js"
@@ -6,7 +7,7 @@ import { FuncStatement } from "./FuncStatement.js"
 
 /**
  * @import { Site } from "@helios-lang/compiler-utils"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").InstanceMembers} InstanceMembers
  * @typedef {import("../typecheck/index.js").TypeMembers} TypeMembers
  */
@@ -61,10 +62,11 @@ export class ImplDefinition {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {TypeMembers}
      */
-    genTypeMembers(scope) {
+    genTypeMembers(ctx, scope) {
         /**
          * @type {TypeMembers}
          */
@@ -72,12 +74,12 @@ export class ImplDefinition {
 
         for (let s of this.statements) {
             if (s instanceof ConstStatement) {
-                const s_ = s.evalType(scope)
+                const s_ = s.evalType(ctx, scope)
                 if (s_) {
                     typeMembers[s.name.value] = s_.toTyped()
                 }
             } else if (!FuncStatement.isMethod(s)) {
-                const s_ = s.evalType(scope)
+                const s_ = s.evalType(ctx, scope)
 
                 if (s_) {
                     typeMembers[s.name.value] = s_
@@ -101,7 +103,10 @@ export class ImplDefinition {
 
         for (let s of this.statements) {
             if (FuncStatement.isMethod(s)) {
-                const s_ = s.evalType(scope)
+                const s_ = s.evalType(
+                    { errors: scope.errorCollector ?? makeErrorCollector() },
+                    scope
+                )
 
                 if (s_) {
                     instanceMembers[s.name.value] = s_
@@ -113,16 +118,17 @@ export class ImplDefinition {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      */
-    eval(scope) {
-        void this._selfTypeExpr.eval(scope)
+    eval(ctx, scope) {
+        void this._selfTypeExpr.eval(ctx, scope)
 
         for (let s of this.statements) {
             if (s instanceof FuncStatement) {
-                void s.evalInternal(scope, true)
+                void s.evalInternal(ctx, scope, true)
             } else {
-                void s.evalInternal(scope)
+                void s.evalInternal(ctx, scope)
             }
         }
     }

@@ -12,7 +12,7 @@ import { DataDefinition } from "./DataDefinition.js"
 
 /**
  * @import { Word } from "@helios-lang/compiler-utils"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/common.js").GenericEnumMemberTypeProps} GenericEnumMemberTypeProps
@@ -97,17 +97,19 @@ export class EnumMember {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      */
-    evalDataFields(scope) {
-        this._dataDef.evalFieldTypes(scope)
+    evalDataFields(ctx, scope) {
+        this._dataDef.evalFieldTypes(ctx, scope)
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {(parent: DataType) => EnumMemberType}
      */
-    evalType(scope) {
+    evalType(ctx, scope) {
         if (!this._parent) {
             throw new Error("parent should've been registered")
         }
@@ -130,7 +132,7 @@ export class EnumMember {
                 genInstanceMembers: (self) => {
                     const res = {
                         ...genCommonInstanceMembers(self),
-                        ...this._dataDef.evalFieldTypes(scope),
+                        ...this._dataDef.evalFieldTypes(ctx, scope),
                         copy: this._dataDef.genCopyType(self)
                     }
 

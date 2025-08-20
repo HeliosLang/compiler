@@ -4,6 +4,9 @@ import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
+    AllType,
+    AnyType,
+    DataEntity,
     ErrorEntity,
     TupleType,
     VoidType,
@@ -15,7 +18,8 @@ import { SwitchDefault } from "./SwitchDefault.js"
 import { IfElseExpr } from "./IfElseExpr.js"
 
 /**
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
@@ -30,16 +34,19 @@ const IR_CONTROL_EXPR_NAME = "__cond"
 export class EnumSwitchExpr extends SwitchExpr {
     /**
      * @private
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {DataType[]}
      */
-    evalControlExprTypes(scope) {
-        const controlVal_ = this.controlExpr.eval(scope)
+    evalControlExprTypes(ctx, scope) {
+        const controlVal_ = this.controlExpr.eval(ctx, scope)
 
         const controlVal = controlVal_.asTyped
 
         if (!controlVal) {
-            throw makeTypeError(this.controlExpr.site, "not typed")
+            ctx.errors.type(this.controlExpr.site, "not typed")
+
+            return [new AllType()]
         }
 
         if (controlVal.type instanceof TupleType) {
@@ -54,14 +61,22 @@ export class EnumSwitchExpr extends SwitchExpr {
                 let enumType = itemType.asDataType
 
                 if (!enumType) {
-                    throw makeTypeError(this.controlExpr.site, "not an enum")
+                    ctx.errors.type(this.controlExpr.site, "not an enum")
+
+                    controlTypes.push(new AllType())
+
+                    return
                 }
 
                 if (itemType.asEnumMemberType) {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         this.controlExpr.site,
                         `${itemType.toString()} is an enum variant, not an enum`
                     )
+
+                    controlTypes.push(new AllType())
+
+                    return
                 }
 
                 controlTypes.push(enumType)
@@ -73,14 +88,18 @@ export class EnumSwitchExpr extends SwitchExpr {
             let enumType = controlVal.type.asDataType
 
             if (!enumType) {
-                throw makeTypeError(this.controlExpr.site, "not an enum")
+                ctx.errors.type(this.controlExpr.site, "not an enum")
+
+                return [new AllType()]
             }
 
             if (controlVal.type.asEnumMemberType) {
-                throw makeTypeError(
+                ctx.errors.type(
                     this.controlExpr.site,
                     `${controlVal.type.toString()} is an enum variant, not an enum`
                 )
+
+                return [new AllType()]
             }
 
             return [enumType]
@@ -248,11 +267,12 @@ export class EnumSwitchExpr extends SwitchExpr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const enumTypes = this.evalControlExprTypes(scope)
+    evalInternal(ctx, scope) {
+        const enumTypes = this.evalControlExprTypes(ctx, scope)
 
         const someUncovered = this.checkCaseReachability(enumTypes)
 
@@ -267,7 +287,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 
         for (let c of this.cases) {
             // TODO: pass a list of enumTypes (can be multiswitch)
-            const branchVal = c.evalEnumMember(scope, enumTypes)
+            const branchVal = c.evalEnumMember(ctx, scope, enumTypes)
 
             if (!branchVal) {
                 continue
@@ -286,10 +306,10 @@ export class EnumSwitchExpr extends SwitchExpr {
                 branchMultiType &&
                 !new VoidType().isBaseOf(branchMultiType)
             ) {
-                throw makeTypeError(this.site, "incomplete enum coverage")
+                ctx.errors.type(this.site, "incomplete enum coverage")
             }
 
-            const defaultVal = this.defaultCase.eval(scope)
+            const defaultVal = this.defaultCase.eval(ctx, scope)
 
             if (defaultVal) {
                 branchMultiType = IfElseExpr.reduceBranchMultiType(

@@ -6,9 +6,10 @@ import { DataEntity } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
- * @typedef {import("@helios-lang/uplc").UplcData} UplcData
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { UplcData } from "@helios-lang/uplc"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -59,10 +60,11 @@ export class LiteralDataExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} _ctx
      * @param {Scope} _scope
      * @returns {EvalEntity}
      */
-    evalInternal(_scope) {
+    evalInternal(_ctx, _scope) {
         return new DataEntity(this._type)
     }
 

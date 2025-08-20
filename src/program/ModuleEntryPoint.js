@@ -8,6 +8,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
 /**
  * @import { SourceMappedStringI } from "@helios-lang/ir"
  * @import { UplcData } from "@helios-lang/uplc"
+ * @import { TypeCheckContext } from "../index.js"
  * @import { DataType, ScriptTypes } from "../typecheck/index.js"
  */
 
@@ -137,12 +138,13 @@ export class ModuleEntryPoint {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {ScriptTypes} scriptTypes
      */
-    evalTypes(scriptTypes) {
+    evalTypes(ctx, scriptTypes) {
         const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
-        const topScope = new TopScope(scope)
-        this.modules.evalTypes(topScope)
+        const topScope = new TopScope(scope, true, ctx.errors)
+        this.modules.evalTypes(ctx, topScope)
     }
 
     /**

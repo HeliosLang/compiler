@@ -9,7 +9,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
 /**
  * @import { SourceMappedStringI } from "@helios-lang/ir"
  * @import { UplcProgramV2 } from "@helios-lang/uplc"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -77,12 +77,13 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {ScriptTypes} scriptTypes
      */
-    evalTypes(scriptTypes) {
+    evalTypes(ctx, scriptTypes) {
         const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
 
-        super.evalTypesInternal(scope)
+        super.evalTypesInternal(ctx, scope)
 
         // check the 'main' function
 
@@ -93,12 +94,15 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
         const nArgs = main.nArgs
 
         if (argTypes.length != 2) {
-            throw makeTypeError(main.site, "expected 2 args for main")
+            ctx.errors.type(
+                main.site,
+                `expected 2 args for entry point of a ${this.purpose} validator`
+            )
         }
 
         for (let i = 0; i < nArgs; i++) {
             if (argTypeNames[i] != "" && !isDataType(argTypes[i])) {
-                throw makeTypeError(
+                ctx.errors.type(
                     main.site,
                     `illegal type for arg ${i + 1} in main ${i == nArgs - 2 ? "(datum) " : i == nArgs - 3 ? "(redeemer) " : ""}: '${argTypes[i].toString()}`
                 )
@@ -106,7 +110,7 @@ export class DatumRedeemerEntryPoint extends EntryPointImpl {
         }
 
         if (!BoolType.isBaseOf(retType) && !new VoidType().isBaseOf(retType)) {
-            throw makeTypeError(
+            ctx.errors.type(
                 main.site,
                 `illegal return type for main, expected 'Bool' or '()', got '${retType.toString()}'`
             )

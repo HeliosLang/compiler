@@ -63,7 +63,7 @@
 export * from "./program/index.js"
 
 /**
- * @import { Site, Source, Word } from "@helios-lang/compiler-utils"
+ * @import { ErrorCollector, Site, Source, Word } from "@helios-lang/compiler-utils"
  * @import { SourceMappedStringI } from "@helios-lang/ir"
  * @import { UplcData } from "@helios-lang/uplc"
  */
@@ -133,6 +133,11 @@ export * from "./program/index.js"
  *   makeParamsSubstitutable?: boolean
  *   aliasNamespace?: string
  * }} ToIRContextProps
+ */
+
+/**
+ * @typedef {object} TypeCheckContext
+ * @prop {ErrorCollector} errors
  */
 
 /**

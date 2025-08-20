@@ -4,6 +4,7 @@ import { Expr } from "./Expr.js"
 
 /**
  * @import { Site, Token, Word } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -16,7 +17,7 @@ import { Expr } from "./Expr.js"
  *   isNamed(): boolean
  *   isLiteral(): boolean
  *   toString(): string
- *   eval(scope: Scope): EvalEntity
+ *   eval(ctx: TypeCheckContext, scope: Scope): EvalEntity
  * }} CallArgExprI
  */
 
@@ -102,10 +103,11 @@ export class CallArgExpr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    eval(scope) {
-        return this._valueExpr.eval(scope)
+    eval(ctx, scope) {
+        return this._valueExpr.eval(ctx, scope)
     }
 }

@@ -3,7 +3,8 @@ import { AnyType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -19,10 +20,11 @@ export class AnyTypeExpr extends Expr {
     }
 
     /**
-     * @param {Scope} scope
+     * @param {TypeCheckContext} _ctx
+     * @param {Scope} _scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
+    evalInternal(_ctx, _scope) {
         return new AnyType()
     }
 

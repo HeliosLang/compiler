@@ -4,6 +4,8 @@ import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
+    AnyType,
+    DataEntity,
     FuncType,
     IntType,
     ParametricFunc,
@@ -18,7 +20,8 @@ import { PathExpr } from "./PathExpr.js"
 
 /**
  * @import { Site } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Func} Func
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -120,19 +123,21 @@ export class CallExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const fnVal = this._fnExpr.eval(scope)
+    evalInternal(ctx, scope) {
+        const fnVal = this._fnExpr.eval(ctx, scope)
 
         const argVals = this._argExprs.map((ae, i) => {
-            const av_ = ae.eval(scope)
+            const av_ = ae.eval(ctx, scope)
 
             const av = av_.asTyped
 
             if (!av) {
-                throw makeTypeError(ae.site, `arg ${i + 1} not an instance`)
+                ctx.errors.type(ae.site, `arg ${i + 1} not an instance`)
+                return new DataEntity(new AnyType())
             }
 
             return av
@@ -192,11 +197,12 @@ export class CallExpr extends Expr {
                 viableCasts
             )
         } else {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._fnExpr.site,
-
                 `unable to call ${fnVal.toString()} (returned by ${this._fnExpr.toString()})`
             )
+
+            return new DataEntity(new AnyType())
         }
     }
 

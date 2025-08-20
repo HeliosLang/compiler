@@ -8,8 +8,9 @@ import { Expr } from "./Expr.js"
 import { MemberExpr } from "./MemberExpr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -59,13 +60,14 @@ export class ParametricExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const paramTypes = this._parameters.map((p) => p.evalAsType(scope))
+    evalInternal(ctx, scope) {
+        const paramTypes = this._parameters.map((p) => p.evalAsType(ctx, scope))
 
-        const baseVal = this._baseExpr.eval(scope)
+        const baseVal = this._baseExpr.eval(ctx, scope)
 
         if (!baseVal.asParametric) {
             throw makeTypeError(

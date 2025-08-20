@@ -26,12 +26,13 @@ import {
     ParametricExpr,
     ParensExpr,
     PrimitiveLiteralExpr,
-    RefExpr,
+    TypeRefExpr,
     StructLiteralExpr,
     StructLiteralField,
     SwitchCase,
     SwitchDefault,
     ValuePathExpr,
+    ValueRefExpr,
     VoidExpr
 } from "../expressions/index.js"
 import { ParseContext } from "./ParseContext.js"
@@ -133,7 +134,7 @@ export function makeChainedExprParser(parseValueExpr) {
 
             return new ValuePathExpr(dcolon.site, typeExpr, memberName)
         } else if ((m = r.matches(anyName))) {
-            return new RefExpr(m)
+            return new ValueRefExpr(m)
         } else {
             r.endMatch()
 
@@ -399,7 +400,7 @@ export function makeChainedExprParser(parseValueExpr) {
 
             destructExpr.destructExprs.forEach((destructExpr) => {
                 if (destructExpr.typeExpr) {
-                    if (!(destructExpr.typeExpr instanceof RefExpr)) {
+                    if (!(destructExpr.typeExpr instanceof TypeRefExpr)) {
                         ctx.errors.syntax(
                             destructExpr.typeExpr.site,
                             "invalid case name syntax"
@@ -458,7 +459,7 @@ export function makeChainedExprParser(parseValueExpr) {
             }
         } else {
             if (destructExpr.typeExpr) {
-                if (!(destructExpr.typeExpr instanceof RefExpr)) {
+                if (!(destructExpr.typeExpr instanceof TypeRefExpr)) {
                     ctx.errors.syntax(
                         destructExpr.typeExpr.site,
                         "invalid case name syntax"

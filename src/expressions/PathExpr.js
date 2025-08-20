@@ -6,7 +6,8 @@ import { Expr } from "./Expr.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -47,11 +48,12 @@ export class PathExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const base = this._baseExpr.eval(scope)
+    evalInternal(ctx, scope) {
+        const base = this._baseExpr.eval(ctx, scope)
 
         /**
          * @type {null | EvalEntity}

@@ -4,10 +4,12 @@ import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
+import { AnyType, DataEntity } from "../typecheck/common.js"
 
 /**
  * @import { SymbolToken, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -140,27 +142,32 @@ export class BinaryExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const a_ = this._a.eval(scope)
-        const b_ = this._b.eval(scope)
+    evalInternal(ctx, scope) {
+        const a_ = this._a.eval(ctx, scope)
+        const b_ = this._b.eval(ctx, scope)
 
         const a = a_.asInstance
         if (!a) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._a.site,
                 `lhs of ${this._op.toString()} not an instance`
             )
+
+            return new DataEntity(new AnyType())
         }
 
         const b = b_.asInstance
         if (!b) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._b.site,
                 `rhs of ${this._op.toString()} not an instance`
             )
+
+            return new DataEntity(new AnyType())
         }
 
         for (let swap of this.isCommutative() ? [false, true] : [false]) {
@@ -190,10 +197,12 @@ export class BinaryExpr extends Expr {
             }
         }
 
-        throw makeTypeError(
+        ctx.errors.type(
             this.site,
             `'${a.type.toString()} ${this._op.toString()} ${b.type.toString()}' undefined`
         )
+
+        return new DataEntity(new AnyType())
     }
 
     /**

@@ -4,7 +4,8 @@ import { ListType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import  { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").Type} Type
  */
 
@@ -30,11 +31,12 @@ export class ListTypeExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {Type}
      */
-    evalInternal(scope) {
-        const itemType_ = this._itemTypeExpr.eval(scope)
+    evalInternal(ctx, scope) {
+        const itemType_ = this._itemTypeExpr.eval(ctx, scope)
 
         const itemType = itemType_.asType
 

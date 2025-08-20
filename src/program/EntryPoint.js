@@ -15,7 +15,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
  * @import { Site } from "@helios-lang/compiler-utils"
  * @import { SourceMappedStringI } from "@helios-lang/ir"
  * @import { UplcData } from "@helios-lang/uplc"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -37,7 +37,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
  *   paramsDetails(): Record<string, string>
  *   requiredParams: Set<string>
  *   changeParam(name: string, data: UplcData): boolean
- *   evalTypes(scriptTypes: ScriptTypes): void
+ *   evalTypes(ctx: TypeCheckContext, scriptTypes: ScriptTypes): void
  *   toIR(ctx: ToIRContext, extra?: Definitions | undefined): SourceMappedStringI
  *   toString(): string
  * }} EntryPoint
@@ -339,13 +339,14 @@ export class EntryPointImpl {
 
     /**
      * @protected
+     * @param {TypeCheckContext} ctx
      * @param {GlobalScope} globalScope
      */
-    evalTypesInternal(globalScope) {
+    evalTypesInternal(ctx, globalScope) {
         this.globalScope = globalScope
-        const topScope = new TopScope(globalScope)
+        const topScope = new TopScope(globalScope, true, ctx.errors)
 
-        this.modules.evalTypes(topScope)
+        this.modules.evalTypes(ctx, topScope)
 
         this._topScope = topScope
     }

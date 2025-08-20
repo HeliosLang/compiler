@@ -4,10 +4,12 @@ import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
+import { AnyType, DataEntity } from "../typecheck/common.js"
 
 /**
  * @import { SymbolToken, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -60,14 +62,16 @@ export class UnaryExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const a = this._a.eval(scope).asInstance
+    evalInternal(ctx, scope) {
+        const a = this._a.eval(ctx, scope).asInstance
 
         if (!a) {
-            throw makeTypeError(this._a.site, "not an instance")
+            ctx.errors.type(this._a.site, "not an instance")
+            return new DataEntity(new AnyType())
         }
 
         const op = this.translateOp().value
@@ -78,10 +82,12 @@ export class UnaryExpr extends Expr {
             // immediately applied
             return fnVal.asFunc.call(this._op.site, [a])
         } else {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._a.site,
                 `'${this._op.toString()} ${a.type.toString()}' undefined`
             )
+
+            return new DataEntity(new AnyType())
         }
     }
 

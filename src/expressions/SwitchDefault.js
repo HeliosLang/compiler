@@ -6,9 +6,9 @@ import { Expr } from "./Expr.js"
 import { VoidExpr } from "./VoidExpr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/compiler-utils").Token} Token
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { Site, Token } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").Typed} Typed
  */
 
@@ -38,11 +38,12 @@ export class SwitchDefault {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {Typed}
      */
-    eval(scope) {
-        const bodyVal_ = this.body.eval(scope)
+    eval(ctx, scope) {
+        const bodyVal_ = this.body.eval(ctx, scope)
 
         const bodyVal = bodyVal_.asTyped
 

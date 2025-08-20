@@ -8,7 +8,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @import { SourceMappedStringI } from "@helios-lang/ir"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -41,12 +41,13 @@ export class MixedEntryPoint extends EntryPointImpl {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {ScriptTypes} scriptTypes
      */
-    evalTypes(scriptTypes) {
+    evalTypes(ctx, scriptTypes) {
         const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
 
-        super.evalTypesInternal(scope)
+        super.evalTypesInternal(ctx, scope)
 
         const main = this.mainFunc
         const argTypeNames = main.argTypeNames
@@ -55,18 +56,21 @@ export class MixedEntryPoint extends EntryPointImpl {
         const nArgs = argTypes.length
 
         if (nArgs != 1) {
-            throw makeTypeError(main.site, "expected 1 arg for main")
+            ctx.errors.type(
+                main.site,
+                `expected 1 arg for a ${this.purpose} validator`
+            )
         }
 
         if (argTypeNames[0] != "" && !MixedArgsType.isBaseOf(argTypes[0])) {
-            throw makeTypeError(
+            ctx.errors.type(
                 main.site,
                 `illegal argument type in main: '${argTypes[0].toString()}`
             )
         }
 
         if (!BoolType.isBaseOf(retType) && !new VoidType().isBaseOf(retType)) {
-            throw makeTypeError(
+            ctx.errors.type(
                 main.site,
                 `illegal return type for main, expected 'Bool' or '()', got '${retType.toString()}'`
             )

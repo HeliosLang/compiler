@@ -12,6 +12,7 @@ import {
 
 /**
  * @import { Source, Word } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  */
 
 /**
@@ -68,11 +69,12 @@ export class Module {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {ModuleScope} scope
      */
-    evalTypes(scope) {
+    evalTypes(ctx, scope) {
         for (let s of this.statements) {
-            s.eval(scope)
+            s.eval(ctx, scope)
         }
     }
 

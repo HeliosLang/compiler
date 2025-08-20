@@ -6,6 +6,7 @@ import { DefaultTypeClass, Parameter } from "../typecheck/index.js"
 
 /**
  * @import { Word } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").TypeClass} TypeClass
  */
 
@@ -52,18 +53,19 @@ export class TypeParameter {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {string} path
      * @returns {Parameter}
      */
-    eval(scope, path) {
+    eval(ctx, scope, path) {
         /**
          * @type {TypeClass}
          */
         let typeClass = new DefaultTypeClass()
 
         if (this._typeClassExpr) {
-            const typeClass_ = this._typeClassExpr.eval(scope)
+            const typeClass_ = this._typeClassExpr.eval(ctx, scope)
 
             if (!typeClass_.asTypeClass) {
                 throw makeTypeError(this._typeClassExpr.site, "not a typeclass")

@@ -3,7 +3,8 @@ import { OptionType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").Type} Type
  */
 
@@ -29,11 +30,12 @@ export class OptionTypeExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {Type}
      */
-    evalInternal(scope) {
-        const someType = this._someTypeExpr.evalAsType(scope)
+    evalInternal(ctx, scope) {
+        const someType = this._someTypeExpr.evalAsType(ctx, scope)
 
         return OptionType$(someType)
     }

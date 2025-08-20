@@ -13,7 +13,8 @@ import { Expr } from "./Expr.js"
 
 /**
  * @import { BoolLiteral, ByteArrayLiteral, IntLiteral, RealLiteral, StringLiteral } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -61,10 +62,11 @@ export class PrimitiveLiteralExpr extends Expr {
     }
 
     /**
-     * @param {Scope} scope
+     * @param {TypeCheckContext} _ctx
+     * @param {Scope} _scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
+    evalInternal(_ctx, _scope) {
         return new DataEntity(this.type)
     }
 

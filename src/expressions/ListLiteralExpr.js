@@ -7,8 +7,9 @@ import { DataEntity, ListType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -50,11 +51,12 @@ export class ListLiteralExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const itemType_ = this._itemTypeExpr.eval(scope)
+    evalInternal(ctx, scope) {
+        const itemType_ = this._itemTypeExpr.eval(ctx, scope)
 
         const itemType = itemType_.asDataType
 
@@ -66,7 +68,7 @@ export class ListLiteralExpr extends Expr {
         }
 
         for (let itemExpr of this._itemExprs) {
-            const itemVal_ = itemExpr.eval(scope)
+            const itemVal_ = itemExpr.eval(ctx, scope)
             if (!itemVal_) {
                 continue
             }

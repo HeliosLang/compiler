@@ -6,8 +6,9 @@ import { ErrorType, TupleType$, VoidType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"s
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -39,17 +40,18 @@ export class ParensExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
+    evalInternal(ctx, scope) {
         if (this._exprs.length === 0) {
             return new VoidType().toTyped()
         } else if (this._exprs.length === 1) {
-            return this._exprs[0].eval(scope)
+            return this._exprs[0].eval(ctx, scope)
         } else {
             const entries = this._exprs.map((e) => {
-                const v_ = e.eval(scope)
+                const v_ = e.eval(ctx, scope)
 
                 const v = v_.asTyped
                 if (!v) {

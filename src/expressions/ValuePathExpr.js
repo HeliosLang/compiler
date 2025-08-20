@@ -7,7 +7,8 @@ import { PathExpr } from "./PathExpr.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -25,11 +26,12 @@ export class ValuePathExpr extends PathExpr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const member = super.evalInternal(scope)
+    evalInternal(ctx, scope) {
+        const member = super.evalInternal(ctx, scope)
 
         if (
             member.asEnumMemberType &&

@@ -11,8 +11,9 @@ import { Expr } from "./Expr.js"
 import { PathExpr } from "./PathExpr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -47,17 +48,18 @@ export class AssignExpr extends ChainExpr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
+    evalInternal(ctx, scope) {
         const subScope = new Scope(scope, scope.allowShadowing)
 
-        let upstreamVal = this.upstreamExpr.eval(scope)
+        let upstreamVal = this.upstreamExpr.eval(ctx, scope)
 
         if (upstreamVal && upstreamVal.asTyped) {
             if (new VoidType().isBaseOf(upstreamVal.asTyped.type)) {
-                throw makeTypeError(
+                ctx.errors.type(
                     this.upstreamExpr.site,
                     "can't assign to unit type"
                 )
@@ -65,6 +67,7 @@ export class AssignExpr extends ChainExpr {
 
             if (this._nameType.hasType() || this._nameType.isTuple()) {
                 this._nameType.evalInAssignExpr(
+                    ctx,
                     subScope,
                     expectDefined(upstreamVal.asTyped.type.asType),
                     0
@@ -90,13 +93,14 @@ export class AssignExpr extends ChainExpr {
             }
         } else if (this._nameType.hasType()) {
             // this is the fallback case if the upstream has itself a typeerror
-            this._nameType.evalInAssignExpr(subScope, undefined, 0)
+            this._nameType.evalInAssignExpr(ctx, subScope, undefined, 0)
         } else {
-            throw makeTypeError(this.upstreamExpr.site, "rhs isn't an instance")
+            ctx.errors.type(this.upstreamExpr.site, "rhs isn't an instance")
+
             subScope.set(this._nameType.name, new DataEntity(new AnyType()))
         }
 
-        const downstreamVal = this.downstreamExpr.eval(subScope)
+        const downstreamVal = this.downstreamExpr.eval(ctx, subScope)
 
         subScope.assertAllUsed()
 

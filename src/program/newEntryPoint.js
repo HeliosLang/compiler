@@ -76,7 +76,7 @@ export function newEntryPoint(
 
     // TODO: add type errors directly to ErrorCollector
     try {
-        entryPoint.evalTypes(validatorTypes)
+        entryPoint.evalTypes({ errors: errorCollector }, validatorTypes)
     } catch (e) {
         if (isCompilerError(e)) {
             errorCollector.errors.push(e)

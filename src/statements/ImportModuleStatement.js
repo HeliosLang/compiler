@@ -5,7 +5,7 @@ import { Statement } from "./Statement.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").NamespaceMembers} NamespaceMembers
  */
@@ -30,10 +30,11 @@ export class ImportModuleStatement extends Statement {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {ModuleScope} scope
      * @returns {EvalEntity | undefined}
      */
-    evalInternal(scope) {
+    evalInternal(ctx, scope) {
         if (this.name.value in builtinNamespaces) {
             return scope.getBuiltinNamespace(this.name)
         } else {
@@ -59,10 +60,11 @@ export class ImportModuleStatement extends Statement {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {ModuleScope} scope
      */
-    eval(scope) {
-        let v = this.evalInternal(scope)
+    eval(ctx, scope) {
+        let v = this.evalInternal(ctx, scope)
 
         if (v && !(this.name.value in builtinNamespaces)) {
             scope.set(this.name, v)

@@ -17,7 +17,7 @@ import { TypeParameters } from "./TypeParameters.js"
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @import { SourceMappedStringI } from "@helios-lang/ir"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/common.js").GenericTypeProps} GenericTypeProps
@@ -105,10 +105,12 @@ export class EnumStatement extends Statement {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      */
-    eval(scope) {
+    eval(ctx, scope) {
         const [type, typeScope] = this._parameters.createParametricType(
+            ctx,
             scope,
             this.site,
             (typeScope) => {
@@ -118,7 +120,7 @@ export class EnumStatement extends Statement {
                 const genFullMembers = {}
 
                 this._members.forEach((m) => {
-                    genFullMembers[m.name.value] = m.evalType(typeScope)
+                    genFullMembers[m.name.value] = m.evalType(ctx, typeScope)
                 })
 
                 /**
@@ -163,7 +165,7 @@ export class EnumStatement extends Statement {
                     genTypeMembers: (self) => {
                         const typeMembers_ = {
                             ...genCommonTypeMembers(self),
-                            ...this._impl.genTypeMembers(typeScope)
+                            ...this._impl.genTypeMembers(ctx, typeScope)
                         }
 
                         // TODO: detect duplicates
@@ -191,12 +193,12 @@ export class EnumStatement extends Statement {
         scope.set(this.name, new NamedEntity(this.name.value, path, type))
 
         this._members.forEach((m) => {
-            m.evalDataFields(typeScope)
+            m.evalDataFields(ctx, typeScope)
         })
 
         typeScope.assertAllUsed()
 
-        this._impl.eval(typeScope)
+        this._impl.eval(ctx, typeScope)
     }
 
     /**

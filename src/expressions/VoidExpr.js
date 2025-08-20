@@ -5,8 +5,9 @@ import { VoidEntity } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").Instance} Instance
  */
 
@@ -23,10 +24,11 @@ export class VoidExpr extends Expr {
     }
 
     /**
-     * @param {Scope} scope
+     * @param {TypeCheckContext} _ctx
+     * @param {Scope} _scope
      * @returns {Instance}
      */
-    evalInternal(scope) {
+    evalInternal(_ctx, _scope) {
         return new VoidEntity()
     }
 

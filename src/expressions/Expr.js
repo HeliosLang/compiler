@@ -1,10 +1,12 @@
 import { makeTypeError } from "@helios-lang/compiler-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
+import { AllType, AnyEntity, AnyType, DataEntity } from "../typecheck/common.js"
 
 /**
  * @import { Site, Token } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -15,11 +17,11 @@ import { Scope } from "../scopes/index.js"
  * @typedef {{
  *   site: Site
  *   cache: EvalEntity | undefined
- *   evalInternal(scope: Scope): EvalEntity
- *   eval(scope: Scope): EvalEntity
- *   evalAsDataType(scope: Scope): DataType
- *   evalAsType(scope: Scope): Type
- *   evalAsTyped(scope: Scope): Typed
+ *   evalInternal(ctx: TypeCheckContext, scope: Scope): EvalEntity
+ *   eval(ctx: TypeCheckContext, scope: Scope): EvalEntity
+ *   evalAsDataType(ctx: TypeCheckContext, scope: Scope): DataType
+ *   evalAsType(ctx: TypeCheckContext, scope: Scope): Type
+ *   evalAsTyped(ctx: TypeCheckContext, scope: Scope): Typed
  *   isLiteral(): boolean
  *   toIR(ctx: ToIRContext): SourceMappedStringI
  *   toString(): string
@@ -53,66 +55,74 @@ export class Expr {
     }
 
     /**
+     * @param {TypeCheckContext} _ctx
      * @param {Scope} _scope
      * @returns {EvalEntity}
      */
-    evalInternal(_scope) {
+    evalInternal(_ctx, _scope) {
         throw new Error("not yet implemented")
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    eval(scope) {
-        this.cache = this.evalInternal(scope)
+    eval(ctx, scope) {
+        this.cache = this.evalInternal(ctx, scope)
 
         return this.cache
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {DataType}
      */
-    evalAsDataType(scope) {
-        const result_ = this.eval(scope)
+    evalAsDataType(ctx, scope) {
+        const result_ = this.eval(ctx, scope)
 
         const result = result_.asDataType
 
         if (!result) {
-            throw makeTypeError(this.site, "not a data type")
+            ctx.errors.type(this.site, "not a data type")
+            return new AllType()
         }
 
         return result
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {Type}
      */
-    evalAsType(scope) {
-        const r = this.eval(scope)
+    evalAsType(ctx, scope) {
+        const r = this.eval(ctx, scope)
 
         const result = r.asType
 
         if (!result) {
-            throw makeTypeError(this.site, `${r.toString()} isn't a type`)
+            ctx.errors.type(this.site, `${r.toString()} isn't a type`)
+            return new AllType()
         }
 
         return result
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {Typed}
      */
-    evalAsTyped(scope) {
-        const r = this.eval(scope)
+    evalAsTyped(ctx, scope) {
+        const r = this.eval(ctx, scope)
 
         const result = r.asTyped
 
         if (!result) {
-            throw makeTypeError(this.site, `${r.toString()} isn't a value`)
+            ctx.errors.type(this.site, `${r.toString()} isn't a value`)
+            return new DataEntity(new AnyType())
         }
 
         return result

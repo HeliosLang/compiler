@@ -4,7 +4,7 @@ import { ModuleScope } from "./ModuleScope.js"
 import { Scope } from "./Scope.js"
 
 /**
- * @import { Word } from "@helios-lang/compiler-utils"
+ * @import { ErrorCollector, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -21,10 +21,14 @@ export class TopScope extends Scope {
 
     /**
      * @param {GlobalScope} parent
-     * @param {boolean} strict
+     *
+     * @param {boolean} [strict]
+     * defaults to `true`
+     *
+     * @param {ErrorCollector | undefined} [errorCollector]
      */
-    constructor(parent, strict = true) {
-        super(parent)
+    constructor(parent, strict = true, errorCollector = undefined) {
+        super(parent, false, errorCollector)
         this._strict = strict
     }
 

@@ -16,7 +16,7 @@ import { DataField } from "./DataField.js"
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @import { SourceMappedStringI } from "@helios-lang/ir"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").InstanceMembers} InstanceMembers
  * @typedef {import("../typecheck/index.js").FieldTypeSchema} FieldTypeSchema
@@ -144,17 +144,18 @@ export class DataDefinition {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {InstanceMembers}
      */
-    evalFieldTypes(scope) {
+    evalFieldTypes(ctx, scope) {
         /**
          * @type {InstanceMembers}
          */
         const fields = {}
 
         for (let f of this._fields) {
-            const f_ = f.eval(scope)
+            const f_ = f.eval(ctx, scope)
 
             if (f_) {
                 fields[f.name.value] = f_

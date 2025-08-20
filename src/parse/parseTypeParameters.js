@@ -1,5 +1,5 @@
 import { group, symbol } from "@helios-lang/compiler-utils"
-import { Expr, RefExpr } from "../expressions/index.js"
+import { Expr, TypeClassRefExpr } from "../expressions/index.js"
 import { TypeParameter, TypeParameters } from "../statements/index.js"
 import { ParseContext } from "./ParseContext.js"
 import { anyName } from "./parseName.js"
@@ -60,7 +60,7 @@ function parseTypeClassRef(ctx) {
 
     if ((m = r.matches(anyName))) {
         r.end()
-        return new RefExpr(m)
+        return new TypeClassRefExpr(m)
     } else {
         r.endMatch()
         r.end()

@@ -5,6 +5,7 @@ import { Expr } from "./Expr.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  */
 
 /**
@@ -12,7 +13,7 @@ import { Expr } from "./Expr.js"
  *   site: Site
  *   isNamed(): boolean
  *   isOptional(): boolean
- *   eval(scope: Scope): ArgType
+ *   eval(ctx: TypeCheckContext, scope: Scope): ArgType
  *   toString(): string
  * }} FuncArgTypeExprI
  */
@@ -76,11 +77,12 @@ export class FuncArgTypeExpr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {ArgType}
      */
-    eval(scope) {
-        const type_ = this._typeExpr.eval(scope)
+    eval(ctx, scope) {
+        const type_ = this._typeExpr.eval(ctx, scope)
 
         const type = type_.asType
 

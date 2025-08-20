@@ -6,6 +6,7 @@ import { isDataType } from "../typecheck/index.js"
 
 /**
  * @import { StringLiteral, Word } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  */
 
@@ -55,14 +56,15 @@ export class DataField extends NameTypePair {
 
     /**
      * Evaluates the type, used by FuncLiteralExpr and DataDefinition
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {DataType | undefined}
      */
-    eval(scope) {
+    eval(ctx, scope) {
         if (!this.typeExpr) {
             throw new Error("typeExpr not set")
         } else {
-            const t = this.typeExpr.eval(scope)
+            const t = this.typeExpr.eval(ctx, scope)
 
             if (t.asDataType) {
                 const dt = t.asDataType
@@ -72,7 +74,7 @@ export class DataField extends NameTypePair {
                 }
             }
 
-            makeTypeError(
+            ctx.errors.type(
                 this.typeExpr.site,
                 `'${t.toString()}' isn't a valid data field type`
             )

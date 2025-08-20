@@ -4,11 +4,11 @@ import {
     makeTypeError,
     makeWord
 } from "@helios-lang/compiler-utils"
-import { Common } from "../typecheck/index.js"
+import { AllType, Common } from "../typecheck/index.js"
 import { GlobalScope } from "./GlobalScope.js"
 
 /**
- * @import { Word } from "@helios-lang/compiler-utils"
+ * @import { ErrorCollector, Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Named} Named
  * @typedef {import("../typecheck/index.js").Namespace} Namespace
@@ -35,28 +35,28 @@ export class Scope extends Common {
     _values
 
     /**
-     * @private
      * @readonly
      * @type {boolean}
      */
-    _allowShadowing
+    allowShadowing
+
+    /**
+     * @readonly
+     * @type {ErrorCollector | undefined}
+     */
+    errorCollector
 
     /**
      * @param {GlobalScope | Scope} parent
-     * @param {boolean} allowShadowing
+     * @param {boolean} [allowShadowing]
+     * @param {ErrorCollector | undefined} [errorCollector]
      */
-    constructor(parent, allowShadowing = false) {
+    constructor(parent, allowShadowing = false, errorCollector = undefined) {
         super()
         this._parent = parent
         this._values = [] // list of pairs
-        this._allowShadowing = allowShadowing
-    }
-
-    /**
-     * @type {boolean}
-     */
-    get allowShadowing() {
-        return this._allowShadowing
+        this.allowShadowing = allowShadowing
+        this.errorCollector = errorCollector
     }
 
     /**
@@ -114,13 +114,13 @@ export class Scope extends Common {
                         value.asTyped.type.isBaseOf(prevEntity.asTyped.type)
                     )
                 ) {
-                    throw makeSyntaxError(
+                    this.addSyntaxError(
                         name.site,
                         `'${name.toString()}' already defined`
                     )
                 }
             } else {
-                throw makeSyntaxError(
+                this.addSyntaxError(
                     name.site,
                     `'${name.toString()}' already defined`
                 )
@@ -131,12 +131,51 @@ export class Scope extends Common {
     }
 
     /**
+     * @private
+     * @param {Site} site
+     * @param {string} msg
+     */
+    addReferenceError(site, msg) {
+        if (this.errorCollector) {
+            this.errorCollector.reference(site, msg)
+        } else {
+            throw makeReferenceError(site, msg)
+        }
+    }
+
+    /**
+     * @private
+     * @param {Site} site
+     * @param {string} msg
+     */
+    addSyntaxError(site, msg) {
+        if (this.errorCollector) {
+            this.errorCollector.syntax(site, msg)
+        } else {
+            throw makeSyntaxError(site, msg)
+        }
+    }
+
+    /**
+     * @private
+     * @param {Site} site
+     * @param {string} msg
+     */
+    addTypeError(site, msg) {
+        if (this.errorCollector) {
+            this.errorCollector.type(site, msg)
+        } else {
+            throw makeTypeError(site, msg)
+        }
+    }
+
+    /**
      * Sets a named value. Throws an error if not unique
      * @param {Word} name
      * @param {EvalEntity | Scope} value
      */
     set(name, value) {
-        this.setInternal(name, value, this._allowShadowing)
+        this.setInternal(name, value, this.allowShadowing)
     }
 
     /**
@@ -148,7 +187,7 @@ export class Scope extends Common {
 
     /**
      * @param {Word} name
-     * @returns {null | Scope}
+     * @returns {undefined | Scope}
      */
     getScope(name) {
         if (name.value.startsWith("__scope__")) {
@@ -162,14 +201,16 @@ export class Scope extends Common {
         if (entity instanceof Scope) {
             return entity
         } else if (!entity) {
-            throw makeTypeError(name.site, `expected Scope`)
-            return null
+            this.addTypeError(name.site, `expected Scope`)
+
+            return undefined
         } else {
-            throw makeTypeError(
+            this.addTypeError(
                 name.site,
                 `expected Scope, got ${entity.toString()}`
             )
-            return null
+
+            return undefined
         }
     }
 
@@ -179,20 +220,22 @@ export class Scope extends Common {
      */
     getBuiltinNamespace(name) {
         if (!this._parent) {
-            throw makeReferenceError(
+            this.addReferenceError(
                 name.site,
                 `namespace ${name.value} not found`
             )
+
+            return undefined
         } else {
             return this._parent.getBuiltinNamespace(name)
         }
     }
 
     /**
-     * Gets a named value from the scope. Throws an error if not found
+     * Gets a named value from the scope. Throws an error if not found and no error collector is set, otherwise appends an error and returns undefined
      * @param {Word | string} name
      * @param {boolean} [dryRun] - if false -> don't set used flag
-     * @returns {EvalEntity | Scope}
+     * @returns {EvalEntity | Scope | undefined}
      */
     get(name, dryRun = false) {
         if (typeof name == "string") {
@@ -217,10 +260,9 @@ export class Scope extends Common {
                 return this._parent.get(name, dryRun)
             }
         } else {
-            throw makeReferenceError(
-                name.site,
-                `'${name.toString()}' undefined`
-            )
+            this.addReferenceError(name.site, `'${name.toString()}' undefined`)
+
+            return undefined
         }
     }
 
@@ -242,13 +284,13 @@ export class Scope extends Common {
             for (let [name, entity, used] of this._values) {
                 const flaggedUnused = name.value.startsWith("_")
                 if (!used && !(entity instanceof Scope) && !flaggedUnused) {
-                    throw makeReferenceError(
+                    this.addReferenceError(
                         name.site,
                         `'${name.toString()}' unused`
                     )
                 }
                 if (flaggedUnused && used) {
-                    throw makeReferenceError(
+                    this.addReferenceError(
                         name.site,
                         `_-prefixed variable '${name.toString()}' must be unused`
                     )

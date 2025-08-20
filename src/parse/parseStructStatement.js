@@ -1,5 +1,5 @@
 import { group, makeWord } from "@helios-lang/compiler-utils"
-import { Expr, ParametricExpr, RefExpr } from "../expressions/index.js"
+import { Expr, ParametricExpr, TypeRefExpr } from "../expressions/index.js"
 import {
     DataField,
     ImplDefinition,
@@ -63,9 +63,10 @@ export function parseStructStatement(ctx) {
  */
 export function createSelfTypeExpr(name, parameters) {
     /**
+     * Type Ref Expr
      * @type {Expr}
      */
-    let selfTypeExpr = new RefExpr(name)
+    let selfTypeExpr = new TypeRefExpr(name)
 
     if (parameters.hasParameters()) {
         selfTypeExpr = new ParametricExpr(
@@ -73,7 +74,10 @@ export function createSelfTypeExpr(name, parameters) {
             selfTypeExpr,
             parameters.parameterNames.map(
                 (n) =>
-                    new RefExpr(makeWord({ value: n, site: selfTypeExpr.site }))
+                    // Type Ref Expr
+                    new TypeRefExpr(
+                        makeWord({ value: n, site: selfTypeExpr.site })
+                    )
             )
         )
     }

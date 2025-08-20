@@ -10,8 +10,8 @@ import {
     OptionTypeExpr,
     ParametricExpr,
     PathExpr,
-    RefExpr,
     TupleTypeExpr,
+    TypeRefExpr,
     VoidTypeExpr
 } from "../expressions/index.js"
 import { ParseContext } from "./ParseContext.js"
@@ -110,7 +110,7 @@ export function parseTypeExpr(ctx) {
 
                 r.end()
             } else if ((m = r.matches(anyWord))) {
-                typeExpr = new RefExpr(m)
+                typeExpr = new TypeRefExpr(m)
             } else {
                 r.endMatch()
 

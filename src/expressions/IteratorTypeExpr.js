@@ -4,7 +4,8 @@ import { IteratorType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -29,12 +30,13 @@ export class IteratorTypeExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
+    evalInternal(ctx, scope) {
         const itemTypes = this._itemTypeExprs.map((ite) => {
-            const ite_ = ite.eval(scope)
+            const ite_ = ite.eval(ctx, scope)
 
             const itemType = ite_.asType
 

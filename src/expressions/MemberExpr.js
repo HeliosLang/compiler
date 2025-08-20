@@ -7,7 +7,8 @@ import { Expr } from "./Expr.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -41,11 +42,12 @@ export class MemberExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const objVal_ = this._objExpr.eval(scope)
+    evalInternal(ctx, scope) {
+        const objVal_ = this._objExpr.eval(ctx, scope)
 
         const objVal = objVal_.asInstance
         if (!objVal) {

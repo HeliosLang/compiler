@@ -2,17 +2,20 @@ import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
+import { AllType, AnyEntity, AnyType, DataEntity } from "../typecheck/common.js"
+import { AnyTypeClass } from "../typecheck/parametric.js"
 
 /**
  * @import { Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
 /**
  * Simple reference class (i.e. using a Word)
  */
-export class RefExpr extends Expr {
+class RefExpr extends Expr {
     /**
      * @readonly
      * @type {Word}
@@ -25,17 +28,6 @@ export class RefExpr extends Expr {
     constructor(name) {
         super(name.site)
         this.name = name
-    }
-
-    /**
-     * @param {Scope} scope
-     * @returns {EvalEntity}
-     */
-    evalInternal(scope) {
-        if (this.name.value == "Some") {
-            throw new Error("unexpected")
-        }
-        return scope.get(this.name)
     }
 
     /**
@@ -55,5 +47,56 @@ export class RefExpr extends Expr {
      */
     toString() {
         return this.name.toString()
+    }
+}
+
+export class ValueRefExpr extends RefExpr {
+    /**
+     * @param {import("../index.js").TypeCheckContext} ctx
+     * @param {Scope} scope
+     * @returns {EvalEntity}
+     */
+    evalInternal(ctx, scope) {
+        const value = scope.get(this.name)
+
+        if (value) {
+            return value
+        } else {
+            return new DataEntity(new AnyType())
+        }
+    }
+}
+
+export class TypeRefExpr extends RefExpr {
+    /**
+     * @param {TypeCheckContext} _ctx
+     * @param {Scope} scope
+     * @returns {EvalEntity}
+     */
+    evalInternal(_ctx, scope) {
+        const value = scope.get(this.name)
+
+        if (value) {
+            return value
+        } else {
+            return new AllType()
+        }
+    }
+}
+
+export class TypeClassRefExpr extends RefExpr {
+    /**
+     * @param {TypeCheckContext} _ctx
+     * @param {Scope} scope
+     * @returns {EvalEntity}
+     */
+    evalInternal(_ctx, scope) {
+        const value = scope.get(this.name)
+
+        if (value) {
+            return value
+        } else {
+            return new AnyTypeClass()
+        }
     }
 }

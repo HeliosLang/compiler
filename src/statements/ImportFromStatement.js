@@ -6,7 +6,7 @@ import { Statement } from "./Statement.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -63,10 +63,12 @@ export class ImportFromStatement extends Statement {
     }
 
     /**
+     * @private
+     * @param {TypeCheckContext} ctx
      * @param {ModuleScope} scope
      * @returns {EvalEntity | undefined}
      */
-    evalInternal(scope) {
+    evalInternal(ctx, scope) {
         if (this.isBuiltinNamespace()) {
             const namespace = scope.getBuiltinNamespace(this._moduleName)
 
@@ -77,7 +79,7 @@ export class ImportFromStatement extends Statement {
             let member = namespace.namespaceMembers[this._origName.value]
 
             if (!member) {
-                throw makeReferenceError(
+                ctx.errors.reference(
                     this._origName.site,
                     `'${this._moduleName.value}.${this._origName.value}' undefined`
                 )
@@ -104,10 +106,11 @@ export class ImportFromStatement extends Statement {
             const importedEntity = importedScope.get(this._origName)
 
             if (importedEntity instanceof Scope) {
-                throw makeTypeError(
+                ctx.errors.type(
                     this._origName.site,
                     `can't import a module from a module`
                 )
+
                 return undefined
             } else {
                 return importedEntity
@@ -116,10 +119,11 @@ export class ImportFromStatement extends Statement {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {ModuleScope} scope
      */
-    eval(scope) {
-        const v = this.evalInternal(scope)
+    eval(ctx, scope) {
+        const v = this.evalInternal(ctx, scope)
 
         if (v) {
             scope.set(this.name, v)

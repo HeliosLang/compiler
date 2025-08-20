@@ -5,8 +5,9 @@ import { AnyEntity } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").Instance} Instance
  */
 
@@ -22,10 +23,11 @@ export class AnyValueExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} _scope
      * @returns {Instance}
      */
-    evalInternal(_scope) {
+    evalInternal(ctx, _scope) {
         return new AnyEntity()
     }
 

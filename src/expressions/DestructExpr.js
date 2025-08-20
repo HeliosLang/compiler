@@ -11,11 +11,12 @@ import {
     getTupleItemTypes
 } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
-import { RefExpr } from "./RefExpr.js"
+import { TypeRefExpr } from "./RefExpr.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -199,6 +200,7 @@ export class DestructExpr {
 
     /**
      * Evaluates the type, used by FuncLiteralExpr and DataDefinition
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {Type | undefined} upstreamType
      * @param {Type | undefined} downstreamType - could be enum variant
@@ -206,6 +208,7 @@ export class DestructExpr {
      * @returns {Type | undefined}
      */
     evalType(
+        ctx,
         scope,
         upstreamType = undefined,
         downstreamType = undefined,
@@ -221,6 +224,7 @@ export class DestructExpr {
                     : undefined
                 const nestedTypes = this.destructExprs.map((e, i) => {
                     const de = e.evalType(
+                        ctx,
                         scope,
                         upstreamItemTypes ? upstreamItemTypes[i] : undefined,
                         downStreamItemTypes ? downStreamItemTypes[i] : undefined
@@ -245,7 +249,7 @@ export class DestructExpr {
             }
         } else if (
             // could be an implicit enum variant, which requires special treatment (evaluating the type directly would fail because it wouldn't find the variant name in the scope)
-            this.typeExpr instanceof RefExpr &&
+            this.typeExpr instanceof TypeRefExpr &&
             upstreamType &&
             !downstreamType &&
             this.typeExpr.name.value in upstreamType.typeMembers &&
@@ -259,7 +263,7 @@ export class DestructExpr {
             return variant
         } else if (
             // could be the same implicit enum variant
-            this.typeExpr instanceof RefExpr &&
+            this.typeExpr instanceof TypeRefExpr &&
             upstreamType &&
             !downstreamType &&
             upstreamType.asEnumMemberType &&
@@ -268,7 +272,7 @@ export class DestructExpr {
             this.typeExpr.cache = upstreamType
             return upstreamType
         } else {
-            const t = downstreamType ?? this.typeExpr.evalAsType(scope)
+            const t = downstreamType ?? this.typeExpr.evalAsType(ctx, scope)
 
             if (
                 t &&
@@ -286,30 +290,35 @@ export class DestructExpr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {Type} upstreamType
+     * @returns {void}
      */
-    evalDestructExprs(scope, upstreamType) {
+    evalDestructExprs(ctx, scope, upstreamType) {
         if (this.destructExprs.length > 0) {
             if (this._isTuple) {
                 const tupleItemTypes = getTupleItemTypes(upstreamType)
 
                 if (!tupleItemTypes) {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         this.site,
                         "upstream value isn't a tuple, can't destruct"
                     )
+                    return
                 }
 
                 if (tupleItemTypes.length != this.destructExprs.length) {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         this.site,
                         `wrong number of destruct tuple fields, expected ${tupleItemTypes.length}, got ${this.destructExprs.length}`
                     )
+                    return
                 }
 
                 for (let i = 0; i < this.destructExprs.length; i++) {
                     this.destructExprs[i].evalInternal(
+                        ctx,
                         scope,
                         tupleItemTypes[i],
                         i
@@ -317,20 +326,23 @@ export class DestructExpr {
                 }
             } else {
                 if (!upstreamType.asDataType) {
-                    throw makeTypeError(this.site, "can't destruct a function")
+                    ctx.errors.type(this.site, "can't destruct a function")
+                    return
                 }
 
                 const upstreamFieldNames = upstreamType.asDataType.fieldNames
 
                 if (upstreamFieldNames.length != this.destructExprs.length) {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         this.site,
                         `wrong number of destruct fields, expected ${upstreamFieldNames.length} (${upstreamType.toString()}), got ${this.destructExprs.length}`
                     )
+                    return
                 }
 
                 for (let i = 0; i < this.destructExprs.length; i++) {
                     this.destructExprs[i].evalInternal(
+                        ctx,
                         scope,
                         expectDefined(
                             upstreamType.instanceMembers[upstreamFieldNames[i]]
@@ -345,13 +357,15 @@ export class DestructExpr {
 
     /**
      * @private
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {Type} upstreamType
      * @param {number} i
+     * @returns {void}
      */
-    evalInternal(scope, upstreamType, i) {
+    evalInternal(ctx, scope, upstreamType, i) {
         if (this.hasType()) {
-            const t = this.evalType(scope, upstreamType, undefined, false)
+            const t = this.evalType(ctx, scope, upstreamType, undefined, false)
             if (!t) {
                 return
             }
@@ -365,11 +379,11 @@ export class DestructExpr {
             }
 
             if (!checkType.isBaseOf(upstreamType)) {
-                throw makeTypeError(
+                ctx.errors.type(
                     this.site,
                     `expected ${checkType.toString()} for destructure field ${i + 1}, got ${upstreamType.toString()}`
                 )
-                return null
+                return
             }
 
             if (!this.isIgnored()) {
@@ -377,29 +391,30 @@ export class DestructExpr {
                 scope.set(this.name, t.toTyped())
             }
 
-            this.evalDestructExprs(scope, t)
+            this.evalDestructExprs(ctx, scope, t)
         } else {
             if (!this.isIgnored()) {
                 // TODO: take into account ghost type parameters
                 scope.set(this.name, upstreamType.toTyped())
             }
 
-            this.evalDestructExprs(scope, upstreamType)
+            this.evalDestructExprs(ctx, scope, upstreamType)
         }
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {DataType[]} caseTypes
      */
-    evalInSwitchCase(scope, caseTypes) {
+    evalInSwitchCase(ctx, scope, caseTypes) {
         if (caseTypes.length != 1) {
             if (caseTypes.length != this.destructExprs.length) {
                 throw new Error("unexpected")
             }
 
             caseTypes.forEach((caseType, i) => {
-                this.destructExprs[i].evalInSwitchCase(scope, [caseType])
+                this.destructExprs[i].evalInSwitchCase(ctx, scope, [caseType])
             })
         } else {
             const caseType = caseTypes[0]
@@ -411,20 +426,21 @@ export class DestructExpr {
                 this.typeExpr.cache = caseType
             }
 
-            this.evalDestructExprs(scope, caseType)
+            this.evalDestructExprs(ctx, scope, caseType)
         }
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {Type | undefined} upstreamType
      * @param {number} i
      */
-    evalInAssignExpr(scope, upstreamType, i) {
+    evalInAssignExpr(ctx, scope, upstreamType, i) {
         /**
          * @type {Type | undefined}
          */
-        const t = this.evalType(scope, upstreamType, undefined, false)
+        const t = this.evalType(ctx, scope, upstreamType, undefined, false)
 
         if (!t) {
             if (!this.isIgnored()) {
@@ -436,7 +452,7 @@ export class DestructExpr {
         // differs from upstreamType because can be enum parent
         // if t is enum variant, get parent instead (exact variant is checked at runtime instead)
         // also do this for nested as well
-        const checkType = this.evalType(scope, upstreamType, t)
+        const checkType = this.evalType(ctx, scope, upstreamType, t)
 
         if (checkType && upstreamType) {
             if (!checkType.isBaseOf(upstreamType)) {
@@ -452,7 +468,7 @@ export class DestructExpr {
             scope.set(this.name, t.toTyped())
         }
 
-        this.evalDestructExprs(scope, t)
+        this.evalDestructExprs(ctx, scope, t)
     }
 
     /**

@@ -7,7 +7,8 @@ import { Expr } from "./Expr.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").Type} Type
  */
 
@@ -103,27 +104,32 @@ export class NameTypePair {
 
     /**
      * Evaluates the type, used by FuncLiteralExpr and DataDefinition
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {Type}
      */
-    evalType(scope) {
+    evalType(ctx, scope) {
         if (!this._typeExpr) {
             if (this.isIgnored()) {
                 return new AllType()
             } else {
-                throw makeTypeError(
+                ctx.errors.type(
                     this.site,
                     `missing type for arg '${this.name.value}'`
                 )
+
+                return new AllType()
             }
         } else {
-            const t = this._typeExpr.eval(scope)
+            const t = this._typeExpr.eval(ctx, scope)
 
             if (!t.asType) {
-                throw makeTypeError(
+                ctx.errors.type(
                     this._typeExpr.site,
                     `'${t.toString()} isn't a valid type`
                 )
+
+                return new AllType()
             } else {
                 return t.asType
             }

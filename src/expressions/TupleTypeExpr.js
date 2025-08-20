@@ -1,10 +1,11 @@
 import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
-import { TupleType$ } from "../typecheck/index.js"
+import { AllType, TupleType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -26,27 +27,31 @@ export class TupleTypeExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const itemTypes_ = this._itemTypeExprs.map((ite) => {
-            const ite_ = ite.eval(scope)
+    evalInternal(ctx, scope) {
+        let itemTypes_ = this._itemTypeExprs.map((ite) => {
+            const ite_ = ite.eval(ctx, scope)
 
             const itemType = ite_.asType
 
             if (!itemType) {
-                throw makeTypeError(ite.site, "not a type")
+                ctx.errors.type(ite.site, "not a type")
+                return new AllType()
             }
 
             return itemType
         })
 
         if (itemTypes_.length > 10) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this.site,
                 "too many Type type args (limited to 10)"
             )
+
+            itemTypes_ = itemTypes_.slice(0, 10)
         }
 
         return TupleType$(itemTypes_)

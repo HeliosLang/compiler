@@ -10,7 +10,8 @@ import { FuncArg } from "./FuncArg.js"
 
 /**
  * @import { Site } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -112,45 +113,47 @@ export class FuncLiteralExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {FuncType}
      */
-    evalType(scope) {
+    evalType(ctx, scope) {
         let args = this.args
         if (this.isMethod()) {
             args = args.slice(1)
         }
 
-        const argTypes = args.map((a) => a.evalArgType(scope))
+        const argTypes = args.map((a) => a.evalArgType(ctx, scope))
 
         const retType = this.retTypeExpr
-            ? this.retTypeExpr.evalAsType(scope)
+            ? this.retTypeExpr.evalAsType(ctx, scope)
             : new AllType()
 
         return new FuncType(argTypes, retType)
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const fnType = this.evalType(scope)
+    evalInternal(ctx, scope) {
+        const fnType = this.evalType(ctx, scope)
 
         // argTypes is calculated separately again here so it includes self
-        const argTypes = this.args.map((a) => a.evalType(scope))
+        const argTypes = this.args.map((a) => a.evalType(ctx, scope))
 
         const subScope = new Scope(scope, true)
 
         argTypes.forEach((a, i) => {
             if (a && !this.args[i].isIgnored()) {
-                this.args[i].evalDefault(subScope)
+                this.args[i].evalDefault(ctx, subScope)
 
                 subScope.set(this.args[i].name, a.toTyped())
             }
         })
 
-        let bodyVal = this._bodyExpr.eval(subScope)
+        let bodyVal = this._bodyExpr.eval(ctx, subScope)
 
         if (!this.retTypeExpr) {
             if (bodyVal.asTyped) {

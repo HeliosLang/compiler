@@ -21,7 +21,7 @@ import { UserFunc } from "./UserFunc.js"
 
 /**
  * @import { SourceMappedStringI } from "@helios-lang/ir"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  */
 
 export class ModuleCollection {
@@ -143,16 +143,17 @@ export class ModuleCollection {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {TopScope} topScope
      */
-    evalTypes(topScope) {
+    evalTypes(ctx, topScope) {
         for (let i = 0; i < this.modules.length; i++) {
             const m = this.modules[i]
 
             // reuse main ModuleScope for post module
             const moduleScope = new ModuleScope(topScope)
 
-            m.evalTypes(moduleScope)
+            m.evalTypes(ctx, moduleScope)
 
             if (m instanceof MainModule) {
                 topScope.setStrict(false)

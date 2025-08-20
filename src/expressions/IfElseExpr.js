@@ -13,8 +13,9 @@ import {
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  * @typedef {import("../typecheck/index.js").Typed} Typed
@@ -151,12 +152,13 @@ export class IfElseExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
+    evalInternal(ctx, scope) {
         for (let c of this._conditions) {
-            const cVal_ = c.eval(scope)
+            const cVal_ = c.eval(ctx, scope)
             if (!cVal_) {
                 continue
             }
@@ -178,7 +180,7 @@ export class IfElseExpr extends Expr {
             // don't allow shadowing
             const branchScope = new Scope(scope, false)
 
-            const branchVal = b.evalAsTyped(branchScope)
+            const branchVal = b.evalAsTyped(ctx, branchScope)
 
             if (!branchVal) {
                 continue

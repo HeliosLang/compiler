@@ -3,13 +3,14 @@ import { $ } from "@helios-lang/ir"
 import { expectDefined as expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { DataEntity } from "../typecheck/index.js"
+import { AnyType, DataEntity } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 import { StructLiteralField } from "./StructLiteralField.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -43,26 +44,31 @@ export class StructLiteralExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const type_ = this._typeExpr.eval(scope)
+    evalInternal(ctx, scope) {
+        const type_ = this._typeExpr.eval(ctx, scope)
 
         const type = type_.asDataType
 
         if (!type) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._typeExpr.site,
                 `'${this._typeExpr.toString()}' doesn't evaluate to a data type`
             )
+
+            return new DataEntity(new AnyType())
         }
 
         if (type.fieldNames.length != this._fields.length) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this.site,
                 `wrong number of fields for ${type.toString()}, expected ${type.fieldNames.length}, got ${this._fields.length}`
             )
+
+            return new DataEntity(new AnyType())
         }
 
         /**
@@ -94,7 +100,7 @@ export class StructLiteralExpr extends Expr {
         for (let i = 0; i < this._fields.length; i++) {
             const f = this._fields[i]
 
-            const fieldVal_ = f.eval(scope)
+            const fieldVal_ = f.eval(ctx, scope)
 
             const fieldVal = fieldVal_.asTyped
             if (!fieldVal) {

@@ -11,7 +11,7 @@ import { Statement } from "./Statement.js"
  * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @import { SourceMappedStringI } from "@helios-lang/ir"
  * @import { UplcData } from "@helios-lang/uplc"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
@@ -92,32 +92,34 @@ export class ConstStatement extends Statement {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {DataType}
      */
-    evalType(scope) {
+    evalType(ctx, scope) {
         if (this._typeExpr) {
-            return this._typeExpr.evalAsDataType(scope)
+            return this._typeExpr.evalAsDataType(ctx, scope)
         } else if (this._valueExpr) {
-            return this._valueExpr.evalAsDataType(scope)
+            return this._valueExpr.evalAsDataType(ctx, scope)
         } else {
             throw new Error("unexpected")
         }
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        let type = this._typeExpr?.evalAsDataType(scope)
+    evalInternal(ctx, scope) {
+        let type = this._typeExpr?.evalAsDataType(ctx, scope)
 
         if (this._valueExpr) {
-            const value = this._valueExpr.evalAsTyped(scope)
+            const value = this._valueExpr.evalAsTyped(ctx, scope)
 
             if (type) {
                 if (!type.isBaseOf(value.type)) {
-                    throw makeTypeError(this._valueExpr.site, "wrong type")
+                    ctx.errors.type(this._valueExpr.site, "wrong type")
                 }
             } else {
                 type = value.type.asDataType ?? undefined
@@ -132,10 +134,11 @@ export class ConstStatement extends Statement {
 
     /**
      * Evaluates rhs and adds to scope
+     * @param {TypeCheckContext} ctx
      * @param {TopScope} scope
      */
-    eval(scope) {
-        const res = this.evalInternal(scope)
+    eval(ctx, scope) {
+        const res = this.evalInternal(ctx, scope)
 
         scope.set(this.name, res)
     }

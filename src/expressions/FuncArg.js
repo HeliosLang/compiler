@@ -9,7 +9,8 @@ import { Expr } from "./Expr.js"
 
 /**
  * @import { Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  */
 
 /**
@@ -42,11 +43,12 @@ export class FuncArg extends NameTypePair {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      */
-    evalDefault(scope) {
+    evalDefault(ctx, scope) {
         if (this._defaultValueExpr) {
-            const v_ = this._defaultValueExpr.eval(scope)
+            const v_ = this._defaultValueExpr.eval(ctx, scope)
             if (!v_) {
                 return
             }
@@ -57,13 +59,13 @@ export class FuncArg extends NameTypePair {
                 return
             }
 
-            const t = this.evalType(scope)
+            const t = this.evalType(ctx, scope)
             if (!t) {
                 return
             }
 
             if (!t.isBaseOf(v.type)) {
-                throw makeTypeError(
+                ctx.errors.type(
                     this._defaultValueExpr.site,
                     `expected ${t.toString()}, got ${v.type.toString()}`
                 )
@@ -73,11 +75,12 @@ export class FuncArg extends NameTypePair {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {ArgType}
      */
-    evalArgType(scope) {
-        const t = super.evalType(scope)
+    evalArgType(ctx, scope) {
+        const t = super.evalType(ctx, scope)
 
         return new ArgType(this.name, t, isDefined(this._defaultValueExpr))
     }

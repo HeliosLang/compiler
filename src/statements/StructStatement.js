@@ -16,7 +16,7 @@ import { ImplDefinition } from "./ImplDefinition.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").GenericTypeProps} GenericTypeProps
  * @typedef {import("../typecheck/index.js").Type} Type
  * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
@@ -92,10 +92,12 @@ export class StructStatement extends Statement {
 
     /**
      * Evaluates own type and adds to scope
+     * @param {TypeCheckContext} ctx
      * @param {TopScope} scope
      */
-    eval(scope) {
+    eval(ctx, scope) {
         const [type, typeScope] = this._parameters.createParametricType(
+            ctx,
             scope,
             this.site,
             (typeScope) => {
@@ -129,13 +131,13 @@ export class StructStatement extends Statement {
                     },
                     genInstanceMembers: (self) => ({
                         ...genCommonInstanceMembers(self),
-                        ...this._dataDef.evalFieldTypes(typeScope),
+                        ...this._dataDef.evalFieldTypes(ctx, typeScope),
                         ...this._impl.genInstanceMembers(typeScope),
                         copy: this._dataDef.genCopyType(self)
                     }),
                     genTypeMembers: (self) => ({
                         ...genCommonTypeMembers(self),
-                        ...this._impl.genTypeMembers(typeScope)
+                        ...this._impl.genTypeMembers(ctx, typeScope)
                     })
                 }
 
@@ -151,11 +153,11 @@ export class StructStatement extends Statement {
 
         scope.set(this.name, new NamedEntity(this.name.value, path, type))
 
-        void this._dataDef.evalFieldTypes(typeScope)
+        void this._dataDef.evalFieldTypes(ctx, typeScope)
 
         typeScope.assertAllUsed()
 
-        this._impl.eval(typeScope)
+        this._impl.eval(ctx, typeScope)
     }
 
     /**

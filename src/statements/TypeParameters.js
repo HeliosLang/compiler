@@ -11,7 +11,8 @@ import {
 import { TypeParameter } from "./TypeParameter.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").InferenceMap} InferenceMap
@@ -103,16 +104,17 @@ export class TypeParameters {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {Scope}
      */
-    evalParams(scope) {
+    evalParams(ctx, scope) {
         const subScope = new Scope(scope)
 
         this._parameters = []
 
         this._parameterExprs.forEach((pe, i) => {
-            const p = pe.eval(subScope, `${this._prefix}${i}`)
+            const p = pe.eval(ctx, subScope, `${this._prefix}${i}`)
 
             if (p) {
                 this._parameters?.push(p)
@@ -123,12 +125,13 @@ export class TypeParameters {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {(scope: Scope) => (FuncType)} evalConcrete
      * @returns {ParametricFunc | FuncType}
      */
-    evalParametricFuncType(scope, evalConcrete, impl = null) {
-        const typeScope = this.evalParams(scope)
+    evalParametricFuncType(ctx, scope, evalConcrete, impl = null) {
+        const typeScope = this.evalParams(ctx, scope)
 
         const type = evalConcrete(typeScope)
 
@@ -140,12 +143,13 @@ export class TypeParameters {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {(scope: Scope) => (FuncType)} evalConcrete
      * @returns {EvalEntity}
      */
-    evalParametricFunc(scope, evalConcrete) {
-        const type = this.evalParametricFuncType(scope, evalConcrete)
+    evalParametricFunc(ctx, scope, evalConcrete) {
+        const type = this.evalParametricFuncType(ctx, scope, evalConcrete)
 
         if (type.asType) {
             return type.asType.toTyped()
@@ -155,13 +159,14 @@ export class TypeParameters {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {Site} site
      * @param {(scope: Scope) => DataType} evalConcrete
      * @returns {[DataType | ParametricType, Scope]}
      */
-    createParametricType(scope, site, evalConcrete) {
-        const typeScope = this.evalParams(scope)
+    createParametricType(ctx, scope, site, evalConcrete) {
+        const typeScope = this.evalParams(ctx, scope)
 
         const type = evalConcrete(new Scope(typeScope))
 

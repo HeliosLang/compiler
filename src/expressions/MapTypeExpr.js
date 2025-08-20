@@ -4,7 +4,8 @@ import { MapType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -38,11 +39,12 @@ export class MapTypeExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const keyType_ = this._keyTypeExpr.eval(scope)
+    evalInternal(ctx, scope) {
+        const keyType_ = this._keyTypeExpr.eval(ctx, scope)
 
         const keyType = keyType_.asType
 
@@ -53,7 +55,7 @@ export class MapTypeExpr extends Expr {
             )
         }
 
-        const valueType_ = this._valueTypeExpr.eval(scope)
+        const valueType_ = this._valueTypeExpr.eval(ctx, scope)
 
         const valueType = valueType_.asType
 

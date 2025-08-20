@@ -45,7 +45,7 @@ import {
 } from "../typecheck/index.js"
 
 /**
- * @import { Word } from "@helios-lang/compiler-utils"
+ * @import { ErrorCollector, Site, Word } from "@helios-lang/compiler-utils"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Func} Func
@@ -123,8 +123,26 @@ export class GlobalScope {
      */
     _values
 
-    constructor() {
+    /**
+     *
+     * @param {ErrorCollector | undefined} [errorCollector]
+     */
+    constructor(errorCollector = undefined) {
         this._values = []
+        this.errorCollector = errorCollector
+    }
+
+    /**
+     * @private
+     * @param {Site} site
+     * @param {string} msg
+     */
+    addReferenceError(site, msg) {
+        if (this.errorCollector) {
+            this.errorCollector.reference(site, msg)
+        } else {
+            throw makeReferenceError(site, msg)
+        }
     }
 
     /**
@@ -160,7 +178,7 @@ export class GlobalScope {
      * Gets a named value from the scope.
      * Throws an error if not found.
      * @param {Word} name
-     * @returns {EvalEntity}
+     * @returns {EvalEntity | undefined}
      */
     get(name) {
         for (let pair of this._values) {
@@ -169,7 +187,9 @@ export class GlobalScope {
             }
         }
 
-        throw makeReferenceError(name.site, `'${name.toString()}' undefined`)
+        this.addReferenceError(name.site, `'${name.toString()}' undefined`)
+
+        return undefined
     }
 
     /**
@@ -193,7 +213,9 @@ export class GlobalScope {
             }
         }
 
-        throw makeReferenceError(name.site, `namespace ${name.value} not found`)
+        this.addReferenceError(name.site, `namespace ${name.value} not found`)
+
+        return undefined
     }
 
     /**
@@ -206,10 +228,11 @@ export class GlobalScope {
     /**
      * Initialize the GlobalScope with all the builtins
      * @param {MultiValidatorInfo} info
+     * @param {ErrorCollector | undefined} [errorCollector]
      * @returns {GlobalScope}
      */
-    static new(info) {
-        let scope = new GlobalScope()
+    static new(info, errorCollector = undefined) {
+        let scope = new GlobalScope(errorCollector)
 
         // List (aka '[]'), Option, and Map types are accessed through special expressions
 

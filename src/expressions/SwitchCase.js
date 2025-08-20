@@ -3,13 +3,14 @@ import { $ } from "@helios-lang/ir"
 import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { AllType } from "../typecheck/index.js"
+import { AllType, AnyType, DataEntity } from "../typecheck/index.js"
 import { DestructExpr } from "./DestructExpr.js"
 import { Expr } from "./Expr.js"
 
 /**
  * @import { Site, Token, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/index.js").Typed} Typed
@@ -22,7 +23,7 @@ import { Expr } from "./Expr.js"
  *   body: Expr
  *   memberNames: (Word | undefined)[]
  *   toString(): string
- *   evalEnumMember(scope: Scope, enumTypes: DataType[]): Typed
+ *   evalEnumMember(ctx: TypeCheckContext, scope: Scope, enumTypes: DataType[]): Typed
  *   toControlIR(ctx: ToIRContext, dataIRs: SourceMappedStringI[]): SourceMappedStringI
  *   toIR(ctx: ToIRContext): SourceMappedStringI
  * }} SwitchCaseI
@@ -101,11 +102,12 @@ export class SwitchCase {
 
     /**
      * Evaluates the switch type and body value of a case.
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {DataType[]} enumTypes
      * @returns {Typed}
      */
-    evalEnumMember(scope, enumTypes) {
+    evalEnumMember(ctx, scope, enumTypes) {
         // TODO: a list of case types
         const caseTypes = enumTypes.map((enumType, i) => {
             const memberName = this.memberNames[i]
@@ -115,10 +117,12 @@ export class SwitchCase {
                     enumType.typeMembers[memberName.value]?.asEnumMemberType
 
                 if (!caseType) {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         memberName.site,
                         `${memberName.value} isn't a valid enum member of ${enumType.toString()}`
                     )
+
+                    return new AllType()
                 }
 
                 return caseType
@@ -129,12 +133,13 @@ export class SwitchCase {
 
         const caseScope = new Scope(scope, false)
 
-        this.lhs.evalInSwitchCase(caseScope, caseTypes)
+        this.lhs.evalInSwitchCase(ctx, caseScope, caseTypes)
 
-        const bodyVal = this._bodyExpr.eval(caseScope).asTyped
+        const bodyVal = this._bodyExpr.eval(ctx, caseScope).asTyped
 
         if (!bodyVal) {
-            throw makeTypeError(this._bodyExpr.site, "not typed")
+            ctx.errors.type(this._bodyExpr.site, "not typed")
+            return new DataEntity(new AnyType())
         }
 
         caseScope.assertAllUsed()

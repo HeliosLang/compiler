@@ -3,7 +3,7 @@ import { ModuleScope } from "../scopes/index.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  */
 
 /**
@@ -61,9 +61,10 @@ export class Statement {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {ModuleScope} scope
      */
-    eval(scope) {
+    eval(ctx, scope) {
         throw new Error("not yet implemented")
     }
 

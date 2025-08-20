@@ -5,7 +5,8 @@ import { Expr } from "./Expr.js"
 import { FuncArgTypeExpr } from "./FuncArgTypeExpr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").Type} Type
  */
 
@@ -39,13 +40,14 @@ export class FuncTypeExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {Type}
      */
-    evalInternal(scope) {
-        const argTypes_ = this._argTypeExprs.map((a) => a.eval(scope))
+    evalInternal(ctx, scope) {
+        const argTypes_ = this._argTypeExprs.map((a) => a.eval(ctx, scope))
 
-        const retType_ = this._retTypeExpr.eval(scope)
+        const retType_ = this._retTypeExpr.eval(ctx, scope)
 
         const retType = retType_.asType
         if (!retType) {

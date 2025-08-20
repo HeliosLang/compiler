@@ -6,8 +6,9 @@ import { ErrorType, VoidType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
- * @typedef {import("@helios-lang/ir").SourceMappedStringI} SourceMappedStringI
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  */
 
@@ -43,28 +44,26 @@ export class ChainExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {EvalEntity}
      */
-    evalInternal(scope) {
-        const upstreamVal_ = this.upstreamExpr.eval(scope)
+    evalInternal(ctx, scope) {
+        const upstreamVal_ = this.upstreamExpr.eval(ctx, scope)
 
         if (upstreamVal_) {
             const upstreamVal = upstreamVal_.asTyped
 
             if (!upstreamVal) {
-                throw makeTypeError(
-                    this.upstreamExpr.site,
-                    "upstream isn't typed"
-                )
+                ctx.errors.type(this.upstreamExpr.site, "upstream isn't typed")
             } else {
                 if (new ErrorType().isBaseOf(upstreamVal.type)) {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         this.downstreamExpr.site,
                         "unreachable code (upstream always throws error)"
                     )
                 } else if (!new VoidType().isBaseOf(upstreamVal.type)) {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         this.upstreamExpr.site,
                         "unexpected return value (hint: use '='"
                     )
@@ -72,7 +71,7 @@ export class ChainExpr extends Expr {
             }
         }
 
-        return this.downstreamExpr.eval(scope)
+        return this.downstreamExpr.eval(ctx, scope)
     }
 
     /**

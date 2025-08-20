@@ -8,7 +8,7 @@ import { TypeParameters } from "./TypeParameters.js"
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @import { SourceMappedStringI } from "@helios-lang/ir"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").EvalEntity} EvalEntity
  * @typedef {import("../typecheck/index.js").Type} Type
  */
@@ -124,30 +124,39 @@ export class FuncStatement extends Statement {
 
     /**
      * Evaluates a function and returns a func value
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @param {boolean} isMember functions that are members of structs or enums aren't added to their own internal scope as they are always accessed through member access
      * @returns {EvalEntity}
      */
-    evalInternal(scope, isMember = false) {
-        const typed = this._parameters.evalParametricFunc(scope, (subScope) => {
-            const type = this._funcExpr.evalType(subScope)
+    evalInternal(ctx, scope, isMember = false) {
+        const typed = this._parameters.evalParametricFunc(
+            ctx,
+            scope,
+            (subScope) => {
+                const type = this._funcExpr.evalType(ctx, subScope)
 
-            if (isMember) {
-                void this._funcExpr.evalInternal(subScope)
-            } else {
-                const implScope = new Scope(subScope)
+                if (isMember) {
+                    void this._funcExpr.evalInternal(ctx, subScope)
+                } else {
+                    const implScope = new Scope(subScope)
 
-                // recursive calls expect func value, not func type
-                implScope.set(
-                    this.name,
-                    new NamedEntity(this.name.value, super.path, type.toTyped())
-                )
+                    // recursive calls expect func value, not func type
+                    implScope.set(
+                        this.name,
+                        new NamedEntity(
+                            this.name.value,
+                            super.path,
+                            type.toTyped()
+                        )
+                    )
 
-                void this._funcExpr.evalInternal(implScope)
+                    void this._funcExpr.evalInternal(ctx, implScope)
+                }
+
+                return type
             }
-
-            return type
-        })
+        )
 
         return typed
     }
@@ -155,20 +164,26 @@ export class FuncStatement extends Statement {
     /**
      * Evaluates type of a funtion.
      * Separate from evalInternal so we can use this function recursively inside evalInternal
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      * @returns {ParametricFunc | FuncType}
      */
-    evalType(scope) {
-        return this._parameters.evalParametricFuncType(scope, (subScope) => {
-            return this._funcExpr.evalType(subScope)
-        })
+    evalType(ctx, scope) {
+        return this._parameters.evalParametricFuncType(
+            ctx,
+            scope,
+            (subScope) => {
+                return this._funcExpr.evalType(ctx, subScope)
+            }
+        )
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Scope} scope
      */
-    eval(scope) {
-        const typed = this.evalInternal(scope)
+    eval(ctx, scope) {
+        const typed = this.evalInternal(ctx, scope)
 
         if (typed) {
             if (!!typed.asType) {

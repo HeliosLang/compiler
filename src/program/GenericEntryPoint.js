@@ -9,7 +9,7 @@ import { ModuleCollection } from "./ModuleCollection.js"
 
 /**
  * @import { SourceMappedStringI } from "@helios-lang/ir"
- * @import { Definitions } from "../index.js"
+ * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -46,12 +46,16 @@ export class GenericEntryPoint extends EntryPointImpl {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {ScriptTypes} scriptTypes
      */
-    evalTypes(scriptTypes) {
-        const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
+    evalTypes(ctx, scriptTypes) {
+        const scope = GlobalScope.new(
+            { scriptTypes, currentScript: this.name },
+            ctx.errors
+        )
 
-        super.evalTypesInternal(scope)
+        super.evalTypesInternal(ctx, scope)
 
         // check the 'main' function
 
@@ -62,7 +66,7 @@ export class GenericEntryPoint extends EntryPointImpl {
 
         argTypeNames.forEach((argTypeName, i) => {
             if (argTypeName != "" && !isDataType(argTypes[i])) {
-                throw makeTypeError(
+                ctx.errors.type(
                     main.site,
                     `illegal argument type in main: '${argTypes[i].toString()}${!isDataType(argTypes[i]) ? " (not a data type)" : ""}`
                 )
@@ -70,7 +74,7 @@ export class GenericEntryPoint extends EntryPointImpl {
         })
 
         if (!isDataType(retType) && !new VoidType().isBaseOf(retType)) {
-            throw makeTypeError(
+            ctx.errors.type(
                 main.site,
                 `illegal return type for main: '${retType.toString()}'`
             )
