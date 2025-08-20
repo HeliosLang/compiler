@@ -1,4 +1,4 @@
-import { makeReferenceError } from "@helios-lang/compiler-utils"
+import { makeReferenceError, mergeSites } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
@@ -72,14 +72,14 @@ export class PathExpr extends Expr {
 
         if (!member) {
             ctx.errors.reference(
-                this._memberName.site,
+                mergeSites(this._baseExpr.site, this._memberName.site),
                 `${base.toString()}::${this._memberName.value} undefined`
             )
 
             if (preferType) {
                 return new AllType()
             } else {
-                return new DataEntity(new AnyType())
+                return new DataEntity(new AllType())
             }
         }
 

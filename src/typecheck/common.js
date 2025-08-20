@@ -445,6 +445,20 @@ export class AllType extends Common {
     }
 
     /**
+     * @type {Type}
+     */
+    get type() {
+        return this
+    }
+
+    /**
+     * @returns {Typed}
+     */
+    get asTyped() {
+        return new DataEntity(this)
+    }
+
+    /**
      * @type {TypeMembers}
      */
     get typeMembers() {
@@ -721,8 +735,18 @@ export class ArgType {
 }
 
 /**
+ * @typedef {Type & {
+ *   origArgTypes: ArgType[]
+ *   argTypes: Type[]
+ *   instanceMembers: InstanceMembers
+ *   nArgs: number
+ *   nNonOptArgs: number
+ * }} FuncTypeI
+ */
+
+/**
  * Function type with arg types and a return type
- * @implements {Type}
+ * @implements {FuncTypeI}
  */
 export class FuncType extends Common {
     /**

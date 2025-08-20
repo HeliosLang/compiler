@@ -205,12 +205,14 @@ export class CallExpr extends Expr {
                 viableCasts
             )
         } else {
-            ctx.errors.type(
-                this._fnExpr.site,
-                `unable to call ${fnVal.toString()} (returned by ${this._fnExpr.toString()})`
-            )
+            if (!(fnVal.asType instanceof AllType)) {
+                ctx.errors.type(
+                    this._fnExpr.site,
+                    `unable to call ${fnVal.toString()} (returned by ${this._fnExpr.toString()})`
+                )
+            }
 
-            return new DataEntity(new AnyType())
+            return new DataEntity(new AllType())
         }
     }
 
