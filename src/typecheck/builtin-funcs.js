@@ -2,7 +2,8 @@ import { Common, ErrorType, FuncType, VoidType } from "./common.js"
 import { BoolType, StringType } from "./primitives.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("./common.js").Func} Func
  * @typedef {import("./common.js").Named} Named
  * @typedef {import("./common.js").Type} Type
@@ -93,13 +94,14 @@ export class BuiltinFunc extends Common {
 
     /**
      * Can mutate the args and the namedArgs in case of casting
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {Typed[]} args
      * @param {{[name: string]: Typed}} namedArgs
      * @returns {Typed}
      */
-    call(site, args, namedArgs = {}) {
-        const res = this._type.checkCall(site, args, namedArgs)
+    call(ctx, site, args, namedArgs = {}) {
+        const res = this._type.checkCall(ctx, site, args, namedArgs)
 
         return res.toTyped()
     }

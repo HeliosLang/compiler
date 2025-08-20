@@ -1,6 +1,11 @@
-import { makeTypeError, makeWord } from "@helios-lang/compiler-utils"
+import {
+    makeErrorCollector,
+    makeTypeError,
+    makeWord
+} from "@helios-lang/compiler-utils"
 import { expectDefined } from "@helios-lang/type-utils"
 import {
+    AllType,
     ArgType,
     Common,
     FuncType,
@@ -34,7 +39,8 @@ import {
 } from "./primitives.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("./common.js").DataType} DataType
  * @typedef {import("./common.js").EnumMemberType} EnumMemberType
  * @typedef {import("./common.js").GenericTypeProps} GenericTypeProps
@@ -205,19 +211,20 @@ export class TupleType extends GenericType {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         if (!this._itemTypes.some((it) => it.isParametric())) {
             return this
         }
 
         if (!type) {
             const itemTypes = this._itemTypes.map((it) =>
-                it.infer(site, map, null)
+                it.infer(ctx, site, map, null)
             )
 
             return TupleType$(itemTypes)
@@ -226,16 +233,18 @@ export class TupleType extends GenericType {
             this._itemTypes.length == type._itemTypes.length
         ) {
             const itemTypes = this._itemTypes.map((it, i) =>
-                it.infer(site, map, type._itemTypes[i])
+                it.infer(ctx, site, map, type._itemTypes[i])
             )
 
             return TupleType$(itemTypes)
         }
 
-        throw makeTypeError(
+        ctx.errors.type(
             site,
             `unable to infer type of ${this.toString()} (${type instanceof TupleType} ${type instanceof GenericType})`
         )
+
+        return new AllType()
     }
 }
 
@@ -694,7 +703,11 @@ export const ListType = new ParametricType({
  * @returns {DataType}
  */
 export function ListType$(itemType) {
-    return applyTypes(ListType, itemType)
+    const errors = makeErrorCollector()
+    const result = applyTypes({ errors }, ListType, itemType)
+    errors.throw()
+
+    return result
 }
 
 registerMakeListType(ListType$)
@@ -962,7 +975,12 @@ export const MapType = new ParametricType({
  * @returns {DataType}
  */
 export function MapType$(keyType, valueType) {
-    return applyTypes(MapType, keyType, valueType)
+    const errors = makeErrorCollector()
+
+    const result = applyTypes({ errors }, MapType, keyType, valueType)
+    errors.throw()
+
+    return result
 }
 
 registerMakeMapType(MapType$)
@@ -1126,5 +1144,9 @@ const OptionType = new ParametricType({
  * @returns {DataType}
  */
 export function OptionType$(someType) {
-    return applyTypes(OptionType, someType)
+    const errors = makeErrorCollector()
+    const result = applyTypes({ errors }, OptionType, someType)
+
+    errors.throw()
+    return result
 }

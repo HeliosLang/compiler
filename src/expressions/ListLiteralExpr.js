@@ -3,7 +3,7 @@ import { $ } from "@helios-lang/ir"
 import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { DataEntity, ListType$ } from "../typecheck/index.js"
+import { AllType, AnyType, DataEntity, ListType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
@@ -58,13 +58,15 @@ export class ListLiteralExpr extends Expr {
     evalInternal(ctx, scope) {
         const itemType_ = this._itemTypeExpr.eval(ctx, scope)
 
-        const itemType = itemType_.asDataType
+        let itemType = itemType_.asDataType
 
         if (!itemType) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._itemTypeExpr.site,
                 "content of list can't be func"
             )
+
+            itemType = new AllType()
         }
 
         for (let itemExpr of this._itemExprs) {
@@ -73,19 +75,18 @@ export class ListLiteralExpr extends Expr {
                 continue
             }
 
-            const itemVal = itemVal_.asTyped
+            let itemVal = itemVal_.asTyped
 
             if (!itemVal) {
-                throw makeTypeError(itemExpr.site, "not typed")
-                continue
+                ctx.errors.type(itemExpr.site, "not typed")
+                itemVal = new DataEntity(new AnyType())
             }
 
             if (!itemType.isBaseOf(itemVal.type)) {
-                throw makeTypeError(
+                ctx.errors.type(
                     itemExpr.site,
                     `expected ${itemType.toString()}, got ${itemVal.type.toString()}`
                 )
-                continue
             }
         }
 

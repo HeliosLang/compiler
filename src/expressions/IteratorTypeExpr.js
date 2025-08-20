@@ -1,6 +1,6 @@
 import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
-import { IteratorType$ } from "../typecheck/index.js"
+import { AllType, IteratorType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
@@ -35,23 +35,26 @@ export class IteratorTypeExpr extends Expr {
      * @returns {EvalEntity}
      */
     evalInternal(ctx, scope) {
-        const itemTypes = this._itemTypeExprs.map((ite) => {
+        let itemTypes = this._itemTypeExprs.map((ite) => {
             const ite_ = ite.eval(ctx, scope)
 
             const itemType = ite_.asType
 
             if (!itemType) {
-                throw makeTypeError(ite.site, "not a type")
+                ctx.errors.type(ite.site, "not a type")
+                return new AllType()
             }
 
             return itemType
         })
 
         if (itemTypes.length > 10) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this.site,
                 "too many Iterator type args (limited to 10)"
             )
+
+            itemTypes = itemTypes.slice(0, 10)
         }
 
         return IteratorType$(itemTypes)

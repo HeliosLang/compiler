@@ -3,7 +3,7 @@ import { $ } from "@helios-lang/ir"
 import { expectDefined as expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { AnyType, DataEntity } from "../typecheck/index.js"
+import { AllType, AnyType, DataEntity } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 import { StructLiteralField } from "./StructLiteralField.js"
 
@@ -79,19 +79,20 @@ export class StructLiteralExpr extends Expr {
             const memberVal = type.instanceMembers[name.value]
 
             if (!memberVal) {
-                throw makeTypeError(
-                    name.site,
-                    `member '${name.value}' not defined`
-                )
+                ctx.errors.type(name.site, `member '${name.value}' not defined`)
+
+                return new AllType()
             }
 
             const memberType = memberVal.asType
 
             if (!memberType) {
-                throw makeTypeError(
+                ctx.errors.type(
                     name.site,
                     `member '${name.value}' isn't a type`
                 )
+
+                return new AllType()
             }
 
             return memberType
@@ -102,14 +103,16 @@ export class StructLiteralExpr extends Expr {
 
             const fieldVal_ = f.eval(ctx, scope)
 
-            const fieldVal = fieldVal_.asTyped
+            let fieldVal = fieldVal_.asTyped
             if (!fieldVal) {
-                throw makeTypeError(f.site, "not typed")
+                ctx.errors.type(f.site, "not typed")
+                fieldVal = new DataEntity(new AllType())
             }
 
             if (f.isNamed()) {
                 if (type.fieldNames.findIndex((n) => n == f.name.value) == -1) {
-                    throw makeTypeError(f.name.site, "not a valid field")
+                    ctx.errors.type(f.name.site, "not a valid field")
+                    continue
                 }
 
                 // check the named type
@@ -119,7 +122,7 @@ export class StructLiteralExpr extends Expr {
                 }
 
                 if (!memberType.isBaseOf(fieldVal.type)) {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         f.site,
                         `wrong field type for '${f.name.toString()}', expected ${memberType.toString()}, got ${fieldVal.type.toString()}`
                     )
@@ -135,7 +138,7 @@ export class StructLiteralExpr extends Expr {
                 }
 
                 if (!memberType.isBaseOf(fieldVal.type)) {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         f.site,
                         `wrong field type for field ${i.toString()}, expected ${memberType.toString()}, got ${fieldVal.type.toString()}`
                     )

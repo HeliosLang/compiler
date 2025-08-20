@@ -2,7 +2,11 @@ import { makeTypeError } from "@helios-lang/compiler-utils"
 import { expectDefined } from "@helios-lang/type-utils"
 import { Expr } from "../expressions/index.js"
 import { Scope } from "../scopes/index.js"
-import { DefaultTypeClass, Parameter } from "../typecheck/index.js"
+import {
+    AnyTypeClass,
+    DefaultTypeClass,
+    Parameter
+} from "../typecheck/index.js"
 
 /**
  * @import { Word } from "@helios-lang/compiler-utils"
@@ -68,7 +72,8 @@ export class TypeParameter {
             const typeClass_ = this._typeClassExpr.eval(ctx, scope)
 
             if (!typeClass_.asTypeClass) {
-                throw makeTypeError(this._typeClassExpr.site, "not a typeclass")
+                ctx.errors.type(this._typeClassExpr.site, "not a typeclass")
+                typeClass = new AnyTypeClass()
             } else {
                 typeClass = typeClass_.asTypeClass
             }

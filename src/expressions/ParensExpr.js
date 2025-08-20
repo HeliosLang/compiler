@@ -2,7 +2,14 @@ import { makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { ErrorType, TupleType$, VoidType } from "../typecheck/index.js"
+import {
+    AllType,
+    AnyType,
+    DataEntity,
+    ErrorType,
+    TupleType$,
+    VoidType
+} from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
@@ -53,13 +60,12 @@ export class ParensExpr extends Expr {
             const entries = this._exprs.map((e) => {
                 const v_ = e.eval(ctx, scope)
 
-                const v = v_.asTyped
+                let v = v_.asTyped
                 if (!v) {
-                    throw makeTypeError(e.site, "not typed")
-                }
-
-                if (new ErrorType().isBaseOf(v.type)) {
-                    throw makeTypeError(
+                    ctx.errors.type(e.site, "not typed")
+                    v = new DataEntity(new AllType())
+                } else if (new ErrorType().isBaseOf(v.type)) {
+                    ctx.errors.type(
                         e.site,
                         "unexpected error call in multi-valued expression"
                     )

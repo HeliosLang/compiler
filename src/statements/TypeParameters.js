@@ -189,7 +189,7 @@ export class TypeParameters {
                     })
 
                     const appliedType = expectDefined(
-                        type.infer(site, map, null).asDataType
+                        type.infer(ctx, site, map, null).asDataType
                     )
 
                     const appliedPath = ParametricName.parse(type.path, true)

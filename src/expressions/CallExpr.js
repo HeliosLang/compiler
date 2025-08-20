@@ -1,9 +1,10 @@
-import { makeTypeError } from "@helios-lang/compiler-utils"
+import { makeErrorCollector, makeTypeError } from "@helios-lang/compiler-utils"
 import { $ } from "@helios-lang/ir"
 import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import {
+    AllType,
     AnyType,
     DataEntity,
     FuncType,
@@ -177,13 +178,19 @@ export class CallExpr extends Expr {
             this._paramTypes = []
 
             this._appliedFnVal = fnVal.asParametric.inferCall(
+                ctx,
                 this.site,
                 this.castedPosArgVals,
                 this.castedNamedArgVals,
                 this._paramTypes
             )
 
+            if (!this._appliedFnVal) {
+                return new DataEntity(new AllType())
+            }
+
             return this._appliedFnVal.call(
+                ctx,
                 this.site,
                 this.castedPosArgVals,
                 this.castedNamedArgVals,
@@ -191,6 +198,7 @@ export class CallExpr extends Expr {
             )
         } else if (fnVal.asFunc) {
             return fnVal.asFunc.call(
+                ctx,
                 this.site,
                 this.castedPosArgVals,
                 this.castedNamedArgVals,
@@ -308,7 +316,10 @@ export class CallExpr extends Expr {
         this._argExprs.forEach((ae, i) => {
             if (ae.isNamed()) {
                 // i is the index in this call, j is the index in function being called (named args can be in a completely different order)
-                const j = fn.getNamedIndex(ae.site, ae.name)
+                const errors = makeErrorCollector()
+                const j = fn.getNamedIndex({ errors }, ae.site, ae.name)
+
+                errors.throw()
 
                 if (j < nNonOptArgs) {
                     positional[j] = ae.valueExpr

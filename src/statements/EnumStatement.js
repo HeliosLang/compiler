@@ -17,12 +17,12 @@ import { TypeParameters } from "./TypeParameters.js"
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeSchema } from "@helios-lang/type-utils"
  * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").EnumMemberType} EnumMemberType
  * @typedef {import("../typecheck/common.js").GenericTypeProps} GenericTypeProps
  * @typedef {import("../typecheck/common.js").Type} Type
- * @typedef {import("../typecheck/common.js").TypeSchema} TypeSchema
  */
 
 /**

@@ -3,7 +3,13 @@ import { $ } from "@helios-lang/ir"
 import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { DataEntity, MapType$ } from "../typecheck/index.js"
+import {
+    AllType,
+    AnyEntity,
+    AnyType,
+    DataEntity,
+    MapType$
+} from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
@@ -75,22 +81,24 @@ export class MapLiteralExpr extends Expr {
     evalInternal(ctx, scope) {
         const keyType_ = this._keyTypeExpr.eval(ctx, scope)
 
-        const keyType = keyType_.asDataType
+        let keyType = keyType_.asDataType
         if (!keyType) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._keyTypeExpr.site,
                 "key-type of Map can't be func"
             )
+            keyType = new AllType()
         }
 
         const valueType_ = this._valueTypeExpr.eval(ctx, scope)
 
-        const valueType = valueType_.asDataType
+        let valueType = valueType_.asDataType
         if (!valueType) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._valueTypeExpr.site,
                 "value-type of Map can't be func"
             )
+            valueType = new AllType()
         }
 
         for (let [keyExpr, valueExpr] of this._pairExprs) {
@@ -99,10 +107,10 @@ export class MapLiteralExpr extends Expr {
                 continue
             }
 
-            const keyVal = keyVal_.asTyped
+            let keyVal = keyVal_.asTyped
             if (!keyVal) {
-                throw makeTypeError(keyExpr.site, "not typed")
-                continue
+                ctx.errors.type(keyExpr.site, "not typed")
+                keyVal = new DataEntity(new AnyType())
             }
 
             const valueVal_ = valueExpr.eval(ctx, scope)
@@ -110,26 +118,24 @@ export class MapLiteralExpr extends Expr {
                 continue
             }
 
-            const valueVal = valueVal_.asTyped
+            let valueVal = valueVal_.asTyped
             if (!valueVal) {
-                throw makeTypeError(valueExpr.site, "not typed")
-                continue
+                ctx.errors.type(valueExpr.site, "not typed")
+                valueVal = new DataEntity(new AnyType())
             }
 
             if (!keyType.isBaseOf(keyVal.type)) {
-                throw makeTypeError(
+                ctx.errors.type(
                     keyExpr.site,
                     `expected ${keyType.toString()} for map key, got ${keyVal.toString()}`
                 )
-                continue
             }
 
             if (!valueType.isBaseOf(valueVal.type)) {
-                throw makeTypeError(
+                ctx.errors.type(
                     valueExpr.site,
                     `expected ${valueType.toString()} for map value, got ${valueVal.toString()}`
                 )
-                continue
             }
         }
 

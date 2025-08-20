@@ -3,7 +3,7 @@ import { $ } from "@helios-lang/ir"
 import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { FuncType } from "../typecheck/index.js"
+import { AllType, FuncType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 import { MemberExpr } from "./MemberExpr.js"
 
@@ -70,13 +70,18 @@ export class ParametricExpr extends Expr {
         const baseVal = this._baseExpr.eval(ctx, scope)
 
         if (!baseVal.asParametric) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this.site,
                 `'${baseVal.toString()}' isn't a parametric type`
             )
+
+            return new AllType()
         }
 
-        return baseVal.asParametric.apply(paramTypes, this.site)
+        return (
+            baseVal.asParametric.apply(ctx, paramTypes, this.site) ??
+            new AllType()
+        )
     }
 
     /**

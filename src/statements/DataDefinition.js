@@ -16,10 +16,10 @@ import { DataField } from "./DataField.js"
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
  * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { FieldTypeSchema } from "@helios-lang/type-utils"
  * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").InstanceMembers} InstanceMembers
- * @typedef {import("../typecheck/index.js").FieldTypeSchema} FieldTypeSchema
  * @typedef {import("../typecheck/index.js").Type} Type
  * @typedef {import("../typecheck/index.js").TypeMembers} TypeMembers
  */

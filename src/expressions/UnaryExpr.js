@@ -80,7 +80,7 @@ export class UnaryExpr extends Expr {
 
         if (fnVal) {
             // immediately applied
-            return fnVal.asFunc.call(this._op.site, [a])
+            return fnVal.asFunc.call(ctx, this._op.site, [a])
         } else {
             ctx.errors.type(
                 this._a.site,

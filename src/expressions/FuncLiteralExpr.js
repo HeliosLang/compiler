@@ -161,20 +161,23 @@ export class FuncLiteralExpr extends Expr {
                     new FuncType(fnType.argTypes, bodyVal.asTyped.type)
                 )
             } else {
-                throw makeTypeError(
-                    this._bodyExpr.site,
-                    "expect multi or typed"
+                ctx.errors.type(this._bodyExpr.site, "expect multi or typed")
+
+                return new FuncEntity(
+                    new FuncType(fnType.argTypes, new AllType())
                 )
             }
         } else if (bodyVal.asTyped) {
             if (!fnType.retType.isBaseOf(bodyVal.asTyped.type)) {
-                throw makeTypeError(
+                ctx.errors.type(
                     this.retTypeExpr.site,
                     `wrong return type, expected ${fnType.retType.toString()} but got ${bodyVal.asTyped.type.toString()}`
                 )
             }
         } else {
-            throw makeTypeError(this._bodyExpr.site, "expect multi or typed")
+            ctx.errors.type(this._bodyExpr.site, "expect multi or typed")
+
+            return new FuncEntity(new FuncType(fnType.argTypes, new AllType()))
         }
 
         subScope.assertAllUsed()

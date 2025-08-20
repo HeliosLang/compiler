@@ -74,12 +74,13 @@ export class IfElseExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {Type | undefined} prevType
      * @param {Type} newType
      * @returns {Type}
      */
-    static reduceBranchType(site, prevType, newType) {
+    static reduceBranchType(ctx, site, prevType, newType) {
         if (!prevType || prevType instanceof ErrorType) {
             return newType
         } else if (newType instanceof ErrorType) {
@@ -110,6 +111,7 @@ export class IfElseExpr extends Expr {
                 ) {
                     const reducedTupleItems = prevTupleItems.map((prev, i) =>
                         IfElseExpr.reduceBranchType(
+                            ctx,
                             site,
                             prev,
                             newTupleItems[i]
@@ -121,7 +123,8 @@ export class IfElseExpr extends Expr {
                     }
                 }
 
-                throw makeTypeError(site, "inconsistent types")
+                ctx.errors.type(site, "inconsistent types")
+                return prevType
             }
         } else {
             return prevType
@@ -129,12 +132,13 @@ export class IfElseExpr extends Expr {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {Type | undefined} prevType
      * @param {Typed} newValue
      * @returns {Type | undefined} - never ErrorType
      */
-    static reduceBranchMultiType(site, prevType, newValue) {
+    static reduceBranchMultiType(ctx, site, prevType, newValue) {
         if (
             newValue.asTyped &&
             new ErrorType().isBaseOf(newValue.asTyped.type)
@@ -147,7 +151,7 @@ export class IfElseExpr extends Expr {
         if (!prevType) {
             return newType
         } else {
-            return IfElseExpr.reduceBranchType(site, prevType, newType)
+            return IfElseExpr.reduceBranchType(ctx, site, prevType, newType)
         }
     }
 
@@ -166,8 +170,7 @@ export class IfElseExpr extends Expr {
             const cVal = cVal_.asTyped
 
             if (!cVal || !BoolType.isBaseOf(cVal.type)) {
-                throw makeTypeError(c.site, "expected bool")
-                continue
+                ctx.errors.type(c.site, "expected bool")
             }
         }
 
@@ -187,6 +190,7 @@ export class IfElseExpr extends Expr {
             }
 
             branchMultiType = IfElseExpr.reduceBranchMultiType(
+                ctx,
                 b.site,
                 branchMultiType,
                 branchVal

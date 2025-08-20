@@ -108,26 +108,34 @@ export class EnumSwitchExpr extends SwitchExpr {
 
     /**
      * Throws an error if some cases can't be reached
+     * @param {TypeCheckContext} ctx
      * @param {DataType[]} enumTypes
      * @returns {boolean}
      */
-    checkCaseReachability(enumTypes) {
+    checkCaseReachability(ctx, enumTypes) {
         // first collect all variants for each enum type
+
         /**
          * @type {[string, EnumMemberType][][]}
          */
-        const variants = enumTypes.map((enumType, i) => {
+        const variants = []
+
+        enumTypes.forEach((enumType, i) => {
             const vs = collectEnumMembers(enumType)
 
             if (vs.length == 0) {
-                throw makeTypeError(
+                ctx.errors.type(
                     this.controlExpr.site,
                     `'${enumType.name}' isn't an enum type`
                 )
+            } else {
+                variants.push(vs)
             }
-
-            return vs
         })
+
+        if (variants.length == 0) {
+            return false
+        }
 
         const strides = variants.reduce(
             (prev, vs) => {
@@ -245,7 +253,7 @@ export class EnumSwitchExpr extends SwitchExpr {
             }
 
             if (!isSomeReachable(indices)) {
-                throw makeTypeError(
+                ctx.errors.type(
                     c.lhs.site,
                     `unreachable condition '${c.lhs.toString()}'`
                 )
@@ -257,10 +265,7 @@ export class EnumSwitchExpr extends SwitchExpr {
         const someRemainingReachable = reachable.some((r) => r)
 
         if (this.defaultCase && !someRemainingReachable) {
-            throw makeTypeError(
-                this.defaultCase.site,
-                "unreachable default case"
-            )
+            ctx.errors.type(this.defaultCase.site, "unreachable default case")
         }
 
         return someRemainingReachable
@@ -274,7 +279,7 @@ export class EnumSwitchExpr extends SwitchExpr {
     evalInternal(ctx, scope) {
         const enumTypes = this.evalControlExprTypes(ctx, scope)
 
-        const someUncovered = this.checkCaseReachability(enumTypes)
+        const someUncovered = this.checkCaseReachability(ctx, enumTypes)
 
         if (!this.defaultCase && someUncovered) {
             this.setDefaultCaseToVoid()
@@ -294,6 +299,7 @@ export class EnumSwitchExpr extends SwitchExpr {
             }
 
             branchMultiType = IfElseExpr.reduceBranchMultiType(
+                ctx,
                 c.site,
                 branchMultiType,
                 branchVal
@@ -313,6 +319,7 @@ export class EnumSwitchExpr extends SwitchExpr {
 
             if (defaultVal) {
                 branchMultiType = IfElseExpr.reduceBranchMultiType(
+                    ctx,
                     this.defaultCase.site,
                     branchMultiType,
                     defaultVal

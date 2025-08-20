@@ -16,11 +16,10 @@ import { ImplDefinition } from "./ImplDefinition.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
+ * @import { StructTypeSchema } from "@helios-lang/type-utils"
  * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").GenericTypeProps} GenericTypeProps
  * @typedef {import("../typecheck/index.js").Type} Type
- * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
- * @typedef {import("../typecheck/index.js").StructTypeSchema} StructTypeSchema
  */
 
 /**

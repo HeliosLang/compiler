@@ -1,6 +1,6 @@
 import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
-import { ArgType } from "../typecheck/index.js"
+import { AllType, ArgType } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
@@ -87,13 +87,13 @@ export class FuncArgTypeExpr {
         const type = type_.asType
 
         if (!type) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._typeExpr.site,
                 `'${type_.toString()}' isn't a type`
             )
         }
 
-        return new ArgType(this._name, type, this._optional)
+        return new ArgType(this._name, type ?? new AllType(), this._optional)
     }
 
     /**

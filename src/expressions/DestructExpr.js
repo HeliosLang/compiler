@@ -231,12 +231,15 @@ export class DestructExpr {
                     )
 
                     if (!de) {
-                        throw makeTypeError(
+                        ctx.errors.type(
                             this.site,
                             `invalid nested tuple in in destruct expression`
                         )
+
+                        return new AllType()
+                    } else {
+                        return de
                     }
-                    return de
                 })
 
                 return TupleType$(nestedTypes)
@@ -456,7 +459,7 @@ export class DestructExpr {
 
         if (checkType && upstreamType) {
             if (!checkType.isBaseOf(upstreamType)) {
-                throw makeTypeError(
+                ctx.errors.type(
                     this.site,
                     `expected ${checkType.toString()} for rhs ${i + 1}, got ${upstreamType.toString()}`
                 )

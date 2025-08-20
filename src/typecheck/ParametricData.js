@@ -1,9 +1,10 @@
 import { makeDummySite, makeTypeError } from "@helios-lang/compiler-utils"
-import { Common, DataEntity } from "./common.js"
+import { AllType, Common, DataEntity } from "./common.js"
 import { Parameter } from "./Parameter.js"
 
 /**
  * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("./common.js").InferenceMap} InferenceMap
  * @typedef {import("./common.js").DataType} DataType
  * @typedef {import("./common.js").Func} Func
@@ -60,16 +61,15 @@ export class ParametricData extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Type[]} types
      * @param {Site} site
      * @returns {EvalEntity}
      */
-    apply(types, site = makeDummySite()) {
+    apply(ctx, types, site = makeDummySite()) {
         if (types.length != this._params.length) {
-            throw makeTypeError(
-                site,
-                "wrong number of parameter type arguments"
-            )
+            ctx.errors.type(site, "wrong number of parameter type arguments")
+            return new DataEntity(new AllType())
         }
 
         /**
@@ -79,13 +79,13 @@ export class ParametricData extends Common {
 
         this._params.forEach((p, i) => {
             if (!p.typeClass.isImplementedBy(types[i])) {
-                throw makeTypeError(site, "typeclass match failed")
+                ctx.errors.type(site, "typeclass match failed")
             }
 
             map.set(p, types[i])
         })
 
-        const inferred = this._dataType.infer(site, map, null)
+        const inferred = this._dataType.infer(ctx, site, map, null)
 
         if (inferred.asDataType) {
             return new DataEntity(inferred.asDataType)
@@ -103,23 +103,27 @@ export class ParametricData extends Common {
 
     /**
      * Must infer before calling
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {Typed[]} args
      * @param {{[name: string]: Typed}} namedArgs
      * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
-     * @returns {Func}
+     * @returns {Func | undefined}
      */
-    inferCall(site, args, namedArgs = {}, paramTypes = []) {
-        throw makeTypeError(site, "uncallable")
+    inferCall(ctx, site, args, namedArgs = {}, paramTypes = []) {
+        ctx.errors.type(site, "uncallable")
+
+        return undefined
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @returns {Parametric}
      */
-    infer(site, map) {
-        const dataType = this._dataType.infer(site, map, null)
+    infer(ctx, site, map) {
+        const dataType = this._dataType.infer(ctx, site, map, null)
 
         if (dataType.asDataType) {
             return new ParametricData(this._params, dataType.asDataType)

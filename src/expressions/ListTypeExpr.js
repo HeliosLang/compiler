@@ -1,6 +1,6 @@
 import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
-import { ListType$ } from "../typecheck/index.js"
+import { AllType, ListType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
@@ -38,13 +38,15 @@ export class ListTypeExpr extends Expr {
     evalInternal(ctx, scope) {
         const itemType_ = this._itemTypeExpr.eval(ctx, scope)
 
-        const itemType = itemType_.asType
+        let itemType = itemType_.asType
 
         if (!itemType) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._itemTypeExpr.site,
                 `'${itemType_.toString()}' isn't a type`
             )
+
+            itemType = new AllType()
         }
 
         return ListType$(itemType)

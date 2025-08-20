@@ -1,6 +1,6 @@
 import { makeTypeError } from "@helios-lang/compiler-utils"
 import { Scope } from "../scopes/index.js"
-import { MapType$ } from "../typecheck/index.js"
+import { AllType, MapType$ } from "../typecheck/index.js"
 import { Expr } from "./Expr.js"
 
 /**
@@ -46,24 +46,23 @@ export class MapTypeExpr extends Expr {
     evalInternal(ctx, scope) {
         const keyType_ = this._keyTypeExpr.eval(ctx, scope)
 
-        const keyType = keyType_.asType
+        let keyType = keyType_.asType
 
         if (!keyType) {
-            throw makeTypeError(
-                this._keyTypeExpr.site,
-                "map key type not a type"
-            )
+            ctx.errors.type(this._keyTypeExpr.site, "map key type not a type")
+            keyType = new AllType()
         }
 
         const valueType_ = this._valueTypeExpr.eval(ctx, scope)
 
-        const valueType = valueType_.asType
+        let valueType = valueType_.asType
 
         if (!valueType) {
-            throw makeTypeError(
+            ctx.errors.type(
                 this._valueTypeExpr.site,
                 "map value type not a type"
             )
+            valueType = new AllType()
         }
 
         return MapType$(keyType, valueType)

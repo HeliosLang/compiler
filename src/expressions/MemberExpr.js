@@ -4,6 +4,7 @@ import { expectDefined as expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
+import { AllType, AnyType, DataEntity } from "../typecheck/common.js"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
@@ -49,12 +50,10 @@ export class MemberExpr extends Expr {
     evalInternal(ctx, scope) {
         const objVal_ = this._objExpr.eval(ctx, scope)
 
-        const objVal = objVal_.asInstance
+        let objVal = objVal_.asInstance
         if (!objVal) {
-            throw makeTypeError(
-                this._objExpr.site,
-                `lhs of '.' not an instance`
-            )
+            ctx.errors.type(this._objExpr.site, `lhs of '.' not an instance`)
+            objVal = new DataEntity(new AnyType())
         }
 
         let member = objVal.instanceMembers[this._memberName.value]
@@ -67,10 +66,12 @@ export class MemberExpr extends Expr {
             }
 
             if (!member) {
-                throw makeReferenceError(
+                ctx.errors.reference(
                     this._memberName.site,
                     `'${objVal.type.toString()}.${this._memberName.value}' undefined`
                 )
+
+                member = new AllType()
             }
         }
 

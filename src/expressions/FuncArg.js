@@ -45,6 +45,7 @@ export class FuncArg extends NameTypePair {
     /**
      * @param {TypeCheckContext} ctx
      * @param {Scope} scope
+     * @returns {void}
      */
     evalDefault(ctx, scope) {
         if (this._defaultValueExpr) {
@@ -55,7 +56,7 @@ export class FuncArg extends NameTypePair {
 
             const v = v_.asTyped
             if (!v) {
-                throw makeTypeError(this._defaultValueExpr.site, "not typed")
+                ctx.errors.type(this._defaultValueExpr.site, "not typed")
                 return
             }
 

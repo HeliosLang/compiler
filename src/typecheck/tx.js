@@ -37,10 +37,12 @@ import {
     genCommonTypeMembers,
     genCommonEnumTypeMembers
 } from "./primitives.js"
-import { TimeRangeType, TimeType } from "./time.js"
+import { TimeRangeType } from "./time.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeSchema } from "@helios-lang/type-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("./common.js").InferenceMap} InferenceMap
  * @typedef {import("./common.js").DataType} DataType
  * @typedef {import("./common.js").EnumMemberType} EnumMemberType
@@ -49,7 +51,6 @@ import { TimeRangeType, TimeType } from "./time.js"
  * @typedef {import("./common.js").Typed} Typed
  * @typedef {import("./common.js").InstanceMembers} InstanceMembers
  * @typedef {import("./common.js").TypeMembers} TypeMembers
- * @typedef {import("./common.js").TypeSchema} TypeSchema
  */
 
 /**
@@ -548,12 +549,13 @@ export class MacroType extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         return this
     }
 

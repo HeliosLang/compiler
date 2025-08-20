@@ -31,7 +31,7 @@ export class ValuePathExpr extends PathExpr {
      * @returns {EvalEntity}
      */
     evalInternal(ctx, scope) {
-        const member = super.evalInternal(ctx, scope)
+        const member = super.evalInternal(ctx, scope, false)
 
         if (
             member.asEnumMemberType &&

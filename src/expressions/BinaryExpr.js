@@ -187,7 +187,7 @@ export class BinaryExpr extends Expr {
                     fnVal.funcType.argTypes[0].isBaseOf(first.type) &&
                     fnVal.funcType.argTypes[1].isBaseOf(second.type)
                 ) {
-                    let res = fnVal.call(this._op.site, [first, second])
+                    let res = fnVal.call(ctx, this._op.site, [first, second])
 
                     this._swap = swap
                     this._alt = alt

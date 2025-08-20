@@ -1,9 +1,10 @@
 import { makeDummySite, makeTypeError } from "@helios-lang/compiler-utils"
-import { Common, FuncEntity, FuncType } from "./common.js"
+import { AllType, Common, FuncEntity, FuncType } from "./common.js"
 import { Parameter } from "./Parameter.js"
 
 /**
- * @typedef {import("@helios-lang/compiler-utils").Site} Site
+ * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeCheckContext } from "../index.js"
  * @typedef {import("./common.js").InferenceMap} InferenceMap
  * @typedef {import("./common.js").Func} Func
  * @typedef {import("./common.js").EvalEntity} EvalEntity
@@ -59,16 +60,16 @@ export class ParametricFunc extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Type[]} types
      * @param {Site} site
-     * @returns {EvalEntity}
+     * @returns {EvalEntity | undefined}
      */
-    apply(types, site = makeDummySite()) {
+    apply(ctx, types, site = makeDummySite()) {
         if (types.length != this._params.length) {
-            throw makeTypeError(
-                site,
-                "wrong number of parameter type arguments"
-            )
+            ctx.errors.type(site, "wrong number of parameter type arguments")
+
+            return undefined
         }
 
         /**
@@ -78,13 +79,13 @@ export class ParametricFunc extends Common {
 
         this._params.forEach((p, i) => {
             if (!p.typeClass.isImplementedBy(types[i])) {
-                throw makeTypeError(site, "typeclass match failed")
+                ctx.errors.type(site, "typeclass match failed")
             }
 
             map.set(p, types[i])
         })
 
-        const inferred = this._fnType.infer(site, map, null)
+        const inferred = this._fnType.infer(ctx, site, map, null)
 
         if (inferred instanceof FuncType) {
             return new FuncEntity(inferred)
@@ -102,19 +103,21 @@ export class ParametricFunc extends Common {
 
     /**
      * Must infer before calling
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {Typed[]} args
      * @param {{[name: string]: Typed}} namedArgs
      * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
      * @returns {Func}
      */
-    inferCall(site, args, namedArgs = {}, paramTypes = []) {
+    inferCall(ctx, site, args, namedArgs = {}, paramTypes = []) {
         /**
          * @type {InferenceMap}
          */
         const map = new Map()
 
         const fnType = this._fnType.inferArgs(
+            ctx,
             site,
             map,
             args.map((a) => a.type)
@@ -122,13 +125,14 @@ export class ParametricFunc extends Common {
 
         // make sure that each parameter is defined in the map
         this._params.forEach((p) => {
-            const pt = map.get(p)
+            let pt = map.get(p)
 
             if (!pt) {
-                throw makeTypeError(
+                ctx.errors.type(
                     site,
                     `failed to infer type of '${p.name}'  (hint: apply directly using [...])`
                 )
+                pt = new AllType()
             }
 
             paramTypes.push(pt)
@@ -138,12 +142,13 @@ export class ParametricFunc extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @returns {Parametric}
      */
-    infer(site, map) {
-        const fnType = this._fnType.infer(site, map, null)
+    infer(ctx, site, map) {
+        const fnType = this._fnType.infer(ctx, site, map, null)
 
         if (fnType instanceof FuncType) {
             return new ParametricFunc(this._params, fnType)

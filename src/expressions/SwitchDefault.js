@@ -4,6 +4,7 @@ import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
 import { VoidExpr } from "./VoidExpr.js"
+import { AllType, DataEntity } from "../typecheck/common.js"
 
 /**
  * @import { Site, Token } from "@helios-lang/compiler-utils"
@@ -45,10 +46,11 @@ export class SwitchDefault {
     eval(ctx, scope) {
         const bodyVal_ = this.body.eval(ctx, scope)
 
-        const bodyVal = bodyVal_.asTyped
+        let bodyVal = bodyVal_.asTyped
 
         if (!bodyVal) {
-            throw makeTypeError(this.body.site, "not typed")
+            ctx.errors.type(this.body.site, "not typed")
+            bodyVal = new DataEntity(new AllType())
         }
 
         return bodyVal

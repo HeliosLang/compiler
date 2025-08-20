@@ -3,11 +3,8 @@ import { expectDefined, isDefined } from "@helios-lang/type-utils"
 
 /**
  * @import { Site, Word } from "@helios-lang/compiler-utils"
- * @typedef {import("@helios-lang/type-utils").StructTypeSchema} StructTypeSchema
- * @typedef {import("@helios-lang/type-utils").FieldTypeSchema} FieldTypeSchema
- * @typedef {import("@helios-lang/type-utils").TypeSchema} TypeSchema
- * @typedef {import("@helios-lang/type-utils").VariantTypeSchema} VariantTypeSchema
- * @typedef {import("@helios-lang/uplc").UplcData} UplcData
+ * @import { TypeSchema } from "@helios-lang/type-utils"
+ * @import { TypeCheckContext } from "../index.js"
  */
 
 /**
@@ -111,7 +108,7 @@ export function registerMakeMapType(callback) {
  * @typedef {Typed & {
  *   asFunc: Func
  * 	 funcType: FuncType
- *   call(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, viableCasts?: ViableCasts): Typed
+ *   call(ctx: TypeCheckContext, site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, viableCasts?: ViableCasts): Typed
  * }} Func
  */
 
@@ -142,9 +139,9 @@ export function registerMakeMapType(callback) {
  * @typedef {EvalEntity & {
  *   asParametric: Parametric
  *   typeClasses: TypeClass[]
- *   apply(types: Type[], site?: Site): EvalEntity
- *   inferCall(site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func
- * 	 infer(site: Site, map: InferenceMap): Parametric
+ *   apply(ctx: TypeCheckContext, types: Type[], site?: Site): EvalEntity | undefined
+ *   inferCall(ctx: TypeCheckContext, site: Site, args: Typed[], namedArgs?: {[name: string]: Typed}, paramTypes?: Type[]): Func | undefined
+ * 	 infer(ctx: TypeCheckContext, site: Site, map: InferenceMap): Parametric | undefined
  * }} Parametric
  */
 
@@ -154,7 +151,7 @@ export function registerMakeMapType(callback) {
  *   instanceMembers:      InstanceMembers
  *   typeMembers:          TypeMembers
  *   isBaseOf(type: Type): boolean
- *   infer(site: Site, map: InferenceMap, type: null | Type): Type
+ *   infer(ctx: TypeCheckContext, site: Site, map: InferenceMap, type: null | Type): Type
  *   toTyped():            Typed
  *   isParametric():       boolean
  * }} Type
@@ -194,12 +191,15 @@ export function registerMakeMapType(callback) {
  */
 
 /**
+ * @param {TypeCheckContext} ctx
  * @param {Parametric} parametric
  * @param {Type[]} types
  * @returns {DataType}
  */
-export function applyTypes(parametric, ...types) {
-    return expectDefined(parametric.apply(types).asDataType)
+export function applyTypes(ctx, parametric, ...types) {
+    return expectDefined(
+        (parametric.apply(ctx, types) ?? new AllType()).asDataType
+    )
 }
 
 export class Common {
@@ -462,12 +462,13 @@ export class AllType extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         return this
     }
 
@@ -567,12 +568,13 @@ export class AnyType extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         return this
     }
 
@@ -655,15 +657,16 @@ export class ArgType {
 
     /**
      * @internal
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {ArgType}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         return new ArgType(
             this._name,
-            this._type.infer(site, map, type),
+            this._type.infer(ctx, site, map, type),
             this._optional
         )
     }
@@ -867,34 +870,33 @@ export class FuncType extends Common {
      * Checks if arg types are valid.
      * Throws errors if not valid. Returns the return type if valid.
      * posArgs and namedArgs are mutated if implicit casting is viable
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {Typed[]} origPosArgs - pos args with tuples, expanded internally
      * @param {{[name: string]: Typed}} namedArgs
      * @param {((argType: Type, targetType: Type) => (Type | undefined)) | undefined} viableCasts
      * @returns {Type}
      */
-    checkCall(site, origPosArgs, namedArgs = {}, viableCasts = undefined) {
+    checkCall(ctx, site, origPosArgs, namedArgs = {}, viableCasts = undefined) {
         const posArgs = this.expandTuplesInPosArgs(origPosArgs)
 
         if (posArgs.length < this.nNonOptArgs) {
             // check if each nonOptArg is covered by the named args
             for (let i = 0; i < this.nNonOptArgs; i++) {
                 if (!this.origArgTypes[i].isNamed()) {
-                    // TODO: collect instead of throwing
-                    throw makeTypeError(
+                    ctx.errors.type(
                         site,
                         `expected at least ${this.origArgTypes.filter((at) => !at.isNamed()).length} positional arg(s), got ${posArgs.length} positional arg(s)`
                     )
                 } else if (!(this.origArgTypes[i].name in namedArgs)) {
-                    // TODO: collect instead of throwing
-                    throw makeTypeError(
+                    ctx.errors.type(
                         site,
                         `expected at least ${this.nNonOptArgs} arg(s), missing '${this.origArgTypes[i].name}'`
                     )
                 }
             }
         } else if (posArgs.length > this.origArgTypes.length) {
-            throw makeTypeError(
+            ctx.errors.type(
                 site,
                 `expected at most ${this.origArgTypes.length} arg(s), got ${posArgs.length} arg(s)`
             )
@@ -917,7 +919,7 @@ export class FuncType extends Common {
                 if (altType) {
                     origPosArgs[origIndex] = altType.toTyped()
                 } else {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         site,
                         `expected '${expectedArgType.toString()}' for arg ${i + 1}, got '${posArg.type.toString()}'`
                     )
@@ -929,14 +931,14 @@ export class FuncType extends Common {
             const i = this.origArgTypes.findIndex((at) => at.name == key)
 
             if (i == -1) {
-                throw makeTypeError(
+                ctx.errors.type(
                     site,
                     `arg named ${key} not found in function type ${this.toString()}`
                 )
             }
 
             if (i < posArgs.length) {
-                throw makeTypeError(
+                ctx.errors.type(
                     site,
                     `named arg '${key}' already covered by positional arg ${i + 1}`
                 )
@@ -955,7 +957,7 @@ export class FuncType extends Common {
                     // mutate the namedArgs object
                     namedArgs[key] = altType.toTyped()
                 } else {
-                    throw makeTypeError(
+                    ctx.errors.type(
                         site,
                         `expected '${thisArg.type.toString()}' for arg '${key}', got '${namedArg.toString()}`
                     )
@@ -968,51 +970,55 @@ export class FuncType extends Common {
 
     /**
      * @internal
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         if (!type) {
             return new FuncType(
-                this.origArgTypes.map((at) => at.infer(site, map, null)),
-                this._retType.infer(site, map, null)
+                this.origArgTypes.map((at) => at.infer(ctx, site, map, null)),
+                this._retType.infer(ctx, site, map, null)
             )
         } else if (type instanceof FuncType) {
             if (type.argTypes.length == this.origArgTypes.length) {
                 return new FuncType(
                     this.origArgTypes.map((at, i) =>
-                        at.infer(site, map, type.argTypes[i])
+                        at.infer(ctx, site, map, type.argTypes[i])
                     ),
-                    this._retType.infer(site, map, type.retType)
+                    this._retType.infer(ctx, site, map, type.retType)
                 )
             }
         }
 
-        throw makeTypeError(site, `unable to infer type of ${this.toString()}`)
+        ctx.errors.type(site, `unable to infer type of ${this.toString()}`)
+
+        return new AllType()
     }
 
     /**
      * @internal
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {Type[]} argTypes
      * @returns {FuncType}
      */
-    inferArgs(site, map, argTypes) {
-        if (argTypes.length == this.argTypes.length) {
-            return new FuncType(
-                this.origArgTypes.map((at, i) =>
-                    at.infer(site, map, argTypes[i])
-                ),
-                this._retType.infer(site, map, null)
+    inferArgs(ctx, site, map, argTypes) {
+        if (argTypes.length != this.argTypes.length) {
+            ctx.errors.type(
+                site,
+                `expected ${this.argTypes.length} arg(s), got ${argTypes.length}`
             )
         }
 
-        throw makeTypeError(
-            site,
-            `expected ${this.argTypes.length} arg(s), got ${argTypes.length}`
+        return new FuncType(
+            this.origArgTypes.map((at, i) =>
+                at.infer(ctx, site, map, argTypes[i])
+            ),
+            this._retType.infer(ctx, site, map, null)
         )
     }
 
@@ -1092,15 +1098,17 @@ export class FuncType extends Common {
 
     /**
      * Throws an error if name isn't found
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {string} name
      * @returns {number}
      */
-    getNamedIndex(site, name) {
+    getNamedIndex(ctx, site, name) {
         const i = this.origArgTypes.findIndex((at) => at.name == name)
 
         if (i == -1) {
-            throw makeTypeError(site, `arg name ${name} not found`)
+            ctx.errors.type(site, `arg name ${name} not found`)
+            return 0
         } else {
             return i
         }
@@ -1303,10 +1311,11 @@ export class GenericType extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      */
-    applyInternal(site, map) {
+    applyInternal(ctx, site, map) {
         return {
             name: this._name,
             path: this._path,
@@ -1323,9 +1332,16 @@ export class GenericType extends Common {
                     const v = oldInstanceMembers[k]
 
                     if (v.asParametric) {
-                        instanceMembers[k] = v.asParametric.infer(site, map)
+                        instanceMembers[k] =
+                            v.asParametric.infer(ctx, site, map) ??
+                            new AllType()
                     } else if (v.asType) {
-                        instanceMembers[k] = v.asType.infer(site, map, null)
+                        instanceMembers[k] = v.asType.infer(
+                            ctx,
+                            site,
+                            map,
+                            null
+                        )
                     } else {
                         throw new Error("unhandled")
                     }
@@ -1345,13 +1361,15 @@ export class GenericType extends Common {
                     const v = oldTypeMembers[k]
 
                     if (v.asParametric) {
-                        typeMembers[k] = v.asParametric.infer(site, map)
+                        typeMembers[k] =
+                            v.asParametric.infer(ctx, site, map) ??
+                            new AllType()
                     } else if (v.asTyped) {
                         typeMembers[k] = v.asTyped.type
-                            .infer(site, map, null)
+                            .infer(ctx, site, map, null)
                             .toTyped()
                     } else if (v.asType) {
-                        typeMembers[k] = v.asType.infer(site, map, null)
+                        typeMembers[k] = v.asType.infer(ctx, site, map, null)
                     } else {
                         throw new Error("unhandled")
                     }
@@ -1363,12 +1381,13 @@ export class GenericType extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         return this
     }
 
@@ -1497,12 +1516,13 @@ export class GenericEnumMemberType extends GenericType {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         return this
     }
 
@@ -1558,13 +1578,13 @@ export class VoidType extends Common {
     }
 
     /**
-     *
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         return this
     }
 
@@ -1926,14 +1946,21 @@ export class FuncEntity extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {Typed[]} args
      * @param {{[name: string]: Typed}} namedArgs
      * @param {ViableCasts | undefined} viableCasts
      * @returns {Typed}
      */
-    call(site, args, namedArgs = {}, viableCasts = undefined) {
-        const type = this._type.checkCall(site, args, namedArgs, viableCasts)
+    call(ctx, site, args, namedArgs = {}, viableCasts = undefined) {
+        const type = this._type.checkCall(
+            ctx,
+            site,
+            args,
+            namedArgs,
+            viableCasts
+        )
 
         return type.toTyped()
     }

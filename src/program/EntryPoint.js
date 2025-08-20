@@ -14,12 +14,12 @@ import { ModuleCollection } from "./ModuleCollection.js"
 /**
  * @import { Site } from "@helios-lang/compiler-utils"
  * @import { SourceMappedStringI } from "@helios-lang/ir"
+ * @import { TypeSchema } from "@helios-lang/type-utils"
  * @import { UplcData } from "@helios-lang/uplc"
  * @import { Definitions, TypeCheckContext } from "../index.js"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
- * @typedef {import("../typecheck/index.js").TypeSchema} TypeSchema
  */
 
 /**

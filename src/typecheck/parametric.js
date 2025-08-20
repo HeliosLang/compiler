@@ -6,17 +6,19 @@ import {
     FuncType,
     GenericType,
     GenericEnumMemberType,
-    TypedEntity
+    TypedEntity,
+    AllType
 } from "./common.js"
 import { Parameter } from "./Parameter.js"
 import { BoolType, ByteArrayType, RawDataType } from "./primitives.js"
 
 /**
  * @import { Site } from "@helios-lang/compiler-utils"
+ * @import { TypeSchema } from "@helios-lang/type-utils"
+ * @import { TypeCheckContext } from "../index.js"
  */
 
 /**
- * @typedef {import("./common.js").TypeSchema} TypeSchema
  * @typedef {import("./common.js").GenericTypeProps} GenericTypeProps
  * @typedef {import("./common.js").GenericEnumMemberTypeProps} GenericEnumMemberTypeProps
  * @typedef {import("./common.js").EnumMemberType} EnumMemberType
@@ -49,12 +51,13 @@ export class GenericParametricType extends GenericType {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         if (type) {
             return this
         } else {
@@ -65,7 +68,7 @@ export class GenericParametricType extends GenericType {
                 }
             })
 
-            const props = this.applyInternal(site, map)
+            const props = this.applyInternal(ctx, site, map)
 
             return isMaybeParametric
                 ? new GenericParametricType(props)
@@ -89,12 +92,13 @@ export class GenericParametricEnumMemberType extends GenericEnumMemberType {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         if (type) {
             return this
         } else {
@@ -106,10 +110,10 @@ export class GenericParametricEnumMemberType extends GenericEnumMemberType {
             })
 
             const parentType = expectDefined(
-                this.parentType.infer(site, map, null).asDataType
+                this.parentType.infer(ctx, site, map, null).asDataType
             )
 
-            const partialProps = this.applyInternal(site, map)
+            const partialProps = this.applyInternal(ctx, site, map)
             /**
              * @type {GenericEnumMemberTypeProps}
              */
@@ -224,12 +228,13 @@ export class TypeClassImpl extends Common {
 
     /**
      * @internal
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         const p = expectDefined(
             this._parameter,
             "unable to infer dummy TypeClass instantiation"
@@ -634,14 +639,17 @@ class AppliedType extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
      * @param {null | Type} type
      * @returns {Type}
      */
-    infer(site, map, type) {
+    infer(ctx, site, map, type) {
         if (!type) {
-            const infered = this._types.map((t) => t.infer(site, map, null))
+            const infered = this._types.map((t) =>
+                t.infer(ctx, site, map, null)
+            )
 
             return new AppliedType(infered, this._apply, this._apply(infered))
         } else if (
@@ -649,7 +657,7 @@ class AppliedType extends Common {
             type._types.length == this._types.length
         ) {
             const infered = this._types.map((t, i) =>
-                t.infer(site, map, type._types[i])
+                t.infer(ctx, site, map, type._types[i])
             )
 
             const res = new AppliedType(
@@ -659,12 +667,13 @@ class AppliedType extends Common {
             )
 
             if (!res.isBaseOf(type)) {
-                throw makeTypeError(site, "unable to infer type")
+                ctx.errors.type(site, "unable to infer type")
             }
 
             return res
         } else {
-            throw makeTypeError(site, "unable to infer type")
+            ctx.errors.type(site, "unable to infer type")
+            return new AllType()
         }
     }
 
@@ -745,21 +754,23 @@ export class ParametricType extends Common {
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Type[]} types
      * @param {Site} site
      * @returns {EvalEntity}
      */
-    apply(types, site = makeDummySite()) {
+    apply(ctx, types, site = makeDummySite()) {
         if (types.length != this._parameters.length) {
-            throw makeTypeError(
+            ctx.errors.type(
                 site,
                 `expected ${this._parameters.length} type parameter(s), got ${types.length}`
             )
+            return new AllType()
         }
 
         this._parameters.forEach((p, i) => {
             if (!p.typeClass.isImplementedBy(types[i])) {
-                throw makeTypeError(
+                ctx.errors.type(
                     site,
                     `${types[i].toString()} doesn't implement ${p.typeClass.toString()}`
                 )
@@ -772,23 +783,27 @@ export class ParametricType extends Common {
 
     /**
      * Must infer before calling
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {Typed[]} args
      * @param {{[name: string]: Typed}} namedArgs
      * @param {Type[]} paramTypes - so that paramTypes can be accessed by caller
-     * @returns {Func}
+     * @returns {Func | undefined}
      */
-    inferCall(site, args, namedArgs = {}, paramTypes = []) {
-        throw makeTypeError(site, "not a parametric function")
+    inferCall(ctx, site, args, namedArgs = {}, paramTypes = []) {
+        ctx.errors.type(site, "not a parametric function")
+        return undefined
     }
 
     /**
+     * @param {TypeCheckContext} ctx
      * @param {Site} site
      * @param {InferenceMap} map
-     * @returns {Parametric}
+     * @returns {Parametric | undefined}
      */
-    infer(site, map) {
-        throw makeTypeError(site, "not a parametric function")
+    infer(ctx, site, map) {
+        ctx.errors.type(site, "not a parametric function")
+        return undefined
     }
 
     /**
