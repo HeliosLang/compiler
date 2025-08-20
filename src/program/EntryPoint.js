@@ -1,4 +1,4 @@
-import { makeWord } from "@helios-lang/compiler-utils"
+import { makeErrorCollector, makeWord } from "@helios-lang/compiler-utils"
 import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
@@ -249,9 +249,15 @@ export class EntryPointImpl {
      */
     get moduleDependencies() {
         const allModules = this.mainImportedModules
-        return this.mainModule
-            .filterDependencies(allModules)
+        const errors = makeErrorCollector()
+
+        const result = this.mainModule
+            .filterDependencies({ errors }, allModules)
             .map((m) => m.name.value)
+
+        errors.throw()
+
+        return result
     }
 
     /**

@@ -1,3 +1,4 @@
+import { makeErrorCollector } from "@helios-lang/compiler-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
 import { ConstStatement } from "../statements/index.js"
@@ -90,9 +91,15 @@ export class ModuleEntryPoint {
      * @type {string[]}
      */
     get moduleDependencies() {
-        return this.lastModule
-            .filterDependencies(this.nonLastModules)
+        const errors = makeErrorCollector()
+
+        const result = this.lastModule
+            .filterDependencies({ errors }, this.nonLastModules)
             .map((m) => m.name.value)
+
+        errors.throw()
+
+        return result
     }
 
     get mainFunc() {

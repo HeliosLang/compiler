@@ -1,7 +1,3 @@
-import {
-    makeReferenceError,
-    makeSyntaxError
-} from "@helios-lang/compiler-utils"
 import { ModuleScope, builtinNamespaces } from "../scopes/index.js"
 import {
     ConstStatement,
@@ -80,11 +76,12 @@ export class Module {
 
     /**
      * This module can depend on other modules
+     * @param {TypeCheckContext} ctx
      * @param {Module[]} modules
-     * @param {Module[]} stack
+     * @param {Module[]} [stack]
      * @returns {Module[]}
      */
-    filterDependencies(modules, stack = []) {
+    filterDependencies(ctx, modules, stack = []) {
         /**
          * @type {Module[]}
          */
@@ -102,9 +99,11 @@ export class Module {
                 let mn = s.moduleName.value
 
                 if (mn == this.name.value) {
-                    throw makeSyntaxError(s.site, "can't import self")
+                    ctx.errors.syntax(s.site, "can't import self")
+                    continue
                 } else if (stack.some((d) => d.name.value == mn)) {
-                    throw makeSyntaxError(s.site, "circular import detected")
+                    ctx.errors.syntax(s.site, "circular import detected")
+                    continue
                 }
 
                 // if already in deps, then don't add (because it will have been added before along with all its dependencies)
@@ -113,24 +112,23 @@ export class Module {
 
                     if (mn in builtinNamespaces) {
                         if (m) {
-                            throw makeSyntaxError(
+                            ctx.errors.syntax(
                                 m.name.site,
                                 "reserved module name"
                             )
+                            continue
                         } else {
                             continue
                         }
                     }
 
                     if (!m) {
-                        throw makeReferenceError(
-                            s.site,
-                            `module '${mn}' not found`
-                        )
+                        ctx.errors.reference(s.site, `module '${mn}' not found`)
+                        continue
                     } else {
                         // only add deps that weren't added before
                         let newDeps = m
-                            .filterDependencies(modules, newStack)
+                            .filterDependencies(ctx, modules, newStack)
                             .concat([m])
                             .filter(
                                 (d) =>

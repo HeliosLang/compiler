@@ -1,4 +1,7 @@
-import { makeReferenceError } from "@helios-lang/compiler-utils"
+import {
+    makeErrorCollector,
+    makeReferenceError
+} from "@helios-lang/compiler-utils"
 import {
     ToIRContext,
     applyTypeParameters,
@@ -274,9 +277,12 @@ export class ModuleCollection {
                     new VoidType().isBaseOf(fn.retType)) &&
                 !fn.typeParameters.hasParameters()
             ) {
+                const errors = makeErrorCollector()
                 const filteredImportedModules = m.filterDependencies(
+                    { errors },
                     this.nonMainModules
                 )
+                errors.throw()
                 const newEntryPoint = new UserFunc(
                     new ModuleCollection(filteredImportedModules.concat([m])),
                     fullName
@@ -298,9 +304,12 @@ export class ModuleCollection {
             const fullName = `${prefix}${cn.name.value}`
 
             if (isDataType(cn.type)) {
+                const errors = makeErrorCollector()
                 const filteredImportedModules = m.filterDependencies(
+                    { errors },
                     this.nonMainModules
                 )
+                errors.throw()
 
                 const newEntryPoint = new UserFunc(
                     new ModuleCollection(filteredImportedModules.concat([m])),

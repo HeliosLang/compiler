@@ -3,7 +3,7 @@
  * Mostyle used by @helios-lang/contract-utils
  */
 
-import { readHeader } from "@helios-lang/compiler-utils"
+import { makeErrorCollector, readHeader } from "@helios-lang/compiler-utils"
 import { collectParams, prepare as prepareIR } from "@helios-lang/ir"
 import { expectDefined } from "@helios-lang/type-utils"
 import { FuncArg } from "../expressions/index.js"
@@ -267,7 +267,13 @@ function analyzeValidator(
 function analyzeModule(m, validatorTypes, allModules, allTypes, allFunctions) {
     const name = m.name.value
 
-    const moduleDeps = m.filterDependencies(allModules).map((m) => m.name.value)
+    const errors = makeErrorCollector()
+    const moduleDeps = m
+        .filterDependencies({ errors }, allModules)
+        .map((m) => m.name.value)
+
+    errors.throw()
+
     const moduleTypes = allTypes[name]
     const moduleFunctions = allFunctions[name] ?? {}
 

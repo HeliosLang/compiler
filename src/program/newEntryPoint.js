@@ -105,7 +105,10 @@ function parseMain(mainSrc, moduleSrcs, errorCollector) {
         errorCollector
     )
 
-    const mainImports = modules[0].filterDependencies(imports)
+    const mainImports = modules[0].filterDependencies(
+        { errors: errorCollector },
+        imports
+    )
 
     /**
      * @type {Module[]}
@@ -114,7 +117,7 @@ function parseMain(mainSrc, moduleSrcs, errorCollector) {
 
     if (modules.length > 1) {
         postImports = modules[modules.length - 1]
-            .filterDependencies(imports)
+            .filterDependencies({ errors: errorCollector }, imports)
             .filter(
                 (m) => !mainImports.some((d) => d.name.value == m.name.value)
             )
