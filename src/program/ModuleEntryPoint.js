@@ -1,4 +1,5 @@
 import { makeErrorCollector } from "@helios-lang/compiler-utils"
+import { expectDefined } from "@helios-lang/type-utils"
 import { ToIRContext } from "../codegen/index.js"
 import { GlobalScope, TopScope } from "../scopes/index.js"
 import { ConstStatement } from "../statements/index.js"
@@ -28,10 +29,18 @@ export class ModuleEntryPoint {
     modules
 
     /**
+     * @private
+     * @readwrite`
+     * @type {TopScope | undefined}
+     */
+    topScope
+
+    /**
      * @param {ModuleCollection} modules
      */
     constructor(modules) {
         this.modules = modules
+        this.topScope = undefined
     }
 
     /**
@@ -124,7 +133,47 @@ export class ModuleEntryPoint {
      * @type {Record<string, Record<string, DataType>>}
      */
     get userTypes() {
-        throw new Error("not yet implemented")
+        const topScope = expectDefined(this.topScope)
+
+        /**
+         * @type {Record<string, Record<string, any>>}
+         */
+        const result = {}
+
+        const moduleNames = [this.mainModule.name].concat(
+            this.mainImportedModules.map((m) => m.name)
+        )
+
+        for (let moduleName of moduleNames) {
+            const module_ =
+                moduleName.value == this.name
+                    ? this.mainModule
+                    : expectDefined(
+                          this.mainImportedModules.find(
+                              (m) => m.name.value == moduleName.value
+                          ),
+                          `module ${moduleName.value} not found`
+                      )
+
+            /**
+             * @type {Record<string, any>}
+             */
+            const moduleTypes = {}
+
+            const moduleScope = topScope.getModuleScope(moduleName)
+
+            moduleScope.loopTypes((name, type) => {
+                if (module_.statements.some((s) => s.name.value == name)) {
+                    if (type?.asDataType) {
+                        moduleTypes[name] = type.asDataType
+                    }
+                }
+            })
+
+            result[moduleName.value] = moduleTypes
+        }
+
+        return result
     }
 
     /**
@@ -151,6 +200,7 @@ export class ModuleEntryPoint {
     evalTypes(ctx, scriptTypes) {
         const scope = GlobalScope.new({ scriptTypes, currentScript: this.name })
         const topScope = new TopScope(scope, true, ctx.errors)
+        this.topScope = topScope
         this.modules.evalTypes(ctx, topScope)
     }
 

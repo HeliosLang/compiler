@@ -4,7 +4,7 @@ import { expectDefined } from "@helios-lang/type-utils"
 import { TAB, ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
 import { Expr } from "./Expr.js"
-import { AnyType, DataEntity } from "../typecheck/common.js"
+import { AllType, AnyType, DataEntity } from "../typecheck/common.js"
 
 /**
  * @import { SymbolToken, Word } from "@helios-lang/compiler-utils"
@@ -157,7 +157,7 @@ export class BinaryExpr extends Expr {
                 `lhs of ${this._op.toString()} not an instance`
             )
 
-            return new DataEntity(new AnyType())
+            return new DataEntity(new AllType())
         }
 
         const b = b_.asInstance
@@ -167,7 +167,11 @@ export class BinaryExpr extends Expr {
                 `rhs of ${this._op.toString()} not an instance`
             )
 
-            return new DataEntity(new AnyType())
+            return new DataEntity(new AllType())
+        }
+
+        if (a.type instanceof AllType || b.type instanceof AllType) {
+            return new DataEntity(new AllType())
         }
 
         for (let swap of this.isCommutative() ? [false, true] : [false]) {
