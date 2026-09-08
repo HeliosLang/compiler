@@ -167,7 +167,7 @@ export class AssignExpr extends ChainExpr {
                 $(` {\n${ctx.indent}${TAB}`),
                 inner,
                 $(`\n${ctx.indent}}`),
-                $("(", this.site), // this is the call site
+                $("("), // generated binding application has no source expression
                 upstream,
                 $(")")
             ])

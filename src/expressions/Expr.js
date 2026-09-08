@@ -1,7 +1,7 @@
-import { makeTypeError } from "@helios-lang/compiler-utils"
+import { rememberDebugScope } from "./DebugScope.js"
 import { ToIRContext } from "../codegen/index.js"
 import { Scope } from "../scopes/index.js"
-import { AllType, AnyEntity, AnyType, DataEntity } from "../typecheck/common.js"
+import { AllType, AnyType, DataEntity } from "../typecheck/common.js"
 
 /**
  * @import { Site, Token } from "@helios-lang/compiler-utils"
@@ -69,6 +69,7 @@ export class Expr {
      * @returns {EvalEntity}
      */
     eval(ctx, scope) {
+        rememberDebugScope(ctx, this.site, scope)
         this.cache = this.evalInternal(ctx, scope)
 
         return this.cache

@@ -80,7 +80,8 @@ export class ChainExpr extends Expr {
      */
     toIR(ctx) {
         return $([
-            $("__core__chooseUnit(", this.site),
+            // Sequencing is generated machinery, not execution of the semicolon.
+            $("__core__chooseUnit("),
             this.upstreamExpr.toIR(ctx),
             $(", "),
             this.downstreamExpr.toIR(ctx),

@@ -1,12 +1,134 @@
 # Overview
+
 Topics covered in this document:
+ * Import/module syntax
  * Grammer of the Helios syntax
  * Token types generated during first stage of parsing
  * Operator precedence and associativity
  * Optimization steps when generating optimized IR
  * Complete list of builtin types and functions
 
+# Import/module syntax
+
+Although on-chain scripts should be simple, splitting code across multiple modules is needed. Due to Helios compiler being designed for in-memory usage without a file-system, individual scripts need to be named. 
+
+At the top a script is either a `validator` or a `module`
+
+The symbols in the scripts form a structure: `ScriptName::SymbolName` or even `ScriptName::SymbolName::PropName`
+
+Script names are global, and can contain multiple levels, eg `LibraryName::ModuleName::SymbolName`. This is similar to Java.
+
+Modules can be imported as a namespace: `import ModuleName` or `import LibraryName`. This imports all nested symbols. Duplicate symbols names aren't allowed and must be guarded against, but duplicate modules are allowed (i.e. multiple scripts respresenting symbols in the same module).
+
+Alternatively symbols can be imported with `import {} from ModulePath`.
+
+The language can include builtin modules, eg. `ScriptContext`
+
+# Compiler interface
+
+The compiler interface should remain constants across versions. One option is to make the compile function return a callback which compiles scripts. So:
+
+```ts
+interface Source {content: string, path: string}
+
+interface UplcScriptV3 {
+    version: 3, // each compiler only supports a single UplcScript versio
+    root: Uint8Array, // flat encoded Uplc terms, optionally wrapped in a sourcemap
+    verbose: Uint8Array // flat encoded Uplc terms, optionally wrapped in a sourcemap
+}
+
+type UplcData = {
+    readonly bytes: Uint8Array
+} | {
+    readonly int: bigint
+} | {
+    readonly list: readonly UplcData[]
+} | {
+    readonly map: readonly {k: UplcData, v: UplcData}[]
+} | {
+    readonly constructor: number,
+    readonly fields: readonly UplcData[]
+}
+
+type CompileOptions = {
+    compileFunctions?: boolea = false,
+    positionalParams?: string[] = [],
+    paramValues?: Record<string, UplcData> = {}
+}
+
+type compile = (
+    scripts: string | Source | string[] | Source[], 
+    options: CompileOptions = {}
+) => Record<string, UplcScript>
+```
+
+Validators will be located under `ScriptName` or `LibraryName::ScriptName`. Exported functions and constants will be located under `LibraryName::ScriptName::FunctionName` or `LibraryName::ScriptName::ConstantName` or even `LibraryName::ScriptName::StructName::PropName`.
+
+An `export` keyword makes sense to avoid automatic aggregate exports (simply dissallowing aggregate exports and enforcing that modules are accessed via their global path every time).
+
+# Functional vs OOP
+
+OOP allows the following:
+`tx.is_witnessed_by(witness)`
+
+Pure functional avoids member methods, so:
+
+`tx | Tx::is_witnessed_by(witness)`
+
+The latter is arguably less readable, although importing `is_witnessed_by` helps a bit:
+
+```
+import { is_witnessed_by } from Tx
+
+tx | is_witnessed_by(witness)
+```
+
+But in the functional case, how can `Tx` implement the `Data` type interface (i.e. include the static `from_data` and `from_data_safe` methods)?
+
+The non-extensibility of classes is a problem, but perhaps only for larger code-bases? But shouldn't third party libraries be given the same interface as the core library?
+
+What if the auto-generated methods are all accessed via special syntax? (eg. TypeName{...} for construction, `as[TypeName]` and `as_strict[TypeName]` are builtin functions, `copy` becomes a builtin polymorphic method, `serialize` becomes a builtin polymorphic method, `show` becomes a builtin polymorphic method).
+
+Periods are only used for property access.
+
+Example:
+```
+import * from Prelude // a Prelude module can be included in the library 
+import Policy as PolicyUtils
+import { own_policy } from ScriptContext
+import { is_witnessed_by } from TxUtils
+import { get_inline_datum } from UTxOUtils
+
+...
+
+witness = tx | find_input_with_token(AssetClass{own_policy, #"Admin"}) | UTxO::get_inline_datum[Witness]
+
+tx | is_witnessed_by(witness) | tee(show_print) | fail_if_false("Tx not witnessed by expected witness ${witness}")
+
+...
+
+func tee[V](callback: (V) -> ()) -> (v: V) -> V {
+    callback(v)
+
+    v
+} 
+
+func show[V](v: V) -> String {
+    <internal>
+}
+
+func print[V](v: V) -> () {
+    <internal>
+}
+
+func show_print[V](v: V) -> () {
+    print(show(v))
+}
+```
+
+
 # Grammar
+
 ```
 Program ::= ScriptPurpose Statement (Statement)*
 

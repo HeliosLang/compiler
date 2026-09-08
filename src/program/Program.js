@@ -4,24 +4,15 @@ import { compile as compileIR } from "@helios-lang/ir"
 import { expectDefined, isDefined } from "@helios-lang/type-utils"
 import { ToIRContext, genExtraDefs } from "../codegen/index.js"
 import { IR_PARSE_OPTIONS } from "../parse/index.js"
-import {
-    ConstStatement,
-    EnumStatement,
-    FuncStatement,
-    StructStatement
-} from "../statements/index.js"
-import { VoidType, isDataType } from "../typecheck/index.js"
 import { newEntryPoint } from "./newEntryPoint.js"
-import { MainModule } from "./MainModule.js"
-import { Module } from "./Module.js"
 import { ModuleCollection } from "./ModuleCollection.js"
 import { UserFunc } from "./UserFunc.js"
+import { compileDebugExpression } from "./DebugExpression.js"
 
 /**
  * @import { ErrorCollector, Source } from "@helios-lang/compiler-utils"
- * @import { OptimizeOptions, ParseOptions, SourceMappedStringI } from "@helios-lang/ir"
- * @import { UplcData, UplcValue, UplcProgramV2 } from "@helios-lang/uplc"
- * @import { Definitions } from "../index.js"
+ * @import { OptimizeOptions, SourceMappedStringI } from "@helios-lang/ir"
+ * @import { UplcData, UplcProgramV2 } from "@helios-lang/uplc"
  * @typedef {import("../typecheck/index.js").DataType} DataType
  * @typedef {import("../typecheck/index.js").ScriptTypes} ScriptTypes
  * @typedef {import("../typecheck/index.js").Type} Type
@@ -65,6 +56,14 @@ export const DEFAULT_PROGRAM_PROPS = {
  * Helios root object
  */
 export class Program {
+    /**
+     * @param {string} expression
+     * @param {{file: string, line: number, column: number}} location Zero-based coordinates.
+     * @param {string[]} names Runtime environment binding names, in argument order.
+     */
+    compileDebugExpression(expression, location, names) {
+        return compileDebugExpression(this, expression, location, names)
+    }
     /**
      * @readonly
      * @type {ProgramProps}

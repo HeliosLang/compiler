@@ -443,9 +443,7 @@ describe(Program.name, () => {
                     "at MyStruct::fn3 (helios:m:25:32) [a=3]",
                     "at fn2 (helios:m:30:26) [a=2]",
                     "at fn1 (helios:m:34:16) [a=1]",
-                    "at <assign> (helios:m:39:16) [b=0]",
-                    "at <assign> (helios:m:38:24) [a=0]",
-                    "at main (helios:m:38:15) [arg0=(I 1), a=1]"
+                    "at <assign> (helios:m:39:16) [arg0=(I 1), a=1, a=0, b=0]"
                 ]
 
                 // Note: these tests can easily fail upon minor changes of the compiler, which is fine: simply verify that the stack trace is still sensible and rewrite some of these checks
